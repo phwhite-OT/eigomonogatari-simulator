@@ -49,6 +49,8 @@ jobs:
       - name: Restore saved metagame results
         shell: bash
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin metagame-results || true
           if git show-ref --verify --quiet refs/remotes/origin/metagame-results; then
             git switch --create metagame-results --track origin/metagame-results
