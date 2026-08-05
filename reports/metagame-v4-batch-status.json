@@ -1,8 +1,8 @@
 {
   "status": "paused",
   "startedAt": "2026-08-05T12:12:35.400Z",
-  "updatedAt": "2026-08-05T13:04:34.146Z",
-  "pausedAt": "2026-08-05T13:04:34.146Z",
+  "updatedAt": "2026-08-05T16:16:34.395Z",
+  "pausedAt": "2026-08-05T16:16:34.395Z",
   "pauseReason": "Stopped after 1 task(s) due to max-tasks.",
   "config": {
     "attributeGroups": [
@@ -57,9 +57,10 @@
     "modelVersion": "iterative-metagame-v4-continuation-carryover"
   },
   "totalRuns": 280,
-  "completedRuns": 1,
+  "completedRuns": 2,
   "completedTaskIds": [
-    "1:fire:100:1"
+    "1:fire:100:1",
+    "1:fire:100:2"
   ],
   "current": null
 }
