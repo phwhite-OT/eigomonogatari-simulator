@@ -6,7 +6,7 @@ import {
   resolveLightestEnemy,
   simulateLightestStage,
 } from "../src/core/lightest.js";
-import { solveExactLightestStage } from "../src/core/lightest-exact.js";
+import { findExactLightestDeck, solveExactLightestStage } from "../src/core/lightest-exact.js";
 import { createManualCharacter } from "../src/data/characters.js";
 
 function character(id, cost, pow = 100, skill = { type: "none" }) {
@@ -375,6 +375,29 @@ test("安全な枝刈りは残ターンに収まらない盤面とダメージ�
   assert.equal(capacityLimited.exactSearch.prunedStates.enemyCapacity, 1);
 });
 
+
+test("並び替え前の安全な火力上限で不可能な組合せを除外する", async () => {
+  const attacker = character("upper-bound-attacker", 1, 0);
+  const reviver = character("upper-bound-reviver", 1, 0, {
+    type: "revive",
+    multiplier: 0.5,
+    target: "ally_all",
+  });
+  const enemy = resolveLightestEnemy(character("upper-bound-enemy", 0, 0), { hp: 100 });
+
+  const result = await findExactLightestDeck([attacker, reviver], {
+    enemies: [enemy],
+    maxCost: 2,
+    targetCost: 2,
+    deckSize: 2,
+    requiredLastSkillType: "revive",
+  });
+
+  assert.equal(result.foundThreeStar, false);
+  assert.equal(result.simulatedDeckCount, 0);
+  assert.ok(result.generatedCombinationCount > 0);
+  assert.equal(result.prePrunedCombinationCount, result.generatedCombinationCount);
+});
 
 test("standard lightest search skips half answers unless explicitly enabled", () => {
   const deck = Array.from({ length: 5 }, (_, index) => character("answer-ally-" + index, 1, 10));

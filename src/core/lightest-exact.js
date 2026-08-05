@@ -302,16 +302,24 @@ function exactReadyIntents(state, phaseTypes, used) {
   return intents;
 }
 
+function exactOrderSensitiveBuff(buff) {
+  return ["guard", "attribute_guard", "attribute_change"].includes(buff.type);
+}
+
 function exactBuffKey(buff) {
   return [
     buff.type,
     buff.multiplier,
     buff.hits,
     buff.remainingTurns,
-    buff.activationOrder,
+    exactOrderSensitiveBuff(buff) ? buff.activationOrder : 0,
     (buff.attributes ?? []).join(","),
     JSON.stringify(buff.conditions ?? []),
   ];
+}
+
+function exactCanonicalBuffKeys(buffs) {
+  return buffs.map(exactBuffKey).map(JSON.stringify).sort();
 }
 
 function exactUnitKey(unit) {
@@ -326,18 +334,17 @@ function exactUnitKey(unit) {
     unit.skillUses,
     unit.lane ?? -1,
     unit.attributes.join(","),
-    unit.buffs.map(exactBuffKey),
+    exactCanonicalBuffKeys(unit.buffs),
   ];
 }
 
 function exactStateKey(state) {
   return JSON.stringify([
     state.turn,
-    state.nextEffectOrder,
     state.defeatedEnemies,
     state.allies.map(exactUnitKey),
     state.enemies.map(exactUnitKey),
-    state.enemyLaneBuffs.map((buffs) => buffs.map(exactBuffKey)),
+    state.enemyLaneBuffs.map(exactCanonicalBuffKeys),
     state.enemyQueue.map((character) => String(character.id)),
   ]);
 }
@@ -836,6 +843,12 @@ function exactImpossibleReason(state, options) {
   return exactRemainingDamageUpperBound(state, options) < remainingEnemyHp ? "damageUpperBound" : null;
 }
 
+function exactInitialDeckImpossibleReason(deck, enemies, options) {
+  const state = exactCreateState(deck, enemies, options);
+  exactSpawn(state);
+  return exactImpossibleReason(state, options);
+}
+
 function exactAssumptions() {
   return [
     "総コストの低い到達可能値から順に、候補圧縮せず全デッキ・全配置を探索",
@@ -1236,6 +1249,7 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
     : attainableCosts.filter((cost) => cost === normalizedStage.targetCost))
     .filter((cost) => (combinationCountsByCost.get(cost) ?? 0) > 0);
   let generatedCombinations = 0;
+  let prePrunedCombinationCount = 0;
   let simulatedDeckCount = 0;
   const winners = [];
   let searchedThroughCost = normalizedStage.targetCost;
@@ -1254,6 +1268,19 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
     )) {
       if (!exactDeckHasRequiredLastSkill(combination, normalizedStage.requiredLastSkillType)) continue;
       generatedCombinations += 1;
+      const initialImpossibleReason = exactInitialDeckImpossibleReason(
+        combination,
+        normalizedStage.enemies,
+        {
+          ...options,
+          maxTurns: normalizedStage.maxTurns,
+          eventBonusIds: normalizedStage.eventBonusIds ?? [],
+        },
+      );
+      if (initialImpossibleReason) {
+        prePrunedCombinationCount += 1;
+        continue;
+      }
       for (const deck of exactUniquePermutations(combination, {
         requiredLastSkillType: normalizedStage.requiredLastSkillType,
         orderByHpDescending: normalizedStage.orderByHpDescending,
@@ -1311,6 +1338,7 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
     availableCharacterCount: available.length,
     generatedDeckCount: simulatedDeckCount,
     generatedCombinationCount: generatedCombinations,
+    prePrunedCombinationCount,
     simulatedDeckCount,
     searchedThroughCost,
     targetCost: normalizedStage.targetCost,
