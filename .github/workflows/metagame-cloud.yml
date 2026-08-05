@@ -8,10 +8,10 @@ on:
       - .github/workflows/metagame-cloud.yml
   workflow_dispatch:
     inputs:
-      max_tasks:
-        description: Number of metagame tasks to run before saving progress
+      max_constraints:
+        description: Number of attribute and cost constraints to complete before saving progress
         required: false
-        default: "10"
+        default: "1"
         type: string
       workers:
         description: Parallel workers per task (2 is appropriate for GitHub-hosted runners)
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     env:
-      METAGAME_MAX_TASKS: ${{ inputs.max_tasks || '10' }}
+      METAGAME_MAX_CONSTRAINTS: ${{ inputs.max_constraints || '1' }}
       METAGAME_WORKERS: ${{ inputs.workers || '2' }}
     steps:
       - name: Check out source
@@ -69,7 +69,7 @@ jobs:
             --status=reports/metagame-v4-batch-status.json \
             --output-root=reports/metagame-ratings-v4 \
             --prior-output-root=reports/metagame-ratings-v4-prior-empty \
-            --max-tasks="$METAGAME_MAX_TASKS" \
+            --max-constraints="$METAGAME_MAX_CONSTRAINTS" \
             --first-scenarios=4 \
             --final-scenarios=30 \
             --finalists=40 \

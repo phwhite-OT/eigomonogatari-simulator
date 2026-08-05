@@ -84,6 +84,7 @@ const finalists = Math.max(1, Math.floor(Number(readArgument("finalists", "40"))
 const turns = Math.min(12, Math.max(1, Number(readArgument("turns", "12")) || 12));
 const workers = Math.max(1, Number(readArgument("workers", "6")) || 6);
 const maxTasks = Math.max(0, Math.floor(Number(readArgument("max-tasks", "0")) || 0));
+const maxConstraints = Math.max(0, Math.floor(Number(readArgument("max-constraints", "0")) || 0));
 const initialCompleted = new Set(parseList(readArgument("completed", "")));
 const tasks = buildMetagameBatchTasks({ attributeGroups, costs, positions, passes });
 const taskIds = new Set(tasks.map((task) => task.id));
@@ -113,10 +114,14 @@ console.log(`Metagame batch: ${completedTaskIds.size}/${tasks.length} runs alrea
 
 let currentTask = null;
 let completedThisRun = 0;
+const completedConstraintIdsThisRun = new Set();
 
 try {
   for (const task of tasks) {
     if (completedTaskIds.has(task.id)) continue;
+    const startsNewConstraint = !completedConstraintIdsThisRun.has(task.constraintId);
+    if (startsNewConstraint && maxConstraints && completedConstraintIdsThisRun.size >= maxConstraints) break;
+    completedConstraintIdsThisRun.add(task.constraintId);
     currentTask = task;
     const status = {
       status: "running",
@@ -169,19 +174,22 @@ try {
     console.log("All " + tasks.length + " metagame runs completed.");
   } else {
     const pausedAt = new Date().toISOString();
+    const pauseReason = maxConstraints
+      ? "Stopped after " + completedThisRun + " task(s) across " + completedConstraintIdsThisRun.size + " constraint(s) due to max-constraints."
+      : "Stopped after " + completedThisRun + " task(s) due to max-tasks.";
     await writeStatus({
       status: "paused",
       startedAt,
       updatedAt: pausedAt,
       pausedAt,
-      pauseReason: "Stopped after " + completedThisRun + " task(s) due to max-tasks.",
+      pauseReason,
       config,
       totalRuns: tasks.length,
       completedRuns: completedTaskIds.size,
       completedTaskIds: [...completedTaskIds],
       current: null,
     });
-    console.log("Stopped after " + completedThisRun + " metagame task(s).");
+    console.log(pauseReason);
   }
 } catch (error) {
   await writeStatus({
