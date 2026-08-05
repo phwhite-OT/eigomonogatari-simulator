@@ -1,0 +1,23 @@
+{
+  "status": "paused",
+  "supervisorProcessId": 32476,
+  "childProcessId": null,
+  "updatedAt": "2026-08-05T12:27:29.764Z",
+  "restartCount": 1,
+  "maxTaskRetries": 5,
+  "current": {
+    "allowedAttributes": [
+      "fire"
+    ],
+    "attributeKey": "fire",
+    "cost": 100,
+    "position": 1,
+    "pass": 1,
+    "constraintId": "fire:100",
+    "id": "1:fire:100:1"
+  },
+  "completedRuns": 0,
+  "totalRuns": 280,
+  "pausedAt": "2026-08-05T12:27:29.764Z",
+  "pauseReason": "Paused by user to prioritize lightest-deck search."
+}

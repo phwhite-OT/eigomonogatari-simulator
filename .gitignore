@@ -1,0 +1,10 @@
+node_modules/
+cloud-data/
+reports/*
+!reports/metagame-v4-batch-status.json
+!reports/metagame-v4-supervisor-status.json
+!reports/metagame-v4-active.json
+!reports/metagame-ratings-v4/
+!reports/metagame-ratings-v4/**
+__pycache__/
+*.py[cod]

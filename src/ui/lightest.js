@@ -1,0 +1,512 @@
+import { attributeClassLabel } from "../data/rules.js";
+import {
+  findLightestDeck,
+  resolveLightestEnemy,
+} from "../core/lightest.js";
+
+function lightestElement(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function lightestPercent(value) {
+  return `${(Number(value) * 100).toFixed(1)}%`;
+}
+
+function splitValues(value) {
+  return [...new Set(String(value ?? "").split(/[、,\n]/).map((item) => item.trim()).filter(Boolean))];
+}
+
+const LIGHTEST_SKILL_LABELS = Object.freeze({
+  attack_buff: "攻撃強化",
+  damage_reduction: "ダメージ軽減",
+  guard: "かばう",
+  attribute_guard: "色かばう",
+  heal: "回復",
+  revive: "蘇生",
+  attribute_change: "属性変更",
+  skill_reduction: "スキル短縮",
+  delay: "遅延",
+  aoe_attack: "全体攻撃",
+  multi_hit_attack: "連続攻撃",
+  continuous_heal: "継続回復",
+});
+
+const LIGHTEST_TARGET_LABELS = Object.freeze({
+  self: "自身",
+  ally_all: "味方全員",
+  enemy_one: "敵1体",
+  enemy_all: "敵全体",
+});
+
+const LIGHTEST_ATTRIBUTE_LABELS = Object.freeze({ fire: "火", water: "水", wind: "風", all: "全" });
+
+const LIGHTEST_DIFFICULTY_LABELS = Object.freeze({
+  plum: "梅（Lv1）",
+  bamboo: "竹（無凸LvMAX）",
+  pine: "松（完凸LvMAX）",
+});
+
+function lightestSkillDetail(event) {
+  const skill = event.skill ?? {};
+  const details = [];
+  if (skill.target) details.push(`対象: ${LIGHTEST_TARGET_LABELS[skill.target] ?? skill.target}`);
+  if (Number(skill.amount) > 0) details.push(`効果量: ${skill.amount}`);
+  if (Number(skill.multiplier) !== 1 && Number.isFinite(Number(skill.multiplier))) details.push(`倍率: ${skill.multiplier}`);
+  if (Number(skill.hits) > 1) details.push(`ヒット数: ${skill.hits}`);
+  if (Number(skill.duration) > 1) details.push(`継続: ${skill.duration}ターン`);
+  const changedAttributes = (skill.effects ?? []).flatMap((effect) => effect.attribute ? [effect.attribute] : []);
+  if (changedAttributes.length) details.push(`変更先: ${changedAttributes.map((attribute) => LIGHTEST_ATTRIBUTE_LABELS[attribute] ?? attribute).join("・")}`);
+  const label = event.skillName || LIGHTEST_SKILL_LABELS[event.skillType] || "スキル";
+  return `${event.actorName}［${label}］${details.length ? `（${details.join("・")}）` : ""}`;
+}
+
+function characterDisplay(character) {
+  return `${character.name}｜${character.id}`;
+}
+
+function createCharacterResolver(characters) {
+  const byId = new Map(characters.map((character) => [String(character.id), character]));
+  const byDisplay = new Map(characters.map((character) => [characterDisplay(character), character]));
+  const byName = new Map();
+  characters.forEach((character) => {
+    const entries = byName.get(character.name) ?? [];
+    entries.push(character);
+    byName.set(character.name, entries);
+  });
+  return (value) => {
+    const normalized = String(value ?? "").trim();
+    if (!normalized) return { character: null };
+    if (byId.has(normalized)) return { character: byId.get(normalized) };
+    if (byDisplay.has(normalized)) return { character: byDisplay.get(normalized) };
+    const named = byName.get(normalized) ?? [];
+    if (named.length === 1) return { character: named[0] };
+    if (named.length > 1) return { error: `「${normalized}」は同名キャラが複数います。候補一覧からID付きの項目を選んでください。` };
+    return { error: `「${normalized}」に一致するキャラがありません。` };
+  };
+}
+
+function lightestEnemyRow(index) {
+  const row = lightestElement("div", "lightest-enemy-row");
+  row.dataset.lightestEnemyRow = "";
+  row.append(
+    lightestElement("span", "lightest-enemy-order", String(index + 1)),
+  );
+  const character = document.createElement("input");
+  character.type = "text";
+  character.setAttribute("list", "lightest-character-list");
+  character.placeholder = "敵キャラ名を入力";
+  character.dataset.lightestEnemyCharacter = "";
+  const hp = document.createElement("input");
+  hp.type = "number";
+  hp.min = "1";
+  hp.step = "1";
+  hp.placeholder = "HP自動";
+  hp.dataset.lightestEnemyHp = "";
+  const power = document.createElement("input");
+  power.type = "number";
+  power.min = "0";
+  power.step = "1";
+  power.placeholder = "Power自動";
+  power.dataset.lightestEnemyPower = "";
+  const resolved = lightestElement("p", "lightest-enemy-resolved", "キャラを選ぶと探索に使う敵ステータスを表示します。");
+  resolved.dataset.lightestEnemyResolved = "";
+  const remove = lightestElement("button", "lightest-enemy-remove", "×");
+  remove.type = "button";
+  remove.setAttribute("aria-label", `${index + 1}番目の敵を削除`);
+  remove.addEventListener("click", () => row.remove());
+  row.append(character, hp, power, remove, resolved);
+  return row;
+}
+
+function renderResolvedEnemyStats(row, resolveCharacter, difficulty) {
+  const output = row.querySelector("[data-lightest-enemy-resolved]");
+  const value = row.querySelector("[data-lightest-enemy-character]").value;
+  if (!value.trim()) {
+    output.textContent = "キャラを選ぶと探索に使う敵ステタスを表示します。";
+    output.classList.remove("is-error");
+    return;
+  }
+  const resolved = resolveCharacter(value);
+  if (resolved.error) {
+    output.textContent = resolved.error;
+    output.classList.add("is-error");
+    return;
+  }
+  const hpInput = row.querySelector("[data-lightest-enemy-hp]").value;
+  const powerInput = row.querySelector("[data-lightest-enemy-power]").value;
+  const automatic = resolveLightestEnemy(resolved.character, { difficulty });
+  const enemy = resolveLightestEnemy(resolved.character, {
+    difficulty,
+    hp: hpInput || undefined,
+    pow: powerInput || undefined,
+  });
+  const source = resolved.character.source;
+  const sourceLabel = source?.sheet && source?.row ? `・元データ ${source.sheet} ${source.row}行` : "";
+  const overrides = [];
+  if (hpInput) overrides.push("HP上書き");
+  if (powerInput) overrides.push("Power上書き");
+  output.textContent = [
+    `自動値 ${LIGHTEST_DIFFICULTY_LABELS[difficulty]}: HP ${automatic.hp} / Power ${automatic.pow}`,
+    overrides.length ? `→ 使用値: HP ${enemy.hp} / Power ${enemy.pow}（${overrides.join("・")}）` : "",
+    `竹: ${automatic.sourceStats.bambooHp} / ${automatic.sourceStats.bambooPow}`,
+    `松: ${automatic.sourceStats.pineHp} / ${automatic.sourceStats.pinePow}${sourceLabel}`,
+  ].filter(Boolean).join(" ｜ ");
+  output.classList.remove("is-error");
+}
+
+function renderResolvedEnemyList(enemies) {
+  const details = lightestElement("details", "lightest-enemy-audit");
+  details.append(lightestElement("summary", "", "敵ステータスの採用値を見る"));
+  const list = lightestElement("ol", "");
+  enemies.forEach((enemy, index) => {
+    const source = enemy.source;
+    const sourceLabel = source?.sheet && source?.row ? `（元データ: ${source.sheet} ${source.row}行）` : "";
+    const stages = enemy.sourceStats ?? {};
+    list.append(lightestElement(
+      "li",
+      "",
+      `${index + 1}. ${enemy.name}: 使用 HP ${enemy.hp} / Power ${enemy.pow} ｜ 竹 ${stages.bambooHp} / ${stages.bambooPow} ｜ 松 ${stages.pineHp} / ${stages.pinePow}${sourceLabel}`,
+    ));
+  });
+  details.append(list);
+  return details;
+}
+
+function renumberEnemyRows(container) {
+  [...container.querySelectorAll("[data-lightest-enemy-row]")].forEach((row, index) => {
+    row.querySelector(".lightest-enemy-order").textContent = String(index + 1);
+    row.querySelector(".lightest-enemy-remove").setAttribute("aria-label", `${index + 1}番目の敵を削除`);
+  });
+}
+
+function renderLightestMessage(root, message, error = false) {
+  root.replaceChildren(lightestElement(
+    "section",
+    `lightest-message${error ? " is-error" : ""}`,
+    message,
+  ));
+}
+
+function renderLightestTurn(turn, deckSize) {
+  const item = lightestElement("li", "lightest-turn-item");
+  const header = lightestElement("div", "lightest-turn-heading");
+  header.append(
+    lightestElement("strong", "", `${turn.turn}問目`),
+    lightestElement("span", "", `味方生存 ${turn.aliveAllies}/${deckSize}・敵撃破累計 ${turn.defeatedEnemies}`),
+  );
+  const details = [];
+  if (turn.spawned.length) details.push(`出現: ${turn.spawned.join("、")}`);
+  if (turn.answerLabel) details.push(`回答: ${turn.answerLabel}`);
+  const targetAssignments = turn.targetAssignments ?? [];
+  if (targetAssignments.length) {
+    details.push(`ターゲット指定: ${targetAssignments.map((assignment) => (
+      `P${assignment.allyIndex + 1} ${assignment.actorName} → ${assignment.targetName}`
+    )).join(" / ")}`);
+  }
+  const actualAttacks = turn.attacks
+    .filter((action) => action.side === "allies")
+    .flatMap((action) => {
+      const targets = [...new Set(action.hits.map((hit) => hit.targetName))];
+      return targets.length
+        ? [`P${(action.actorIndex ?? 0) + 1} ${action.actorName} → ${targets.join("、")}`]
+        : [];
+    });
+  if (actualAttacks.length) details.push(`実際の攻撃対象: ${actualAttacks.join(" / ")}`);
+  const allySkills = turn.skills.filter((event) => event.side === "allies");
+  const enemySkills = turn.skills.filter((event) => event.side === "enemies");
+  if (allySkills.length) details.push(`使用スキル: ${allySkills.map(lightestSkillDetail).join(" / ")}`);
+  if (enemySkills.length) details.push(`敵スキル: ${enemySkills.map(lightestSkillDetail).join(" / ")}`);
+  const defeated = turn.attacks.flatMap((action) => action.hits.filter((hit) => hit.defeated).map((hit) => hit.targetName));
+  if (defeated.length) details.push(`撃破: ${[...new Set(defeated)].join("、")}`);
+  if (turn.becameGhosts.length) details.push(`幽霊化: ${turn.becameGhosts.join("、")}`);
+  if (turn.revives.length) details.push(`蘇生: ${turn.revives.map((event) => event.targetName).join("、")}`);
+  const list = lightestElement("ul", "");
+  details.forEach((detail) => list.append(lightestElement("li", "", detail)));
+  item.append(header, list);
+  return item;
+}
+
+function renderLightestResult(result, rank) {
+  const card = lightestElement("article", `lightest-result-card${result.threeStar ? " is-cleared" : ""}`);
+  const header = lightestElement("header", "lightest-result-header");
+  const title = lightestElement("div", "");
+  title.append(
+    lightestElement("span", "lightest-result-rank", result.threeStar ? `三冠デッキ ${rank}` : `参考候補 ${rank}`),
+    lightestElement("h3", "", result.threeStar ? `総コスト ${result.totalCost}` : "三冠条件未達"),
+  );
+  const badges = lightestElement("div", "lightest-result-badges");
+  badges.append(
+    lightestElement("span", result.cleared ? "is-ok" : "is-ng", result.cleared ? "クリア" : "未クリア"),
+    lightestElement("span", result.allSurvived ? "is-ok" : "is-ng", result.allSurvived ? "全員生存" : "生存条件未達"),
+    lightestElement("span", "", `${result.turnsCompleted}問`),
+  );
+  header.append(title, badges);
+  const deck = lightestElement("div", "lightest-deck-grid");
+  deck.style.gridTemplateColumns = `repeat(${Math.min(5, result.deck.length)}, minmax(0, 1fr))`;
+  result.deck.forEach((character, index) => {
+    const slot = lightestElement("article", "lightest-deck-slot");
+    slot.append(
+      lightestElement("span", "", String(index + 1)),
+      lightestElement("strong", "", character.name),
+      lightestElement("small", "", `${attributeClassLabel(character.attributes)}・${character.rarity}・cost ${character.cost}`),
+      lightestElement("p", "", character.skillName || "スキルなし"),
+    );
+    deck.append(slot);
+  });
+  const metrics = lightestElement("div", "lightest-result-metrics");
+  metrics.append(
+    lightestElement("span", "", `撃破 ${result.final.defeatedEnemies}/${result.enemies.length}`),
+    lightestElement("span", "", `残HP率 ${lightestPercent(result.final.allyHpRatio)}`),
+    lightestElement("span", "", `幽霊 ${result.final.ghosts}体`),
+    lightestElement("span", "", `探索状態 ${result.exactSearch?.visitedStates?.toLocaleString("ja-JP") ?? 0}`),
+  );
+  const audit = lightestElement("details", "lightest-turn-audit");
+  audit.open = true;
+  audit.append(lightestElement("summary", "", "推奨プレイ手順（回答・5人別ターゲット・スキル）"));
+  const turns = lightestElement("ol", "");
+  result.history.forEach((turn) => turns.append(renderLightestTurn(turn, result.deck.length)));
+  audit.append(turns);
+  card.append(header, metrics, deck, renderResolvedEnemyList(result.enemies), audit);
+  return card;
+}
+
+function lightestSearchSummary(searchResult) {
+  const targetCost = Number.isInteger(searchResult.targetCost) ? searchResult.targetCost : null;
+  if (!searchResult.foundThreeStar) {
+    return targetCost === null
+      ? `最大指定コスト ${searchResult.stage.maxCost} まで完全探索して三冠デッキなし`
+      : `指定コスト ${targetCost} を完全探索して三冠デッキなし`;
+  }
+  return targetCost === null
+    ? `総コスト ${searchResult.searchedThroughCost} が厳密な最小値。最初の三冠デッキで探索を終了`
+    : `指定コスト ${targetCost} で三冠デッキを発見。最初の1件で探索を終了`;
+}
+
+function renderLightestResults(root, searchResult) {
+  root.replaceChildren();
+  const overview = lightestElement("section", "lightest-result-overview");
+  overview.append(
+    lightestElement("strong", "", lightestSearchSummary(searchResult)),
+    lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証`),
+  );
+  root.append(overview);
+  searchResult.results.forEach((result, index) => root.append(renderLightestResult(result, index + 1)));
+  const assumptions = lightestElement("details", "lightest-assumptions");
+  assumptions.append(lightestElement("summary", "", "現在の再現ルールと前提を見る"));
+  const list = lightestElement("ul", "");
+  searchResult.assumptions.forEach((assumption) => list.append(lightestElement("li", "", assumption)));
+  assumptions.append(list);
+  root.append(assumptions);
+}
+
+export function initializeLightest(root, characters) {
+  const form = root.querySelector("[data-lightest-form]");
+  const enemyRows = root.querySelector("[data-lightest-enemy-rows]");
+  const addEnemy = root.querySelector("[data-lightest-add-enemy]");
+  const submit = root.querySelector("[data-lightest-submit]");
+  const cancel = root.querySelector("[data-lightest-cancel]");
+  const progress = root.querySelector("[data-lightest-progress]");
+  const progressLabel = progress.querySelector("[data-lightest-progress-label]");
+  const progressValue = progress.querySelector("[data-lightest-progress-value]");
+  const progressBar = progress.querySelector("[data-lightest-progress-bar]");
+  const overallProgressLabel = progress.querySelector("[data-lightest-overall-label]");
+  const overallProgressValue = progress.querySelector("[data-lightest-overall-value]");
+  const overallProgressBar = progress.querySelector("[data-lightest-overall-bar]");
+  const costProgressLabel = progress.querySelector("[data-lightest-cost-label]");
+  const costProgressValue = progress.querySelector("[data-lightest-cost-value]");
+  const costProgressBar = progress.querySelector("[data-lightest-cost-bar]");
+  const results = root.querySelector("[data-lightest-results]");
+  const datalist = root.querySelector("#lightest-character-list");
+  const sortByHp = root.querySelector("[data-lightest-sort-hp]");
+  const sortByHpStatus = root.querySelector("[data-lightest-sort-hp-status]");
+  let orderByHpDescending = false;
+  let activeCharacters = characters;
+  let resolveCharacter = createCharacterResolver(activeCharacters);
+  let abortController = null;
+
+  const setCharacters = (nextCharacters) => {
+    activeCharacters = Array.isArray(nextCharacters) ? nextCharacters : [];
+    resolveCharacter = createCharacterResolver(activeCharacters);
+    const optionsFragment = document.createDocumentFragment();
+    activeCharacters.forEach((character) => {
+      const option = document.createElement("option");
+      option.value = characterDisplay(character);
+      option.label = `${attributeClassLabel(character.attributes)}・${character.rarity}・cost ${character.cost}`;
+      optionsFragment.append(option);
+    });
+    datalist.replaceChildren(optionsFragment);
+  };
+  setCharacters(characters);
+  for (let index = 0; index < 5; index += 1) enemyRows.append(lightestEnemyRow(index));
+  const refreshResolvedEnemyStats = () => {
+    const difficulty = form.elements.lightestDifficulty.value;
+    [...enemyRows.querySelectorAll("[data-lightest-enemy-row]")].forEach((row) => {
+      renderResolvedEnemyStats(row, resolveCharacter, difficulty);
+    });
+  };
+  refreshResolvedEnemyStats();
+  const setHpSort = (enabled) => {
+    orderByHpDescending = enabled;
+    sortByHp.setAttribute("aria-pressed", String(enabled));
+    sortByHp.classList.toggle("is-active", enabled);
+    sortByHp.querySelector("span").textContent = enabled ? "HP順を適用中" : "HPが高い順に並べる";
+    sortByHpStatus.textContent = enabled
+      ? "最初の枠から最後の直前までをHP降順に固定します。最後の枠は蘇生です。"
+      : "必要なときだけ押してください。オンにすると、最後の蘇生枠を除いてHPの高い順に固定し、同HPの並びだけを完全探索します。";
+  };
+  sortByHp.addEventListener("click", () => setHpSort(!orderByHpDescending));
+  renderLightestMessage(results, "敵を出現順に設定すると、三冠できる最小コストデッキを探索します。");
+
+  addEnemy.addEventListener("click", () => {
+    enemyRows.append(lightestEnemyRow(enemyRows.children.length));
+    renumberEnemyRows(enemyRows);
+    refreshResolvedEnemyStats();
+  });
+  enemyRows.addEventListener("click", () => queueMicrotask(() => renumberEnemyRows(enemyRows)));
+  enemyRows.addEventListener("input", refreshResolvedEnemyStats);
+  form.elements.lightestDifficulty.addEventListener("change", refreshResolvedEnemyStats);
+  cancel.addEventListener("click", () => abortController?.abort());
+
+  const setBusy = (busy) => {
+    submit.disabled = busy;
+    cancel.hidden = !busy;
+    form.setAttribute("aria-busy", String(busy));
+    progress.hidden = !busy;
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const errors = [];
+    const difficulty = form.elements.lightestDifficulty.value;
+    const enemies = [];
+    [...enemyRows.querySelectorAll("[data-lightest-enemy-row]")].forEach((row, order) => {
+      const value = row.querySelector("[data-lightest-enemy-character]").value;
+      if (!value.trim()) return;
+      const resolved = resolveCharacter(value);
+      if (resolved.error) {
+        errors.push(`${order + 1}番目: ${resolved.error}`);
+        return;
+      }
+      const hpValue = row.querySelector("[data-lightest-enemy-hp]").value;
+      const powerValue = row.querySelector("[data-lightest-enemy-power]").value;
+      enemies.push(resolveLightestEnemy(resolved.character, {
+        difficulty,
+        hp: hpValue || undefined,
+        pow: powerValue || undefined,
+        order,
+      }));
+    });
+    if (!enemies.length) errors.push("敵を1体以上設定してください。");
+    const eventBonusIds = [];
+    const candidateIds = [];
+    for (const value of splitValues(form.elements.lightestEventBonus.value)) {
+      const resolved = resolveCharacter(value);
+      if (resolved.error) errors.push(`強化対象: ${resolved.error}`);
+      else eventBonusIds.push(String(resolved.character.id));
+    }
+    for (const value of splitValues(form.elements.lightestCandidates.value)) {
+      const resolved = resolveCharacter(value);
+      if (resolved.error) errors.push(`味方候補: ${resolved.error}`);
+      else candidateIds.push(String(resolved.character.id));
+    }
+    const maxCost = Number(form.elements.lightestMaxCost.value);
+    const targetCostText = form.elements.lightestTargetCost.value.trim();
+    const targetCost = targetCostText === "" ? null : Number(targetCostText);
+    if (targetCost !== null && (!Number.isInteger(targetCost) || targetCost < 0)) {
+      errors.push("指定コストは0以上の整数で設定してください");
+    }
+    if (targetCost !== null && Number.isFinite(maxCost) && targetCost > maxCost) {
+      errors.push("指定コストは最大指定コスト以下で設定してください");
+    }
+
+    if (errors.length) {
+      renderLightestMessage(results, errors.join("\n"), true);
+      return;
+    }
+
+    const stage = {
+      enemies,
+      maxCost,
+      targetCost,
+      maxTurns: Number(form.elements.lightestMaxTurns.value),
+      deckSizes: [1, 2, 3, 4, 5],
+      requiredLastSkillType: "revive",
+      orderByHpDescending,
+      allowedAttributes: [...form.querySelectorAll("input[name='lightestAllowedAttributes']:checked")].map((input) => input.value),
+      rarities: splitValues(form.elements.lightestRarities.value),
+      eventBonusIds,
+      candidateIds,
+    };
+    abortController = new AbortController();
+    setBusy(true);
+    overallProgressLabel.textContent = "全体（総コスト）";
+    overallProgressValue.textContent = "区画を準備中";
+    overallProgressBar.style.width = "0%";
+    costProgressLabel.textContent = "現在の総コスト";
+    costProgressValue.textContent = "区画を準備中";
+    costProgressBar.style.width = "0%";
+    progressLabel.textContent = "現在の編成";
+    progressValue.textContent = "総コストとデッキ枚数の区画を作成しています";
+    progressBar.style.width = "0%";
+    const searchRange = targetCost === null
+      ? `低い総コストから最大指定コスト ${maxCost} まで`
+      : `指定コスト ${targetCost} だけ`;
+    renderLightestMessage(results, `${searchRange}、全デッキ配置と全行動を漏れなく調べています。三冠デッキを1件見つけた時点で終了します。`);
+    try {
+      const searchResult = await findLightestDeck(activeCharacters, stage, {
+        allowDuplicates: form.elements.lightestAllowDuplicates.checked,
+        ownedOnly: form.elements.lightestOwnedOnly.checked,
+        answerMultiplier: Number(form.elements.lightestAnswerMultiplier.value),
+        enemyAttackMultiplier: Number(form.elements.lightestEnemyMultiplier.value),
+        signal: abortController.signal,
+        onProgress: ({
+          cost,
+          completed,
+          combinations,
+          costDeckCount,
+          valid,
+          candidateCount,
+          deckSize,
+          costIndex,
+          costCount,
+          costDeckIndex,
+          costDeckSizeCount,
+          taskIndex,
+          taskCount,
+          taskCompleted,
+          totalCombinations,
+        }) => {
+          const costTotal = Math.max(1, Number(costCount) || 1);
+          const costDeckTotal = Math.max(1, Number(costDeckSizeCount) || 1);
+          const currentCombinationTotal = Math.max(0, Number(totalCombinations) || 0);
+          const currentCombinationRatio = taskCompleted
+            ? 1
+            : currentCombinationTotal > 0
+              ? Math.min(1, combinations / currentCombinationTotal)
+              : 0;
+          const currentCostRatio = ((Math.max(1, Number(costDeckIndex) || 1) - 1) + currentCombinationRatio) / costDeckTotal;
+          const overallRatio = ((Math.max(1, Number(costIndex) || 1) - 1) + currentCostRatio) / costTotal;
+          overallProgressLabel.textContent = "全体（総コスト）";
+          overallProgressValue.textContent = `${costIndex} / ${costCount} コスト帯`;
+          overallProgressBar.style.width = `${Math.round(Math.min(1, overallRatio) * 100)}%`;
+          costProgressLabel.textContent = `総コスト ${cost} の編成サイズ`;
+          costProgressValue.textContent = `${costDeckIndex} / ${costDeckSizeCount} 編成`;
+          costProgressBar.style.width = `${Math.round(Math.min(1, currentCostRatio) * 100)}%`;
+          progressLabel.textContent = `${deckSize}体編成・有効組合せ`;
+          progressValue.textContent = `${combinations.toLocaleString("ja-JP")} / ${currentCombinationTotal.toLocaleString("ja-JP")}組合せ・配置込み${costDeckCount.toLocaleString("ja-JP")}デッキ・候補${candidateCount}・三冠${valid}`;
+          progressBar.style.width = `${Math.round(currentCombinationRatio * 100)}%`;
+        },
+      });
+      renderLightestResults(results, searchResult);
+    } catch (error) {
+      renderLightestMessage(results, error.name === "AbortError" ? "最軽装探索を中止しました。" : error.message, error.name !== "AbortError");
+    } finally {
+      abortController = null;
+      setBusy(false);
+    }
+  });
+  return { setCharacters };
+}

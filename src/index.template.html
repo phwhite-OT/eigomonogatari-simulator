@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>英語物語 対戦デッキ推薦</title>
+  <style>
+/*__INLINE_STYLES__*/
+  </style>
+</head>
+<body>
+  <div class="page-grid" aria-hidden="true"></div>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="ページ先頭へ">
+      <span class="brand-mark">DC</span>
+      <span><strong>DECK COMPASS</strong><small>英語物語 対戦デッキ推薦</small></span>
+    </a>
+    <span class="version-badge"><i></i> prototype v0.1</span>
+  </header>
+
+  <main id="top">
+    <nav class="app-tabs" role="tablist" aria-label="推薦モード">
+      <button class="app-tab is-active" type="button" role="tab" aria-selected="true" data-tab-target="pvp">対戦デッキ</button>
+      <button class="app-tab" type="button" role="tab" aria-selected="false" data-tab-target="characters">キャラ検索</button>
+      <button class="app-tab" type="button" role="tab" aria-selected="false" data-tab-target="lightest">最軽装</button>
+    </nav>
+
+    <div class="app-tab-panel" data-tab-panel="pvp">
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">CONSTRAINT-AWARE DECK SEARCH</span>
+        <h1>縛りに合わせて、<br><em>理由のある5体</em>を。</h1>
+        <p>最低保証ダメージ、配置適性、スキル接続を比較し、条件違反のないデッキ候補を順位付けします。</p>
+      </div>
+      <div class="hero-flow" aria-label="推薦処理の流れ">
+        <div><span>01</span><strong>FILTER</strong><small>条件で候補抽出</small></div>
+        <i></i>
+        <div><span>02</span><strong>SEARCH</strong><small>順番付き生成</small></div>
+        <i></i>
+        <div><span>03</span><strong>EXPLAIN</strong><small>盤面評価と理由</small></div>
+      </div>
+    </section>
+
+    <aside class="assumption-banner">
+      <span class="assumption-icon">!</span>
+      <p><strong>未確定値は中立設定です。</strong> 自力・Excellent・問題レベル・属性倍率は初期値1、端数処理はなし。実測値が確定したら「計算ルール」で変更してください。</p>
+    </aside>
+
+    <section class="metagame-simulator" data-metagame-simulator>
+      <div class="metagame-simulator-heading">
+        <div>
+          <span class="eyebrow">SURVEYED METAGAME SIMULATOR</span>
+          <h2>調査済み環境から、最高勝率の5体を探す</h2>
+          <p>枠ごとの詳細評価で候補を絞り、完成デッキを実際の予測環境へ投入して勝率を比較します。</p>
+        </div>
+        <span class="metagame-data-status" data-metagame-data-status></span>
+      </div>
+      <form class="metagame-simulator-form" data-metagame-form>
+        <label class="field">
+          <span>調査済みの属性・コスト縛り</span>
+          <select name="metagameConstraint" aria-label="調査済み縛り"></select>
+        </label>
+        <button class="button button-search" type="submit" data-metagame-submit><span>最高勝率デッキを計算</span><b>→</b></button>
+        <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
+      </form>
+      <details class="metagame-environment-preview" data-metagame-environment-preview open>
+        <summary><span><strong>選択中の予測環境</strong><small data-metagame-environment-preview-status></small></span><b>表示を切替</b></summary>
+        <div data-metagame-environment-preview-content></div>
+      </details>
+      <div class="metagame-sim-progress" data-metagame-sim-progress hidden>
+        <div><strong data-metagame-progress-label>候補デッキを生成</strong><span data-metagame-progress-value></span></div>
+        <span><i data-metagame-progress-bar></i></span>
+      </div>
+      <div class="metagame-simulator-results" data-metagame-result aria-live="polite"></div>
+    </section>
+
+    <div class="workspace">
+      <aside class="control-panel">
+        <div class="panel-heading">
+          <div><span class="eyebrow">SEARCH CONDITIONS</span><h2>探索条件</h2></div>
+          <span class="step-count">01—05</span>
+        </div>
+
+        <form data-search-form>
+          <section class="form-section">
+            <div class="section-title"><span>01</span><div><h3>キャラクターデータ</h3><p>JSON配列、または characters 配列を読み込みます。</p></div></div>
+            <div class="data-card" data-data-summary>
+              <div class="data-source"><span>現在のデータ</span><strong data-data-source></strong></div>
+              <div class="data-stats">
+                <span><strong data-character-count>0</strong>総数</span>
+                <span><strong data-owned-count>0</strong>所持</span>
+                <span><strong data-priority-count>0</strong>有力</span>
+              </div>
+              <div class="button-row">
+                <label class="button button-primary file-button">JSONを読み込む<input type="file" accept="application/json,.json" data-character-file></label>
+                <button class="button button-ghost" type="button" data-character-editor-open>＋ キャラを追加</button>
+                <button class="button button-ghost" type="button" data-reset-demo>収録データへ戻す</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title"><span>02</span><div><h3>基本条件</h3><p>絶対に違反できない条件です。</p></div></div>
+            <div class="field-grid field-grid-2">
+              <label class="field"><span>総コスト上限</span><input type="number" name="totalCost" value="150" min="0" step="1" required></label>
+              <label class="field"><span>デッキ枚数</span><input type="number" name="deckSize" value="5" min="1" max="5" step="1" required></label>
+            </div>
+            <fieldset class="field-group">
+              <legend>使用可能属性</legend>
+              <div class="attribute-group" data-attribute-group="allowedAttributes"></div>
+            </fieldset>
+            <fieldset class="field-group">
+              <legend>使用禁止属性</legend>
+              <div class="attribute-group" data-attribute-group="forbiddenAttributes"></div>
+            </fieldset>
+            <div class="check-grid">
+              <label class="switch-row"><span><strong>同一キャラを許可</strong><small>OFFなら重複デッキを生成しません</small></span><input type="checkbox" name="allowDuplicates"><i></i></label>
+              <label class="switch-row"><span><strong>手持ちのみ</strong><small>owned: true のキャラだけ使用</small></span><input type="checkbox" name="ownedOnly"><i></i></label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title"><span>03</span><div><h3>必須・除外・配置</h3><p>キャラIDはカンマ区切りで指定できます。</p></div></div>
+            <div class="field-grid field-grid-2">
+              <label class="field"><span>必須キャラID</span><input type="text" name="requiredIds" placeholder="1001, 1002"></label>
+              <label class="field"><span>禁止キャラID</span><input type="text" name="forbiddenIds" placeholder="1099, 1100"></label>
+            </div>
+            <details class="sub-settings">
+              <summary>配置を固定する</summary>
+              <div class="fixed-position-grid">
+                <select data-fixed-position="1" aria-label="1枠目固定"></select>
+                <select data-fixed-position="2" aria-label="2枠目固定"></select>
+                <select data-fixed-position="3" aria-label="3枠目固定"></select>
+                <select data-fixed-position="4" aria-label="4枠目固定"></select>
+                <select data-fixed-position="5" aria-label="5枠目固定"></select>
+              </div>
+            </details>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title"><span>04</span><div><h3>追加フィルタ</h3><p>空欄の項目は制限しません。</p></div></div>
+            <div class="field-grid field-grid-2">
+              <label class="field"><span>最低1体の役割</span><select name="requiredRole"></select></label>
+              <label class="field"><span>レアリティ</span><input type="text" name="rarities" list="rarity-list" placeholder="ZR, MZR"><datalist id="rarity-list" data-rarity-list></datalist></label>
+              <label class="field field-wide"><span>地域</span><input type="text" name="regions" list="region-list" placeholder="地域名をカンマ区切り"><datalist id="region-list" data-region-list></datalist></label>
+            </div>
+            <div class="check-grid">
+              <label class="switch-row"><span><strong>低優先を含める</strong><small>pvpTier: low を候補へ戻す</small></span><input type="checkbox" name="includeLow"><i></i></label>
+              <label class="switch-row"><span><strong>除外も含める</strong><small>検証用。excludeも探索します</small></span><input type="checkbox" name="debugIncludeExcluded"><i></i></label>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="section-title"><span>05</span><div><h3>探索精度</h3><p>端末性能に合わせて候補生成数を選びます。</p></div></div>
+            <div class="mode-selector">
+              <label><input type="radio" name="mode" value="fast"><span><strong>高速</strong><small>約1万件</small></span></label>
+              <label><input type="radio" name="mode" value="standard" checked><span><strong>標準</strong><small>約6万件</small></span></label>
+              <label><input type="radio" name="mode" value="precise"><span><strong>精密</strong><small>約30万件</small></span></label>
+            </div>
+            <details class="sub-settings rules-settings">
+              <summary>計算ルールを編集</summary>
+              <p>仕様未確定の倍率・属性表・端数処理をJSONで上書きできます。</p>
+              <textarea name="rulesJson" rows="18" spellcheck="false" aria-label="計算ルールJSON"></textarea>
+            </details>
+          </section>
+
+          <div class="search-actions">
+            <button class="button button-search" type="submit" data-search-button><span>デッキを探索</span><b>→</b></button>
+            <button class="button button-cancel" type="button" data-cancel-button hidden>キャンセル</button>
+          </div>
+          <div class="progress-card" data-progress hidden aria-live="polite">
+            <div class="progress-copy"><strong data-progress-label>探索中</strong><span data-progress-value>0 / 0</span></div>
+            <div class="progress-track"><i data-progress-bar></i></div>
+            <small data-progress-valid>有効候補 0</small>
+          </div>
+        </form>
+      </aside>
+
+      <section class="results-panel" data-results aria-live="polite"></section>
+    </div>
+    </div>
+
+
+    <section class="app-tab-panel character-search-page" data-tab-panel="characters" data-character-search-root hidden>
+      <div class="character-search-hero">
+        <div>
+          <span class="eyebrow">SMART CHARACTER FINDER</span>
+          <h1>欲しいキャラを、<br><em>言葉で探す。</em></h1>
+          <p>名前、属性、スキル、地域、レアリティをまとめて検索します。使いたいキーワードを空白で並べるだけです。</p>
+        </div>
+        <aside>
+          <strong data-character-search-count>0体収録</strong>
+          <span>主要キーワードの組み合わせに対応</span>
+          <small>例：火 全体攻撃 / 回復 / 関東 R</small>
+        </aside>
+      </div>
+
+      <section class="character-search-shell">
+        <form class="character-search-form" data-character-search-form role="search">
+          <label class="character-search-input-wrap">
+            <span aria-hidden="true">⌕</span>
+            <input type="search" name="characterQuery" autocomplete="off" placeholder="キャラ名や、欲しい性能を入力" aria-label="キャラクター検索">
+          </label>
+          <label class="character-search-sort">
+            <span>並び順</span>
+            <select name="characterSort">
+              <option value="relevance">関連度順</option>
+              <option value="cost">コストが低い順</option>
+              <option value="pow">Powerが高い順</option>
+              <option value="hp">HPが高い順</option>
+              <option value="skillTurn">スキルが早い順</option>
+            </select>
+          </label>
+          <button class="button character-search-submit" type="submit">検索</button>
+          <button class="button character-search-clear" type="button" data-character-search-clear>クリア</button>
+        </form>
+        <div class="character-search-examples" aria-label="検索例">
+          <span>検索例</span>
+          <button type="button" data-character-search-example="火 全体攻撃">火 全体攻撃</button>
+          <button type="button" data-character-search-example="回復">回復</button>
+          <button type="button" data-character-search-example="水属性 かばう">水属性 かばう</button>
+          <button type="button" data-character-search-example="関東 R">関東 R</button>
+        </div>
+      </section>
+
+      <section class="character-search-results" data-character-search-results aria-live="polite"></section>
+    </section>
+
+    <section class="app-tab-panel lightest-page" data-tab-panel="lightest" data-lightest-root hidden>
+      <div class="lightest-hero">
+        <div>
+          <span class="eyebrow">LIMITED EVENT / MINIMUM COST</span>
+          <h1>三冠を取れる、<em>最小コスト</em>を探す。</h1>
+          <p>限定イベントと同じ固定出現・敵スキル・短縮・遅延を再現し、クリア、全員生存、規定ターン以内を満たすデッキを総コスト順に比較します。</p>
+        </div>
+        <aside>
+          <strong>最軽装の順位</strong>
+          <span>三冠クリア → 総コストが低い順</span>
+          <small>同コストの公式順位は実時間。本ツールでは順位付けしません</small>
+        </aside>
+      </div>
+
+      <div class="lightest-workspace">
+        <aside class="lightest-control">
+          <form data-lightest-form>
+            <section class="form-section">
+              <div class="section-title"><span>01</span><div><h3>ステージ条件</h3><p>限定イベントの縛りと三冠ターンを設定します。</p></div></div>
+              <div class="field-grid field-grid-2">
+                <label class="field"><span>敵の難易度</span><select name="lightestDifficulty"><option value="pine">松・完凸Lv最大</option><option value="bamboo">竹・無凸Lv最大</option><option value="plum">梅・無凸Lv最大の半分</option></select></label>
+                <label class="field"><span>指定コスト（総使用コスト）</span><input type="number" name="lightestTargetCost" min="0" step="1" placeholder="空欄は最小から探索"></label>
+                <label class="field"><span>最大指定コスト</span><input type="number" name="lightestMaxCost" value="999" min="0" step="1" required></label>
+                <div class="lightest-auto-deck-size"><strong>デッキ枚数</strong><span>1〜5体を自動で比較</span></div>
+                <label class="field"><span>三冠の規定ターン</span><input type="number" name="lightestMaxTurns" value="12" min="1" max="30" step="1" required></label>
+                <label class="field"><span>使用可能レアリティ</span><input type="text" name="lightestRarities" placeholder="空欄は全て / N, R"></label>
+              </div>
+              <p class="lightest-help">指定コストを入力すると、その総使用コストだけを探索します。空欄なら低いコストから最大指定コストまで順に探索し、三冠デッキを1件見つけた時点で終了します。</p>
+              <fieldset class="field-group">
+                <legend>使用可能属性（未選択なら全属性）</legend>
+                <div class="attribute-group lightest-attributes">
+                  <label class="attribute-chip attribute-fire"><input type="checkbox" name="lightestAllowedAttributes" value="fire"><span>火</span></label>
+                  <label class="attribute-chip attribute-water"><input type="checkbox" name="lightestAllowedAttributes" value="water"><span>水</span></label>
+                  <label class="attribute-chip attribute-wind"><input type="checkbox" name="lightestAllowedAttributes" value="wind"><span>風</span></label>
+                </div>
+              </fieldset>
+              <div class="check-grid">
+                <label class="switch-row"><span><strong>同じカードを許可</strong><small>限定イベント仕様では重複編成可能</small></span><input type="checkbox" name="lightestAllowDuplicates" checked><i></i></label>
+                <label class="switch-row"><span><strong>手持ちのみ</strong><small>owned: true のキャラだけ探索</small></span><input type="checkbox" name="lightestOwnedOnly"><i></i></label>
+              </div>
+            </section>
+
+            <section class="form-section">
+              <div class="section-title"><span>02</span><div><h3>イベント補正</h3><p>強化対象と回答条件による攻撃倍率を設定します。</p></div></div>
+              <label class="field"><span>HP・Power 1.5倍の対象</span><input type="text" name="lightestEventBonus" placeholder="名前またはIDをカンマ区切り"></label>
+              <div class="field-grid field-grid-2 lightest-multiplier-grid">
+                <label class="field"><span>味方の回答・英語倍率</span><input type="number" name="lightestAnswerMultiplier" value="2.592" min="0" step="0.001" required></label>
+                <label class="field"><span>敵攻撃倍率</span><input type="number" name="lightestEnemyMultiplier" value="1" min="0" step="0.001" required></label>
+              </div>
+              <p class="lightest-help">初期値2.592は、自力1.2 × Excellent1.2 × 難関1.8です。乱数、対戦固定係数、生存1.3倍は使いません。</p>
+            </section>
+
+            <section class="form-section">
+              <div class="section-title"><span>03</span><div><h3>敵の固定出現順</h3><p>1問目1体、2問目2体、3問目以降3体になるよう上から補充します。</p></div></div>
+              <div class="lightest-enemy-columns"><span>#</span><span>敵キャラ</span><span>HP上書き</span><span>Power上書き</span><span></span></div>
+              <div class="lightest-enemy-rows" data-lightest-enemy-rows></div>
+              <button class="button lightest-add-enemy" type="button" data-lightest-add-enemy>＋ 敵を追加</button>
+              <p class="lightest-help">松は完凸Lv最大、竹は無凸Lv最大、梅は無凸Lv最大のHP・Powerをそれぞれ半分にして自動使用します。実測値があれば上書きできます。</p>
+            </section>
+
+            <section class="form-section">
+              <div class="section-title"><span>04</span><div><h3>完全探索</h3><p>近似評価や試行上限を使わず、低コストから全編成・全配置・全行動を検証します。</p></div></div>
+              <label class="field"><span>味方候補（任意）</span><input type="text" name="lightestCandidates" placeholder="名前またはIDをカンマ区切り・空欄は条件内全員"></label>
+              <p class="lightest-help">最軽装で使われそうなキャラが分かっている場合だけ指定してください。指定した候補内では完全探索ですが、候補から外したキャラは証明範囲外になります。空欄なら属性・レアリティ・所持条件に合う全キャラを調べます。</p>
+              <div class="lightest-exact-notice"><strong>探索漏れなし</strong><span>スキル温存・同分類の使用順・正答／半誤答・各ターンの標的を状態が同一になる場合だけ統合します。</span></div>
+            </section>
+
+            <section class="form-section lightest-deck-rules">
+              <div class="section-title"><span>05</span><div><h3>編成ルール</h3><p>最後の枠は蘇生スキルに固定します。</p></div></div>
+              <div class="lightest-last-revive-rule"><strong>最後の枠：蘇生必須</strong><span>デッキ枚数が1〜5体のどの場合でも適用します。</span></div>
+              <button class="button lightest-hp-sort" type="button" data-lightest-sort-hp aria-pressed="false"><span>HPが高い順に並べる</span><b>↓</b></button>
+              <p class="lightest-help" data-lightest-sort-hp-status>必要なときだけ押してください。オンにすると、最後の蘇生枠を除いてHPの高い順に固定し、同HPの並びだけを完全探索します。</p>
+            </section>
+            <div class="search-actions">
+              <button class="button button-search" type="submit" data-lightest-submit><span>最軽装を探索</span><b>→</b></button>
+              <button class="button button-cancel" type="button" data-lightest-cancel hidden>中止</button>
+            </div>
+            <div class="progress-card lightest-progress-card" data-lightest-progress hidden>
+              <div class="progress-copy"><strong>最軽装探索の進捗</strong><span>小さい区画から順に探索</span></div>
+              <div class="lightest-progress-sections">
+                <div class="lightest-progress-section">
+                  <div class="progress-copy"><strong data-lightest-overall-label>全体（総コスト）</strong><span data-lightest-overall-value>0 / 0</span></div>
+                  <div class="progress-track"><i data-lightest-overall-bar></i></div>
+                </div>
+                <div class="lightest-progress-section">
+                  <div class="progress-copy"><strong data-lightest-cost-label>現在の総コスト</strong><span data-lightest-cost-value>0 / 0</span></div>
+                  <div class="progress-track"><i data-lightest-cost-bar></i></div>
+                </div>
+                <div class="lightest-progress-section">
+                  <div class="progress-copy"><strong data-lightest-progress-label>現在の編成</strong><span data-lightest-progress-value></span></div>
+                  <div class="progress-track"><i data-lightest-progress-bar></i></div>
+                </div>
+              </div>
+            </div>
+          </form>
+        </aside>
+
+        <section class="lightest-results" data-lightest-results aria-live="polite"></section>
+      </div>
+      <datalist id="lightest-character-list"></datalist>
+    </section>
+
+  </main>
+
+
+  <dialog class="character-editor-dialog" data-character-editor>
+    <form class="character-editor-form" data-character-editor-form>
+      <header class="character-editor-heading">
+        <div><span class="eyebrow">ADD CHARACTER</span><h2>キャラを追加</h2></div>
+        <button class="character-editor-close" type="button" data-character-editor-close aria-label="閉じる">×</button>
+      </header>
+      <p class="character-editor-message" data-character-editor-message></p>
+
+      <section class="character-editor-section">
+        <h3>基本ステータス</h3>
+        <div class="field-grid field-grid-2">
+          <label class="field field-wide"><span>キャラ名</span><input type="text" name="manualName" required placeholder="例：新キャラ"></label>
+          <label class="field"><span>属性</span><select name="manualAttribute" required><option value="fire">火</option><option value="water">水</option><option value="wind">風</option><option value="fire_water">火水</option><option value="fire_wind">火風</option><option value="water_wind">水風</option><option value="all">全</option></select></label>
+          <label class="field"><span>コスト</span><input type="number" name="manualCost" min="0" step="1" required value="1"></label>
+          <label class="field"><span>HP（無凸Lv1）</span><input type="number" name="manualHp" min="1" step="1" required></label>
+          <label class="field"><span>Power（無凸Lv1）</span><input type="number" name="manualPow" min="0" step="1" required></label>
+          <label class="field field-wide"><span>育成状態</span><select name="manualStatGrowth"><option value="lv1">無凸Lv1</option><option value="max">無凸LvMAX（Lv1の2倍）</option><option value="max_limit_break" selected>完凸LvMAX（レア度別の到達Lvで算出）</option></select></label>
+          <label class="field"><span>竹HP（無凸LvMAX・任意）</span><input type="number" name="manualNonLimitMaxHp" min="1" step="1" placeholder="空欄はLv1の2倍"></label>
+          <label class="field"><span>竹Power（無凸LvMAX・任意）</span><input type="number" name="manualNonLimitMaxPow" min="0" step="1" placeholder="空欄はLv1の2倍"></label>
+          <label class="field"><span>松HP（完凸LvMAX・任意）</span><input type="number" name="manualFullLimitMaxHp" min="1" step="1" placeholder="例外キャラは実数値を入力"></label>
+          <label class="field"><span>松Power（完凸LvMAX・任意）</span><input type="number" name="manualFullLimitMaxPow" min="0" step="1" placeholder="例外キャラは実数値を入力"></label>
+          <label class="field"><span>レアリティ</span><input type="text" name="manualRarity" required value="N" placeholder="N、R、ZR"></label>
+          <label class="field"><span>地域</span><input type="text" name="manualRegion" required value="手入力"></label>
+        </div>
+        <p class="character-editor-stat-preview" data-character-stat-preview>無凸Lv1のHPとPowerを入力すると、選択中の育成状態で使う数値を表示します。標準上限はN: Lv30→54、R: Lv50→100、CR: Lv60→132、ZR/MZR/伝: Lv99→237です。</p>
+        <label class="switch-row character-editor-owned"><span><strong>所持済み</strong><small>オンなら所持キャラのみの探索で採用候補に含めます</small></span><input type="checkbox" name="manualOwned" checked><i></i></label>
+      </section>
+
+      <section class="character-editor-section">
+        <h3>スキル</h3>
+        <div class="field-grid field-grid-2">
+          <label class="field"><span>スキル種類</span><select name="manualSkillType"><option value="none">なし</option><option value="aoe_attack">全体攻撃</option><option value="multi_hit_attack">連続攻撃</option><option value="attack_buff">攻撃力アップ</option><option value="heal">回復</option><option value="revive">蘇生</option><option value="damage_reduction">防御・軽減</option><option value="guard">かばう</option><option value="attribute_guard">属性かばう</option><option value="skill_reduction">スキル短縮</option><option value="delay">遅延</option><option value="attribute_change">属性変更</option></select></label>
+          <label class="field"><span>スキルターン</span><input type="number" name="manualSkillTurn" min="0" step="1" required value="3"></label>
+          <label class="field field-wide"><span>スキル名・説明（任意）</span><input type="text" name="manualSkillName" placeholder="例：1ターンの間、味方全員の攻撃力を上げる"></label>
+          <label class="field"><span>分類（任意）</span><input type="text" name="manualSkillCategory" placeholder="例：全員攻撃力Up"></label>
+          <label class="field"><span>対象</span><select name="manualSkillTarget"><option value="">自動</option><option value="self">自身</option><option value="leader">リーダー</option><option value="ally_all">味方全員</option><option value="enemy_one">敵1体</option><option value="enemy_all">敵全員</option></select></label>
+        </div>
+        <details class="sub-settings character-editor-details" data-character-editor-details>
+          <summary data-character-editor-skill-details-summary>スキルの詳細設定</summary>
+          <div class="character-editor-details-content">
+            <div class="field-grid field-grid-2">
+              <label class="field" data-skill-detail="multiplier"><span>倍率</span><input type="number" name="manualSkillMultiplier" min="0" step="0.01" value="1"></label>
+              <label class="field" data-skill-detail="hits"><span>ヒット数</span><input type="number" name="manualSkillHits" min="1" step="1" value="1"></label>
+              <label class="field" data-skill-detail="duration"><span>継続ターン</span><input type="number" name="manualSkillDuration" min="1" step="1" value="1"></label>
+              <label class="field" data-skill-detail="amount"><span>効果量</span><input type="number" name="manualSkillAmount" min="0" step="1" value="0"></label>
+              <label class="field" data-skill-detail="targetCount"><span>対象数</span><input type="number" name="manualSkillTargetCount" min="1" max="5" step="1" value="1"></label>
+              <label class="field" data-skill-detail="allyAttribute"><span>味方の属性条件</span><select name="manualSkillAllyAttribute"><option value="">指定なし</option><option value="fire">火</option><option value="water">水</option><option value="wind">風</option></select></label>
+              <label class="field" data-skill-detail="enemyAttribute"><span>敵の属性条件</span><select name="manualSkillEnemyAttribute"><option value="">指定なし</option><option value="fire">火</option><option value="water">水</option><option value="wind">風</option></select></label>
+              <label class="field field-wide" data-skill-detail="effectAttribute"><span>属性変更後の属性</span><select name="manualSkillEffectAttribute"><option value="">指定なし</option><option value="fire">火</option><option value="water">水</option><option value="wind">風</option><option value="all">全</option></select></label>
+            </div>
+            <p class="character-editor-help">味方の属性条件は対象になる味方を、敵の属性条件は敵との相性で効果が有効になる場面を絞ります。属性変更後の属性は「属性変更」スキルで使用します。</p>
+          </div>
+        </details>
+      </section>
+
+      <footer class="character-editor-actions">
+        <button class="button button-ghost" type="button" data-character-editor-close>キャンセル</button>
+        <button class="button button-primary" type="submit">追加する</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <footer>
+    <p>このツールは勝率や「最強」を保証せず、指定ルールに基づく候補比較を行います。</p>
+    <span>DECK COMPASS / PROTOTYPE 0.1</span>
+  </footer>
+
+  <script>
+//__INLINE_SCRIPT__
+  </script>
+</body>
+</html>

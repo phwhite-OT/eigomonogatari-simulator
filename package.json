@@ -1,0 +1,18 @@
+{
+  "name": "eigo-monogatari-deck-recommender",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-final.mjs",
+    "test": "node --test",
+    "rate:characters": "node scripts/rate-characters.mjs",
+    "rate:environment": "node scripts/rate-environment.mjs",
+    "check:readiness": "node scripts/check-slot-readiness.mjs",
+    "rate:metagame": "node scripts/rate-metagame.mjs",
+    "rate:metagame:grid": "node scripts/rate-metagame-grid.mjs",
+    "rate:metagame:batch": "node scripts/rate-metagame-batch.mjs",
+    "rate:metagame:supervisor": "node scripts/rate-metagame-supervisor.mjs",
+    "build:metagame-data": "node scripts/build-metagame-simulator-data.mjs"
+  }
+}

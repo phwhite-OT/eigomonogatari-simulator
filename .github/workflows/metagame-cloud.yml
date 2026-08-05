@@ -1,0 +1,94 @@
+name: Metagame environment evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_tasks:
+        description: Number of metagame tasks to run before saving progress
+        required: false
+        default: "1"
+        type: string
+      workers:
+        description: Parallel workers per task (2 is appropriate for GitHub-hosted runners)
+        required: false
+        default: "2"
+        type: string
+  schedule:
+    - cron: "17 */2 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: metagame-v4
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      METAGAME_MAX_TASKS: ${{ inputs.max_tasks || '1' }}
+      METAGAME_WORKERS: ${{ inputs.workers || '2' }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Restore saved metagame results
+        shell: bash
+        run: |
+          git fetch origin metagame-results || true
+          if git show-ref --verify --quiet refs/remotes/origin/metagame-results; then
+            git switch --create metagame-results --track origin/metagame-results
+          else
+            git switch --create metagame-results
+          fi
+          git rebase ${{ github.sha }}
+
+      - id: evaluate
+        name: Evaluate the next metagame task
+        shell: bash
+        run: |
+          if [ -f reports/metagame-v4-batch-status.json ] && grep -q '"status": "completed"' reports/metagame-v4-batch-status.json; then
+            echo "completed_before=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          node scripts/rate-metagame-batch.mjs \
+            --status=reports/metagame-v4-batch-status.json \
+            --output-root=reports/metagame-ratings-v4 \
+            --prior-output-root=reports/metagame-ratings-v4-prior-empty \
+            --max-tasks="$METAGAME_MAX_TASKS" \
+            --first-scenarios=4 \
+            --final-scenarios=30 \
+            --finalists=40 \
+            --turns=12 \
+            --workers="$METAGAME_WORKERS"
+          if grep -q '"status": "completed"' reports/metagame-v4-batch-status.json; then
+            echo "completed_now=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build simulator data after the final task
+        if: steps.evaluate.outputs.completed_now == 'true'
+        run: npm run build:metagame-data
+
+      - name: Save progress to the result branch
+        if: always()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f reports/metagame-v4-batch-status.json
+          if [ -f reports/metagame-v4-supervisor-status.json ]; then git add -f reports/metagame-v4-supervisor-status.json; fi
+          if [ -f reports/metagame-v4-active.json ]; then git add -f reports/metagame-v4-active.json; fi
+          if [ -d reports/metagame-ratings-v4 ]; then git add -f reports/metagame-ratings-v4; fi
+          if [ -f src/data/metagame-simulator-data.js ]; then git add src/data/metagame-simulator-data.js; fi
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "chore: save metagame evaluation progress"
+          git push origin HEAD:metagame-results
