@@ -11,7 +11,7 @@ on:
       max_tasks:
         description: Number of metagame tasks to run before saving progress
         required: false
-        default: "1"
+        default: "10"
         type: string
       workers:
         description: Parallel workers per task (2 is appropriate for GitHub-hosted runners)
@@ -19,7 +19,7 @@ on:
         default: "2"
         type: string
   schedule:
-    - cron: "17 */2 * * *"
+    - cron: "17 * * * *"
 
 permissions:
   contents: write
@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     env:
-      METAGAME_MAX_TASKS: ${{ inputs.max_tasks || '1' }}
+      METAGAME_MAX_TASKS: ${{ inputs.max_tasks || '10' }}
       METAGAME_WORKERS: ${{ inputs.workers || '2' }}
     steps:
       - name: Check out source
