@@ -1,6 +1,11 @@
 name: Metagame environment evaluation
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - .github/workflows/metagame-cloud.yml
   workflow_dispatch:
     inputs:
       max_tasks:
