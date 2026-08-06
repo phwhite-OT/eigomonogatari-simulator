@@ -17,6 +17,11 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 const METAGAME_SCENARIO_COUNT = 30;
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   Object.freeze({
+    statusPath: "reports/metagame-v5-batch-status.json",
+    reportRoot: "reports/metagame-ratings-v5",
+    legacy: false,
+  }),
+  Object.freeze({
     statusPath: "reports/metagame-v4-batch-status.json",
     reportRoot: "reports/metagame-ratings-v4",
     legacy: false,

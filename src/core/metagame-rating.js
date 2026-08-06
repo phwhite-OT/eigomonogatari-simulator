@@ -1,9 +1,10 @@
 import { resolveAttributeClass } from "../data/rules.js";
 
 export const METAGAME_USAGE_MIX = Object.freeze({
-  overall: 0.5,
-  advantage: 0.28,
-  counter: 0.22,
+  overall: 0.47,
+  advantage: 0.27,
+  counter: 0.2,
+  continuation: 0.06,
 });
 
 export const RARITY_OWNERSHIP_MODEL = Object.freeze({
@@ -124,7 +125,13 @@ export function rankMetagameResults(results) {
     right.teamBalance.balancedContribution - left.teamBalance.balancedContribution ||
     right.strategicActions.advantageCreationPerScenario - left.strategicActions.advantageCreationPerScenario
   ), "counter");
-  return { overall, advantage, counter };
+  const continuation = assignRanks(results, (left, right) => (
+    Number(right.continuation?.winGainPerScenario) - Number(left.continuation?.winGainPerScenario) ||
+    Number(right.continuation?.carriedActionRate) - Number(left.continuation?.carriedActionRate) ||
+    Number(right.continuation?.continuedActionRate) - Number(left.continuation?.continuedActionRate) ||
+    right.matchOutcome.expectedWinLowerBound - left.matchOutcome.expectedWinLowerBound
+  ), "continuation");
+  return { overall, advantage, counter, continuation };
 }
 
 export function selectDetailedCandidates(rankings, limit = 150) {
@@ -140,11 +147,14 @@ export function selectDetailedCandidates(rankings, limit = 150) {
     selected.set(String(result.character.id), result.character);
   };
   const specialistQuota = Math.max(1, Math.floor(maximum * 0.2));
+  const continuation = rankings.continuation ?? [];
   rankings.advantage.slice(0, specialistQuota).forEach(add);
   rankings.counter.slice(0, specialistQuota).forEach(add);
+  continuation.slice(0, specialistQuota).forEach(add);
   rankings.overall.forEach(add);
   rankings.advantage.forEach(add);
   rankings.counter.forEach(add);
+  continuation.forEach(add);
   return [...selected.values()];
 }
 
@@ -156,15 +166,18 @@ export function buildUsageEnvironment(rankings, options = {}) {
   const denominator = Math.max(1, results.length - 1);
   const advantageRanks = new Map(rankings.advantage.map((result, index) => [String(result.character.id), index]));
   const counterRanks = new Map(rankings.counter.map((result, index) => [String(result.character.id), index]));
+  const continuationRanks = new Map((rankings.continuation ?? []).map((result, index) => [String(result.character.id), index]));
   const entries = results.map((result, index) => {
     const qualityPercentile = 1 - index / denominator;
     const ownershipProbability = estimateOwnershipProbability(result.character, qualityPercentile);
     const advantageRank = advantageRanks.get(String(result.character.id)) ?? results.length;
     const counterRank = counterRanks.get(String(result.character.id)) ?? results.length;
+    const continuationRank = continuationRanks.get(String(result.character.id)) ?? results.length;
     const rankPreference = (
       mix.overall * Math.exp(-index / temperature) +
       mix.advantage * Math.exp(-advantageRank / temperature) +
-      mix.counter * Math.exp(-counterRank / temperature)
+      mix.counter * Math.exp(-counterRank / temperature) +
+      (Number(mix.continuation) || 0) * Math.exp(-continuationRank / temperature)
     );
     const advantage = Number(result.strategicActions?.advantageCreationPerScenario) || 0;
     const counter = Number(result.strategicActions?.counteractionPerScenario) || 0;
@@ -236,6 +249,7 @@ export function serializeMetagameResult(result, usageById = new Map()) {
     matchOutcome: serializeNumbers(result.matchOutcome),
     teamBalance: serializeNumbers(result.teamBalance),
     strategicActions: serializeNumbers(result.strategicActions),
+    continuation: serializeNumbers(result.continuation ?? {}),
     reproduction: serializeNumbers(result.reproduction),
   };
 }

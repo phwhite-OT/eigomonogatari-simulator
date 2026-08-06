@@ -28,7 +28,7 @@ import {
 import { WORKBOOK_CHARACTERS } from "../src/data/workbook-characters.js";
 import { DEFAULT_RULES } from "../src/data/rules.js";
 
-const MODEL_VERSION = "iterative-metagame-v4-continuation-carryover";
+const MODEL_VERSION = "iterative-metagame-v5-expert-continuation";
 const LEGACY_WARM_START_WEIGHT = 0.1;
 
 function readArgument(name, fallback) {
@@ -349,6 +349,7 @@ const report = {
     overall: serializeRanking(finalRankings.overall),
     advantage: serializeRanking(finalRankings.advantage),
     counter: serializeRanking(finalRankings.counter),
+    continuation: serializeRanking(finalRankings.continuation),
   },
 };
 

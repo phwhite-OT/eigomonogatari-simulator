@@ -2,6 +2,7 @@ import { createBattleState } from "./battleState.js";
 import { isSkillTurnAllowedAtPosition } from "./filter.js";
 import {
   ATTACK_ORDER_POLICIES,
+  PLAY_STYLES,
   simulateBattle,
   TARGET_POLICIES,
 } from "./simulate.js";
@@ -10,19 +11,10 @@ import { ATTRIBUTES, DEFAULT_RULES, resolveAttributeClass } from "../data/rules.
 
 export const DEFAULT_ENVIRONMENT_BATTLE_PROFILES = Object.freeze([
   Object.freeze({
-    id: "remaining-balance",
-    targetPolicy: TARGET_POLICIES.BALANCE,
-    attackOrderPolicy: ATTACK_ORDER_POLICIES.STRONGEST_FIRST,
-  }),
-  Object.freeze({
-    id: "kill-confirm",
-    targetPolicy: TARGET_POLICIES.KILL_CONFIRM,
-    attackOrderPolicy: ATTACK_ORDER_POLICIES.STRONGEST_FIRST,
-  }),
-  Object.freeze({
-    id: "skill-threat",
-    targetPolicy: TARGET_POLICIES.SKILL_THREAT,
-    attackOrderPolicy: ATTACK_ORDER_POLICIES.STRONGEST_FIRST,
+    id: "expert-tactical",
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: PLAY_STYLES.EXPERT,
   }),
 ]);
 
@@ -50,6 +42,7 @@ function scenarioBattleOptions(scenario) {
   return {
     targetPolicy: scenario.targetPolicy,
     attackOrderPolicy: scenario.attackOrderPolicy,
+    playStyle: scenario.playStyle,
   };
 }
 
@@ -266,6 +259,7 @@ export function buildOpeningScenarios(options) {
       battleProfile: battleProfile.id,
       targetPolicy: battleProfile.targetPolicy,
       attackOrderPolicy: battleProfile.attackOrderPolicy,
+      playStyle: battleProfile.playStyle,
     });
   }
   return scenarios;
@@ -302,6 +296,7 @@ export function buildSlotEntryScenarios(options) {
       turns,
       targetPolicy: battleProfile.targetPolicy,
       attackOrderPolicy: battleProfile.attackOrderPolicy,
+      playStyle: battleProfile.playStyle,
       onTurnStart: ({ state: turnState }) => {
         for (let actorIndex = 0; actorIndex < turnState.allies.length && scenarios.length < count; actorIndex += 1) {
           if ((profileSamples.get(battleProfile.id) ?? 0) >= profileTargets.get(battleProfile.id)) break;
@@ -318,6 +313,7 @@ export function buildSlotEntryScenarios(options) {
             battleProfile: battleProfile.id,
             targetPolicy: battleProfile.targetPolicy,
             attackOrderPolicy: battleProfile.attackOrderPolicy,
+            playStyle: battleProfile.playStyle,
             opener: combatant.deck[0],
           });
           profileSamples.set(battleProfile.id, (profileSamples.get(battleProfile.id) ?? 0) + 1);
@@ -519,6 +515,7 @@ export function buildPositionEntryScenarios(options) {
           battleProfile: battleProfile.id,
           targetPolicy: battleProfile.targetPolicy,
           attackOrderPolicy: battleProfile.attackOrderPolicy,
+          playStyle: battleProfile.playStyle,
         });
         profileSamples.set(battleProfile.id, (profileSamples.get(battleProfile.id) ?? 0) + 1);
       }
@@ -531,6 +528,7 @@ export function buildPositionEntryScenarios(options) {
       turns,
       targetPolicy: battleProfile.targetPolicy,
       attackOrderPolicy: battleProfile.attackOrderPolicy,
+      playStyle: battleProfile.playStyle,
       onTurnStart: ({ state: turnState }) => {
         for (let actorIndex = 0; actorIndex < turnState.allies.length && scenarios.length < count; actorIndex += 1) {
           if ((profileSamples.get(battleProfile.id) ?? 0) >= profileTargets.get(battleProfile.id)) break;
@@ -549,6 +547,7 @@ export function buildPositionEntryScenarios(options) {
             battleProfile: battleProfile.id,
             targetPolicy: battleProfile.targetPolicy,
             attackOrderPolicy: battleProfile.attackOrderPolicy,
+            playStyle: battleProfile.playStyle,
           });
           profileSamples.set(battleProfile.id, (profileSamples.get(battleProfile.id) ?? 0) + 1);
         }
@@ -634,6 +633,7 @@ export function buildCandidatePositionEntryScenarios(options) {
         battleProfile: battleProfile.id,
         targetPolicy: battleProfile.targetPolicy,
         attackOrderPolicy: battleProfile.attackOrderPolicy,
+        playStyle: battleProfile.playStyle,
         candidateConditioned: true,
       });
       attemptIndex += 1;
@@ -645,6 +645,7 @@ export function buildCandidatePositionEntryScenarios(options) {
       turns,
       targetPolicy: battleProfile.targetPolicy,
       attackOrderPolicy: battleProfile.attackOrderPolicy,
+      playStyle: battleProfile.playStyle,
       onTurnStart: ({ state: turnState }) => {
         if (captured) return;
         const combatant = turnState.allies[actorIndex];
@@ -660,6 +661,7 @@ export function buildCandidatePositionEntryScenarios(options) {
           battleProfile: battleProfile.id,
           targetPolicy: battleProfile.targetPolicy,
           attackOrderPolicy: battleProfile.attackOrderPolicy,
+          playStyle: battleProfile.playStyle,
           candidateConditioned: true,
         };
       },
@@ -932,6 +934,27 @@ function meanLowerBound(values, z = 1.96) {
   return clampUnit(mean - z * Math.sqrt(variance / values.length));
 }
 
+function supportsContinuationEvaluation(character) {
+  return Number(character?.skill?.duration) > 1 && [
+    "attack_buff",
+    "damage_reduction",
+    "guard",
+    "attribute_guard",
+    "attribute_change",
+    "aoe_attack",
+    "multi_hit_attack",
+  ].includes(character?.skill?.type);
+}
+
+function continuationForSource(result, characterId) {
+  return result.metrics?.continuation?.bySource?.[String(characterId)] ?? {
+    attackHits: 0,
+    carriedAttackHits: 0,
+    defenseHits: 0,
+    carriedDefenseHits: 0,
+  };
+}
+
 function weightedBalance(retention, pressure) {
   if (retention <= 0 || pressure <= 0) return 0;
   return 1 / (0.6 / retention + 0.4 / pressure);
@@ -988,7 +1011,15 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
     allyPreservationNet: 0,
     enemyRemovalNet: 0,
     skillUsed: 0,
+    continuedActionScenarios: 0,
+    carriedActionScenarios: 0,
+    continuedAttackHits: 0,
+    continuedDefenseHits: 0,
+    carriedAttackHits: 0,
+    carriedDefenseHits: 0,
+    continuationWinGain: 0,
   };
+  const continuationEligible = supportsContinuationEvaluation(character);
 
   for (const scenario of scenarios) {
     const actualState = prepareCandidateState(scenario, character, solveCompletion, false, true);
@@ -1025,6 +1056,18 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
     totals.allyPreservationNet += allyPreservationNet;
     totals.enemyRemovalNet += enemyRemovalNet;
     totals.skillUsed += candidateSkillUsed(actual, String(character.id)) ? 1 : 0;
+    if (continuationEligible) {
+      const continuation = continuationForSource(actual, character.id);
+      const continuedHits = continuation.attackHits + continuation.defenseHits;
+      const carriedHits = continuation.carriedAttackHits + continuation.carriedDefenseHits;
+      totals.continuedActionScenarios += continuedHits > 0 ? 1 : 0;
+      totals.carriedActionScenarios += carriedHits > 0 ? 1 : 0;
+      totals.continuedAttackHits += continuation.attackHits;
+      totals.continuedDefenseHits += continuation.defenseHits;
+      totals.carriedAttackHits += continuation.carriedAttackHits;
+      totals.carriedDefenseHits += continuation.carriedDefenseHits;
+      if (continuedHits > 0) totals.continuationWinGain += Math.max(0, actualWinValue - baselineWinValue);
+    }
   }
 
   const scenarioCount = Math.max(1, totals.scenarios);
@@ -1054,6 +1097,16 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
       counteractionPerScenario: totals.counteraction / scenarioCount,
       allyPreservationNetPerScenario: totals.allyPreservationNet / scenarioCount,
       enemyRemovalNetPerScenario: totals.enemyRemovalNet / scenarioCount,
+    },
+    continuation: {
+      eligible: continuationEligible,
+      continuedActionRate: totals.continuedActionScenarios / scenarioCount,
+      carriedActionRate: totals.carriedActionScenarios / scenarioCount,
+      continuedAttackHitsPerScenario: totals.continuedAttackHits / scenarioCount,
+      continuedDefenseHitsPerScenario: totals.continuedDefenseHits / scenarioCount,
+      carriedAttackHitsPerScenario: totals.carriedAttackHits / scenarioCount,
+      carriedDefenseHitsPerScenario: totals.carriedDefenseHits / scenarioCount,
+      winGainPerScenario: totals.continuationWinGain / scenarioCount,
     },
     reproduction: {
       skillActivationRate: totals.skillUsed / scenarioCount,

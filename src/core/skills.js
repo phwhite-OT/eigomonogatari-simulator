@@ -53,6 +53,17 @@ function supportTargetIndexes(allies, actorIndex, skill, options = {}) {
   });
 }
 
+function continuationEffectSources(effects, ownerId, types = []) {
+  return effects.filter((effect) => (
+    (!types.length || types.includes(effect.type)) &&
+    Number(effect.duration) > Number(effect.remainingTurns) &&
+    effect.sourceCharacterId
+  )).map((effect) => ({
+    sourceCharacterId: String(effect.sourceCharacterId),
+    carried: String(effect.sourceCharacterId) !== String(ownerId),
+  }));
+}
+
 function resolveRedirectIndex(combatants, attacker) {
   if (attacker.isGhost) return undefined;
   let selected;
@@ -71,7 +82,7 @@ function resolveRedirectIndex(combatants, attacker) {
   return selected?.index;
 }
 
-function addEffect(combatant, type, skill, activationOrder) {
+function addEffect(combatant, type, skill, activationOrder, sourceCharacterId) {
   return {
     ...combatant,
     buffs: [
@@ -80,7 +91,10 @@ function addEffect(combatant, type, skill, activationOrder) {
         type,
         multiplier: skill.multiplier,
         amount: skill.amount,
+        hits: skill.hits,
         remainingTurns: skill.duration,
+        duration: skill.duration,
+        sourceCharacterId,
         conditions: structuredClone(skill.conditions ?? []),
         attributes: (skill.effects ?? []).flatMap((effect) => effect.attribute ? [effect.attribute] : []),
         activationOrder,
@@ -120,20 +134,14 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
   const attackTarget = (targetIndex, redirected = false) => {
     const defender = next[targetSide][targetIndex];
     if (!defender?.alive || defender.isGhost) return;
-    const attackMultiplier = actor.isGhost ? 1 : resolveAttackBuffMultiplier(
-      actor.buffs.filter(
-        (effect) =>
-          effect.type === "attack_buff" &&
-          effectApplies(effect, actor.attributes, defender.attributes),
-      ),
+    const attackEffects = actor.isGhost ? [] : actor.buffs.filter(
+      (effect) => effect.type === "attack_buff" && effectApplies(effect, actor.attributes, defender.attributes),
     );
-    const defenseMultiplier = actor.isGhost ? 1 : resolveDefenseMultiplier(
-      defender.buffs.filter(
-        (effect) =>
-          defenseTypes.has(effect.type) &&
-          effectApplies(effect, defender.attributes, actor.attributes),
-      ),
+    const defenseEffects = actor.isGhost ? [] : defender.buffs.filter(
+      (effect) => defenseTypes.has(effect.type) && effectApplies(effect, defender.attributes, actor.attributes),
     );
+    const attackMultiplier = actor.isGhost ? 1 : resolveAttackBuffMultiplier(attackEffects);
+    const defenseMultiplier = actor.isGhost ? 1 : resolveDefenseMultiplier(defenseEffects);
     const damage = calculateMinimumDamage({
       attacker: {
         ...actor.character,
@@ -163,14 +171,27 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
       defeated,
       redirected,
       factors: damage.factors,
+      continuation: {
+        attackSources: continuationEffectSources(
+          [...attackEffects, ...actor.buffs.filter((effect) => ["aoe_attack", "multi_hit_attack", "attribute_change"].includes(effect.type))],
+          actor.activeCharacterId,
+          ["attack_buff", "aoe_attack", "multi_hit_attack", "attribute_change"],
+        ),
+        defenseSources: continuationEffectSources(defenseEffects, defender.activeCharacterId, ["damage_reduction", "guard", "attribute_guard"]),
+      },
     });
   };
 
   if (skill.type === "aoe_attack") {
     const initialTargets = livingTargets();
     const redirectIndex = resolveRedirectIndex(next[targetSide], actor);
-    if (redirectIndex === undefined) initialTargets.forEach((targetIndex) => attackTarget(targetIndex));
-    else attackTarget(redirectIndex, true);
+    if (redirectIndex === undefined) {
+      for (const targetIndex of initialTargets) {
+        for (let hit = 0; hit < Math.max(1, Number(skill.hits) || 1); hit += 1) attackTarget(targetIndex);
+      }
+    } else {
+      for (let hit = 0; hit < Math.max(1, Number(skill.hits) || 1); hit += 1) attackTarget(redirectIndex, true);
+    }
   } else if (skill.type === "multi_hit_attack") {
     for (let hit = 0; hit < Math.max(1, skill.hits); hit += 1) {
       const fallbackIndex = nextTargetIndex();
@@ -204,11 +225,19 @@ export function applySupportSkill(state, actorSide, actorIndex, skill, options =
   const next = structuredClone(state);
   const allies = next[actorSide];
 
-  if (["attack_buff", "damage_reduction", "guard", "attribute_guard"].includes(skill.type)) {
+  const sourceCharacterId = allies[actorIndex]?.activeCharacterId;
+  const attackMode = ["aoe_attack", "multi_hit_attack"].includes(skill.type);
+  if (["attack_buff", "damage_reduction", "guard", "attribute_guard", "aoe_attack", "multi_hit_attack"].includes(skill.type)) {
     const activationOrder = next.nextEffectOrder ?? 1;
+    const targetAllies = skill.type === "multi_hit_attack"
+      ? skill.target === "ally_all"
+      : skill.type === "aoe_attack"
+        ? (skill.conditions ?? []).some((condition) => condition.type === "ally_attribute")
+        : false;
+    const effectSkill = attackMode ? { ...skill, target: targetAllies ? "ally_all" : "self" } : skill;
     next.nextEffectOrder = activationOrder + 1;
-    for (const index of supportTargetIndexes(allies, actorIndex, skill, { applyConditions: false })) {
-      allies[index] = addEffect(allies[index], skill.type, skill, activationOrder);
+    for (const index of supportTargetIndexes(allies, actorIndex, effectSkill, { applyConditions: false })) {
+      allies[index] = addEffect(allies[index], skill.type, effectSkill, activationOrder, sourceCharacterId);
     }
   } else if (skill.type === "heal") {
     for (const index of supportTargetIndexes(allies, actorIndex, skill)) {
@@ -229,7 +258,7 @@ export function applySupportSkill(state, actorSide, actorIndex, skill, options =
       const activationOrder = next.nextEffectOrder ?? 1;
       next.nextEffectOrder = activationOrder + 1;
       for (const index of supportTargetIndexes(allies, actorIndex, skill)) {
-        allies[index] = addEffect(allies[index], skill.type, skill, activationOrder);
+        allies[index] = addEffect(allies[index], skill.type, skill, activationOrder, sourceCharacterId);
         allies[index].attributes = [...attributes];
       }
     }

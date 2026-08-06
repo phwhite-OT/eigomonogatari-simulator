@@ -3,7 +3,11 @@ import {
   evaluateBoard,
   resolveDefeatedCombatants,
 } from "./battleState.js";
-import { calculateMinimumDamage } from "./damage.js";
+import {
+  calculateMinimumDamage,
+  resolveAttackBuffMultiplier,
+  resolveDefenseMultiplier,
+} from "./damage.js";
 import {
   applySupportSkill,
   canUseSkill,
@@ -17,11 +21,19 @@ export const TARGET_POLICIES = Object.freeze({
   BALANCE: "balance",
   KILL_CONFIRM: "kill-confirm",
   SKILL_THREAT: "skill-threat",
+  EXPERT: "expert",
 });
 export const ATTACK_ORDER_POLICIES = Object.freeze({
   LEFT_TO_RIGHT: "left-to-right",
   STRONGEST_FIRST: "strongest-first",
+  TACTICAL: "tactical",
 });
+export const PLAY_STYLES = Object.freeze({
+  DEFAULT: "default",
+  EXPERT: "expert",
+});
+const DEFENSE_SKILL_TYPES = new Set(["damage_reduction", "guard", "attribute_guard"]);
+const ATTACK_MODE_TYPES = new Set(["aoe_attack", "multi_hit_attack"]);
 const PHASE_LABELS = Object.freeze({
   skill_selection: "スキル選択・温存",
   attribute_change: "属性変更",
@@ -48,7 +60,20 @@ function remainingCharacterCount(combatant) {
   return Math.max(0, combatant.deck.length - combatant.deckIndex);
 }
 
+function effectApplies(effect, ownerAttributes, opponentAttributes) {
+  return (effect.conditions ?? []).every((condition) => {
+    const attributes = condition.type === "ally_attribute" ? ownerAttributes : opponentAttributes;
+    return attributes.includes(condition.attribute);
+  });
+}
+
 function estimateDamage(actor, defender, skill, rules) {
+  const attackEffects = actor.isGhost ? [] : actor.buffs.filter((effect) => (
+    effect.type === "attack_buff" && effectApplies(effect, actor.attributes, defender.attributes)
+  ));
+  const defenseEffects = actor.isGhost ? [] : defender.buffs.filter((effect) => (
+    DEFENSE_SKILL_TYPES.has(effect.type) && effectApplies(effect, defender.attributes, actor.attributes)
+  ));
   return calculateMinimumDamage({
     attacker: {
       ...actor.character,
@@ -57,6 +82,8 @@ function estimateDamage(actor, defender, skill, rules) {
     },
     defender: { ...defender.character, attributes: defender.attributes },
     skillMultiplier: skill.multiplier ?? 1,
+    attackMultiplier: actor.isGhost ? 1 : resolveAttackBuffMultiplier(attackEffects),
+    defenseMultiplier: actor.isGhost ? 1 : resolveDefenseMultiplier(defenseEffects),
     rules,
   }).value;
 }
@@ -74,7 +101,7 @@ function compareDamageEfficiency(left, right, killablePool) {
 }
 
 function compareTargetCandidates(left, right, policy, killablePool) {
-  if (policy === TARGET_POLICIES.BALANCE) {
+  if (policy === TARGET_POLICIES.BALANCE || policy === TARGET_POLICIES.EXPERT) {
     return (
       right.remaining - left.remaining ||
       Number(right.killable) - Number(left.killable) ||
@@ -108,9 +135,10 @@ function compareTargetCandidates(left, right, policy, killablePool) {
 }
 
 export function targetPolicyReason(policy = TARGET_POLICIES.KILL_CONFIRM) {
+  if (policy === TARGET_POLICIES.EXPERT) return "残数平準化を最優先に、撃破効率・発動間近のスキル・長期生存を統合して判断";
   if (policy === TARGET_POLICIES.BALANCE) return "敵の残りキャラ数の平準化を最優先";
   if (policy === TARGET_POLICIES.SKILL_THREAT) return "残数平準化後、発動が近い敵を優先";
-  return "撃破可能な敵を確実に落とし、その中で残数を平準化";
+  return "撃破可能な敵を確実に倒すことを優先し、その中で敵の残数を平準化";
 }
 
 export function selectPriorityTarget(state, actorSide, options = {}) {
@@ -200,6 +228,9 @@ function skillDecision(state, side, actorIndex, rules, options) {
   if (skill.type === "delay" || skill.type === "skill_reduction") {
     return { use: false, reason: "今回の評価では短縮・遅延効果を使用しない" };
   }
+  if (options.playStyle === PLAY_STYLES.EXPERT) {
+    return expertSkillDecision(state, side, actorIndex, rules);
+  }
   const environmentPosition = actor.environmentPosition ?? actor.deckIndex + 1;
   if (environmentPosition >= 2 && skill.type !== "revive") {
     return { use: true, reason: "2枠目以降は使用可能なスキルを原則すぐ使用" };
@@ -228,6 +259,78 @@ function skillDecision(state, side, actorIndex, rules, options) {
       : { use: false, reason: "通常攻撃より最低保証が下がるため温存" };
   }
   return { use: true, reason: "有効な支援効果を先に適用するため使用" };
+}
+
+function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK) {
+  const modeEffects = actor.isGhost ? [] : actor.buffs.filter((effect) => ATTACK_MODE_TYPES.has(effect.type));
+  const aoe = baseSkill.type === "aoe_attack" || modeEffects.some((effect) => effect.type === "aoe_attack");
+  const baseHits = baseSkill.type === "multi_hit_attack" ? Math.max(1, Number(baseSkill.hits) || 1) : 1;
+  const extraHits = modeEffects.filter((effect) => effect.type === "multi_hit_attack").reduce((sum, effect) => (
+    sum + Math.max(0, Number(effect.hits) - 1)
+  ), 0);
+  const hits = baseHits + extraHits;
+  return {
+    type: aoe ? "aoe_attack" : hits > 1 ? "multi_hit_attack" : "single_attack",
+    multiplier: Number(baseSkill.multiplier) || 1,
+    hits,
+  };
+}
+
+function projectedSkillDamage(state, side, actor, skill, rules) {
+  const effectiveSkill = attackSkillWithEffects(actor, skill);
+  const targets = state[opponentSide(side)].filter((combatant) => combatant.alive && !combatant.isGhost);
+  const damages = targets.map((target) => estimateDamage(actor, target, effectiveSkill, rules));
+  if (effectiveSkill.type === "aoe_attack") {
+    return damages.reduce((sum, damage) => sum + damage * Math.max(1, effectiveSkill.hits), 0);
+  }
+  const strongestHit = Math.max(0, ...damages);
+  return effectiveSkill.type === "multi_hit_attack"
+    ? strongestHit * Math.max(1, Number(effectiveSkill.hits) || 1)
+    : strongestHit;
+}
+
+function crossTeamDamage(state, attackingSide, rules) {
+  const defendingSide = opponentSide(attackingSide);
+  return state[attackingSide].filter((combatant) => combatant.alive && !combatant.isGhost).reduce((sum, actor) => (
+    sum + state[defendingSide].filter((target) => target.alive && !target.isGhost).reduce((damageSum, target) => (
+      damageSum + estimateDamage(actor, target, BASIC_ATTACK, rules)
+    ), 0)
+  ), 0);
+}
+
+function totalCurrentHp(state, side) {
+  return state[side].reduce((sum, combatant) => sum + (combatant.alive && !combatant.isGhost ? combatant.currentHp : 0), 0);
+}
+
+function expertSupportBenefit(state, side, actorIndex, skill, rules) {
+  const after = applySupportSkill(state, side, actorIndex, skill, { consumeSkill: false });
+  const outgoingGain = crossTeamDamage(after, side, rules) - crossTeamDamage(state, side, rules);
+  const preventedDamage = crossTeamDamage(state, opponentSide(side), rules) - crossTeamDamage(after, opponentSide(side), rules);
+  const healingGain = totalCurrentHp(after, side) - totalCurrentHp(state, side);
+  return { outgoingGain, preventedDamage, healingGain };
+}
+
+function expertSkillDecision(state, side, actorIndex, rules) {
+  const actor = state[side][actorIndex];
+  const skill = actor.character.skill;
+  if (skill.type === "revive") {
+    return reviveMayApply(state, side, actorIndex, skill, rules)
+      ? { use: true, reason: "このターンの撃破を蘇生で覆せるため使用" }
+      : { use: false, reason: "このターンに蘇生対象が発生しないため温存" };
+  }
+  if (isAttackSkill(skill)) {
+    const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
+    return benefit.outgoingGain > 0
+      ? { use: true, reason: "通常攻撃より撃破・総ダメージ効率が上がるため使用" }
+      : { use: false, reason: "既存の攻撃形態と重複するか盤面への寄与が増えないため温存" };
+  }
+  const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
+  const useful = skill.type === "heal"
+    ? benefit.healingGain > 0
+    : benefit.outgoingGain > 0 || benefit.preventedDamage > 0;
+  return useful
+    ? { use: true, reason: "このターン以降の与ダメージ増加または被ダメージ軽減に寄与するため使用" }
+    : { use: false, reason: "適用対象・属性条件・盤面効果が不足するため温存" };
 }
 
 function chooseSkills(state, rules, options) {
@@ -331,17 +434,32 @@ function applySupportPhase(state, intents, skillTypes) {
 }
 
 function projectedAttackDamage(intent, state, rules) {
-  const targetDamages = state[opponentSide(intent.side)]
-    .filter((combatant) => combatant.alive && !combatant.isGhost)
-    .map((target) => estimateDamage(intent.actor, target, intent.skill, rules));
-  if (intent.skill.type === "aoe_attack") {
-    return targetDamages.reduce((sum, damage) => sum + damage, 0);
-  }
-  const strongestHit = Math.max(0, ...targetDamages);
-  if (intent.skill.type === "multi_hit_attack") {
-    return strongestHit * Math.max(1, Number(intent.skill.hits) || 1);
-  }
-  return strongestHit;
+  return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules);
+}
+
+function tacticalAttackIntentScore(intent, state, rules, options) {
+  const targetIndex = selectPriorityTarget(state, intent.side, {
+    actor: intent.actor,
+    actorIndex: intent.actorIndex,
+    skill: intent.skill,
+    rules,
+    targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
+  });
+  const target = state[opponentSide(intent.side)][targetIndex];
+  if (!target) return 0;
+  const damage = estimateDamage(intent.actor, target, intent.skill, rules);
+  const defeated = intent.skill.type === "aoe_attack"
+    ? state[opponentSide(intent.side)].filter((entry) => entry.alive && !entry.isGhost).filter((entry) => (
+      estimateDamage(intent.actor, entry, intent.skill, rules) >= entry.currentHp
+    )).length
+    : Number(damage >= target.currentHp);
+  return (
+    defeated * 1_000_000 +
+    remainingCharacterCount(target) * 10_000 +
+    Number(damage >= target.currentHp) * 1_000 +
+    Math.min(999, damage / Math.max(1, target.currentHp)) * 10 +
+    projectedAttackDamage(intent, state, rules) / 1_000
+  );
 }
 
 function orderAttackIntents(intents, side, state, rules, options) {
@@ -351,6 +469,12 @@ function orderAttackIntents(intents, side, state, rules, options) {
     return intents.sort((left, right) => (
       (order.get(left.actorIndex) ?? Number.MAX_SAFE_INTEGER) -
       (order.get(right.actorIndex) ?? Number.MAX_SAFE_INTEGER)
+    ));
+  }
+  if (options.attackOrderPolicy === ATTACK_ORDER_POLICIES.TACTICAL) {
+    return intents.sort((left, right) => (
+      tacticalAttackIntentScore(right, state, rules, options) - tacticalAttackIntentScore(left, state, rules, options) ||
+      left.actorIndex - right.actorIndex
     ));
   }
   if (options.attackOrderPolicy === ATTACK_ORDER_POLICIES.STRONGEST_FIRST) {
@@ -369,13 +493,13 @@ function attackIntents(state, selectedSkills, rules, options) {
     enemies: activeTokens(state, "enemies"),
   };
   return ["allies", "enemies"].flatMap((side) => orderAttackIntents(tokens[side].map((token) => {
-    const selectedSkill = selected.get(`${side}:${token.actorIndex}`)?.skill;
+    const skill = attackSkillWithEffects(token.actor);
     return {
       ...token,
-      skill: isAttackSkill(selectedSkill) ? selectedSkill : BASIC_ATTACK,
+      skill,
       action: token.actor.isGhost
         ? "ghost_attack"
-        : isAttackSkill(selectedSkill) ? "attack_skill" : "basic_attack",
+        : skill.type === "single_attack" ? "basic_attack" : "attack_skill",
     };
   }), side, state, rules, options));
 }
@@ -486,6 +610,35 @@ function outcomeOf(state) {
   return "ongoing";
 }
 
+function continuationMetrics(history) {
+  const bySource = {};
+  const add = (source, field) => {
+    if (!source?.sourceCharacterId) return;
+    const id = String(source.sourceCharacterId);
+    bySource[id] ??= { attackHits: 0, carriedAttackHits: 0, defenseHits: 0, carriedDefenseHits: 0 };
+    bySource[id][field] += 1;
+  };
+  for (const action of history.flatMap((entry) => entry.actions)) {
+    for (const hit of action.hits) {
+      for (const source of hit.continuation?.attackSources ?? []) {
+        add(source, "attackHits");
+        if (source.carried) add(source, "carriedAttackHits");
+      }
+      for (const source of hit.continuation?.defenseSources ?? []) {
+        add(source, "defenseHits");
+        if (source.carried) add(source, "carriedDefenseHits");
+      }
+    }
+  }
+  const totals = Object.values(bySource).reduce((sum, entry) => ({
+    attackHits: sum.attackHits + entry.attackHits,
+    carriedAttackHits: sum.carriedAttackHits + entry.carriedAttackHits,
+    defenseHits: sum.defenseHits + entry.defenseHits,
+    carriedDefenseHits: sum.carriedDefenseHits + entry.carriedDefenseHits,
+  }), { attackHits: 0, carriedAttackHits: 0, defenseHits: 0, carriedDefenseHits: 0 });
+  return { ...totals, bySource };
+}
+
 export function simulateBattle(initialState, rules, options = {}) {
   const configuredTurns = Number(options.turns ?? rules.simulation?.turns ?? 8);
   const totalTurns = Math.min(12, Math.max(1, Math.floor(configuredTurns || 8)));
@@ -512,7 +665,7 @@ export function simulateBattle(initialState, rules, options = {}) {
     state = healing.state;
     phases.push(phase("healing", healing.events));
 
-    const attackSupport = applySupportPhase(state, selection.intents, ["attack_buff"]);
+    const attackSupport = applySupportPhase(state, selection.intents, ["attack_buff", "aoe_attack", "multi_hit_attack"]);
     state = attackSupport.state;
     phases.push(phase("attack_support", attackSupport.events));
 
@@ -582,6 +735,7 @@ export function simulateBattle(initialState, rules, options = {}) {
       allyRemainingSpread: final.allies.remainingSpread,
       enemyRemainingSpread: final.enemies.remainingSpread,
       boardDelta: final.board - initial.board,
+      continuation: continuationMetrics(history),
     },
   };
 }

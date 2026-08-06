@@ -59,9 +59,9 @@ async function writeStatus(status) {
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
 const ratingScript = path.join(scriptDirectory, "rate-metagame.mjs");
-const statusPath = path.resolve(projectRoot, readArgument("status", "reports/metagame-v3-batch-status.json"));
-const outputRoot = readArgument("output-root", "reports/metagame-ratings-v3");
-const priorOutputRoot = readArgument("prior-output-root", "reports/metagame-ratings");
+const statusPath = path.resolve(projectRoot, readArgument("status", "reports/metagame-v5-batch-status.json"));
+const outputRoot = readArgument("output-root", "reports/metagame-ratings-v5");
+const priorOutputRoot = readArgument("prior-output-root", "reports/metagame-ratings-v4");
 const attributeGroupsArgument = readArgument("attribute-groups", "");
 const legacyAttributesArgument = readArgument("attributes", "");
 const attributeGroups = attributeGroupsArgument
@@ -106,7 +106,7 @@ const config = {
   workers,
   outputRoot,
   priorOutputRoot,
-  modelVersion: "iterative-metagame-v4-continuation-carryover",
+  modelVersion: "iterative-metagame-v5-expert-continuation",
 };
 
 await fs.mkdir(path.dirname(statusPath), { recursive: true });

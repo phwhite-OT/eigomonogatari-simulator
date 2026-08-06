@@ -287,4 +287,80 @@ test("環境対戦は継続バフを次枠へ渡して次ターンの攻撃へ�
 
   assert.equal(result.history[0].phases.at(-1).events[0].type, "replacement");
   assert.equal(reserveAction.hits[0].damage, 260);
+  assert.deepEqual(result.metrics.continuation.bySource["front-buffer"], {
+    attackHits: 1,
+    carriedAttackHits: 1,
+    defenseHits: 0,
+    carriedDefenseHits: 0,
+  });
+});
+
+
+test("expert target policy prioritizes stock balancing over a killable short stack", () => {
+  const state = createBattleState(
+    [character("attacker", { pow: 100 })],
+    [
+      [character("many", { hp: 1_000 }), ...Array.from({ length: 4 }, (_, index) => character(`many-${index}`))],
+      [character("killable", { hp: 50 }), character("reserve")],
+    ],
+  );
+
+  assert.equal(selectPriorityTarget(state, "allies", {
+    actorIndex: 0,
+    rules: simpleRules,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+  }), 0);
+});
+
+test("expert play holds a continuous buff with no matching attribute target", () => {
+  const conditionalBuff = {
+    type: "attack_buff",
+    multiplier: 2,
+    target: "self",
+    duration: 2,
+    conditions: [{ type: "enemy_attribute", attribute: "water" }],
+  };
+  const state = createBattleState(
+    [character("buffer", { skillTurn: 0, skill: conditionalBuff })],
+    [character("fire-enemy", { attributes: ["fire"], pow: 0 })],
+  );
+  const result = simulateBattle(state, simpleRules, {
+    turns: 1,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  });
+
+  assert.equal(result.state.allies[0].skillUses, 0);
+  assert.equal(result.history[0].phases[0].events[0].type, "skill_hold");
+});
+
+
+test("継続全体攻撃は次ターンも全敵へ適用され、継続実績として記録する", () => {
+  const continuousAoe = {
+    type: "aoe_attack",
+    multiplier: 1,
+    target: "enemy_all",
+    targetCount: 5,
+    duration: 2,
+    hits: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [character("aoe", { skillTurn: 0, skill: continuousAoe })],
+    [character("enemy-a", { hp: 1_000, pow: 0 }), character("enemy-b", { hp: 1_000, pow: 0 })],
+  );
+  const result = simulateBattle(state, simpleRules, {
+    turns: 2,
+    skillPolicy: ({ state: turnState }) => ({ use: turnState.turn === 1, reason: "test" }),
+  });
+
+  assert.equal(result.history[0].actions[0].hits.length, 2);
+  assert.equal(result.history[1].actions[0].hits.length, 2);
+  assert.deepEqual(result.metrics.continuation.bySource.aoe, {
+    attackHits: 2,
+    carriedAttackHits: 0,
+    defenseHits: 0,
+    carriedDefenseHits: 0,
+  });
 });

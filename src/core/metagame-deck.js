@@ -1,6 +1,7 @@
 import { createBattleState } from "./battleState.js";
 import {
   ATTACK_ORDER_POLICIES,
+  PLAY_STYLES,
   simulateBattle,
   TARGET_POLICIES,
 } from "./simulate.js";
@@ -8,16 +9,9 @@ import { DEFAULT_RULES } from "../data/rules.js";
 
 const METAGAME_DECK_PROFILES = Object.freeze([
   Object.freeze({
-    targetPolicy: TARGET_POLICIES.BALANCE,
-    attackOrderPolicy: ATTACK_ORDER_POLICIES.STRONGEST_FIRST,
-  }),
-  Object.freeze({
-    targetPolicy: TARGET_POLICIES.KILL_CONFIRM,
-    attackOrderPolicy: ATTACK_ORDER_POLICIES.STRONGEST_FIRST,
-  }),
-  Object.freeze({
-    targetPolicy: TARGET_POLICIES.SKILL_THREAT,
-    attackOrderPolicy: ATTACK_ORDER_POLICIES.STRONGEST_FIRST,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: PLAY_STYLES.EXPERT,
   }),
 ]);
 
@@ -218,6 +212,7 @@ async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, opt
         turns: constraint.turns,
         targetPolicy: profile.targetPolicy,
         attackOrderPolicy: profile.attackOrderPolicy,
+        playStyle: profile.playStyle,
       },
     );
     winValues.push(metagameProjectedWinValue(result));

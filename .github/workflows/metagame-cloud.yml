@@ -25,7 +25,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: metagame-v4
+  group: metagame-v5
   cancel-in-progress: false
 
 jobs:
@@ -63,21 +63,21 @@ jobs:
         name: Evaluate the next metagame task
         shell: bash
         run: |
-          if [ -f reports/metagame-v4-batch-status.json ] && grep -q '"status": "completed"' reports/metagame-v4-batch-status.json; then
+          if [ -f reports/metagame-v5-batch-status.json ] && grep -q '"status": "completed"' reports/metagame-v5-batch-status.json; then
             echo "completed_before=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           node scripts/rate-metagame-batch.mjs \
-            --status=reports/metagame-v4-batch-status.json \
-            --output-root=reports/metagame-ratings-v4 \
-            --prior-output-root=reports/metagame-ratings-v4-prior-empty \
+            --status=reports/metagame-v5-batch-status.json \
+            --output-root=reports/metagame-ratings-v5 \
+            --prior-output-root=reports/metagame-ratings-v4 \
             --max-constraints="$METAGAME_MAX_CONSTRAINTS" \
             --first-scenarios=4 \
             --final-scenarios=30 \
             --finalists=40 \
             --turns=12 \
             --workers="$METAGAME_WORKERS"
-          if grep -q '"status": "completed"' reports/metagame-v4-batch-status.json; then
+          if grep -q '"status": "completed"' reports/metagame-v5-batch-status.json; then
             echo "completed_now=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -91,10 +91,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f reports/metagame-v4-batch-status.json
-          if [ -f reports/metagame-v4-supervisor-status.json ]; then git add -f reports/metagame-v4-supervisor-status.json; fi
-          if [ -f reports/metagame-v4-active.json ]; then git add -f reports/metagame-v4-active.json; fi
-          if [ -d reports/metagame-ratings-v4 ]; then git add -f reports/metagame-ratings-v4; fi
+          git add -f reports/metagame-v5-batch-status.json
+          if [ -f reports/metagame-v5-supervisor-status.json ]; then git add -f reports/metagame-v5-supervisor-status.json; fi
+          if [ -f reports/metagame-v5-active.json ]; then git add -f reports/metagame-v5-active.json; fi
+          if [ -d reports/metagame-ratings-v5 ]; then git add -f reports/metagame-ratings-v5; fi
           if [ -f src/data/metagame-simulator-data.js ]; then git add src/data/metagame-simulator-data.js; fi
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "chore: save metagame evaluation progress"
