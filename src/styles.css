@@ -309,6 +309,19 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-data-status { flex: 0 0 auto; padding: 9px 13px; border: 1px solid #cddd9b; border-radius: 999px; background: #f4f9df; color: #536523; font-size: 10px; font-weight: 800; }
 .metagame-simulator-form { display: grid; grid-template-columns: minmax(260px, 420px) minmax(250px, 330px) auto; gap: 12px; align-items: end; margin-top: 24px; }
 .metagame-simulator-form .button { min-height: 52px; }
+.metagame-surveyed-constraints { margin-top: 16px; padding: 14px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
+.metagame-surveyed-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
+.metagame-surveyed-heading strong { color: #526128; font-size: 12px; }
+.metagame-surveyed-heading span { color: #788174; font-size: 9px; }
+.metagame-surveyed-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.metagame-surveyed-constraint { min-width: 0; padding: 10px; border: 1px solid #dce2d3; border-radius: 10px; background: white; color: var(--ink); cursor: pointer; text-align: left; }
+.metagame-surveyed-constraint strong, .metagame-surveyed-constraint small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-surveyed-constraint strong { font-size: 10px; }
+.metagame-surveyed-constraint small { margin-top: 4px; color: #788174; font-size: 8px; }
+.metagame-surveyed-constraint:hover, .metagame-surveyed-constraint:focus-visible { border-color: #96ae52; outline: none; }
+.metagame-surveyed-constraint.is-active { border-color: #718f2d; background: #718f2d; color: white; }
+.metagame-surveyed-constraint.is-active small { color: #e4efc5; }
+.metagame-surveyed-constraint:disabled { cursor: wait; opacity: .62; }
 .metagame-sim-progress { margin-top: 16px; }
 .metagame-sim-progress > div { display: flex; justify-content: space-between; margin-bottom: 7px; color: var(--ink-soft); font-size: 10px; }
 .metagame-sim-progress > span { display: block; overflow: hidden; height: 8px; border-radius: 99px; background: #e3e6dc; }
@@ -354,6 +367,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 
 @media (max-width: 860px) {
   .metagame-simulator { padding: 22px; border-radius: 20px; }
+  .metagame-surveyed-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .metagame-simulator-heading { display: grid; }
   .metagame-data-status { justify-self: start; }
   .metagame-simulator-form { grid-template-columns: 1fr; }
@@ -363,6 +377,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 
 @media (max-width: 560px) {
   .metagame-simulator { padding: 17px 13px; }
+  .metagame-surveyed-heading { align-items: start; flex-direction: column; gap: 3px; }
+  .metagame-surveyed-list { grid-template-columns: 1fr 1fr; }
   .metagame-result-overview, .metagame-result-header { align-items: start; flex-direction: column; }
   .metagame-win-rate { justify-items: start; }
   .metagame-slot-list { grid-template-columns: 1fr; }

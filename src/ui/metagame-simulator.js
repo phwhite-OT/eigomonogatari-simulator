@@ -163,6 +163,35 @@ function renderMetagameSimulatorResult(container, searchResult) {
   container.append(note);
 }
 
+function renderSurveyedMetagameConstraints(container, constraints, selectedId) {
+  container.replaceChildren();
+  const heading = metagameUiElement("div", "metagame-surveyed-heading");
+  heading.append(
+    metagameUiElement("strong", "", "実装済みの環境"),
+    metagameUiElement("span", "", constraints.length + "縛り・各5枠を選択して確認できます"),
+  );
+  const list = metagameUiElement("div", "metagame-surveyed-list");
+  constraints.forEach((constraint) => {
+    const button = metagameUiElement(
+      "button",
+      "metagame-surveyed-constraint" + (constraint.id === selectedId ? " is-active" : ""),
+    );
+    button.type = "button";
+    button.dataset.metagameSurveyedConstraint = constraint.id;
+    button.setAttribute("aria-pressed", String(constraint.id === selectedId));
+    const environmentCount = constraint.slots[0]?.environment.length ?? 0;
+    button.append(
+      metagameUiElement("strong", "", constraint.label),
+      metagameUiElement(
+        "small",
+        "",
+        "5枠・各上位" + environmentCount + "体・" + constraint.scenarioCount + "環境",
+      ),
+    );
+    list.append(button);
+  });
+  container.append(heading, list);
+}
 function renderMetagameEnvironmentPreview(container, constraint) {
   container.replaceChildren();
   if (!constraint) {
@@ -192,6 +221,7 @@ export function initializeMetagameSimulator(root, data, characters) {
   const resultRoot = root.querySelector("[data-metagame-result]");
   const previewStatus = root.querySelector("[data-metagame-environment-preview-status]");
   const previewContent = root.querySelector("[data-metagame-environment-preview-content]");
+  const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
   let abortController = null;
 
   select.replaceChildren();
@@ -211,9 +241,16 @@ export function initializeMetagameSimulator(root, data, characters) {
       ? `${constraint.scenarioCount}盤面・各枠の予測使用率 上位10体`
       : "調査済み環境なし";
     renderMetagameEnvironmentPreview(previewContent, constraint);
+    renderSurveyedMetagameConstraints(surveyedConstraints, data.constraints, constraint?.id);
   };
   updateEnvironmentPreview();
   select.addEventListener("change", updateEnvironmentPreview);
+  surveyedConstraints.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-metagame-surveyed-constraint]");
+    if (!button || button.disabled) return;
+    select.value = button.dataset.metagameSurveyedConstraint;
+    updateEnvironmentPreview();
+  });
   renderMetagameSimulatorMessage(
     resultRoot,
     data.constraints.length
@@ -224,6 +261,9 @@ export function initializeMetagameSimulator(root, data, characters) {
   const setBusy = (busy) => {
     submitButton.disabled = busy || data.constraints.length === 0;
     select.disabled = busy;
+    surveyedConstraints.querySelectorAll("[data-metagame-surveyed-constraint]").forEach((button) => {
+      button.disabled = busy;
+    });
     cancelButton.hidden = !busy;
     progress.hidden = !busy;
   };
