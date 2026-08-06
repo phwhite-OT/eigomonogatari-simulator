@@ -13,6 +13,8 @@ export const EXACT_LIGHTEST_DEFAULTS = Object.freeze({
   ownedOnly: false,
   resultLimit: 5,
   stopOnFirstWin: true,
+  targetSearch: "all",
+  skillSearch: "all",
 });
 
 const EXACT_ATTACK_TYPES = new Set(["single_attack", "aoe_attack", "multi_hit_attack"]);
@@ -353,7 +355,33 @@ function exactPendingKey(pendingRevives) {
   return pendingRevives.map((intent) => [intent.side, intent.actorIndex, String(intent.character.id)]);
 }
 
-function exactSkillPhase(initial, phaseTypes, initialPending, initialEvents, stats) {
+function exactSkillPhase(initial, phaseTypes, initialPending, initialEvents, stats, options) {
+  if (options.skillSearch === "automatic") {
+    const state = exactClone(initial);
+    const pendingRevives = exactClone(initialPending);
+    const events = [...initialEvents];
+    const usedAllies = new Set();
+    while (true) {
+      const readyAlly = exactReadyIntents(state, phaseTypes, usedAllies)
+        .filter((intent) => intent.side === "allies")
+        .sort((left, right) => left.actorIndex - right.actorIndex)[0];
+      if (!readyAlly) break;
+      events.push(exactApplyIntent(state, readyAlly, pendingRevives));
+      usedAllies.add(readyAlly.key);
+      stats.skillBranches += 1;
+    }
+    const usedEnemies = new Set();
+    while (true) {
+      const readyEnemy = exactReadyIntents(state, phaseTypes, usedEnemies)
+        .filter((intent) => intent.side === "enemies")
+        .sort((left, right) => left.actorIndex - right.actorIndex)[0];
+      if (!readyEnemy) break;
+      events.push(exactApplyIntent(state, readyEnemy, pendingRevives));
+      usedEnemies.add(readyEnemy.key);
+      stats.skillBranches += 1;
+    }
+    return [{ state, pendingRevives, events }];
+  }
   const allyOutcomes = new Map();
   const allyVisited = new Set();
   const exploreAllies = (state, used, pendingRevives, events) => {
@@ -424,7 +452,7 @@ function exactAdvanceCounters(state) {
   }
 }
 
-function exactSkillOutcomes(state, stats) {
+function exactSkillOutcomes(state, stats, options) {
   let branches = [{ state: exactClone(state), pendingRevives: [], events: [] }];
   for (let phaseIndex = 0; phaseIndex < EXACT_SKILL_PHASES.length; phaseIndex += 1) {
     const phaseTypes = new Set(EXACT_SKILL_PHASES[phaseIndex]);
@@ -440,6 +468,7 @@ function exactSkillOutcomes(state, stats) {
         prepared.pendingRevives,
         prepared.events,
         stats,
+        options,
       ));
     }
     const deduped = new Map();
@@ -696,12 +725,12 @@ function exactUnorderedTargetPlanCount(targetCount, attackerCount) {
   return count;
 }
 
-function exactManualTargetPlans(state, stats) {
+function exactManualTargetPlans(state, stats, options) {
   const targetIndexes = state.enemies.flatMap((enemy, index) => (
     enemy.alive && !enemy.ghost ? [index] : []
   ));
   const manualTargets = Array(state.allies.length).fill(undefined);
-  if (!targetIndexes.length) return [manualTargets];
+  if (!targetIndexes.length || options.targetSearch === "automatic") return [manualTargets];
   const referenceTarget = state.enemies[targetIndexes[0]];
   const targetableAllyIndexes = state.allies.flatMap((ally, index) => (
     (ally.alive || ally.ghost) && exactAttackMode(ally, referenceTarget).type !== "aoe_attack"
@@ -897,11 +926,11 @@ export function solveExactLightestStage(deck, enemies, solveOptions = {}) {
       failedMemo.add(memoKey);
       return null;
     }
-    const skillBranches = exactSkillOutcomes(state, stats);
+    const skillBranches = exactSkillOutcomes(state, stats, options);
     const turnOutcomes = new Map();
     for (const skillBranch of skillBranches) {
       for (const answerMode of exactAnswerModes(options)) {
-        for (const manualTargets of exactManualTargetPlans(skillBranch.state, stats)) {
+        for (const manualTargets of exactManualTargetPlans(skillBranch.state, stats, options)) {
           stats.battleBranches += 1;
           const battle = exactResolveBattle(skillBranch, options, answerMode.factor, manualTargets);
           const turnLog = {
@@ -953,6 +982,7 @@ export function solveExactLightestStage(deck, enemies, solveOptions = {}) {
     history,
     final: exactSnapshot(finalState),
     exactSearch: stats,
+    searchPolicy: { targetSearch: options.targetSearch, skillSearch: options.skillSearch },
     assumptions: exactAssumptions(),
   };
 }

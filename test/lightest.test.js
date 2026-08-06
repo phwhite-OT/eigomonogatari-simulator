@@ -619,7 +619,7 @@ test("lightest scout narrows the exact cost range without changing the minimum",
 });
 
 
-test("fast approximation is opt-in and avoids the exact solver", async () => {
+test("省略プリセットは候補デッキを打ち切らず、行動と並び順だけを省略する", async () => {
   const cheapAttacker = character("fast-cheap-attacker", 1, 0);
   const strongAttacker = character("fast-strong-attacker", 2, 1_000);
   const reviver = character("fast-reviver", 1, 0, { type: "revive", turn: 99 });
@@ -641,12 +641,10 @@ test("fast approximation is opt-in and avoids the exact solver", async () => {
 
   assert.equal(result.foundThreeStar, true);
   assert.equal(result.exact, false);
-  assert.equal(result.approximate.enabled, true);
   assert.equal(result.results[0].totalCost, 3);
-  assert.ok(result.approximate.testedDeckCount <= result.approximate.candidateDeckCount);
-  assert.ok(phases.every((phase) => phase === "approximate"));
+  assert.deepEqual(result.searchScope.omitted.map((entry) => entry.key), ["targets", "skills", "order"]);
+  assert.ok(phases.includes("exact"));
 });
-
 
 test("default lightest search remains exact when fast approximation is off", async () => {
   const attacker = character("default-exact-attacker", 1, 1_000);
@@ -670,8 +668,11 @@ test("default lightest search remains exact when fast approximation is off", asy
 });
 
 
-test("lightest template exposes both fast approximation controls", () => {
+test("lightest template exposes individual search-scope controls", () => {
   const template = readFileSync(new URL("../src/index.template.html", import.meta.url), "utf8");
   assert.match(template, /name="lightestFastApproximation"/);
+  assert.match(template, /name="lightestAutomaticTargeting"/);
+  assert.match(template, /name="lightestImmediateSkills"/);
+  assert.match(template, /name="lightestHpOrderOnly"/);
   assert.match(template, /data-lightest-fast-approximation-toggle/);
 });

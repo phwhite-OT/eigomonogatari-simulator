@@ -275,10 +275,12 @@ function renderLightestResult(result, rank) {
 
 function lightestSearchSummary(searchResult) {
   const targetCost = Number.isInteger(searchResult.targetCost) ? searchResult.targetCost : null;
-  if (searchResult.approximate) {
+  const omitted = searchResult.searchScope?.omitted ?? [];
+  if (omitted.length) {
+    const suffix = "省略: " + omitted.map((entry) => entry.label).join("・");
     return searchResult.foundThreeStar
-      ? "高速近似で総コスト " + searchResult.searchedThroughCost + " の三冠候補を発見（最小値保証なし）"
-      : "高速近似の候補には三冠デッキなし（完全探索ではない）";
+      ? "選択した探索範囲で総コスト " + searchResult.searchedThroughCost + " の三冠デッキを発見（" + suffix + "）"
+      : "選択した探索範囲では三冠デッキなし（" + suffix + "）";
   }
   if (!searchResult.foundThreeStar) {
     return targetCost === null
@@ -297,11 +299,12 @@ function renderLightestResults(root, searchResult) {
     lightestElement("strong", "", lightestSearchSummary(searchResult)),
     lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証`),
   );
-  if (searchResult.approximate) {
+  const omitted = searchResult.searchScope?.omitted ?? [];
+  if (omitted.length) {
     overview.append(lightestElement(
       "span",
       "",
-      "高速近似: " + searchResult.approximate.testedDeckCount + " / " + searchResult.approximate.candidateDeckCount + " デッキを自動プレイで確認。候補外・手動操作は未探索。",
+      "省略した分岐: " + omitted.map((entry) => entry.label).join("・") + "。候補キャラ・総コスト・デッキ枚数は全探索です。",
     ));
   }
   if (searchResult.scout?.attempted) {
@@ -344,6 +347,9 @@ export function initializeLightest(root, characters) {
   const sortByHp = root.querySelector("[data-lightest-sort-hp]");
   const sortByHpStatus = root.querySelector("[data-lightest-sort-hp-status]");
   const fastApproximation = form.elements.lightestFastApproximation;
+  const automaticTargeting = form.elements.lightestAutomaticTargeting;
+  const immediateSkills = form.elements.lightestImmediateSkills;
+  const hpOrderOnly = form.elements.lightestHpOrderOnly;
   const fastApproximationToggle = root.querySelector("[data-lightest-fast-approximation-toggle]");
   let orderByHpDescending = false;
   let activeCharacters = characters;
@@ -380,7 +386,11 @@ export function initializeLightest(root, characters) {
       ? "最初の枠から最後の直前までをHP降順に固定します。最後の枠は蘇生です。"
       : "必要なときだけ押してください。オンにすると、最後の蘇生枠を除いてHPの高い順に固定し、同HPの並びだけを完全探索します。";
   };
-  sortByHp.addEventListener("click", () => setHpSort(!orderByHpDescending));
+  sortByHp.addEventListener("click", () => {
+    setHpSort(!orderByHpDescending);
+    hpOrderOnly.checked = orderByHpDescending;
+    renderFastApproximationToggle();
+  });
   renderLightestMessage(results, "敵を出現順に設定すると、三冠できる最小コストデッキを探索します。");
 
   addEnemy.addEventListener("click", () => {
@@ -392,22 +402,41 @@ export function initializeLightest(root, characters) {
   enemyRows.addEventListener("input", refreshResolvedEnemyStats);
   form.elements.lightestDifficulty.addEventListener("change", refreshResolvedEnemyStats);
   cancel.addEventListener("click", () => abortController?.abort());
+  const scopeControls = [automaticTargeting, immediateSkills, hpOrderOnly];
   const renderFastApproximationToggle = () => {
-    const enabled = fastApproximation.checked;
+    const omittedCount = scopeControls.filter((control) => control.checked).length;
+    const enabled = omittedCount === scopeControls.length;
+    fastApproximation.checked = enabled;
+    fastApproximation.indeterminate = omittedCount > 0 && !enabled;
     fastApproximationToggle.setAttribute("aria-pressed", String(enabled));
     fastApproximationToggle.classList.toggle("is-active", enabled);
-    fastApproximationToggle.querySelector("span").textContent = enabled ? "高速近似: ON" : "高速近似: OFF";
+    fastApproximationToggle.querySelector("span").textContent = enabled
+      ? "省略プリセット: ON"
+      : omittedCount
+        ? "省略設定: " + omittedCount + "項目"
+        : "省略プリセット: OFF";
   };
-  fastApproximation.addEventListener("change", renderFastApproximationToggle);
-  fastApproximationToggle.addEventListener("click", () => {
-    fastApproximation.checked = !fastApproximation.checked;
-    fastApproximation.dispatchEvent(new Event("change", { bubbles: true }));
+  const setScopePreset = (enabled) => {
+    scopeControls.forEach((control) => { control.checked = enabled; });
+    setHpSort(enabled);
+    renderFastApproximationToggle();
+  };
+  fastApproximation.addEventListener("change", () => setScopePreset(fastApproximation.checked));
+  fastApproximationToggle.addEventListener("click", () => setScopePreset(!fastApproximation.checked || fastApproximation.indeterminate));
+  automaticTargeting.addEventListener("change", renderFastApproximationToggle);
+  immediateSkills.addEventListener("change", renderFastApproximationToggle);
+  hpOrderOnly.addEventListener("change", () => {
+    setHpSort(hpOrderOnly.checked);
+    renderFastApproximationToggle();
   });
   renderFastApproximationToggle();
 
   const setBusy = (busy) => {
     submit.disabled = busy;
     fastApproximationToggle.disabled = busy;
+    sortByHp.disabled = busy;
+    scopeControls.forEach((control) => { control.disabled = busy; });
+    fastApproximation.disabled = busy;
     cancel.hidden = !busy;
     form.setAttribute("aria-busy", String(busy));
     progress.hidden = !busy;
@@ -495,7 +524,9 @@ export function initializeLightest(root, characters) {
       const searchResult = await findLightestDeck(activeCharacters, stage, {
         allowDuplicates: form.elements.lightestAllowDuplicates.checked,
         ownedOnly: form.elements.lightestOwnedOnly.checked,
-        fastApproximation: form.elements.lightestFastApproximation.checked,
+        targetSearch: automaticTargeting.checked ? "automatic" : "all",
+        skillSearch: immediateSkills.checked ? "automatic" : "all",
+        orderSearch: hpOrderOnly.checked ? "hp_descending" : "all",
         answerMultiplier: Number(form.elements.lightestAnswerMultiplier.value),
         enemyAttackMultiplier: Number(form.elements.lightestEnemyMultiplier.value),
         signal: abortController.signal,
@@ -518,21 +549,6 @@ export function initializeLightest(root, characters) {
           taskCompleted,
           totalCombinations,
         }) => {
-          if (phase === "approximate") {
-            const approximateTotal = Math.max(1, Number(total) || 1);
-            const approximateCompleted = Math.max(0, Number(completed) || 0);
-            const approximateRatio = Math.min(1, approximateCompleted / approximateTotal);
-            overallProgressLabel.textContent = "高速近似を実行中";
-            overallProgressValue.textContent = approximateCompleted + " / " + approximateTotal + " デッキ";
-            overallProgressBar.style.width = Math.round(approximateRatio * 100) + "%";
-            costProgressLabel.textContent = "候補・配置・行動を絞った自動プレイ";
-            costProgressValue.textContent = "結果は最小コストを保証しません";
-            costProgressBar.style.width = Math.round(approximateRatio * 100) + "%";
-            progressLabel.textContent = "高速近似候補確認";
-            progressValue.textContent = approximateCompleted + " / " + approximateTotal + " デッキ・候補 " + candidateCount;
-            progressBar.style.width = Math.round(approximateRatio * 100) + "%";
-            return;
-          }
           if (phase === "scout") {
             const scoutTotal = Math.max(1, Number(total) || 1);
             const scoutCompleted = Math.max(0, Number(completed) || 0);

@@ -266,7 +266,7 @@
               <div class="check-grid">
                 <label class="switch-row"><span><strong>同じカードを許可</strong><small>限定イベント仕様では重複編成可能</small></span><input type="checkbox" name="lightestAllowDuplicates" checked><i></i></label>
                 <label class="switch-row"><span><strong>手持ちのみ</strong><small>owned: true のキャラだけ探索</small></span><input type="checkbox" name="lightestOwnedOnly"><i></i></label>
-                <label class="switch-row"><span><strong>高速近似モード</strong><small>候補・配置・行動を絞って高速化（最小コスト保証なし）</small></span><input type="checkbox" name="lightestFastApproximation"><i></i></label>
+                <label class="switch-row"><span><strong>省略プリセット</strong><small>下の「手動ターゲット・スキル・並び順」を一括で省略</small></span><input type="checkbox" name="lightestFastApproximation"><i></i></label>
               </div>
             </section>
 
@@ -298,11 +298,20 @@
             <section class="form-section lightest-deck-rules">
               <div class="section-title"><span>05</span><div><h3>編成ルール</h3><p>最後の枠は蘇生スキルに固定します。</p></div></div>
               <div class="lightest-last-revive-rule"><strong>最後の枠：蘇生必須</strong><span>デッキ枚数が1〜5体のどの場合でも適用します。</span></div>
+              <div class="lightest-search-scope">
+                <strong>省略する探索分岐</strong>
+                <p>候補キャラ・総コスト・デッキ枚数は常に全探索します。必要な分岐だけ省略してください。</p>
+                <div class="check-grid">
+                  <label class="switch-row"><span><strong>手動ターゲットを省略</strong><small>各キャラの全ターゲット組合せではなく自動ターゲットのみ</small></span><input type="checkbox" name="lightestAutomaticTargeting"><i></i></label>
+                  <label class="switch-row"><span><strong>スキル温存・順序を省略</strong><small>使用可能なスキルをフェーズ順・左から即時使用</small></span><input type="checkbox" name="lightestImmediateSkills"><i></i></label>
+                  <label class="switch-row"><span><strong>並び順を省略</strong><small>最後の蘇生枠を除き、HPが高い順に固定</small></span><input type="checkbox" name="lightestHpOrderOnly"><i></i></label>
+                </div>
+              </div>
               <button class="button lightest-hp-sort" type="button" data-lightest-sort-hp aria-pressed="false"><span>HPが高い順に並べる</span><b>↓</b></button>
               <p class="lightest-help" data-lightest-sort-hp-status>必要なときだけ押してください。オンにすると、最後の蘇生枠を除いてHPの高い順に固定し、同HPの並びだけを完全探索します。</p>
             </section>
             <div class="search-actions">
-              <button class="button lightest-fast-approximation-toggle" type="button" data-lightest-fast-approximation-toggle aria-pressed="false"><span>高速近似: OFF</span><b>⚡</b></button>
+              <button class="button lightest-fast-approximation-toggle" type="button" data-lightest-fast-approximation-toggle aria-pressed="false"><span>省略プリセット: OFF</span><b>⚡</b></button>
               <button class="button button-search" type="submit" data-lightest-submit><span>最軽装を探索</span><b>→</b></button>
               <button class="button button-cancel" type="button" data-lightest-cancel hidden>中止</button>
             </div>

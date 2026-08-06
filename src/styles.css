@@ -425,6 +425,10 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .lightest-auto-deck-size { min-height: 42px; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 8px 11px; border: 1px solid #dce6bc; border-radius: 10px; background: #f6fbe7; color: #596b2d; }
 .lightest-auto-deck-size strong { font-size: 10px; }
 .lightest-auto-deck-size span { font-size: 9px; font-weight: 800; }
+.lightest-search-scope { margin-top: 14px; padding: 11px; border: 1px solid #dce6bc; border-radius: 11px; background: #fbfdf3; }
+.lightest-search-scope > strong { display: block; font-size: 11px; color: #536b23; }
+.lightest-search-scope > p { margin: 5px 0 0; color: #69766f; font-size: 9px; line-height: 1.55; }
+.lightest-search-scope .check-grid { margin-top: 9px; }
 .lightest-hp-sort { width: 100%; margin-top: 10px; border: 1px solid #afc77a; background: #f8fbe9; color: #536b23; }
 .lightest-hp-sort.is-active { border-color: #718f2d; background: #718f2d; color: white; }
 .lightest-enemy-columns, .lightest-enemy-row { display: grid; grid-template-columns: 26px minmax(0,1fr) 86px 86px 28px; gap: 6px; align-items: center; }
