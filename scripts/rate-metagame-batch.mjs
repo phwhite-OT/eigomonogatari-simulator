@@ -83,6 +83,7 @@ const finalScenarios = Math.max(12, Number(readArgument("final-scenarios", "30")
 const finalists = Math.max(1, Math.floor(Number(readArgument("finalists", "40")) || 40));
 const turns = Math.min(12, Math.max(1, Number(readArgument("turns", "12")) || 12));
 const workers = Math.max(1, Number(readArgument("workers", "6")) || 6);
+const fallbackWorkers = Math.min(workers, Math.max(1, Number(readArgument("fallback-workers", "1")) || 1));
 const maxTasks = Math.max(0, Math.floor(Number(readArgument("max-tasks", "0")) || 0));
 const maxConstraints = Math.max(0, Math.floor(Number(readArgument("max-constraints", "0")) || 0));
 const initialCompleted = new Set(parseList(readArgument("completed", "")));
@@ -93,6 +94,7 @@ const completedTaskIds = new Set([
   ...initialCompleted,
   ...(previousStatus?.completedTaskIds ?? []),
 ].filter((id) => taskIds.has(id)));
+const recoveredTaskIds = new Set((previousStatus?.recoveredTaskIds ?? []).filter((id) => taskIds.has(id)));
 const startedAt = previousStatus?.startedAt ?? new Date().toISOString();
 const config = {
   attributeGroups,
@@ -104,6 +106,7 @@ const config = {
   finalists,
   turns,
   workers,
+  fallbackWorkers,
   outputRoot,
   priorOutputRoot,
   modelVersion: "iterative-metagame-v5-expert-continuation",
@@ -131,29 +134,51 @@ try {
       totalRuns: tasks.length,
       completedRuns: completedTaskIds.size,
       completedTaskIds: [...completedTaskIds],
+      recoveredTaskIds: [...recoveredTaskIds],
       current: task,
     };
     await writeStatus(status);
     console.log(`\n[${completedTaskIds.size + 1}/${tasks.length}] ${task.constraintId} / pass ${task.pass} / slot ${task.position}`);
-    await runNode(ratingScript, [
-      `--attributes=${task.allowedAttributes.join(",")}`,
-      `--cost=${task.cost}`,
-      `--position=${task.position}`,
-      `--first-scenarios=${firstScenarios}`,
-      `--final-scenarios=${finalScenarios}`,
-      `--finalists=${finalists}`,
-      `--turns=${turns}`,
-      `--workers=${workers}`,
-      `--output-root=${outputRoot}`,
-      `--prior-output-root=${priorOutputRoot}`,
-    ]);
+    const ratingArguments = [
+      "--attributes=" + task.allowedAttributes.join(","),
+      "--cost=" + task.cost,
+      "--position=" + task.position,
+      "--first-scenarios=" + firstScenarios,
+      "--final-scenarios=" + finalScenarios,
+      "--finalists=" + finalists,
+      "--turns=" + turns,
+      "--output-root=" + outputRoot,
+      "--prior-output-root=" + priorOutputRoot,
+    ];
+    let recoveredWithFallback = false;
+    try {
+      await runNode(ratingScript, [...ratingArguments, "--workers=" + workers]);
+    } catch (primaryError) {
+      if (fallbackWorkers >= workers) throw primaryError;
+      console.warn("Primary workers failed for " + task.id + "; retrying with " + fallbackWorkers + " worker(s).");
+      await writeStatus({
+        ...status,
+        status: "retrying",
+        updatedAt: new Date().toISOString(),
+        recovery: {
+          taskId: task.id,
+          primaryWorkers: workers,
+          fallbackWorkers,
+          primaryError: primaryError.stack ?? String(primaryError),
+        },
+      });
+      await runNode(ratingScript, [...ratingArguments, "--workers=" + fallbackWorkers]);
+      recoveredWithFallback = true;
+    }
     completedTaskIds.add(task.id);
+    if (recoveredWithFallback) recoveredTaskIds.add(task.id);
     completedThisRun += 1;
     await writeStatus({
       ...status,
       updatedAt: new Date().toISOString(),
       completedRuns: completedTaskIds.size,
       completedTaskIds: [...completedTaskIds],
+      recoveredTaskIds: [...recoveredTaskIds],
       current: null,
     });
     currentTask = null;
@@ -169,6 +194,7 @@ try {
       totalRuns: tasks.length,
       completedRuns: completedTaskIds.size,
       completedTaskIds: [...completedTaskIds],
+      recoveredTaskIds: [...recoveredTaskIds],
       current: null,
     });
     console.log("All " + tasks.length + " metagame runs completed.");
@@ -187,6 +213,7 @@ try {
       totalRuns: tasks.length,
       completedRuns: completedTaskIds.size,
       completedTaskIds: [...completedTaskIds],
+      recoveredTaskIds: [...recoveredTaskIds],
       current: null,
     });
     console.log(pauseReason);
@@ -200,6 +227,7 @@ try {
     totalRuns: tasks.length,
     completedRuns: completedTaskIds.size,
     completedTaskIds: [...completedTaskIds],
+    recoveredTaskIds: [...recoveredTaskIds],
     current: currentTask,
     error: error.stack ?? String(error),
   });

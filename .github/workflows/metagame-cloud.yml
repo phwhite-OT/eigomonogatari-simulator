@@ -8,8 +8,8 @@ on:
       - .github/workflows/metagame-cloud.yml
   workflow_dispatch:
     inputs:
-      max_constraints:
-        description: Number of attribute and cost constraints to complete before saving progress
+      max_tasks:
+        description: Number of position tasks to complete before saving progress
         required: false
         default: "1"
         type: string
@@ -17,6 +17,11 @@ on:
         description: Parallel workers per task (2 is appropriate for GitHub-hosted runners)
         required: false
         default: "2"
+        type: string
+      fallback_workers:
+        description: Retry a failed task with this many workers to reduce memory pressure
+        required: false
+        default: "1"
         type: string
   schedule:
     - cron: "17 * * * *"
@@ -33,8 +38,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 355
     env:
-      METAGAME_MAX_CONSTRAINTS: ${{ inputs.max_constraints || '1' }}
+      METAGAME_MAX_TASKS: ${{ inputs.max_tasks || '1' }}
       METAGAME_WORKERS: ${{ inputs.workers || '2' }}
+      METAGAME_FALLBACK_WORKERS: ${{ inputs.fallback_workers || '1' }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -71,7 +77,8 @@ jobs:
             --status=reports/metagame-v5-batch-status.json \
             --output-root=reports/metagame-ratings-v5 \
             --prior-output-root=reports/metagame-ratings-v4 \
-            --max-constraints="$METAGAME_MAX_CONSTRAINTS" \
+            --max-tasks="$METAGAME_MAX_TASKS" \
+            --fallback-workers="$METAGAME_FALLBACK_WORKERS" \
             --first-scenarios=4 \
             --final-scenarios=30 \
             --finalists=40 \
@@ -85,7 +92,7 @@ jobs:
         if: steps.evaluate.outputs.completed_now == 'true'
         run: npm run build:metagame-data
 
-      - name: Save progress to the result branch
+      - name: Save completed task progress to the result branch
         if: always()
         shell: bash
         run: |
