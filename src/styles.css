@@ -151,6 +151,9 @@ main, footer { width: min(1480px, calc(100% - 48px)); margin-inline: auto; }
 .button-search { flex: 1; min-height: 58px; justify-content: space-between; padding: 0 19px; border-radius: 14px; background: var(--lime); color: var(--ink); font-size: 14px; box-shadow: 0 10px 24px rgba(145,189,29,.22); }
 .button-search b { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: white; }
 .button-cancel { padding-inline: 17px; background: #ffe0da; color: #7a2f20; }
+.lightest-fast-approximation-toggle { min-height: 58px; padding-inline: 14px; border: 1px solid #afc77a; background: #f8fbe9; color: #536b23; }
+.lightest-fast-approximation-toggle b { font-size: 17px; }
+.lightest-fast-approximation-toggle.is-active { border-color: #718f2d; background: #718f2d; color: white; }
 .progress-card { margin: 0 28px 24px; padding: 14px; border: 1px solid #bbd868; border-radius: 12px; background: #f5ffda; }
 .progress-card[hidden] { display: none; }
 .progress-copy { display: flex; justify-content: space-between; gap: 10px; font-size: 10px; }

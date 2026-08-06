@@ -343,6 +343,8 @@ export function initializeLightest(root, characters) {
   const datalist = root.querySelector("#lightest-character-list");
   const sortByHp = root.querySelector("[data-lightest-sort-hp]");
   const sortByHpStatus = root.querySelector("[data-lightest-sort-hp-status]");
+  const fastApproximation = form.elements.lightestFastApproximation;
+  const fastApproximationToggle = root.querySelector("[data-lightest-fast-approximation-toggle]");
   let orderByHpDescending = false;
   let activeCharacters = characters;
   let resolveCharacter = createCharacterResolver(activeCharacters);
@@ -390,9 +392,22 @@ export function initializeLightest(root, characters) {
   enemyRows.addEventListener("input", refreshResolvedEnemyStats);
   form.elements.lightestDifficulty.addEventListener("change", refreshResolvedEnemyStats);
   cancel.addEventListener("click", () => abortController?.abort());
+  const renderFastApproximationToggle = () => {
+    const enabled = fastApproximation.checked;
+    fastApproximationToggle.setAttribute("aria-pressed", String(enabled));
+    fastApproximationToggle.classList.toggle("is-active", enabled);
+    fastApproximationToggle.querySelector("span").textContent = enabled ? "高速近似: ON" : "高速近似: OFF";
+  };
+  fastApproximation.addEventListener("change", renderFastApproximationToggle);
+  fastApproximationToggle.addEventListener("click", () => {
+    fastApproximation.checked = !fastApproximation.checked;
+    fastApproximation.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  renderFastApproximationToggle();
 
   const setBusy = (busy) => {
     submit.disabled = busy;
+    fastApproximationToggle.disabled = busy;
     cancel.hidden = !busy;
     form.setAttribute("aria-busy", String(busy));
     progress.hidden = !busy;

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   findLightestDeck,
@@ -666,4 +667,11 @@ test("default lightest search remains exact when fast approximation is off", asy
   assert.equal(result.foundThreeStar, true);
   assert.equal(result.exact, true);
   assert.equal(result.approximate, undefined);
+});
+
+
+test("lightest template exposes both fast approximation controls", () => {
+  const template = readFileSync(new URL("../src/index.template.html", import.meta.url), "utf8");
+  assert.match(template, /name="lightestFastApproximation"/);
+  assert.match(template, /data-lightest-fast-approximation-toggle/);
 });

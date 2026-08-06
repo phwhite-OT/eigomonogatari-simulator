@@ -266,6 +266,7 @@
               <div class="check-grid">
                 <label class="switch-row"><span><strong>同じカードを許可</strong><small>限定イベント仕様では重複編成可能</small></span><input type="checkbox" name="lightestAllowDuplicates" checked><i></i></label>
                 <label class="switch-row"><span><strong>手持ちのみ</strong><small>owned: true のキャラだけ探索</small></span><input type="checkbox" name="lightestOwnedOnly"><i></i></label>
+                <label class="switch-row"><span><strong>高速近似モード</strong><small>候補・配置・行動を絞って高速化（最小コスト保証なし）</small></span><input type="checkbox" name="lightestFastApproximation"><i></i></label>
               </div>
             </section>
 
@@ -301,6 +302,7 @@
               <p class="lightest-help" data-lightest-sort-hp-status>必要なときだけ押してください。オンにすると、最後の蘇生枠を除いてHPの高い順に固定し、同HPの並びだけを完全探索します。</p>
             </section>
             <div class="search-actions">
+              <button class="button lightest-fast-approximation-toggle" type="button" data-lightest-fast-approximation-toggle aria-pressed="false"><span>高速近似: OFF</span><b>⚡</b></button>
               <button class="button button-search" type="submit" data-lightest-submit><span>最軽装を探索</span><b>→</b></button>
               <button class="button button-cancel" type="button" data-lightest-cancel hidden>中止</button>
             </div>
