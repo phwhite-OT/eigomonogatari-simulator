@@ -616,3 +616,54 @@ test("lightest scout narrows the exact cost range without changing the minimum",
   assert.equal(result.scout.upperCost, 3);
   assert.deepEqual(result.results[0].deck.map((entry) => entry.id), ["scout-strong-attacker", "scout-reviver"]);
 });
+
+
+test("fast approximation is opt-in and avoids the exact solver", async () => {
+  const cheapAttacker = character("fast-cheap-attacker", 1, 0);
+  const strongAttacker = character("fast-strong-attacker", 2, 1_000);
+  const reviver = character("fast-reviver", 1, 0, { type: "revive", turn: 99 });
+  const enemy = resolveLightestEnemy(character("fast-enemy", 0, 0), { hp: 50, pow: 0 });
+  const phases = [];
+  const result = await findLightestDeck([cheapAttacker, strongAttacker, reviver], {
+    enemies: [enemy],
+    deckSizes: [2],
+    maxCost: 5,
+    maxTurns: 1,
+    requiredLastSkillType: "revive",
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+    fastApproximation: true,
+    onProgress: (progress) => phases.push(progress.phase),
+  });
+
+  assert.equal(result.foundThreeStar, true);
+  assert.equal(result.exact, false);
+  assert.equal(result.approximate.enabled, true);
+  assert.equal(result.results[0].totalCost, 3);
+  assert.ok(result.approximate.testedDeckCount <= result.approximate.candidateDeckCount);
+  assert.ok(phases.every((phase) => phase === "approximate"));
+});
+
+
+test("default lightest search remains exact when fast approximation is off", async () => {
+  const attacker = character("default-exact-attacker", 1, 1_000);
+  const reviver = character("default-exact-reviver", 1, 0, { type: "revive", turn: 99 });
+  const enemy = resolveLightestEnemy(character("default-exact-enemy", 0, 0), { hp: 50, pow: 0 });
+  const result = await findLightestDeck([attacker, reviver], {
+    enemies: [enemy],
+    deckSizes: [2],
+    maxCost: 2,
+    maxTurns: 1,
+    requiredLastSkillType: "revive",
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+  });
+
+  assert.equal(result.foundThreeStar, true);
+  assert.equal(result.exact, true);
+  assert.equal(result.approximate, undefined);
+});

@@ -275,6 +275,11 @@ function renderLightestResult(result, rank) {
 
 function lightestSearchSummary(searchResult) {
   const targetCost = Number.isInteger(searchResult.targetCost) ? searchResult.targetCost : null;
+  if (searchResult.approximate) {
+    return searchResult.foundThreeStar
+      ? "高速近似で総コスト " + searchResult.searchedThroughCost + " の三冠候補を発見（最小値保証なし）"
+      : "高速近似の候補には三冠デッキなし（完全探索ではない）";
+  }
   if (!searchResult.foundThreeStar) {
     return targetCost === null
       ? `最大指定コスト ${searchResult.stage.maxCost} まで完全探索して三冠デッキなし`
@@ -292,6 +297,13 @@ function renderLightestResults(root, searchResult) {
     lightestElement("strong", "", lightestSearchSummary(searchResult)),
     lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証`),
   );
+  if (searchResult.approximate) {
+    overview.append(lightestElement(
+      "span",
+      "",
+      "高速近似: " + searchResult.approximate.testedDeckCount + " / " + searchResult.approximate.candidateDeckCount + " デッキを自動プレイで確認。候補外・手動操作は未探索。",
+    ));
+  }
   if (searchResult.scout?.attempted) {
     overview.append(lightestElement(
       "span",
@@ -468,6 +480,7 @@ export function initializeLightest(root, characters) {
       const searchResult = await findLightestDeck(activeCharacters, stage, {
         allowDuplicates: form.elements.lightestAllowDuplicates.checked,
         ownedOnly: form.elements.lightestOwnedOnly.checked,
+        fastApproximation: form.elements.lightestFastApproximation.checked,
         answerMultiplier: Number(form.elements.lightestAnswerMultiplier.value),
         enemyAttackMultiplier: Number(form.elements.lightestEnemyMultiplier.value),
         signal: abortController.signal,
@@ -490,6 +503,21 @@ export function initializeLightest(root, characters) {
           taskCompleted,
           totalCombinations,
         }) => {
+          if (phase === "approximate") {
+            const approximateTotal = Math.max(1, Number(total) || 1);
+            const approximateCompleted = Math.max(0, Number(completed) || 0);
+            const approximateRatio = Math.min(1, approximateCompleted / approximateTotal);
+            overallProgressLabel.textContent = "高速近似を実行中";
+            overallProgressValue.textContent = approximateCompleted + " / " + approximateTotal + " デッキ";
+            overallProgressBar.style.width = Math.round(approximateRatio * 100) + "%";
+            costProgressLabel.textContent = "候補・配置・行動を絞った自動プレイ";
+            costProgressValue.textContent = "結果は最小コストを保証しません";
+            costProgressBar.style.width = Math.round(approximateRatio * 100) + "%";
+            progressLabel.textContent = "高速近似候補確認";
+            progressValue.textContent = approximateCompleted + " / " + approximateTotal + " デッキ・候補 " + candidateCount;
+            progressBar.style.width = Math.round(approximateRatio * 100) + "%";
+            return;
+          }
           if (phase === "scout") {
             const scoutTotal = Math.max(1, Number(total) || 1);
             const scoutCompleted = Math.max(0, Number(completed) || 0);
