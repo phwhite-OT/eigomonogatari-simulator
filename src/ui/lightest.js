@@ -292,6 +292,15 @@ function renderLightestResults(root, searchResult) {
     lightestElement("strong", "", lightestSearchSummary(searchResult)),
     lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証`),
   );
+  if (searchResult.scout?.attempted) {
+    overview.append(lightestElement(
+      "span",
+      "",
+      searchResult.scout.found
+        ? "高速候補確認: " + searchResult.scout.sampledDeckCount + "件目で総コスト " + searchResult.scout.upperCost + " の勝利候補を発見。以下は完全探索済み"
+        : "高速候補確認: " + searchResult.scout.sampledDeckCount + "件を確認。勝利候補なしのため完全探索を継続",
+    ));
+  }
   root.append(overview);
   searchResult.results.forEach((result, index) => root.append(renderLightestResult(result, index + 1)));
   const assumptions = lightestElement("details", "lightest-assumptions");
@@ -463,11 +472,13 @@ export function initializeLightest(root, characters) {
         enemyAttackMultiplier: Number(form.elements.lightestEnemyMultiplier.value),
         signal: abortController.signal,
         onProgress: ({
+          phase,
           cost,
           completed,
           combinations,
           costDeckCount,
           valid,
+          total,
           candidateCount,
           deckSize,
           costIndex,
@@ -479,6 +490,20 @@ export function initializeLightest(root, characters) {
           taskCompleted,
           totalCombinations,
         }) => {
+          if (phase === "scout") {
+            const scoutTotal = Math.max(1, Number(total) || 1);
+            const scoutCompleted = Math.max(0, Number(completed) || 0);
+            overallProgressLabel.textContent = "高速候補を確認中";
+            overallProgressValue.textContent = scoutCompleted + " / " + scoutTotal + " デッキ";
+            overallProgressBar.style.width = Math.round(Math.min(1, scoutCompleted / scoutTotal) * 100) + "%";
+            costProgressLabel.textContent = "完全探索の上限を探しています";
+            costProgressValue.textContent = "勝利候補があれば、その総コスト以下だけを完全探索します";
+            costProgressBar.style.width = "0%";
+            progressLabel.textContent = "高速候補確認";
+            progressValue.textContent = scoutCompleted + " / " + scoutTotal + " デッキ・候補 " + candidateCount;
+            progressBar.style.width = Math.round(Math.min(1, scoutCompleted / scoutTotal) * 100) + "%";
+            return;
+          }
           const costTotal = Math.max(1, Number(costCount) || 1);
           const costDeckTotal = Math.max(1, Number(costDeckSizeCount) || 1);
           const currentCombinationTotal = Math.max(0, Number(totalCombinations) || 0);

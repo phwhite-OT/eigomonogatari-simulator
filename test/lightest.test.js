@@ -567,3 +567,52 @@ test("lightest progress reports the exact valid combination count", async () => 
   ));
   assert.equal(initialProgress.totalCombinations, 2);
 });
+
+
+test("preferred deck is verified before normal exact permutations", async () => {
+  const attacker = character("preferred-attacker", 1, 1_000);
+  const reviver = character("preferred-reviver", 1, 0, { type: "revive", turn: 99 });
+  const enemy = resolveLightestEnemy(character("preferred-enemy", 0, 0), { hp: 50, pow: 0 });
+  const result = await findExactLightestDeck([attacker, reviver], {
+    enemies: [enemy],
+    deckSize: 2,
+    maxCost: 2,
+    targetCost: 2,
+    maxTurns: 1,
+    requiredLastSkillType: "revive",
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+    preferredDeck: [attacker, reviver],
+  });
+
+  assert.equal(result.foundThreeStar, true);
+  assert.equal(result.preferredDeckTested, true);
+  assert.equal(result.preferredDeckAccepted, true);
+  assert.deepEqual(result.results[0].deck.map((entry) => entry.id), ["preferred-attacker", "preferred-reviver"]);
+});
+
+test("lightest scout narrows the exact cost range without changing the minimum", async () => {
+  const cheapAttacker = character("scout-cheap-attacker", 1, 0);
+  const strongAttacker = character("scout-strong-attacker", 2, 1_000);
+  const reviver = character("scout-reviver", 1, 0, { type: "revive", turn: 99 });
+  const enemy = resolveLightestEnemy(character("scout-enemy", 0, 0), { hp: 50, pow: 0 });
+  const result = await findLightestDeck([cheapAttacker, strongAttacker, reviver], {
+    enemies: [enemy],
+    deckSizes: [2],
+    maxCost: 5,
+    maxTurns: 1,
+    requiredLastSkillType: "revive",
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+  });
+
+  assert.equal(result.foundThreeStar, true);
+  assert.equal(result.results[0].totalCost, 3);
+  assert.equal(result.scout.found, true);
+  assert.equal(result.scout.upperCost, 3);
+  assert.deepEqual(result.results[0].deck.map((entry) => entry.id), ["scout-strong-attacker", "scout-reviver"]);
+});

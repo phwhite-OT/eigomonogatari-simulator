@@ -966,7 +966,7 @@ function exactRarityMatches(character, rarities) {
 }
 
 
-function exactCandidateTrialPriority(character) {
+export function exactCandidateTrialPriority(character) {
   const power = Math.max(0, Number(character.pow) || 0);
   const hp = Math.max(0, Number(character.hp) || 0);
   const skill = character.skill ?? {};
@@ -1149,6 +1149,24 @@ function* exactCombinationsAtCost(characters, targetCost, deckSize, allowDuplica
   }
 }
 
+function exactDeckOrderKey(deck) {
+  return deck.map((character) => String(character.id)).join("\u001f");
+}
+function exactPreferredDeck(preferredDeck, available, stage, options, totalCost) {
+  if (!Array.isArray(preferredDeck) || preferredDeck.length !== options.deckSize) return null;
+  const charactersById = new Map(available.map((character) => [String(character.id), character]));
+  const deck = preferredDeck.map((character) => charactersById.get(String(character?.id)));
+  if (deck.some((character) => !character)) return null;
+  if (!options.allowDuplicates && new Set(deck.map((character) => String(character.id))).size !== deck.length) return null;
+  if (deck.reduce((sum, character) => sum + Math.max(0, Number(character.cost) || 0), 0) !== totalCost) return null;
+  if (stage.requiredLastSkillType && exactCharacterSkillType(deck.at(-1)) !== stage.requiredLastSkillType) return null;
+  if (stage.orderByHpDescending) {
+    for (let index = 1; index < deck.length - 1; index += 1) {
+      if (exactHp(deck[index - 1]) < exactHp(deck[index])) return null;
+    }
+  }
+  return deck;
+}
 function* exactUniquePermutations(deck, constraints = {}) {
   const counts = new Map();
   const byId = new Map();
@@ -1254,12 +1272,41 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
   const winners = [];
   let searchedThroughCost = normalizedStage.targetCost;
   let stoppedOnFirstWin = false;
+  let preferredDeckTested = false;
+  let preferredDeckAccepted = false;
 
   for (const totalCost of costsToSearch) {
     searchedThroughCost = totalCost;
     const totalCombinations = combinationCountsByCost.get(totalCost) ?? 0;
     let costDeckCount = 0;
     let shouldStop = false;
+    const preferredDeck = exactPreferredDeck(
+      options.preferredDeck,
+      available,
+      normalizedStage,
+      options,
+      totalCost,
+    );
+    const preferredDeckKey = preferredDeck ? exactDeckOrderKey(preferredDeck) : null;
+    if (preferredDeck) {
+      if (options.signal?.aborted) throw exactAbortError();
+      preferredDeckTested = true;
+      const result = solveExactLightestStage(preferredDeck, normalizedStage.enemies, {
+        ...options,
+        maxTurns: normalizedStage.maxTurns,
+        eventBonusIds: normalizedStage.eventBonusIds ?? [],
+      });
+      simulatedDeckCount += 1;
+      costDeckCount += 1;
+      if (result.threeStar) {
+        preferredDeckAccepted = true;
+        if (options.stopOnFirstWin || winners.length < options.resultLimit) winners.push(result);
+        if (options.stopOnFirstWin) {
+          stoppedOnFirstWin = true;
+          shouldStop = true;
+        }
+      }
+    }
     for (const combination of exactCombinationsAtCost(
       available,
       totalCost,
@@ -1285,6 +1332,7 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
         requiredLastSkillType: normalizedStage.requiredLastSkillType,
         orderByHpDescending: normalizedStage.orderByHpDescending,
       })) {
+        if (preferredDeckKey && exactDeckOrderKey(deck) === preferredDeckKey) continue;
         if (options.signal?.aborted) throw exactAbortError();
         const result = solveExactLightestStage(deck, normalizedStage.enemies, {
           ...options,
@@ -1339,6 +1387,8 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
     generatedDeckCount: simulatedDeckCount,
     generatedCombinationCount: generatedCombinations,
     prePrunedCombinationCount,
+    preferredDeckTested,
+    preferredDeckAccepted,
     simulatedDeckCount,
     searchedThroughCost,
     targetCost: normalizedStage.targetCost,
