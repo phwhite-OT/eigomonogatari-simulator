@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildMetagameDeckCandidates,
+  calculateMetagameDeckSynergy,
   findBestMetagameDeck,
 } from "../src/core/metagame-deck.js";
 
@@ -116,4 +117,57 @@ test("metagame simulator ranks complete decks by simulated win value", async () 
   assert.equal(result.scenarioCount, 1);
   assert.equal(result.results[0].deck.length, 5);
   assert.ok(result.results[0].expectedWinRate >= 0 && result.results[0].expectedWinRate <= 1);
+});
+
+test("継続する全体バフは条件を満たす後続アタッカーとの相性を得る", () => {
+  const source = metagameTestCharacter("source", 20, "R", 100);
+  source.attributes = ["water"];
+  source.skillTurn = 1;
+  source.skill = {
+    ...source.skill,
+    type: "attack_buff",
+    target: "ally_all",
+    duration: 2,
+    multiplier: 3,
+    conditions: [{ type: "ally_attribute", attribute: "water" }],
+  };
+  const matchingTarget = metagameTestCharacter("matching", 20, "R", 300);
+  matchingTarget.attributes = ["water"];
+  const mismatchingTarget = metagameTestCharacter("mismatching", 20, "R", 300);
+  mismatchingTarget.attributes = ["fire"];
+  const sourceRating = { practicalSkillReliability: 1, powerPreference: 0.2 };
+  const targetRating = { powerPreference: 1, counteraction: 1 };
+
+  const matchingScore = calculateMetagameDeckSynergy(
+    [source, matchingTarget],
+    [sourceRating, targetRating],
+  );
+  const mismatchingScore = calculateMetagameDeckSynergy(
+    [source, mismatchingTarget],
+    [sourceRating, targetRating],
+  );
+  assert.ok(matchingScore > 0);
+  assert.equal(mismatchingScore, 0);
+});
+
+test("ほどほどの性能でコストを使い切る初手は候補デッキで抑制する", () => {
+  const expensive = metagameTestCharacter("expensive", 60, "R", 200);
+  const balanced = metagameTestCharacter("balanced", 20, "R", 200);
+  const deckTail = [2, 3, 4, 5].map((position) => metagameTestCharacter(`tail-${position}`, 10, "R", 200));
+  const rating = (character) => ({
+    ...metagameTestRating(character, 1),
+    practicalValue: 0.6,
+    practicalSkillReliability: 1,
+    powerPreference: 0.6,
+    enemyPressureRate: 0.6,
+  });
+  const constraint = {
+    totalCost: 100,
+    slots: [
+      { position: 1, candidates: [rating(expensive), rating(balanced)] },
+      ...deckTail.map((character, index) => ({ position: index + 2, candidates: [rating(character)] })),
+    ],
+  };
+  const candidates = buildMetagameDeckCandidates(constraint, [expensive, balanced, ...deckTail], { beamWidth: 50 });
+  assert.equal(candidates[0].deck[0].id, "balanced");
 });

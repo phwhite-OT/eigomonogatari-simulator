@@ -20,12 +20,12 @@
 
 ## 実行と再開
 
-- 手動実行ではmax_constraintsは1のままにします。属性・コスト1縛りの残り区画だけを最後まで処理し、状態・JSON評価結果をmetagame-resultsへpushします。
-- max_constraintsは1を推奨します。実測では1縛り約40分で完了し、GitHub Actionsの実行上限内に収まります。
+- 手動実行ではmax_tasksは1のままにします。属性・コスト1縛りの残り区画だけを最後まで処理し、状態・JSON評価結果をmetagame-resultsへpushします。
+- max_tasksは1を推奨します。実測では1縛り約40分で完了し、GitHub Actionsの実行上限内に収まります。
 - 毎時のスケジュール実行も設定済みです。計算中に新しい実行は重複せず、同じ環境評価は同時に1本だけ動きます。
 - 失敗した場合も、Actionsの実行をもう一度開始すれば、最後に保存された区画の次から再開します。
 
-進捗はmetagame-resultsブランチのreports/metagame-v4-batch-status.jsonで確認できます。completedRunsが280になれば全区画が完了です。
+進捗はmetagame-resultsブランチのreports/metagame-v6-batch-status.jsonで確認できます。completedRunsが280になれば全区画が完了です。
 
 再計算中は、画面にv3の旧環境データだけを暫定表示します。v4で属性・コスト1組分の10区画が完了した時点でv4へ切り替わり、v3とv4の評価結果を混在させません。
 

@@ -17,6 +17,11 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 const METAGAME_SCENARIO_COUNT = 30;
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   Object.freeze({
+    statusPath: "reports/metagame-v6-batch-status.json",
+    reportRoot: "reports/metagame-ratings-v6",
+    legacy: false,
+  }),
+  Object.freeze({
     statusPath: "reports/metagame-v5-batch-status.json",
     reportRoot: "reports/metagame-ratings-v5",
     legacy: false,
@@ -107,6 +112,9 @@ function compactMetagameCandidate(entry) {
     allyRetentionRate: entry.teamBalance?.allyRetentionRate ?? 0,
     enemyPressureRate: entry.teamBalance?.enemyPressureRate ?? 0,
     balancedContribution: entry.teamBalance?.balancedContribution ?? 0,
+    practicalValue: entry.practical?.practicalValue ?? 0,
+    practicalSkillReliability: entry.practical?.practicalSkillReliability ?? entry.reproduction?.skillActivationRate ?? 0,
+    powerPreference: entry.practical?.powerPreference ?? 0,
     strategicClass: entry.strategicActions?.class ?? "none",
     advantageCreation: entry.strategicActions?.advantageCreationPerScenario ?? 0,
     counteraction: entry.strategicActions?.counteractionPerScenario ?? 0,

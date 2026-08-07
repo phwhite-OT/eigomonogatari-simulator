@@ -22,23 +22,71 @@ function metagameDeckClampUnit(value) {
 function metagameCandidateScore(rating) {
   const advantage = Math.min(1, Math.max(0, Number(rating.advantageCreation) || 0) / 2);
   const counter = Math.min(1, Math.max(0, Number(rating.counteraction) || 0) / 2);
-  return (
-    metagameDeckClampUnit(rating.expectedWinLowerBound) * 0.44 +
-    metagameDeckClampUnit(rating.expectedWinRate) * 0.34 +
-    metagameDeckClampUnit(rating.balancedContribution) * 0.1 +
-    advantage * 0.055 +
-    counter * 0.035 +
-    metagameDeckClampUnit(rating.skillActivationRate) * 0.03
+  const practicalValue = metagameDeckClampUnit(rating.practicalValue ?? rating.practical?.practicalValue);
+  const powerPreference = metagameDeckClampUnit(rating.powerPreference ?? rating.practical?.powerPreference);
+  const skillReliability = metagameDeckClampUnit(
+    rating.practicalSkillReliability ?? rating.practical?.practicalSkillReliability ?? rating.skillActivationRate,
   );
+  const enemyPressure = metagameDeckClampUnit(rating.enemyPressureRate);
+  return (
+    metagameDeckClampUnit(rating.expectedWinLowerBound) * 0.36 +
+    metagameDeckClampUnit(rating.expectedWinRate) * 0.22 +
+    practicalValue * 0.13 +
+    metagameDeckClampUnit(rating.balancedContribution) * 0.07 +
+    enemyPressure * 0.08 +
+    powerPreference * 0.04 +
+    advantage * 0.045 +
+    counter * 0.045 +
+    skillReliability * 0.035
+  );
+}
+
+function metagameSkillMatchesTarget(source, target) {
+  return (source.character.skill?.conditions ?? []).every((condition) => (
+    condition.type !== "ally_attribute" || (target.character.attributes ?? []).includes(condition.attribute)
+  ));
+}
+
+function metagameDeckPairSynergy(source, target) {
+  const skill = source.character.skill ?? {};
+  const duration = Math.max(0, Number(skill.duration) || 0);
+  const reliability = metagameDeckClampUnit(
+    source.rating.practicalSkillReliability ?? source.rating.skillActivationRate,
+  );
+  if (duration < 2 || reliability === 0 || !metagameSkillMatchesTarget(source, target)) return 0;
+  const targetPower = metagameDeckClampUnit(target.rating.powerPreference);
+  if (skill.target === "ally_all" && skill.type === "attack_buff") {
+    const strength = metagameDeckClampUnit((Number(skill.multiplier) - 1) / 3);
+    return reliability * (0.02 + strength * 0.055) * (0.6 + targetPower * 0.4);
+  }
+  if (skill.target === "ally_all" && skill.type === "attribute_change") {
+    return reliability * (0.015 + targetPower * 0.02);
+  }
+  if (["aoe_attack", "multi_hit_attack"].includes(skill.type)) {
+    const followUpPressure = metagameDeckClampUnit(target.rating.counteraction / 2);
+    return reliability * (0.01 + followUpPressure * 0.02);
+  }
+  return 0;
+}
+
+export function calculateMetagameDeckSynergy(deck, ratings) {
+  return deck.reduce((total, character, targetIndex) => (
+    total + deck.slice(0, targetIndex).reduce((pairTotal, sourceCharacter, sourceIndex) => (
+      pairTotal + metagameDeckPairSynergy(
+        { character: sourceCharacter, rating: ratings[sourceIndex] ?? {} },
+        { character, rating: ratings[targetIndex] ?? {} },
+      )
+    ), 0)
+  ), 0);
 }
 
 function metagameDeckStateScore(state, totalCost) {
   const averageScore = state.proxyTotal / Math.max(1, state.deck.length);
   const roleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.012 : 0;
-  const partialCostPenalty = state.deck.length < 5
-    ? state.totalCost / Math.max(1, totalCost) * 0.012
-    : 0;
-  return averageScore + roleBonus - partialCostPenalty;
+  const deckProgress = state.deck.length / 5;
+  const budgetShare = state.totalCost / Math.max(1, totalCost);
+  const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
+  return averageScore + state.synergyScore + roleBonus - state.budgetStrain - earlyBudgetPressure * 0.18;
 }
 
 function metagameTrimDeckBeam(states, width, totalCost) {
@@ -96,6 +144,8 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     totalCost: 0,
     legendCount: 0,
     proxyTotal: 0,
+    synergyScore: 0,
+    budgetStrain: 0,
     advantageCount: 0,
     counterCount: 0,
   }];
@@ -109,12 +159,17 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
         if (state.ids.has(id) || nextCost > totalCost || (isLegend && state.legendCount >= 1)) continue;
         const ids = new Set(state.ids);
         ids.add(id);
+        const costShare = (Number(entry.character.cost) || 0) / Math.max(1, totalCost);
         expanded.push({
           deck: [...state.deck, entry],
           ids,
           totalCost: nextCost,
           legendCount: state.legendCount + (isLegend ? 1 : 0),
           proxyTotal: state.proxyTotal + entry.proxy,
+          synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
+            total + metagameDeckPairSynergy(source, entry)
+          ), 0),
+          budgetStrain: state.budgetStrain + Math.max(0, costShare - 0.42) * 0.3,
           advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
           counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
         });
@@ -128,6 +183,8 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     ratings: state.deck.map((entry) => entry.rating),
     totalCost: state.totalCost,
     proxyScore: metagameDeckStateScore(state, totalCost),
+    synergyScore: state.synergyScore,
+    budgetStrain: state.budgetStrain,
     advantageCount: state.advantageCount,
     counterCount: state.counterCount,
   })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
@@ -141,6 +198,7 @@ function metagameSelectFinalists(candidates, limit) {
   const selectors = [
     (left, right) => right.advantageCount - left.advantageCount || right.proxyScore - left.proxyScore,
     (left, right) => right.counterCount - left.counterCount || right.proxyScore - left.proxyScore,
+    (left, right) => right.synergyScore - left.synergyScore || right.proxyScore - left.proxyScore,
     (left, right) => left.totalCost - right.totalCost || right.proxyScore - left.proxyScore,
   ];
   for (const selector of selectors) {

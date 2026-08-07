@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   blendUsageEnvironments,
   buildUsageEnvironment,
+  calculatePracticalMetagameMetrics,
   estimateOwnershipProbability,
   rankMetagameResults,
   selectDetailedCandidates,
@@ -120,3 +121,31 @@ test("counter specialists retain environment usage despite lower overall rank", 
   assert.ok(usageById.get("attacker") > usageById.get("defender-39"));
 });
 
+
+test("初手のスキルターン1は実戦上の発動信頼性を大きく下げる", () => {
+  const opener = result("opener");
+  opener.position = 1;
+  opener.character = {
+    ...opener.character,
+    pow: 100,
+    skillTurn: 1,
+    skill: { type: "attack_buff" },
+  };
+  opener.reproduction = { skillActivationRate: 1, entryReadyRate: 1, scenarioCoverageRate: 1 };
+
+  const later = result("later");
+  later.position = 4;
+  later.character = {
+    ...later.character,
+    pow: 100,
+    skillTurn: 3,
+    skill: { type: "attack_buff" },
+  };
+  later.reproduction = { skillActivationRate: 1, entryReadyRate: 1, scenarioCoverageRate: 1 };
+
+  const openerMetrics = calculatePracticalMetagameMetrics(opener, 100);
+  const laterMetrics = calculatePracticalMetagameMetrics(later, 100);
+  assert.ok(openerMetrics.practicalSkillReliability < 0.3);
+  assert.ok(laterMetrics.practicalSkillReliability > openerMetrics.practicalSkillReliability);
+  assert.ok(openerMetrics.earlySkillLiability > laterMetrics.earlySkillLiability);
+});

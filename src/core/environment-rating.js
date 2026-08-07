@@ -868,6 +868,7 @@ export function evaluateCandidateInEnvironment(character, scenarios, options) {
   const scenarioCount = Math.max(1, totals.scenarios);
   return {
     character,
+    position: Math.min(5, Math.max(1, Number(scenarios[0]?.position) || 5)),
     scenarioCount: totals.scenarios,
     offense: {
       allBoardDefeatRate: totals.enemyUnits ? totals.enemyDefeats / totals.enemyUnits : 0,
@@ -1075,6 +1076,7 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
   const baselineExpectedWinRate = average(baselineWinValues);
   return {
     character,
+    position: Math.min(5, Math.max(1, Number(scenarios[0]?.position) || 5)),
     scenarioCount: totals.scenarios,
     matchOutcome: {
       expectedWinRate,

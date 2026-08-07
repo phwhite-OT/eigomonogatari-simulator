@@ -1,10 +1,10 @@
 import { resolveAttributeClass } from "../data/rules.js";
 
 export const METAGAME_USAGE_MIX = Object.freeze({
-  overall: 0.47,
-  advantage: 0.27,
-  counter: 0.2,
-  continuation: 0.06,
+  overall: 0.44,
+  advantage: 0.19,
+  counter: 0.3,
+  continuation: 0.07,
 });
 
 export const RARITY_OWNERSHIP_MODEL = Object.freeze({
@@ -95,6 +95,68 @@ function scenarioCoverage(result) {
   return Number(result.reproduction?.scenarioCoverageRate ?? 1);
 }
 
+function resultPosition(result) {
+  return Math.min(5, Math.max(1, Number(result.practical?.position ?? result.position) || 5));
+}
+
+function hasActionableSkill(result) {
+  const skillType = result.character?.skill?.type ?? "none";
+  return !["none", "delay", "skill_reduction"].includes(skillType);
+}
+
+export function calculatePracticalMetagameMetrics(result, maximumPower = 1) {
+  const position = resultPosition(result);
+  const skillTurn = Math.max(0, Number(result.character?.skillTurn) || 0);
+  const entryReadyRate = clampUnit(Number(result.reproduction?.entryReadyRate) || 0);
+  const skillActivationRate = clampUnit(Number(result.reproduction?.skillActivationRate) || 0);
+  const actionableSkill = hasActionableSkill(result);
+  const expectedCharge = position - 1;
+  const excessSkillTurn = Math.max(0, skillTurn - expectedCharge);
+  const earlyExposure = position === 1
+    ? skillTurn === 0 ? 0.92 : 0.28
+    : position === 2 ? 0.72
+      : position === 3 ? 0.86
+        : 1;
+  const timingFactor = excessSkillTurn ? 0.42 ** excessSkillTurn : 1;
+  const practicalSkillReliability = actionableSkill
+    ? clampUnit(Math.min(entryReadyRate, skillActivationRate) * earlyExposure * timingFactor)
+    : 1;
+  const skillValue = Math.max(0, Number(result.matchOutcome?.skillWinGain) || 0) + (
+    Math.max(0, Number(result.strategicActions?.advantageCreationPerScenario) || 0) +
+    Math.max(0, Number(result.strategicActions?.counteractionPerScenario) || 0)
+  ) * 0.06;
+  const earlySkillLiability = actionableSkill
+    ? Math.min(0.24, (1 - practicalSkillReliability) * (0.09 + skillValue * 0.3))
+    : 0;
+  const powerPreference = clampUnit((Number(result.character?.pow) || 0) / Math.max(1, maximumPower));
+  const enemyPressure = clampUnit(Number(result.teamBalance?.enemyPressureRate) || 0);
+  const continuationValue = clampUnit(Number(result.continuation?.winGainPerScenario) || 0);
+  const practicalValue = clampUnit(
+    clampUnit(Number(result.matchOutcome?.expectedWinLowerBound) || 0) * 0.38 +
+    clampUnit(Number(result.matchOutcome?.expectedWinRate) || 0) * 0.2 +
+    clampUnit(Number(result.teamBalance?.balancedContribution) || 0) * 0.08 +
+    enemyPressure * 0.1 +
+    powerPreference * 0.12 +
+    continuationValue * 0.04 +
+    practicalSkillReliability * 0.08 -
+    earlySkillLiability
+  );
+  return {
+    position,
+    practicalSkillReliability,
+    earlySkillLiability,
+    powerPreference,
+    practicalValue,
+  };
+}
+
+function preparePracticalMetagameMetrics(results) {
+  const maximumPower = Math.max(1, ...results.map((result) => Number(result.character?.pow) || 0));
+  results.forEach((result) => {
+    result.practical = calculatePracticalMetagameMetrics(result, maximumPower);
+  });
+}
+
 function assignRanks(results, selector, key) {
   const sorted = [...results].sort(selector);
   sorted.forEach((result, index) => {
@@ -105,8 +167,10 @@ function assignRanks(results, selector, key) {
 }
 
 export function rankMetagameResults(results) {
+  preparePracticalMetagameMetrics(results);
   const overall = assignRanks(results, (left, right) => (
     scenarioCoverage(right) - scenarioCoverage(left) ||
+    right.practical.practicalValue - left.practical.practicalValue ||
     right.matchOutcome.expectedWinLowerBound - left.matchOutcome.expectedWinLowerBound ||
     right.matchOutcome.expectedWinRate - left.matchOutcome.expectedWinRate ||
     right.teamBalance.balancedContribution - left.teamBalance.balancedContribution ||
@@ -115,18 +179,21 @@ export function rankMetagameResults(results) {
   ), "overall");
   const advantage = assignRanks(results, (left, right) => (
     right.strategicActions.advantageCreationPerScenario - left.strategicActions.advantageCreationPerScenario ||
+    right.practical.practicalValue - left.practical.practicalValue ||
     right.matchOutcome.expectedWinLowerBound - left.matchOutcome.expectedWinLowerBound ||
     right.teamBalance.balancedContribution - left.teamBalance.balancedContribution ||
     right.strategicActions.counteractionPerScenario - left.strategicActions.counteractionPerScenario
   ), "advantage");
   const counter = assignRanks(results, (left, right) => (
     right.strategicActions.counteractionPerScenario - left.strategicActions.counteractionPerScenario ||
+    right.practical.practicalValue - left.practical.practicalValue ||
     right.matchOutcome.expectedWinLowerBound - left.matchOutcome.expectedWinLowerBound ||
     right.teamBalance.balancedContribution - left.teamBalance.balancedContribution ||
     right.strategicActions.advantageCreationPerScenario - left.strategicActions.advantageCreationPerScenario
   ), "counter");
   const continuation = assignRanks(results, (left, right) => (
     Number(right.continuation?.winGainPerScenario) - Number(left.continuation?.winGainPerScenario) ||
+    right.practical.practicalValue - left.practical.practicalValue ||
     Number(right.continuation?.carriedActionRate) - Number(left.continuation?.carriedActionRate) ||
     Number(right.continuation?.continuedActionRate) - Number(left.continuation?.continuedActionRate) ||
     right.matchOutcome.expectedWinLowerBound - left.matchOutcome.expectedWinLowerBound
@@ -251,6 +318,7 @@ export function serializeMetagameResult(result, usageById = new Map()) {
     strategicActions: serializeNumbers(result.strategicActions),
     continuation: serializeNumbers(result.continuation ?? {}),
     reproduction: serializeNumbers(result.reproduction),
+    practical: serializeNumbers(result.practical ?? {}),
   };
 }
 
