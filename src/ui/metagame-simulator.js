@@ -17,6 +17,70 @@ function metagameUiSigned(value) {
   return `${number >= 0 ? "+" : ""}${number.toFixed(2)}`;
 }
 
+function metagameUiModelLabel(data) {
+  const version = String(data.sourceModelVersion ?? "").match(/v\d+/i)?.[0]?.toUpperCase();
+  return version ? `GitHub環境${version}` : data.sourceIsLegacy ? "旧評価" : "環境評価";
+}
+
+function metagameUiCalculationState(status) {
+  return {
+    complete: "完了",
+    in_progress: "計算中",
+    paused: "一時停止",
+  }[status] ?? "集計済み";
+}
+
+function metagameUiDateTime(value) {
+  if (!value) return "取得日時なし";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "取得日時なし";
+  return new Intl.DateTimeFormat("ja-JP", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Asia/Tokyo",
+  }).format(date);
+}
+
+function renderMetagameCalculationStatus(container, data) {
+  container.replaceChildren();
+  const totalRuns = Number(data.sourceTotalRuns) || 0;
+  const completedRuns = Number(data.sourceCompletedRuns) || 0;
+  const completion = totalRuns ? completedRuns / totalRuns : 0;
+  const heading = metagameUiElement("div", "metagame-calculation-heading");
+  heading.append(
+    metagameUiElement("strong", "", "現在の環境データ"),
+    metagameUiElement("span", "", `${metagameUiModelLabel(data)}・${metagameUiCalculationState(data.sourceStatus)}`),
+  );
+  const metrics = metagameUiElement("div", "metagame-calculation-metrics");
+  [
+    ["全体進捗", `${completedRuns}/${totalRuns} タスク (${metagameUiPercent(completion)})`],
+    ["利用可能", `${data.constraints.length} 条件`],
+    ["更新", metagameUiDateTime(data.sourceUpdatedAt ?? data.generatedAt)],
+  ].forEach(([label, value]) => {
+    const metric = metagameUiElement("div", "metagame-calculation-metric");
+    metric.append(
+      metagameUiElement("span", "", label),
+      metagameUiElement("strong", "", value),
+    );
+    metrics.append(metric);
+  });
+  const availableLabels = data.constraints.map((constraint) => constraint.label).join("、");
+  const passLabel = data.sourcePasses ? `第1〜第${data.sourcePasses}パス` : "全パス";
+  const note = metagameUiElement(
+    "p",
+    "metagame-calculation-note",
+    data.constraints.length
+      ? `${availableLabels}は${passLabel}の全5枠が完了済みです。未完了の条件は表示・デッキ計算に含めません。`
+      : "完了済みの5枠セットがまだないため、環境データは表示できません。",
+  );
+  const methodology = metagameUiElement(
+    "p",
+    "metagame-calculation-methodology",
+    "実戦補正: 初手の被ターゲット、早すぎるスキルターン、火力、コスト圧迫、属性・継続攻撃の相乗効果を評価に反映。",
+  );
+  container.append(heading, metrics, note, methodology);
+}
+
 function metagameUiImpactReasons(character, rating, environment, deck) {
   const reasons = [
     `このキャラを${rating.scenarioCount}盤面で固定評価: 予測勝率 ${metagameUiPercent(rating.expectedWinRate)} / 信頼下限 ${metagameUiPercent(rating.expectedWinLowerBound)}`,
@@ -219,6 +283,7 @@ export function initializeMetagameSimulator(root, data, characters) {
   const progressValue = progress.querySelector("[data-metagame-progress-value]");
   const progressBar = progress.querySelector("[data-metagame-progress-bar]");
   const resultRoot = root.querySelector("[data-metagame-result]");
+  const calculationStatus = root.querySelector("[data-metagame-calculation-status]");
   const previewStatus = root.querySelector("[data-metagame-environment-preview-status]");
   const previewContent = root.querySelector("[data-metagame-environment-preview-content]");
   const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
@@ -231,9 +296,11 @@ export function initializeMetagameSimulator(root, data, characters) {
     option.textContent = constraint.label;
     select.append(option);
   }
+  const sourceLabel = metagameUiModelLabel(data);
   status.textContent = data.constraints.length
-    ? `利用可能 ${data.constraints.length}縛り / 評価完了 ${data.sourceCompletedRuns}/${data.sourceTotalRuns} / ${data.sourceIsLegacy ? "旧評価v2（v3再計算中）" : "攻守均衡v3"}`
-    : "利用可能な調査完了済み縛りがありません";
+    ? `利用可能 ${data.constraints.length}条件 / 評価完了 ${data.sourceCompletedRuns}/${data.sourceTotalRuns} / ${sourceLabel}`
+    : "利用可能な調査済み環境がありません";
+  renderMetagameCalculationStatus(calculationStatus, data);
   submitButton.disabled = data.constraints.length === 0;
   const updateEnvironmentPreview = () => {
     const constraint = data.constraints.find((entry) => entry.id === select.value);
@@ -266,6 +333,11 @@ export function initializeMetagameSimulator(root, data, characters) {
     });
     cancelButton.hidden = !busy;
     progress.hidden = !busy;
+    if (busy) {
+      progressLabel.textContent = "候補デッキを探索中";
+      progressValue.textContent = "準備中";
+      progressBar.style.width = "0%";
+    }
   };
 
   cancelButton.addEventListener("click", () => abortController?.abort());
@@ -277,8 +349,40 @@ export function initializeMetagameSimulator(root, data, characters) {
     try {
       const searchResult = await findBestMetagameDeck(data, select.value, characters, {
         signal: abortController.signal,
-        onProgress: ({ phase, completed, total, valid }) => {
+        onProgress: ({
+          phase,
+          completed,
+          total,
+          valid,
+          slot,
+          slots,
+          checked,
+          stageTotal,
+          retained,
+          deck,
+          decks,
+        }) => {
           const ratio = total > 0 ? completed / total : 0;
+          if (phase === "candidate") {
+            const slotNumber = Number(slot) || 1;
+            const slotTotal = Number(slots) || 5;
+            const checkedCount = Number(checked) || 0;
+            const stageCount = Number(stageTotal) || 0;
+            progressLabel.textContent = `候補デッキを探索中（${slotNumber}/${slotTotal}枠）`;
+            progressValue.textContent = stageCount
+              ? `${checkedCount.toLocaleString("ja-JP")} / ${stageCount.toLocaleString("ja-JP")} 通り・候補 ${Number(retained || valid || 0).toLocaleString("ja-JP")}`
+              : "探索準備中";
+            progressBar.style.width = `${Math.round(Math.min(1, Math.max(0, ratio)) * 30)}%`;
+            return;
+          }
+          if (phase === "simulation") {
+            const deckNumber = Number(deck) || 1;
+            const deckTotal = Number(decks) || 1;
+            progressLabel.textContent = `最終対戦を検証中（${deckNumber}/${deckTotal}デッキ）`;
+            progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦`;
+            progressBar.style.width = `${30 + Math.round(Math.min(1, Math.max(0, ratio)) * 70)}%`;
+            return;
+          }
           progressLabel.textContent = phase === "candidate" ? "候補デッキを生成" : "完成デッキを再対戦";
           progressValue.textContent = phase === "candidate"
             ? valid ? `${valid.toLocaleString("ja-JP")}候補` : "組み合わせ中"

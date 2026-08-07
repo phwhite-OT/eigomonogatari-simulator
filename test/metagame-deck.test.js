@@ -119,6 +119,29 @@ test("metagame simulator ranks complete decks by simulated win value", async () 
   assert.ok(result.results[0].expectedWinRate >= 0 && result.results[0].expectedWinRate <= 1);
 });
 
+test("metagame simulator reports candidate and battle progress", async () => {
+  const fixture = metagameTestFixture();
+  const progress = [];
+  await findBestMetagameDeck(
+    fixture.data,
+    fixture.constraint.id,
+    fixture.characters,
+    {
+      beamWidth: 100,
+      finalistCount: 10,
+      onProgress: (update) => progress.push(update),
+    },
+  );
+
+  const candidateProgress = progress.filter((update) => update.phase === "candidate");
+  const simulationProgress = progress.filter((update) => update.phase === "simulation");
+  assert.ok(candidateProgress.some((update) => update.slot === 1 && update.completed === 0));
+  assert.ok(candidateProgress.some((update) => update.slot === 3 && update.completed === 3));
+  assert.ok(candidateProgress.some((update) => update.slot === 5 && update.valid > 0));
+  assert.ok(simulationProgress.some((update) => update.deck === 1 && update.decks > 0));
+  assert.equal(simulationProgress.at(-1).completed, simulationProgress.at(-1).total);
+});
+
 test("継続する全体バフは条件を満たす後続アタッカーとの相性を得る", () => {
   const source = metagameTestCharacter("source", 20, "R", 100);
   source.attributes = ["water"];

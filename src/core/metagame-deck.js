@@ -250,6 +250,126 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
   })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
 }
 
+function metagameYieldToBrowser() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function buildMetagameDeckCandidatesWithProgress(constraint, characters, options = {}) {
+  const totalCost = Number(constraint?.totalCost) || 0;
+  const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
+  const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
+  const charactersById = new Map(characters.map((character) => [String(character.id), character]));
+  const pools = (constraint?.slots ?? []).map((slot) => slot.candidates.map((rating) => ({
+    character: charactersById.get(String(rating.id)),
+    rating,
+    proxy: metagameCandidateScore(rating),
+  })).filter((entry) => entry.character));
+  if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
+    throw new Error("Metagame deck candidates require five populated slots.");
+  }
+
+  let states = [{
+    deck: [],
+    ids: new Set(),
+    totalCost: 0,
+    legendCount: 0,
+    proxyTotal: 0,
+    synergyScore: 0,
+    handoffRisk: 0,
+    budgetStrain: 0,
+    advantageCount: 0,
+    counterCount: 0,
+  }];
+  for (let poolIndex = 0; poolIndex < pools.length; poolIndex += 1) {
+    const pool = pools[poolIndex];
+    const stageTotal = Math.max(1, states.length * pool.length);
+    const expanded = [];
+    let checked = 0;
+    options.onProgress?.({
+      phase: "candidate",
+      completed: poolIndex,
+      total: pools.length,
+      slot: poolIndex + 1,
+      slots: pools.length,
+      checked,
+      stageTotal,
+      retained: states.length,
+    });
+    await metagameYieldToBrowser();
+    for (const state of states) {
+      for (const entry of pool) {
+        if (options.signal?.aborted) throw metagameAbortError();
+        const id = String(entry.character.id);
+        const isLegend = entry.character.rarity === "伝";
+        const nextCost = state.totalCost + (Number(entry.character.cost) || 0);
+        if (!state.ids.has(id) && nextCost <= totalCost && (!isLegend || state.legendCount < 1)) {
+          const ids = new Set(state.ids);
+          ids.add(id);
+          const costShare = (Number(entry.character.cost) || 0) / Math.max(1, totalCost);
+          const immediatePredecessor = state.deck.at(-1);
+          expanded.push({
+            deck: [...state.deck, entry],
+            ids,
+            totalCost: nextCost,
+            legendCount: state.legendCount + (isLegend ? 1 : 0),
+            proxyTotal: state.proxyTotal + entry.proxy,
+            synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
+              total + metagameDeckPairSynergy(source, entry)
+            ), 0),
+            handoffRisk: state.handoffRisk + (immediatePredecessor
+              ? metagameDeckHandoffRisk(immediatePredecessor, entry)
+              : 0),
+            budgetStrain: state.budgetStrain + (
+              Math.max(0, costShare - 0.28) ** 2 * (
+                0.2 + (1 - metagameDeckClampUnit(entry.rating.practicalValue ?? entry.rating.expectedWinLowerBound)) * 0.8
+              )
+            ),
+            advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
+            counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
+          });
+        }
+        checked += 1;
+        if (checked % progressYieldEvery !== 0) continue;
+        options.onProgress?.({
+          phase: "candidate",
+          completed: poolIndex + checked / stageTotal,
+          total: pools.length,
+          slot: poolIndex + 1,
+          slots: pools.length,
+          checked,
+          stageTotal,
+          retained: expanded.length,
+        });
+        await metagameYieldToBrowser();
+      }
+    }
+    states = metagameTrimDeckBeam(expanded, beamWidth, totalCost);
+    if (!states.length) throw new Error("No valid complete metagame deck candidates remain.");
+    options.onProgress?.({
+      phase: "candidate",
+      completed: poolIndex + 1,
+      total: pools.length,
+      slot: poolIndex + 1,
+      slots: pools.length,
+      checked: stageTotal,
+      stageTotal,
+      retained: states.length,
+      valid: poolIndex + 1 === pools.length ? states.length : undefined,
+    });
+  }
+  return states.map((state) => ({
+    deck: state.deck.map((entry) => entry.character),
+    ratings: state.deck.map((entry) => entry.rating),
+    totalCost: state.totalCost,
+    proxyScore: metagameDeckStateScore(state, totalCost),
+    synergyScore: state.synergyScore,
+    handoffRisk: state.handoffRisk,
+    budgetStrain: state.budgetStrain,
+    advantageCount: state.advantageCount,
+    counterCount: state.counterCount,
+  })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
+}
+
 function metagameSelectFinalists(candidates, limit) {
   const maximum = Math.min(candidates.length, Math.max(36, Number(limit) || 40));
   const selected = new Map();
@@ -367,11 +487,19 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
   const constraint = data?.constraints?.find((entry) => entry.id === constraintId);
   if (!constraint) throw new Error("選択した縛りの調査データがありません。");
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
-  options.onProgress?.({ phase: "candidate", completed: 0, total: 1 });
-  const candidates = buildMetagameDeckCandidates(constraint, characters, options);
+  options.onProgress?.({
+    phase: "candidate",
+    completed: 0,
+    total: 5,
+    slot: 1,
+    slots: 5,
+    checked: 0,
+    stageTotal: 0,
+    retained: 0,
+  });
+  const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, characters, options);
   const finalists = metagameSelectFinalists(candidates, options.finalistCount);
   const scenarios = metagameHydrateEnvironment(constraint, charactersById);
-  options.onProgress?.({ phase: "candidate", completed: 1, total: 1, valid: candidates.length });
   const evaluated = [];
   let completedSimulations = 0;
   const totalSimulations = finalists.length * scenarios.length;
@@ -390,6 +518,9 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
             completed: completedSimulations,
             total: totalSimulations,
             valid: candidates.length,
+            deck: index + 1,
+            decks: finalists.length,
+            scenarios: scenarios.length,
           });
         },
       },
