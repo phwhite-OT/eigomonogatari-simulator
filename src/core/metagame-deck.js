@@ -1,19 +1,9 @@
 import { createBattleState } from "./battleState.js";
-import {
-  ATTACK_ORDER_POLICIES,
-  PLAY_STYLES,
-  simulateBattle,
-  TARGET_POLICIES,
-} from "./simulate.js";
+import { simulateBattle } from "./simulate.js";
+import { DEFAULT_ENVIRONMENT_BATTLE_PROFILES } from "./environment-rating.js";
 import { DEFAULT_RULES } from "../data/rules.js";
 
-const METAGAME_DECK_PROFILES = Object.freeze([
-  Object.freeze({
-    targetPolicy: TARGET_POLICIES.EXPERT,
-    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
-    playStyle: PLAY_STYLES.EXPERT,
-  }),
-]);
+const METAGAME_DECK_PROFILES = DEFAULT_ENVIRONMENT_BATTLE_PROFILES;
 
 function metagameDeckClampUnit(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
@@ -28,6 +18,9 @@ function metagameCandidateScore(rating) {
     rating.practicalSkillReliability ?? rating.practical?.practicalSkillReliability ?? rating.skillActivationRate,
   );
   const enemyPressure = metagameDeckClampUnit(rating.enemyPressureRate);
+  const combinationPotential = metagameDeckClampUnit(rating.combinationPotential);
+  const tacticalUpside = metagameDeckClampUnit(rating.tacticalUpside ?? rating.tactical?.tacticalUpside);
+  const tacticalRisk = metagameDeckClampUnit(rating.tacticalRisk ?? rating.tactical?.tacticalRisk);
   return (
     metagameDeckClampUnit(rating.expectedWinLowerBound) * 0.36 +
     metagameDeckClampUnit(rating.expectedWinRate) * 0.22 +
@@ -37,14 +30,26 @@ function metagameCandidateScore(rating) {
     powerPreference * 0.04 +
     advantage * 0.045 +
     counter * 0.045 +
-    skillReliability * 0.035
+    skillReliability * 0.035 +
+    combinationPotential * 0.055 +
+    tacticalUpside * 0.025 -
+    tacticalRisk * 0.02
   );
 }
 
 function metagameSkillMatchesTarget(source, target) {
-  return (source.character.skill?.conditions ?? []).every((condition) => (
-    condition.type !== "ally_attribute" || (target.character.attributes ?? []).includes(condition.attribute)
+  const skill = source.character.skill ?? {};
+  const affectedCharacter = skill.target === "self" ? source.character : target.character;
+  return (skill.conditions ?? []).every((condition) => (
+    condition.type !== "ally_attribute" || (affectedCharacter.attributes ?? []).includes(condition.attribute)
   ));
+}
+
+function metagameDeckTargetEndurance(target) {
+  const hp = Math.max(0, Number(target.character.hp) || 0);
+  const hpFactor = hp / (hp + 5_000);
+  const retention = metagameDeckClampUnit(target.rating.allyRetentionRate);
+  return metagameDeckClampUnit(hpFactor * 0.65 + retention * 0.35);
 }
 
 function metagameDeckPairSynergy(source, target) {
@@ -55,16 +60,27 @@ function metagameDeckPairSynergy(source, target) {
   );
   if (duration < 2 || reliability === 0 || !metagameSkillMatchesTarget(source, target)) return 0;
   const targetPower = metagameDeckClampUnit(target.rating.powerPreference);
-  if (skill.target === "ally_all" && skill.type === "attack_buff") {
+  const targetEndurance = metagameDeckTargetEndurance(target);
+  const persistence = metagameDeckClampUnit((duration - 1) / 3);
+  if (["ally_all", "self"].includes(skill.target) && skill.type === "attack_buff") {
     const strength = metagameDeckClampUnit((Number(skill.multiplier) - 1) / 3);
     return reliability * (0.02 + strength * 0.055) * (0.6 + targetPower * 0.4);
   }
-  if (skill.target === "ally_all" && skill.type === "attribute_change") {
+  if (["ally_all", "self"].includes(skill.target) && skill.type === "attribute_change") {
     return reliability * (0.015 + targetPower * 0.02);
+  }
+  if (["damage_reduction", "guard", "attribute_guard"].includes(skill.type)) {
+    const reductionStrength = metagameDeckClampUnit(1 - (Number(skill.multiplier) || 1));
+    const carriedDefenseHits = Number(
+      source.rating.carriedDefenseRate ?? source.rating.continuation?.carriedDefenseHitsPerScenario ?? 0,
+    );
+    const carriedDefenseRate = metagameDeckClampUnit(carriedDefenseHits / 2);
+    const defenseValue = 0.035 + reductionStrength * 0.075 + persistence * 0.025 + carriedDefenseRate * 0.02;
+    return reliability * defenseValue * (0.4 + targetEndurance * 0.6);
   }
   if (["aoe_attack", "multi_hit_attack"].includes(skill.type)) {
     const followUpPressure = metagameDeckClampUnit(target.rating.counteraction / 2);
-    return reliability * (0.01 + followUpPressure * 0.02);
+    return reliability * (0.01 + followUpPressure * 0.015 + targetPower * 0.015);
   }
   return 0;
 }

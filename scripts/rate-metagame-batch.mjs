@@ -58,6 +58,7 @@ async function writeStatus(status) {
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
+const MODEL_VERSION = "iterative-metagame-v6-expert-tactics";
 const ratingScript = path.join(scriptDirectory, "rate-metagame.mjs");
 const statusPath = path.resolve(projectRoot, readArgument("status", "reports/metagame-v6-batch-status.json"));
 const outputRoot = readArgument("output-root", "reports/metagame-ratings-v6");
@@ -90,12 +91,16 @@ const initialCompleted = new Set(parseList(readArgument("completed", "")));
 const tasks = buildMetagameBatchTasks({ attributeGroups, costs, positions, passes });
 const taskIds = new Set(tasks.map((task) => task.id));
 const previousStatus = await readStatus();
+const previousModelVersion = previousStatus?.config?.modelVersion;
+const resetForModelChange = Boolean(previousStatus && previousModelVersion !== MODEL_VERSION);
+const resumedCompletedTaskIds = resetForModelChange ? [] : (previousStatus?.completedTaskIds ?? []);
+const resumedRecoveredTaskIds = resetForModelChange ? [] : (previousStatus?.recoveredTaskIds ?? []);
 const completedTaskIds = new Set([
-  ...initialCompleted,
-  ...(previousStatus?.completedTaskIds ?? []),
+  ...(resetForModelChange ? [] : initialCompleted),
+  ...resumedCompletedTaskIds,
 ].filter((id) => taskIds.has(id)));
-const recoveredTaskIds = new Set((previousStatus?.recoveredTaskIds ?? []).filter((id) => taskIds.has(id)));
-const startedAt = previousStatus?.startedAt ?? new Date().toISOString();
+const recoveredTaskIds = new Set(resumedRecoveredTaskIds.filter((id) => taskIds.has(id)));
+const startedAt = resetForModelChange ? new Date().toISOString() : (previousStatus?.startedAt ?? new Date().toISOString());
 const config = {
   attributeGroups,
   costs,
@@ -109,10 +114,14 @@ const config = {
   fallbackWorkers,
   outputRoot,
   priorOutputRoot,
-  modelVersion: "iterative-metagame-v6-expert-continuation",
+  modelVersion: MODEL_VERSION,
 };
 
 await fs.mkdir(path.dirname(statusPath), { recursive: true });
+if (resetForModelChange) {
+  await fs.rm(path.resolve(projectRoot, outputRoot), { recursive: true, force: true });
+  console.warn(`Metagame model changed from ${previousModelVersion ?? "unknown"} to ${MODEL_VERSION}; restarting v6 from zero.`);
+}
 console.log(`Metagame batch: ${completedTaskIds.size}/${tasks.length} runs already complete`);
 
 let currentTask = null;

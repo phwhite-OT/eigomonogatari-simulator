@@ -171,3 +171,35 @@ test("ほどほどの性能でコストを使い切る初手は候補デッキ�
   const candidates = buildMetagameDeckCandidates(constraint, [expensive, balanced, ...deckTail], { beamWidth: 50 });
   assert.equal(candidates[0].deck[0].id, "balanced");
 });
+
+test("継続ガードは後続の高耐久キャラへ引き継ぐ価値を持つ", () => {
+  const guard = metagameTestCharacter("guard", 12, "R", 20);
+  guard.hp = 120;
+  guard.skillTurn = 2;
+  guard.skill = {
+    ...guard.skill,
+    type: "guard",
+    target: "self",
+    duration: 4,
+    multiplier: 0.1,
+  };
+  const durable = metagameTestCharacter("durable", 20, "R", 120);
+  durable.hp = 9_000;
+  const fragile = metagameTestCharacter("fragile", 20, "R", 120);
+  fragile.hp = 250;
+  const guardRating = { practicalSkillReliability: 1, carriedDefenseRate: 1 };
+  const durableRating = { allyRetentionRate: 0.95, powerPreference: 0.6 };
+  const fragileRating = { allyRetentionRate: 0.1, powerPreference: 0.6 };
+
+  const durableScore = calculateMetagameDeckSynergy(
+    [guard, durable],
+    [guardRating, durableRating],
+  );
+  const fragileScore = calculateMetagameDeckSynergy(
+    [guard, fragile],
+    [guardRating, fragileRating],
+  );
+
+  assert.ok(durableScore > fragileScore);
+  assert.ok(durableScore > 0.1);
+});

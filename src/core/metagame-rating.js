@@ -1,10 +1,11 @@
 import { resolveAttributeClass } from "../data/rules.js";
 
 export const METAGAME_USAGE_MIX = Object.freeze({
-  overall: 0.44,
-  advantage: 0.19,
-  counter: 0.3,
-  continuation: 0.07,
+  overall: 0.42,
+  advantage: 0.18,
+  counter: 0.28,
+  continuation: 0.06,
+  tactical: 0.06,
 });
 
 export const RARITY_OWNERSHIP_MODEL = Object.freeze({
@@ -23,6 +24,10 @@ function rounded(value, digits = 4) {
 
 function clampUnit(value) {
   return Math.min(1, Math.max(0, value));
+}
+
+function average(values) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
 }
 
 export function estimateOwnershipProbability(character, strengthPercentile = 0.5) {
@@ -157,6 +162,63 @@ function preparePracticalMetagameMetrics(results) {
   });
 }
 
+export function calculateMetagameCombinationPotential(result) {
+  const skill = result.character?.skill ?? {};
+  const duration = Math.max(0, Number(skill.duration) || 0);
+  if (duration < 2) return 0;
+
+  const reliability = clampUnit(Number(
+    result.practical?.practicalSkillReliability ??
+    result.reproduction?.skillActivationRate ??
+    0,
+  ));
+  if (reliability === 0) return 0;
+
+  const persistence = clampUnit((duration - 1) / 3);
+  const multiplier = Number(skill.multiplier) || 1;
+  const reductionStrength = clampUnit(1 - multiplier);
+  const attackStrength = clampUnit((multiplier - 1) / 3);
+  const carriedActionRate = clampUnit(Number(result.continuation?.carriedActionRate) || 0);
+  const skillPotential = {
+    attack_buff: 0.42 + attackStrength * 0.28,
+    damage_reduction: 0.5 + reductionStrength * 0.33,
+    guard: 0.56 + reductionStrength * 0.34,
+    attribute_guard: 0.52 + reductionStrength * 0.32,
+    attribute_change: 0.38,
+    aoe_attack: 0.34,
+    multi_hit_attack: 0.34,
+  }[skill.type] ?? 0;
+
+  return clampUnit(reliability * persistence * (skillPotential + carriedActionRate * 0.12));
+}
+
+export function calculateMetagameTacticalMetrics(result) {
+  const profiles = Object.values(result.tacticalProfiles ?? {}).filter((profile) => (
+    Number(profile?.scenarioCount) > 0
+  ));
+  if (!profiles.length) {
+    return { tacticalUpside: 0, tacticalRisk: 0, tacticalCoverage: 0, tacticalReliability: 0 };
+  }
+  const impacts = profiles.map((profile) => clampUnit(
+    Math.max(0, Number(profile.skillWinGain) || 0) +
+    Math.max(0, Number(profile.allyPreservationNetPerScenario) || 0) * 0.04 +
+    Math.max(0, Number(profile.enemyRemovalNetPerScenario) || 0) * 0.04,
+  ));
+  const impactfulProfiles = impacts.filter((impact) => impact > 0.001).length;
+  const tacticalCoverage = impactfulProfiles / profiles.length;
+  const tacticalReliability = average(profiles.map((profile) => (
+    clampUnit(Number(profile.skillActivationRate) || 0)
+  )));
+  const tacticalUpside = Math.max(...impacts) * (0.35 + tacticalCoverage * 0.65);
+  const tacticalRisk = Math.max(...impacts) - Math.min(...impacts);
+  return {
+    tacticalUpside: clampUnit(tacticalUpside),
+    tacticalRisk: clampUnit(tacticalRisk),
+    tacticalCoverage: clampUnit(tacticalCoverage),
+    tacticalReliability,
+  };
+}
+
 function assignRanks(results, selector, key) {
   const sorted = [...results].sort(selector);
   sorted.forEach((result, index) => {
@@ -168,6 +230,10 @@ function assignRanks(results, selector, key) {
 
 export function rankMetagameResults(results) {
   preparePracticalMetagameMetrics(results);
+  results.forEach((result) => {
+    result.combinationPotential = calculateMetagameCombinationPotential(result);
+    result.tactical = calculateMetagameTacticalMetrics(result);
+  });
   const overall = assignRanks(results, (left, right) => (
     scenarioCoverage(right) - scenarioCoverage(left) ||
     right.practical.practicalValue - left.practical.practicalValue ||
@@ -198,7 +264,19 @@ export function rankMetagameResults(results) {
     Number(right.continuation?.continuedActionRate) - Number(left.continuation?.continuedActionRate) ||
     right.matchOutcome.expectedWinLowerBound - left.matchOutcome.expectedWinLowerBound
   ), "continuation");
-  return { overall, advantage, counter, continuation };
+  const combination = assignRanks(results, (left, right) => (
+    right.combinationPotential - left.combinationPotential ||
+    Number(right.continuation?.carriedActionRate) - Number(left.continuation?.carriedActionRate) ||
+    right.practical.practicalValue - left.practical.practicalValue ||
+    right.matchOutcome.expectedWinLowerBound - left.matchOutcome.expectedWinLowerBound
+  ), "combination");
+  const tactical = assignRanks(results, (left, right) => (
+    Number(right.tactical?.tacticalUpside) - Number(left.tactical?.tacticalUpside) ||
+    Number(right.tactical?.tacticalCoverage) - Number(left.tactical?.tacticalCoverage) ||
+    Number(left.tactical?.tacticalRisk) - Number(right.tactical?.tacticalRisk) ||
+    right.practical.practicalValue - left.practical.practicalValue
+  ), "tactical");
+  return { overall, advantage, counter, continuation, combination, tactical };
 }
 
 export function selectDetailedCandidates(rankings, limit = 150) {
@@ -213,8 +291,12 @@ export function selectDetailedCandidates(rankings, limit = 150) {
     if (selected.size >= maximum) return;
     selected.set(String(result.character.id), result.character);
   };
-  const specialistQuota = Math.max(1, Math.floor(maximum * 0.2));
+  const specialistQuota = Math.max(1, Math.floor(maximum * 0.15));
   const continuation = rankings.continuation ?? [];
+  const combination = rankings.combination ?? [];
+  const tactical = rankings.tactical ?? [];
+  tactical.slice(0, specialistQuota).forEach(add);
+  combination.slice(0, specialistQuota).forEach(add);
   rankings.advantage.slice(0, specialistQuota).forEach(add);
   rankings.counter.slice(0, specialistQuota).forEach(add);
   continuation.slice(0, specialistQuota).forEach(add);
@@ -222,6 +304,8 @@ export function selectDetailedCandidates(rankings, limit = 150) {
   rankings.advantage.forEach(add);
   rankings.counter.forEach(add);
   continuation.forEach(add);
+  combination.forEach(add);
+  tactical.forEach(add);
   return [...selected.values()];
 }
 
@@ -234,17 +318,20 @@ export function buildUsageEnvironment(rankings, options = {}) {
   const advantageRanks = new Map(rankings.advantage.map((result, index) => [String(result.character.id), index]));
   const counterRanks = new Map(rankings.counter.map((result, index) => [String(result.character.id), index]));
   const continuationRanks = new Map((rankings.continuation ?? []).map((result, index) => [String(result.character.id), index]));
+  const tacticalRanks = new Map((rankings.tactical ?? []).map((result, index) => [String(result.character.id), index]));
   const entries = results.map((result, index) => {
     const qualityPercentile = 1 - index / denominator;
     const ownershipProbability = estimateOwnershipProbability(result.character, qualityPercentile);
     const advantageRank = advantageRanks.get(String(result.character.id)) ?? results.length;
     const counterRank = counterRanks.get(String(result.character.id)) ?? results.length;
     const continuationRank = continuationRanks.get(String(result.character.id)) ?? results.length;
+    const tacticalRank = tacticalRanks.get(String(result.character.id)) ?? results.length;
     const rankPreference = (
       mix.overall * Math.exp(-index / temperature) +
       mix.advantage * Math.exp(-advantageRank / temperature) +
       mix.counter * Math.exp(-counterRank / temperature) +
-      (Number(mix.continuation) || 0) * Math.exp(-continuationRank / temperature)
+      (Number(mix.continuation) || 0) * Math.exp(-continuationRank / temperature) +
+      (Number(mix.tactical) || 0) * Math.exp(-tacticalRank / temperature)
     );
     const advantage = Number(result.strategicActions?.advantageCreationPerScenario) || 0;
     const counter = Number(result.strategicActions?.counteractionPerScenario) || 0;
@@ -319,6 +406,12 @@ export function serializeMetagameResult(result, usageById = new Map()) {
     continuation: serializeNumbers(result.continuation ?? {}),
     reproduction: serializeNumbers(result.reproduction),
     practical: serializeNumbers(result.practical ?? {}),
+    tactical: serializeNumbers(result.tactical ?? {}),
+    tacticalProfiles: Object.fromEntries(Object.entries(result.tacticalProfiles ?? {}).map(([profileId, profile]) => [
+      profileId,
+      serializeNumbers(profile),
+    ])),
+    combinationPotential: rounded(result.combinationPotential ?? 0),
   };
 }
 

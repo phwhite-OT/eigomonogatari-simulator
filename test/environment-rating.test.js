@@ -5,9 +5,11 @@ import { createBattleState } from "../src/core/battleState.js";
 import {
   buildCandidatePositionEntryScenarios,
   classifyStrategicAction,
+  DEFAULT_ENVIRONMENT_BATTLE_PROFILES,
   createDeckCompletionSolver,
   createFullEnvironmentDecks,
   evaluateCandidateInEnvironment,
+  evaluateCandidateMatchOutcome,
   projectedMatchWinValue,
   readinessSummary,
   strategicDeckComposition,
@@ -264,4 +266,40 @@ test("strategic environment decks contain both advantage and counter actions", (
     assert.ok(composition.counter >= 1);
   }
 });
+test("candidate outcomes retain results for each expert tactical profile", () => {
+  const candidate = character("candidate", {
+    skill: { type: "guard", multiplier: 0.25, hits: 1, duration: 2, target: "self", targetCount: 1, conditions: [], effects: [] },
+  });
+  const reserves = [2, 3, 4, 5].map((position) => character(`reserve-${position}`, {
+    hp: 2000,
+    pow: 200,
+    skillTurn: position,
+  }));
+  const positionPools = [[candidate], ...reserves.map((unit) => [unit])];
+  const positionEnvironments = positionPools.map((pool) => pool.map((unit) => ({ character: unit, weight: 1 })));
+  const solveCompletion = createDeckCompletionSolver(positionPools, 100);
+  const scenarios = buildCandidatePositionEntryScenarios({
+    count: 6,
+    position: 1,
+    character: candidate,
+    positionEnvironments,
+    solveCompletion,
+    rules: DEFAULT_RULES,
+    seed: 91,
+    turns: 3,
+  });
+  const expectedProfileIds = DEFAULT_ENVIRONMENT_BATTLE_PROFILES.map((profile) => profile.id);
+  assert.deepEqual([...new Set(scenarios.map((scenario) => scenario.battleProfile))], expectedProfileIds);
 
+  const outcome = evaluateCandidateMatchOutcome(candidate, scenarios, {
+    rules: DEFAULT_RULES,
+    solveCompletion,
+    turns: 3,
+  });
+  assert.deepEqual(Object.keys(outcome.tacticalProfiles), expectedProfileIds);
+  for (const profile of Object.values(outcome.tacticalProfiles)) {
+    assert.equal(profile.scenarioCount, 2);
+    assert.ok(Number.isFinite(profile.skillWinGain));
+    assert.ok(Number.isFinite(profile.skillActivationRate));
+  }
+});

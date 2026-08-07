@@ -11,9 +11,21 @@ import { ATTRIBUTES, DEFAULT_RULES, resolveAttributeClass } from "../data/rules.
 
 export const DEFAULT_ENVIRONMENT_BATTLE_PROFILES = Object.freeze([
   Object.freeze({
-    id: "expert-tactical",
+    id: "stock-balance",
     targetPolicy: TARGET_POLICIES.EXPERT,
     attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: PLAY_STYLES.EXPERT,
+  }),
+  Object.freeze({
+    id: "skill-intercept",
+    targetPolicy: TARGET_POLICIES.SKILL_THREAT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: PLAY_STYLES.EXPERT,
+  }),
+  Object.freeze({
+    id: "priority-finish",
+    targetPolicy: TARGET_POLICIES.KILL_CONFIRM,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.STRONGEST_FIRST,
     playStyle: PLAY_STYLES.EXPERT,
   }),
 ]);
@@ -1021,6 +1033,7 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
     continuationWinGain: 0,
   };
   const continuationEligible = supportsContinuationEvaluation(character);
+  const tacticalProfiles = new Map();
 
   for (const scenario of scenarios) {
     const actualState = prepareCandidateState(scenario, character, solveCompletion, false, true);
@@ -1056,7 +1069,24 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
     }
     totals.allyPreservationNet += allyPreservationNet;
     totals.enemyRemovalNet += enemyRemovalNet;
-    totals.skillUsed += candidateSkillUsed(actual, String(character.id)) ? 1 : 0;
+    const profileId = String(scenario.battleProfile ?? "stock-balance");
+    const profileTotals = tacticalProfiles.get(profileId) ?? {
+      scenarios: 0,
+      winValue: 0,
+      baselineWinValue: 0,
+      skillUsed: 0,
+      allyPreservationNet: 0,
+      enemyRemovalNet: 0,
+    };
+    profileTotals.scenarios += 1;
+    profileTotals.winValue += actualWinValue;
+    profileTotals.baselineWinValue += baselineWinValue;
+    const skillUsed = candidateSkillUsed(actual, String(character.id));
+    profileTotals.skillUsed += skillUsed ? 1 : 0;
+    profileTotals.allyPreservationNet += allyPreservationNet;
+    profileTotals.enemyRemovalNet += enemyRemovalNet;
+    tacticalProfiles.set(profileId, profileTotals);
+    totals.skillUsed += skillUsed ? 1 : 0;
     if (continuationEligible) {
       const continuation = continuationForSource(actual, character.id);
       const continuedHits = continuation.attackHits + continuation.defenseHits;
@@ -1074,6 +1104,20 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
   const scenarioCount = Math.max(1, totals.scenarios);
   const expectedWinRate = average(winValues);
   const baselineExpectedWinRate = average(baselineWinValues);
+  const tacticalProfileResults = Object.fromEntries([...tacticalProfiles.entries()].map(([profileId, profileTotals]) => {
+    const profileScenarioCount = Math.max(1, profileTotals.scenarios);
+    const profileExpectedWinRate = profileTotals.winValue / profileScenarioCount;
+    const profileBaselineWinRate = profileTotals.baselineWinValue / profileScenarioCount;
+    return [profileId, {
+      scenarioCount: profileTotals.scenarios,
+      expectedWinRate: profileExpectedWinRate,
+      baselineExpectedWinRate: profileBaselineWinRate,
+      skillWinGain: profileExpectedWinRate - profileBaselineWinRate,
+      skillActivationRate: profileTotals.skillUsed / profileScenarioCount,
+      allyPreservationNetPerScenario: profileTotals.allyPreservationNet / profileScenarioCount,
+      enemyRemovalNetPerScenario: profileTotals.enemyRemovalNet / profileScenarioCount,
+    }];
+  }));
   return {
     character,
     position: Math.min(5, Math.max(1, Number(scenarios[0]?.position) || 5)),
@@ -1115,6 +1159,7 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
       entryReadyRate: entryReady.filter(Boolean).length / Math.max(1, entryReady.length),
       scenarioCoverageRate: totals.scenarios / Math.max(1, scenarios.length),
     },
+    tacticalProfiles: tacticalProfileResults,
   };
 }
 

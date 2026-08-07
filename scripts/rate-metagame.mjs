@@ -8,6 +8,7 @@ import {
   buildCandidatePositionEntryScenarios,
   buildEnvironmentPositionPool,
   buildPositionEntryScenarios,
+  DEFAULT_ENVIRONMENT_BATTLE_PROFILES,
   DEFAULT_STRATEGIC_DECK_PROFILES,
   createDeckCompletionSolver,
   evaluateCandidateMatchOutcome,
@@ -28,7 +29,7 @@ import {
 import { WORKBOOK_CHARACTERS } from "../src/data/workbook-characters.js";
 import { DEFAULT_RULES } from "../src/data/rules.js";
 
-const MODEL_VERSION = "iterative-metagame-v6-expert-continuation";
+const MODEL_VERSION = "iterative-metagame-v6-expert-tactics";
 const LEGACY_WARM_START_WEIGHT = 0.1;
 
 function readArgument(name, fallback) {
@@ -320,6 +321,8 @@ const report = {
     },
     usageMixture: METAGAME_USAGE_MIX,
     environmentDeckProfiles: DEFAULT_STRATEGIC_DECK_PROFILES,
+    environmentBattleProfiles: DEFAULT_ENVIRONMENT_BATTLE_PROFILES,
+    tacticalEvaluation: "records upside, coverage, and risk independently for stock balance, skill interception, and priority finishing",
     drawValue: 0.5,
     ignoredSkillTypes: ["delay", "skill_reduction"],
   },
@@ -350,6 +353,8 @@ const report = {
     advantage: serializeRanking(finalRankings.advantage),
     counter: serializeRanking(finalRankings.counter),
     continuation: serializeRanking(finalRankings.continuation),
+    combination: serializeRanking(finalRankings.combination),
+    tactical: serializeRanking(finalRankings.tactical),
   },
 };
 

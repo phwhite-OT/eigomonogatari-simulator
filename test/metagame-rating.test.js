@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import {
   blendUsageEnvironments,
   buildUsageEnvironment,
+  calculateMetagameCombinationPotential,
+  calculateMetagameTacticalMetrics,
   calculatePracticalMetagameMetrics,
   estimateOwnershipProbability,
   rankMetagameResults,
@@ -148,4 +150,65 @@ test("初手のスキルターン1は実戦上の発動信頼性を大きく下�
   assert.ok(openerMetrics.practicalSkillReliability < 0.3);
   assert.ok(laterMetrics.practicalSkillReliability > openerMetrics.practicalSkillReliability);
   assert.ok(openerMetrics.earlySkillLiability > laterMetrics.earlySkillLiability);
+});
+
+test("long-duration guard remains a combination specialist despite weak solo results", () => {
+  const strong = result("strong", { win: 0.8, lower: 0.7 });
+  const runnerUp = result("runner-up", { win: 0.7, lower: 0.6 });
+  const guard = result("guard", { win: 0.25, lower: 0.1 });
+  guard.position = 3;
+  guard.character = {
+    ...guard.character,
+    skillTurn: 2,
+    skill: { type: "guard", target: "self", duration: 4, multiplier: 0.1 },
+  };
+  guard.reproduction = { skillActivationRate: 1, entryReadyRate: 1, scenarioCoverageRate: 1 };
+  guard.continuation = { carriedActionRate: 0.5 };
+
+  assert.ok(calculateMetagameCombinationPotential(guard) > 0.5);
+  const selected = selectDetailedCandidates({
+    overall: [strong, runnerUp, guard],
+    advantage: [strong, runnerUp, guard],
+    counter: [runnerUp, strong, guard],
+    continuation: [runnerUp, strong, guard],
+    combination: [guard, strong, runnerUp],
+  }, 2);
+
+  assert.deepEqual(selected.map((entry) => entry.id), ["guard", "strong"]);
+});
+test("tactical specialists track their upside separately from their average rank", () => {
+  const steady = result("steady", { win: 0.8, lower: 0.7 });
+  const specialist = result("specialist", { win: 0.35, lower: 0.2 });
+  specialist.tacticalProfiles = {
+    "stock-balance": {
+      scenarioCount: 3,
+      skillWinGain: 0,
+      skillActivationRate: 1,
+      allyPreservationNetPerScenario: 0,
+      enemyRemovalNetPerScenario: 0,
+    },
+    "skill-intercept": {
+      scenarioCount: 3,
+      skillWinGain: 0.8,
+      skillActivationRate: 1,
+      allyPreservationNetPerScenario: 0,
+      enemyRemovalNetPerScenario: 0,
+    },
+    "priority-finish": {
+      scenarioCount: 3,
+      skillWinGain: 0,
+      skillActivationRate: 1,
+      allyPreservationNetPerScenario: 0,
+      enemyRemovalNetPerScenario: 0,
+    },
+  };
+
+  const metrics = calculateMetagameTacticalMetrics(specialist);
+  assert.equal(metrics.tacticalCoverage, 1 / 3);
+  assert.equal(metrics.tacticalRisk, 0.8);
+
+  const rankings = rankMetagameResults([steady, specialist]);
+  assert.equal(rankings.overall[0].character.id, "steady");
+  assert.equal(rankings.tactical[0].character.id, "specialist");
+  assert.deepEqual(selectDetailedCandidates(rankings, 2).map((entry) => entry.id), ["specialist", "steady"]);
 });
