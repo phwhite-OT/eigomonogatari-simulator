@@ -1,9 +1,7 @@
 {
-  "status": "paused",
+  "status": "running",
   "startedAt": "2026-08-07T06:25:37.752Z",
-  "updatedAt": "2026-08-07T12:01:59.536Z",
-  "pausedAt": "2026-08-07T12:01:59.536Z",
-  "pauseReason": "Stopped after 1 task(s) due to max-tasks.",
+  "updatedAt": "2026-08-07T12:02:30.922Z",
   "config": {
     "attributeGroups": [
       [
@@ -105,5 +103,16 @@
     "1:fire-wind:100:3"
   ],
   "recoveredTaskIds": [],
-  "current": null
+  "current": {
+    "allowedAttributes": [
+      "fire",
+      "wind"
+    ],
+    "attributeKey": "fire-wind",
+    "cost": 100,
+    "position": 4,
+    "pass": 1,
+    "constraintId": "fire-wind:100",
+    "id": "1:fire-wind:100:4"
+  }
 }
