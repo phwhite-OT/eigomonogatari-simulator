@@ -1,7 +1,9 @@
 {
-  "status": "running",
-  "startedAt": "2026-08-07T01:14:11.134Z",
-  "updatedAt": "2026-08-07T06:09:30.278Z",
+  "status": "paused",
+  "startedAt": "2026-08-07T06:25:37.752Z",
+  "updatedAt": "2026-08-07T06:34:41.419Z",
+  "pausedAt": "2026-08-07T06:34:41.419Z",
+  "pauseReason": "Stopped after 1 task(s) due to max-tasks.",
   "config": {
     "attributeGroups": [
       [
@@ -53,63 +55,13 @@
     "fallbackWorkers": 1,
     "outputRoot": "reports/metagame-ratings-v6",
     "priorOutputRoot": "reports/metagame-ratings-v5",
-    "modelVersion": "iterative-metagame-v6-expert-continuation"
+    "modelVersion": "iterative-metagame-v6-expert-tactics"
   },
   "totalRuns": 280,
-  "completedRuns": 40,
+  "completedRuns": 1,
   "completedTaskIds": [
-    "1:fire:100:1",
-    "1:fire:100:2",
-    "1:fire:100:3",
-    "1:fire:100:4",
-    "1:fire:100:5",
-    "2:fire:100:5",
-    "2:fire:100:4",
-    "2:fire:100:3",
-    "2:fire:100:2",
-    "2:fire:100:1",
-    "1:water:100:1",
-    "1:water:100:2",
-    "1:water:100:3",
-    "1:water:100:4",
-    "1:water:100:5",
-    "2:water:100:5",
-    "2:water:100:4",
-    "2:water:100:3",
-    "2:water:100:2",
-    "2:water:100:1",
-    "1:wind:100:1",
-    "1:wind:100:2",
-    "1:wind:100:3",
-    "1:wind:100:4",
-    "1:wind:100:5",
-    "2:wind:100:5",
-    "2:wind:100:4",
-    "2:wind:100:3",
-    "2:wind:100:2",
-    "2:wind:100:1",
-    "1:fire-water:100:1",
-    "1:fire-water:100:2",
-    "1:fire-water:100:3",
-    "1:fire-water:100:4",
-    "1:fire-water:100:5",
-    "2:fire-water:100:5",
-    "2:fire-water:100:4",
-    "2:fire-water:100:3",
-    "2:fire-water:100:2",
-    "2:fire-water:100:1"
+    "1:fire:100:1"
   ],
   "recoveredTaskIds": [],
-  "current": {
-    "allowedAttributes": [
-      "fire",
-      "wind"
-    ],
-    "attributeKey": "fire-wind",
-    "cost": 100,
-    "position": 1,
-    "pass": 1,
-    "constraintId": "fire-wind:100",
-    "id": "1:fire-wind:100:1"
-  }
+  "current": null
 }
