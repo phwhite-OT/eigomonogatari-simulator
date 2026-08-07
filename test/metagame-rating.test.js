@@ -8,6 +8,7 @@ import {
   calculateMetagameTacticalMetrics,
   calculatePracticalMetagameMetrics,
   estimateOwnershipProbability,
+  rankDetailedMetagameResults,
   rankMetagameResults,
   selectDetailedCandidates,
 } from "../src/core/metagame-rating.js";
@@ -66,6 +67,18 @@ test("勝率と攻守均衡が同じなら有利獲得を対抗行動より先�
   assert.equal(rankings.counter[0].character.id, "reactive");
 });
 
+test("最終順位と環境使用率は詳細評価済み候補だけから作る", () => {
+  const screeningOnly = result("screening-only", { win: 1, lower: 1 });
+  screeningOnly.scenarioCount = 12;
+  const detailed = result("detailed", { win: 0.65, lower: 0.5 });
+  detailed.scenarioCount = 72;
+
+  const rankings = rankDetailedMetagameResults([screeningOnly, detailed], 72);
+  const usage = buildUsageEnvironment(rankings);
+
+  assert.deepEqual(rankings.overall.map((entry) => entry.character.id), ["detailed"]);
+  assert.deepEqual(usage.map((entry) => entry.character.id), ["detailed"]);
+});
 test("予測使用率は戦闘順位だけでなく推定所持率も反映する", () => {
   const legend = result("legend", { rarity: "伝", win: 0.8, lower: 0.7 });
   const common = result("common", { rarity: "CR", win: 0.7, lower: 0.6 });
@@ -86,7 +99,7 @@ test("detailed selection keeps overall and specialist candidates", () => {
     counter: [entries[3], ...entries.slice(0, 3), entries[4]],
   }, 3);
 
-  assert.deepEqual(selected.map((entry) => entry.id), ["e", "d", "a"]);
+  assert.deepEqual(selected.map((entry) => entry.id), ["e", "a", "d"]);
 });
 
 test("旧環境は25%だけ基礎環境へ混ぜる", () => {

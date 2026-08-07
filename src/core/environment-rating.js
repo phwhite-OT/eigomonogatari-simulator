@@ -31,12 +31,12 @@ export const DEFAULT_ENVIRONMENT_BATTLE_PROFILES = Object.freeze([
 ]);
 
 export const DEFAULT_STRATEGIC_DECK_PROFILES = Object.freeze([
-  Object.freeze({ id: "balanced-1", minimumAdvantage: 1, minimumCounter: 1 }),
-  Object.freeze({ id: "advantage-1", minimumAdvantage: 2, minimumCounter: 1 }),
-  Object.freeze({ id: "balanced-2", minimumAdvantage: 1, minimumCounter: 1 }),
-  Object.freeze({ id: "counter-pressure", minimumAdvantage: 1, minimumCounter: 2 }),
-  Object.freeze({ id: "balanced-3", minimumAdvantage: 1, minimumCounter: 1 }),
-  Object.freeze({ id: "advantage-2", minimumAdvantage: 2, minimumCounter: 1 }),
+  Object.freeze({ id: "pressure-1", minimumAdvantage: 0, minimumCounter: 2 }),
+  Object.freeze({ id: "balanced", minimumAdvantage: 1, minimumCounter: 1 }),
+  Object.freeze({ id: "rush", minimumAdvantage: 0, minimumCounter: 3 }),
+  Object.freeze({ id: "guarded-pressure", minimumAdvantage: 1, minimumCounter: 2 }),
+  Object.freeze({ id: "pressure-2", minimumAdvantage: 0, minimumCounter: 2 }),
+  Object.freeze({ id: "anchor", minimumAdvantage: 2, minimumCounter: 1 }),
 ]);
 
 function availableBattleProfiles(profiles) {

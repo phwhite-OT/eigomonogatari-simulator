@@ -10,34 +10,20 @@ import {
 } from "../src/core/environment-rating.js";
 
 const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
-  fire: "火",
-  water: "水",
-  wind: "風",
+  fire: "\u706b",
+  water: "\u6c34",
+  wind: "\u98a8",
 });
-const METAGAME_SCENARIO_COUNT = 30;
+const METAGAME_SCENARIO_COUNT = 60;
+const METAGAME_MODEL_VERSION = "iterative-metagame-v6-practical-decks";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   Object.freeze({
     statusPath: "reports/metagame-v6-batch-status.json",
     reportRoot: "reports/metagame-ratings-v6",
+    requiredModelVersion: METAGAME_MODEL_VERSION,
     legacy: false,
-  }),
-  Object.freeze({
-    statusPath: "reports/metagame-v5-batch-status.json",
-    reportRoot: "reports/metagame-ratings-v5",
-    legacy: false,
-  }),
-  Object.freeze({
-    statusPath: "reports/metagame-v4-batch-status.json",
-    reportRoot: "reports/metagame-ratings-v4",
-    legacy: false,
-  }),
-  Object.freeze({
-    statusPath: "reports/metagame-v3-batch-status.json",
-    reportRoot: "reports/metagame-ratings-v3",
-    legacy: true,
   }),
 ]);
-
 function metagameSeededRandom(seed) {
   let state = Number(seed) >>> 0;
   return () => {
@@ -80,12 +66,15 @@ async function readMetagameSource(projectRoot, source) {
   const statusPath = path.resolve(projectRoot, source.statusPath);
   try {
     const status = await readMetagameJson(statusPath);
+    const modelVersion = status.config?.modelVersion ?? "unknown";
+    const modelCompatible = !source.requiredModelVersion || modelVersion === source.requiredModelVersion;
     return {
       ...source,
       statusPath,
       reportRoot: path.resolve(projectRoot, source.reportRoot),
       status,
-      completedConstraints: completedMetagameConstraints(status),
+      modelCompatible,
+      completedConstraints: modelCompatible ? completedMetagameConstraints(status) : [],
     };
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
@@ -188,12 +177,12 @@ async function buildMetagameConstraint(config, charactersById, seed, reportRoot)
     solveCompletion,
     metagameSeededRandom(seed),
     {},
-    { deckProfiles: DEFAULT_STRATEGIC_DECK_PROFILES, strictProfiles: true },
+    { deckProfiles: DEFAULT_STRATEGIC_DECK_PROFILES, strictProfiles: false },
   );
   return {
     id: `${attributeKey}:${config.cost}`,
     attributeKey,
-    label: `${config.allowedAttributes.map((attribute) => METAGAME_ATTRIBUTE_LABELS[attribute]).join("")}・コスト${config.cost}`,
+    label: `${config.allowedAttributes.map((attribute) => METAGAME_ATTRIBUTE_LABELS[attribute]).join("")}\u30fb\u30b3\u30b9\u30c8${config.cost}`,
     allowedAttributes: config.allowedAttributes,
     totalCost: config.cost,
     turns: Math.max(...reports.map((report) => Number(report.context?.turns) || 12)),
@@ -255,6 +244,7 @@ export async function buildMetagameSimulatorData(options = {}) {
     sourceStatusPath: path.relative(projectRoot, source.statusPath).replaceAll("\\", "/"),
     sourceReportRoot: path.relative(projectRoot, source.reportRoot).replaceAll("\\", "/"),
     sourceIsLegacy: source.legacy,
+    sourceModelCompatible: Boolean(source.modelCompatible),
     constraints,
   };
   await fs.mkdir(path.dirname(outputPath), { recursive: true });

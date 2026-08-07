@@ -58,11 +58,11 @@ async function writeStatus(status) {
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
-const MODEL_VERSION = "iterative-metagame-v6-expert-tactics";
+const MODEL_VERSION = "iterative-metagame-v6-practical-decks";
 const ratingScript = path.join(scriptDirectory, "rate-metagame.mjs");
 const statusPath = path.resolve(projectRoot, readArgument("status", "reports/metagame-v6-batch-status.json"));
 const outputRoot = readArgument("output-root", "reports/metagame-ratings-v6");
-const priorOutputRoot = readArgument("prior-output-root", "reports/metagame-ratings-v5");
+const priorOutputRoot = readArgument("prior-output-root", "");
 const attributeGroupsArgument = readArgument("attribute-groups", "");
 const legacyAttributesArgument = readArgument("attributes", "");
 const attributeGroups = attributeGroupsArgument
@@ -79,9 +79,9 @@ const costs = costsArgument
     : [...DEFAULT_REPRESENTATIVE_COSTS];
 const positions = parseList(readArgument("positions", "1,2,3,4,5")).map(Number);
 const passes = Math.max(1, Number(readArgument("passes", "2")) || 2);
-const firstScenarios = Math.max(4, Number(readArgument("first-scenarios", "4")) || 4);
-const finalScenarios = Math.max(12, Number(readArgument("final-scenarios", "30")) || 30);
-const finalists = Math.max(1, Math.floor(Number(readArgument("finalists", "40")) || 40));
+const firstScenarios = Math.max(12, Number(readArgument("first-scenarios", "12")) || 12);
+const finalScenarios = Math.max(72, Number(readArgument("final-scenarios", "72")) || 72);
+const finalists = Math.max(1, Math.floor(Number(readArgument("finalists", "96")) || 96));
 const turns = Math.min(12, Math.max(1, Number(readArgument("turns", "12")) || 12));
 const workers = Math.max(1, Number(readArgument("workers", "6")) || 6);
 const fallbackWorkers = Math.min(workers, Math.max(1, Number(readArgument("fallback-workers", "1")) || 1));
@@ -157,7 +157,6 @@ try {
       "--finalists=" + finalists,
       "--turns=" + turns,
       "--output-root=" + outputRoot,
-      "--prior-output-root=" + priorOutputRoot,
     ];
     let recoveredWithFallback = false;
     try {

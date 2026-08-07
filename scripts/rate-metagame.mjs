@@ -15,11 +15,11 @@ import {
   readinessSummary,
 } from "../src/core/environment-rating.js";
 import {
-  blendUsageEnvironments,
   buildBootstrapEnvironment,
   buildUsageEnvironment,
   metagameReportToCsv,
   METAGAME_USAGE_MIX,
+  rankDetailedMetagameResults,
   rankMetagameResults,
   RARITY_OWNERSHIP_MODEL,
   selectDetailedCandidates,
@@ -29,8 +29,7 @@ import {
 import { WORKBOOK_CHARACTERS } from "../src/data/workbook-characters.js";
 import { DEFAULT_RULES } from "../src/data/rules.js";
 
-const MODEL_VERSION = "iterative-metagame-v6-expert-tactics";
-const LEGACY_WARM_START_WEIGHT = 0.1;
+const MODEL_VERSION = "iterative-metagame-v6-practical-decks";
 
 function readArgument(name, fallback) {
   const prefix = `--${name}=`;
@@ -84,33 +83,6 @@ async function loadUsageEnvironment(reportPath, charactersById) {
     if (error.code === "ENOENT") return null;
     throw error;
   }
-}
-
-async function loadClosestUsageEnvironment(outputDirectory, slot, totalCost, charactersById) {
-  const exactPath = path.join(outputDirectory, `slot-${slot}-cost-${totalCost}.json`);
-  const exact = await loadUsageEnvironment(exactPath, charactersById);
-  if (exact) return { ...exact, sourceCost: totalCost, exactCost: true };
-
-  const pattern = new RegExp(`^slot-${slot}-cost-(\\d+)\\.json$`);
-  let reportFiles;
-  try {
-    reportFiles = await fs.readdir(outputDirectory);
-  } catch (error) {
-    if (error.code === "ENOENT") return null;
-    throw error;
-  }
-  const nearbyCosts = reportFiles
-    .flatMap((name) => {
-      const match = name.match(pattern);
-      return match ? [Number(match[1])] : [];
-    })
-    .sort((left, right) => Math.abs(left - totalCost) - Math.abs(right - totalCost) || left - right);
-  for (const sourceCost of nearbyCosts) {
-    const reportPath = path.join(outputDirectory, `slot-${slot}-cost-${sourceCost}.json`);
-    const existing = await loadUsageEnvironment(reportPath, charactersById);
-    if (existing) return { ...existing, sourceCost, exactCost: false };
-  }
-  return null;
 }
 
 function evaluateCharacter(character, scenarioOptions, solveCompletion, turns) {
@@ -175,9 +147,9 @@ async function evaluatePool(label, candidates, scenarioOptions, options) {
 const totalCost = Number(readArgument("cost", "150"));
 const position = Math.min(5, Math.max(1, Number(readArgument("position", "2"))));
 const allowedAttributes = readArgument("attributes", "fire").split(",").map((value) => value.trim()).filter(Boolean);
-const firstScenarioCount = Math.max(4, Number(readArgument("first-scenarios", "4")));
-const finalScenarioCount = Math.max(12, Number(readArgument("final-scenarios", "30")));
-const detailedCandidateLimit = Math.max(1, Math.floor(Number(readArgument("finalists", "40")) || 40));
+const firstScenarioCount = Math.max(12, Number(readArgument("first-scenarios", "12")));
+const finalScenarioCount = Math.max(72, Number(readArgument("final-scenarios", "72")));
+const detailedCandidateLimit = Math.max(1, Math.floor(Number(readArgument("finalists", "96")) || 96));
 const turns = Math.min(12, Math.max(1, Number(readArgument("turns", "12"))));
 const workerCount = Math.max(1, Math.min(
   Number(readArgument("workers", String(Math.min(6, Math.max(1, os.cpus().length - 1))))),
@@ -186,10 +158,9 @@ const workerCount = Math.max(1, Math.min(
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
 const attributeKey = allowedAttributes.join("-") || "all";
-const outputRoot = path.resolve(projectRoot, readArgument("output-root", "reports/metagame-ratings-v3"));
-const priorOutputRoot = path.resolve(projectRoot, readArgument("prior-output-root", "reports/metagame-ratings"));
+const outputRoot = path.resolve(projectRoot, readArgument("output-root", "reports/metagame-ratings-v6"));
 const outputDirectory = path.join(outputRoot, attributeKey);
-const priorOutputDirectory = path.join(priorOutputRoot, attributeKey);
+
 const outputBase = path.join(outputDirectory, `slot-${position}-cost-${totalCost}`);
 const charactersById = new Map(WORKBOOK_CHARACTERS.map((character) => [String(character.id), character]));
 const positionPools = [1, 2, 3, 4, 5].map((slot) => buildEnvironmentPositionPool(
@@ -207,31 +178,16 @@ const warmStartSources = positionPools.map(() => "bootstrap");
 
 await fs.mkdir(outputDirectory, { recursive: true });
 for (let slot = 1; slot <= 5; slot += 1) {
-  let existing = await loadClosestUsageEnvironment(outputDirectory, slot, totalCost, charactersById);
-  let sourceRoot = "current";
-  if (!existing && priorOutputDirectory !== outputDirectory) {
-    existing = await loadClosestUsageEnvironment(priorOutputDirectory, slot, totalCost, charactersById);
-    sourceRoot = "prior";
-  }
-  if (!existing) continue;
-  existing.environment = existing.environment.filter((entry) => (
-    solveCompletion({ [slot]: entry.character })
-  ));
-  if (!existing.environment.length) continue;
-  if (existing.exactCost && existing.modelVersion === MODEL_VERSION) {
-    positionEnvironments[slot - 1] = existing.environment;
-    warmStartSources[slot - 1] = "current-v4-100%";
-  } else {
-    positionEnvironments[slot - 1] = blendUsageEnvironments(
-      positionEnvironments[slot - 1],
-      existing.environment,
-      LEGACY_WARM_START_WEIGHT,
-    );
-    const sourceType = existing.exactCost ? "legacy" : `nearest-cost-${existing.sourceCost}`;
-    warmStartSources[slot - 1] = `${sourceRoot}-${sourceType}-${existing.modelVersion}-10%`;
-  }
+  const existing = await loadUsageEnvironment(
+    path.join(outputDirectory, `slot-${slot}-cost-${totalCost}.json`),
+    charactersById,
+  );
+  if (!existing || existing.modelVersion !== MODEL_VERSION) continue;
+  const environment = existing.environment.filter((entry) => solveCompletion({ [slot]: entry.character }));
+  if (!environment.length) continue;
+  positionEnvironments[slot - 1] = environment;
+  warmStartSources[slot - 1] = "current-v6-100%";
 }
-
 console.log(`メタ環境評価開始: 総コスト${totalCost} / 属性${allowedAttributes.join(",")} / ${position}枠目`);
 console.log(`候補${candidates.length}体 / 候補ごとにコスト内デッキを再生成 / 伝説は1デッキ1体まで`);
 console.time("metagame-rating");
@@ -270,11 +226,7 @@ const finalResults = await evaluatePool("予測環境での最終勝利評価", 
   turns,
   solveCompletion,
 });
-const detailedResultsById = new Map(finalResults.map((result) => [String(result.character.id), result]));
-const combinedResults = firstResults.map((result) => (
-  detailedResultsById.get(String(result.character.id)) ?? result
-));
-const finalRankings = rankMetagameResults(combinedResults);
+const finalRankings = rankDetailedMetagameResults(finalResults, finalScenarioCount);
 const finalUsage = buildUsageEnvironment(finalRankings);
 positionEnvironments[position - 1] = finalUsage;
 const readinessScenarios = buildPositionEntryScenarios({
@@ -298,7 +250,7 @@ const report = {
     version: MODEL_VERSION,
     objective: "刺さりではなく最終勝利見込みを第一基準にする",
     rankingOrder: [
-      "全候補で同数の成立盤面を確保",
+      "詳細評価済み候補だけで同数の成立盤面を確保",
       "予測勝率の信頼下限",
       "予測勝率",
       "味方維持60%・敵進行40%の調和平均による攻守均衡",
@@ -306,8 +258,8 @@ const report = {
       "不利を防ぐ対抗行動（敵交代を増やす）",
     ],
     candidateConditioning: "候補を対象枠へ固定してから残り4枠を使用率と総コストに従って生成し、候補ごとに同数盤面を評価",
-    legacyWarmStart: "旧方式の予測使用率は初期環境の10%だけ使用し、新方式のレポートは100%使用",
-    stagedEvaluation: "all candidates use screening scenarios; overall and specialist finalists use detailed scenarios",
+    legacyWarmStart: "旧モデルの予測使用率は使用せず、同一モデルの完了済み枠だけを初期環境に使用",
+    stagedEvaluation: "一次評価は詳細評価候補の選別専用。最終順位・予測使用率・環境生成は詳細評価済み候補だけで計算",
     environmentLoop: "一次順位と所持率から予測使用率を作り、その使用率で再生成した環境に対して最終評価",
     reserveSkills: "対象枠より後ろを含む全キャラのスキルを保持",
     laterPositionSkillPolicy: "2枠目以降は使用可能なスキルを原則すぐ使用。蘇生は撃破予測時に使用",
@@ -340,6 +292,13 @@ const report = {
     workerCount,
     outputRoot,
     warmStartSources,
+  },
+  evaluation: {
+    screeningCandidateCount: firstResults.length,
+    screeningScenarioCount: firstScenarioCount,
+    detailedCandidateCount: finalResults.length,
+    detailedScenarioCount: finalScenarioCount,
+    excludedFromFinalRankCount: Math.max(0, firstResults.length - finalResults.length),
   },
   readiness: readinessSummary(readinessScenarios, Math.min(7, position + 2)),
   environment: {

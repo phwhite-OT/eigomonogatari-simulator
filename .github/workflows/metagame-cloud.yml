@@ -70,19 +70,19 @@ jobs:
         name: Evaluate the next metagame task
         shell: bash
         run: |
-          if [ -f reports/metagame-v6-batch-status.json ] && grep -q '"status": "completed"' reports/metagame-v6-batch-status.json && grep -q '"modelVersion": "iterative-metagame-v6-expert-tactics"' reports/metagame-v6-batch-status.json; then
+          if [ -f reports/metagame-v6-batch-status.json ] && grep -q '"status": "completed"' reports/metagame-v6-batch-status.json && grep -q '"modelVersion": "iterative-metagame-v6-practical-decks"' reports/metagame-v6-batch-status.json; then
             echo "completed_before=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           node scripts/rate-metagame-batch.mjs \
             --status=reports/metagame-v6-batch-status.json \
             --output-root=reports/metagame-ratings-v6 \
-            --prior-output-root=reports/metagame-ratings-v5 \
+
             --max-tasks="$METAGAME_MAX_TASKS" \
             --fallback-workers="$METAGAME_FALLBACK_WORKERS" \
-            --first-scenarios=4 \
-            --final-scenarios=30 \
-            --finalists=40 \
+            --first-scenarios=12 \
+            --final-scenarios=72 \
+            --finalists=96 \
             --turns=12 \
             --workers="$METAGAME_WORKERS"
           if grep -q '"status": "completed"' reports/metagame-v6-batch-status.json; then

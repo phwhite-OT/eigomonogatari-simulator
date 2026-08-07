@@ -1,11 +1,11 @@
 import { resolveAttributeClass } from "../data/rules.js";
 
 export const METAGAME_USAGE_MIX = Object.freeze({
-  overall: 0.42,
-  advantage: 0.18,
-  counter: 0.28,
-  continuation: 0.06,
-  tactical: 0.06,
+  overall: 0.35,
+  advantage: 0.13,
+  counter: 0.35,
+  continuation: 0.10,
+  tactical: 0.07,
 });
 
 export const RARITY_OWNERSHIP_MODEL = Object.freeze({
@@ -279,6 +279,15 @@ export function rankMetagameResults(results) {
   return { overall, advantage, counter, continuation, combination, tactical };
 }
 
+export function rankDetailedMetagameResults(results, minimumScenarioCount) {
+  const minimum = Math.max(1, Number(minimumScenarioCount) || 1);
+  const detailed = results.filter((result) => Number(result.scenarioCount) >= minimum);
+  if (!detailed.length) {
+    throw new Error(`詳細評価が${minimum}盤面以上の候補を含んでいません。`);
+  }
+  return rankMetagameResults(detailed);
+}
+
 export function selectDetailedCandidates(rankings, limit = 150) {
   const maximum = Math.max(0, Math.min(
     Number.isFinite(Number(limit)) ? Math.floor(Number(limit)) : 150,
@@ -291,7 +300,7 @@ export function selectDetailedCandidates(rankings, limit = 150) {
     if (selected.size >= maximum) return;
     selected.set(String(result.character.id), result.character);
   };
-  const specialistQuota = Math.max(1, Math.floor(maximum * 0.15));
+  const specialistQuota = Math.max(2, Math.floor(maximum * 0.22));
   const continuation = rankings.continuation ?? [];
   const combination = rankings.combination ?? [];
   const tactical = rankings.tactical ?? [];
