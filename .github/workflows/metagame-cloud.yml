@@ -24,7 +24,7 @@ on:
         default: "1"
         type: string
   schedule:
-    - cron: "17 * * * *"
+    - cron: "*/10 * * * *"
 
 permissions:
   actions: write
