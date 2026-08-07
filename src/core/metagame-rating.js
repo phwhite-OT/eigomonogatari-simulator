@@ -135,14 +135,19 @@ export function calculatePracticalMetagameMetrics(result, maximumPower = 1) {
     : 0;
   const powerPreference = clampUnit((Number(result.character?.pow) || 0) / Math.max(1, maximumPower));
   const enemyPressure = clampUnit(Number(result.teamBalance?.enemyPressureRate) || 0);
-  const continuationValue = clampUnit(Number(result.continuation?.winGainPerScenario) || 0);
+  const continuationValue = clampUnit(Math.max(0, Number(result.continuation?.winGainPerScenario) || 0));
+  const carriedContinuationValue = clampUnit(Math.max(
+    0,
+    Number(result.continuation?.carriedWinGainPerScenario) || 0,
+  ));
   const practicalValue = clampUnit(
     clampUnit(Number(result.matchOutcome?.expectedWinLowerBound) || 0) * 0.38 +
     clampUnit(Number(result.matchOutcome?.expectedWinRate) || 0) * 0.2 +
     clampUnit(Number(result.teamBalance?.balancedContribution) || 0) * 0.08 +
     enemyPressure * 0.1 +
     powerPreference * 0.12 +
-    continuationValue * 0.04 +
+    continuationValue * 0.07 +
+    carriedContinuationValue * 0.035 +
     practicalSkillReliability * 0.08 -
     earlySkillLiability
   );
@@ -179,6 +184,8 @@ export function calculateMetagameCombinationPotential(result) {
   const reductionStrength = clampUnit(1 - multiplier);
   const attackStrength = clampUnit((multiplier - 1) / 3);
   const carriedActionRate = clampUnit(Number(result.continuation?.carriedActionRate) || 0);
+  const continuationWinGain = clampUnit(Math.max(0, Number(result.continuation?.winGainPerScenario) || 0));
+  const carriedWinGain = clampUnit(Math.max(0, Number(result.continuation?.carriedWinGainPerScenario) || 0));
   const skillPotential = {
     attack_buff: 0.42 + attackStrength * 0.28,
     damage_reduction: 0.5 + reductionStrength * 0.33,
@@ -189,7 +196,9 @@ export function calculateMetagameCombinationPotential(result) {
     multi_hit_attack: 0.34,
   }[skill.type] ?? 0;
 
-  return clampUnit(reliability * persistence * (skillPotential + carriedActionRate * 0.12));
+  const expectedPotential = reliability * persistence * (skillPotential + carriedActionRate * 0.12);
+  const observedContinuationValue = continuationWinGain * 0.38 + carriedWinGain * 0.52;
+  return clampUnit(expectedPotential + observedContinuationValue);
 }
 
 export function calculateMetagameTacticalMetrics(result) {
@@ -258,6 +267,7 @@ export function rankMetagameResults(results) {
     right.strategicActions.advantageCreationPerScenario - left.strategicActions.advantageCreationPerScenario
   ), "counter");
   const continuation = assignRanks(results, (left, right) => (
+    Number(right.continuation?.carriedWinGainPerScenario) - Number(left.continuation?.carriedWinGainPerScenario) ||
     Number(right.continuation?.winGainPerScenario) - Number(left.continuation?.winGainPerScenario) ||
     right.practical.practicalValue - left.practical.practicalValue ||
     Number(right.continuation?.carriedActionRate) - Number(left.continuation?.carriedActionRate) ||

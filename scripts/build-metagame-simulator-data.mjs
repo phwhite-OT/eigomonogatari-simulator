@@ -15,7 +15,7 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
   wind: "\u98a8",
 });
 const METAGAME_SCENARIO_COUNT = 60;
-const METAGAME_MODEL_VERSION = "iterative-metagame-v6-practical-decks";
+const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   Object.freeze({
     statusPath: "reports/metagame-v6-batch-status.json",
@@ -108,6 +108,8 @@ function compactMetagameCandidate(entry) {
     tacticalUpside: entry.tactical?.tacticalUpside ?? 0,
     tacticalRisk: entry.tactical?.tacticalRisk ?? 0,
     carriedDefenseRate: entry.continuation?.carriedDefenseHitsPerScenario ?? 0,
+    continuationWinGain: entry.continuation?.winGainPerScenario ?? 0,
+    carriedContinuationWinGain: entry.continuation?.carriedWinGainPerScenario ?? 0,
     strategicClass: entry.strategicActions?.class ?? "none",
     advantageCreation: entry.strategicActions?.advantageCreationPerScenario ?? 0,
     counteraction: entry.strategicActions?.counteractionPerScenario ?? 0,

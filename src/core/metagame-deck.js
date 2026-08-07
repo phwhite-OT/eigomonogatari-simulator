@@ -19,6 +19,8 @@ function metagameCandidateScore(rating) {
   );
   const enemyPressure = metagameDeckClampUnit(rating.enemyPressureRate);
   const combinationPotential = metagameDeckClampUnit(rating.combinationPotential);
+  const continuationWinGain = metagameDeckClampUnit(rating.continuationWinGain);
+  const carriedContinuationWinGain = metagameDeckClampUnit(rating.carriedContinuationWinGain);
   const tacticalUpside = metagameDeckClampUnit(rating.tacticalUpside ?? rating.tactical?.tacticalUpside);
   const tacticalRisk = metagameDeckClampUnit(rating.tacticalRisk ?? rating.tactical?.tacticalRisk);
   return (
@@ -32,6 +34,8 @@ function metagameCandidateScore(rating) {
     counter * 0.045 +
     skillReliability * 0.035 +
     combinationPotential * 0.10 +
+    continuationWinGain * 0.035 +
+    carriedContinuationWinGain * 0.045 +
     tacticalUpside * 0.04 -
     tacticalRisk * 0.04
   );
@@ -62,12 +66,15 @@ function metagameDeckPairSynergy(source, target) {
   const targetPower = metagameDeckClampUnit(target.rating.powerPreference);
   const targetEndurance = metagameDeckTargetEndurance(target);
   const persistence = metagameDeckClampUnit((duration - 1) / 3);
+  const continuationWinGain = metagameDeckClampUnit(source.rating.continuationWinGain);
+  const carriedContinuationWinGain = metagameDeckClampUnit(source.rating.carriedContinuationWinGain);
+  const handoffValue = continuationWinGain * 0.04 + carriedContinuationWinGain * 0.06;
   if (["ally_all", "self"].includes(skill.target) && skill.type === "attack_buff") {
     const strength = metagameDeckClampUnit((Number(skill.multiplier) - 1) / 3);
-    return reliability * (0.02 + strength * 0.055) * (0.6 + targetPower * 0.4);
+    return reliability * (0.02 + strength * 0.055 + handoffValue) * (0.6 + targetPower * 0.4);
   }
   if (["ally_all", "self"].includes(skill.target) && skill.type === "attribute_change") {
-    return reliability * (0.015 + targetPower * 0.02);
+    return reliability * (0.015 + targetPower * 0.02 + handoffValue) * (0.55 + targetEndurance * 0.45);
   }
   if (["damage_reduction", "guard", "attribute_guard"].includes(skill.type)) {
     const reductionStrength = metagameDeckClampUnit(1 - (Number(skill.multiplier) || 1));
@@ -75,12 +82,12 @@ function metagameDeckPairSynergy(source, target) {
       source.rating.carriedDefenseRate ?? source.rating.continuation?.carriedDefenseHitsPerScenario ?? 0,
     );
     const carriedDefenseRate = metagameDeckClampUnit(carriedDefenseHits / 2);
-    const defenseValue = 0.035 + reductionStrength * 0.075 + persistence * 0.025 + carriedDefenseRate * 0.02;
+    const defenseValue = 0.035 + reductionStrength * 0.075 + persistence * 0.025 + carriedDefenseRate * 0.02 + handoffValue;
     return reliability * defenseValue * (0.4 + targetEndurance * 0.6);
   }
   if (["aoe_attack", "multi_hit_attack"].includes(skill.type)) {
     const followUpPressure = metagameDeckClampUnit(target.rating.counteraction / 2);
-    return reliability * (0.01 + followUpPressure * 0.015 + targetPower * 0.015);
+    return reliability * (0.01 + followUpPressure * 0.015 + targetPower * 0.015 + handoffValue * 0.5);
   }
   return 0;
 }
@@ -222,14 +229,20 @@ function metagameSelectFinalists(candidates, limit) {
     (left, right) => right.advantageCount - left.advantageCount || right.proxyScore - left.proxyScore,
     (left, right) => right.counterCount - left.counterCount || right.proxyScore - left.proxyScore,
     (left, right) => right.synergyScore - left.synergyScore || right.proxyScore - left.proxyScore,
+    (left, right) => ratingTotal(right, "carriedContinuationWinGain") - ratingTotal(left, "carriedContinuationWinGain") || right.proxyScore - left.proxyScore,
     (left, right) => ratingTotal(right, "combinationPotential") - ratingTotal(left, "combinationPotential") || right.proxyScore - left.proxyScore,
     (left, right) => ratingTotal(right, "tacticalUpside") - ratingTotal(left, "tacticalUpside") || right.proxyScore - left.proxyScore,
     (left, right) => (right.proxyScore - right.budgetStrain) - (left.proxyScore - left.budgetStrain) || left.totalCost - right.totalCost,
   ];
+  const selectorQuota = Math.max(1, Math.floor((maximum - selected.size) / selectors.length));
   for (const selector of selectors) {
+    let added = 0;
     for (const candidate of [...candidates].sort(selector)) {
-      if (selected.size >= maximum) break;
+      if (selected.size >= maximum || added >= selectorQuota) break;
+      const key = candidate.deck.map((character) => character.id).join("|");
+      if (selected.has(key)) continue;
       add(candidate);
+      added += 1;
     }
   }
   for (const candidate of candidates) {

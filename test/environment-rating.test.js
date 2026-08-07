@@ -302,4 +302,41 @@ test("candidate outcomes retain results for each expert tactical profile", () =>
     assert.ok(Number.isFinite(profile.skillWinGain));
     assert.ok(Number.isFinite(profile.skillActivationRate));
   }
+  assert.ok(Number.isFinite(outcome.continuation.winGainPerScenario));
+  assert.ok(Number.isFinite(outcome.continuation.carriedWinGainPerScenario));
+});
+
+test("continuation value compares the full duration against the same skill limited to one turn", () => {
+  const candidate = character("front-buffer", {
+    hp: 50,
+    pow: 100,
+    skill: { type: "attack_buff", multiplier: 2, hits: 1, duration: 2, target: "self", targetCount: 1, conditions: [], effects: [] },
+  });
+  const reserves = [2, 3, 4, 5].map((position) => character(`reserve-${position}`, {
+    hp: 1_000,
+    pow: 100,
+    skillTurn: 99,
+  }));
+  const positionPools = [[candidate], ...reserves.map((unit) => [unit])];
+  const solveCompletion = createDeckCompletionSolver(positionPools, 100);
+  const scenario = {
+    state: createBattleState([[candidate]], [[character("enemy", { hp: 2_000, pow: 100 })]]),
+    actorIndex: 0,
+    position: 1,
+    entryCharge: 0,
+    battleProfile: "stock-balance",
+    targetPolicy: DEFAULT_ENVIRONMENT_BATTLE_PROFILES[0].targetPolicy,
+    attackOrderPolicy: DEFAULT_ENVIRONMENT_BATTLE_PROFILES[0].attackOrderPolicy,
+    playStyle: DEFAULT_ENVIRONMENT_BATTLE_PROFILES[0].playStyle,
+  };
+  const outcome = evaluateCandidateMatchOutcome(candidate, [scenario], {
+    rules: DEFAULT_RULES,
+    solveCompletion,
+    turns: 2,
+  });
+
+  assert.ok(outcome.continuation.continuedActionRate > 0);
+  assert.ok(outcome.continuation.carriedActionRate > 0);
+  assert.ok(outcome.continuation.winGainPerScenario > 0);
+  assert.ok(outcome.continuation.carriedWinGainPerScenario > 0);
 });

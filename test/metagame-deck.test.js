@@ -187,7 +187,12 @@ test("継続ガードは後続の高耐久キャラへ引き継ぐ価値を持�
   durable.hp = 9_000;
   const fragile = metagameTestCharacter("fragile", 20, "R", 120);
   fragile.hp = 250;
-  const guardRating = { practicalSkillReliability: 1, carriedDefenseRate: 1 };
+  const guardRating = {
+    practicalSkillReliability: 1,
+    carriedDefenseRate: 1,
+    continuationWinGain: 0.25,
+    carriedContinuationWinGain: 0.25,
+  };
   const durableRating = { allyRetentionRate: 0.95, powerPreference: 0.6 };
   const fragileRating = { allyRetentionRate: 0.1, powerPreference: 0.6 };
 
@@ -199,7 +204,12 @@ test("継続ガードは後続の高耐久キャラへ引き継ぐ価値を持�
     [guard, fragile],
     [guardRating, fragileRating],
   );
+  const unmeasuredScore = calculateMetagameDeckSynergy(
+    [guard, durable],
+    [{ practicalSkillReliability: 1, carriedDefenseRate: 1 }, durableRating],
+  );
 
   assert.ok(durableScore > fragileScore);
+  assert.ok(durableScore > unmeasuredScore);
   assert.ok(durableScore > 0.1);
 });

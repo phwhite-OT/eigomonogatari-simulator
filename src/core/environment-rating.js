@@ -700,10 +700,31 @@ function withoutUsableSkill(character) {
   };
 }
 
-function prepareCandidateState(scenario, character, solveCompletion, baseline = false, preserveReserveSkills = false) {
+function singleTurnSkill(character) {
+  return {
+    ...character,
+    skill: {
+      ...character.skill,
+      duration: 1,
+    },
+  };
+}
+
+function prepareCandidateState(
+  scenario,
+  character,
+  solveCompletion,
+  baseline = false,
+  preserveReserveSkills = false,
+  skillVariant = "full",
+) {
   const next = structuredClone(scenario.state);
   const combatant = next.allies[scenario.actorIndex];
-  const evaluatedCharacter = baseline ? withoutUsableSkill(character) : character;
+  const evaluatedCharacter = baseline
+    ? withoutUsableSkill(character)
+    : skillVariant === "single-turn"
+      ? singleTurnSkill(character)
+      : character;
   const prefixCharacters = scenario.prefixCharacters ?? (scenario.opener ? [scenario.opener] : []);
   const fixedPositions = Object.fromEntries(prefixCharacters.map((prefixCharacter, index) => [
     index + 1,
@@ -1031,6 +1052,7 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
     carriedAttackHits: 0,
     carriedDefenseHits: 0,
     continuationWinGain: 0,
+    carriedContinuationWinGain: 0,
   };
   const continuationEligible = supportsContinuationEvaluation(character);
   const tacticalProfiles = new Map();
@@ -1038,12 +1060,19 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
   for (const scenario of scenarios) {
     const actualState = prepareCandidateState(scenario, character, solveCompletion, false, true);
     const baselineState = prepareCandidateState(scenario, character, solveCompletion, true, true);
-    if (!actualState || !baselineState) continue;
+    const singleTurnState = continuationEligible
+      ? prepareCandidateState(scenario, character, solveCompletion, false, true, "single-turn")
+      : null;
+    if (!actualState || !baselineState || (continuationEligible && !singleTurnState)) continue;
     const battleOptions = { turns, ...scenarioBattleOptions(scenario) };
     const actual = simulateBattle(actualState, rules, battleOptions);
     const baseline = simulateBattle(baselineState, rules, battleOptions);
+    const singleTurn = continuationEligible
+      ? simulateBattle(singleTurnState, rules, battleOptions)
+      : actual;
     const actualWinValue = projectedMatchWinValue(actual);
     const baselineWinValue = projectedMatchWinValue(baseline);
+    const singleTurnWinValue = projectedMatchWinValue(singleTurn);
     const initialAllyCount = Math.max(1, actual.initial.allies.remainingCharacters);
     const initialEnemyCount = Math.max(1, actual.initial.enemies.remainingCharacters);
     const allyRetention = clampUnit(1 - actual.metrics.allyLosses / initialAllyCount);
@@ -1097,7 +1126,9 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
       totals.continuedDefenseHits += continuation.defenseHits;
       totals.carriedAttackHits += continuation.carriedAttackHits;
       totals.carriedDefenseHits += continuation.carriedDefenseHits;
-      if (continuedHits > 0) totals.continuationWinGain += Math.max(0, actualWinValue - baselineWinValue);
+      const continuationWinGain = actualWinValue - singleTurnWinValue;
+      if (continuedHits > 0) totals.continuationWinGain += continuationWinGain;
+      if (carriedHits > 0) totals.carriedContinuationWinGain += continuationWinGain;
     }
   }
 
@@ -1153,6 +1184,7 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
       carriedAttackHitsPerScenario: totals.carriedAttackHits / scenarioCount,
       carriedDefenseHitsPerScenario: totals.carriedDefenseHits / scenarioCount,
       winGainPerScenario: totals.continuationWinGain / scenarioCount,
+      carriedWinGainPerScenario: totals.carriedContinuationWinGain / scenarioCount,
     },
     reproduction: {
       skillActivationRate: totals.skillUsed / scenarioCount,

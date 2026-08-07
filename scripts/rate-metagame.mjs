@@ -29,7 +29,7 @@ import {
 import { WORKBOOK_CHARACTERS } from "../src/data/workbook-characters.js";
 import { DEFAULT_RULES } from "../src/data/rules.js";
 
-const MODEL_VERSION = "iterative-metagame-v6-practical-decks";
+const MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
 
 function readArgument(name, fallback) {
   const prefix = `--${name}=`;

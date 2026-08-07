@@ -58,7 +58,7 @@ async function writeStatus(status) {
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
-const MODEL_VERSION = "iterative-metagame-v6-practical-decks";
+const MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
 const ratingScript = path.join(scriptDirectory, "rate-metagame.mjs");
 const statusPath = path.resolve(projectRoot, readArgument("status", "reports/metagame-v6-batch-status.json"));
 const outputRoot = readArgument("output-root", "reports/metagame-ratings-v6");
