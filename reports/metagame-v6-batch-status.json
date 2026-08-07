@@ -1,7 +1,7 @@
 {
   "status": "running",
-  "startedAt": "2026-08-07T06:25:37.752Z",
-  "updatedAt": "2026-08-07T12:02:30.922Z",
+  "startedAt": "2026-08-07T13:06:05.100Z",
+  "updatedAt": "2026-08-07T18:40:31.246Z",
   "config": {
     "attributeGroups": [
       [
@@ -45,18 +45,18 @@
       5
     ],
     "passes": 2,
-    "firstScenarios": 4,
-    "finalScenarios": 30,
-    "finalists": 40,
+    "firstScenarios": 12,
+    "finalScenarios": 72,
+    "finalists": 96,
     "turns": 12,
-    "workers": 2,
+    "workers": 6,
     "fallbackWorkers": 1,
     "outputRoot": "reports/metagame-ratings-v6",
-    "priorOutputRoot": "reports/metagame-ratings-v5",
-    "modelVersion": "iterative-metagame-v6-expert-tactics"
+    "priorOutputRoot": "",
+    "modelVersion": "iterative-metagame-v6-continuation-decks"
   },
   "totalRuns": 280,
-  "completedRuns": 43,
+  "completedRuns": 17,
   "completedTaskIds": [
     "1:fire:100:1",
     "1:fire:100:2",
@@ -74,45 +74,18 @@
     "1:water:100:4",
     "1:water:100:5",
     "2:water:100:5",
-    "2:water:100:4",
-    "2:water:100:3",
-    "2:water:100:2",
-    "2:water:100:1",
-    "1:wind:100:1",
-    "1:wind:100:2",
-    "1:wind:100:3",
-    "1:wind:100:4",
-    "1:wind:100:5",
-    "2:wind:100:5",
-    "2:wind:100:4",
-    "2:wind:100:3",
-    "2:wind:100:2",
-    "2:wind:100:1",
-    "1:fire-water:100:1",
-    "1:fire-water:100:2",
-    "1:fire-water:100:3",
-    "1:fire-water:100:4",
-    "1:fire-water:100:5",
-    "2:fire-water:100:5",
-    "2:fire-water:100:4",
-    "2:fire-water:100:3",
-    "2:fire-water:100:2",
-    "2:fire-water:100:1",
-    "1:fire-wind:100:1",
-    "1:fire-wind:100:2",
-    "1:fire-wind:100:3"
+    "2:water:100:4"
   ],
   "recoveredTaskIds": [],
   "current": {
     "allowedAttributes": [
-      "fire",
-      "wind"
+      "water"
     ],
-    "attributeKey": "fire-wind",
+    "attributeKey": "water",
     "cost": 100,
-    "position": 4,
-    "pass": 1,
-    "constraintId": "fire-wind:100",
-    "id": "1:fire-wind:100:4"
+    "position": 3,
+    "pass": 2,
+    "constraintId": "water:100",
+    "id": "2:water:100:3"
   }
 }
