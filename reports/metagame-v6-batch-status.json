@@ -1,8 +1,8 @@
 {
   "status": "paused",
   "startedAt": "2026-08-07T06:25:37.752Z",
-  "updatedAt": "2026-08-07T06:51:12.238Z",
-  "pausedAt": "2026-08-07T06:51:12.238Z",
+  "updatedAt": "2026-08-07T06:56:17.142Z",
+  "pausedAt": "2026-08-07T06:56:17.142Z",
   "pauseReason": "Stopped after 1 task(s) due to max-tasks.",
   "config": {
     "attributeGroups": [
@@ -58,12 +58,13 @@
     "modelVersion": "iterative-metagame-v6-expert-tactics"
   },
   "totalRuns": 280,
-  "completedRuns": 4,
+  "completedRuns": 5,
   "completedTaskIds": [
     "1:fire:100:1",
     "1:fire:100:2",
     "1:fire:100:3",
-    "1:fire:100:4"
+    "1:fire:100:4",
+    "1:fire:100:5"
   ],
   "recoveredTaskIds": [],
   "current": null
