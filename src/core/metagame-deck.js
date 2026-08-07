@@ -56,6 +56,33 @@ function metagameDeckTargetEndurance(target) {
   return metagameDeckClampUnit(hpFactor * 0.65 + retention * 0.35);
 }
 
+function metagamePersistentDefenseCommitment(source) {
+  const skill = source.character.skill ?? {};
+  const duration = Math.max(0, Number(skill.duration) || 0);
+  if (duration < 2 || !["damage_reduction", "guard", "attribute_guard"].includes(skill.type)) return 0;
+  const reliability = metagameDeckClampUnit(
+    source.rating.practicalSkillReliability ?? source.rating.skillActivationRate,
+  );
+  const persistence = metagameDeckClampUnit((duration - 1) / 3);
+  const reductionStrength = metagameDeckClampUnit(1 - (Number(skill.multiplier) || 1));
+  const carriedDefenseRate = metagameDeckClampUnit(Number(source.rating.carriedDefenseRate) || 0);
+  const carriedWinGain = metagameDeckClampUnit(source.rating.carriedContinuationWinGain);
+  return metagameDeckClampUnit(reliability * (
+    0.28 + persistence * 0.24 + reductionStrength * 0.18 +
+    Math.max(carriedDefenseRate / 4, carriedWinGain) * 0.08
+  ));
+}
+
+function metagameDeckHandoffRisk(source, target) {
+  const commitment = metagamePersistentDefenseCommitment(source);
+  if (!commitment) return 0;
+  const endurance = metagameDeckTargetEndurance(target);
+  const hp = Math.max(0, Number(target.character.hp) || 0);
+  const lowEndurance = metagameDeckClampUnit((0.44 - endurance) / 0.44);
+  const lowHp = metagameDeckClampUnit((1_600 - hp) / 1_600);
+  return commitment * (lowEndurance * 0.12 + lowHp * 0.10);
+}
+
 function metagameDeckPairSynergy(source, target) {
   const skill = source.character.skill ?? {};
   const duration = Math.max(0, Number(skill.duration) || 0);
@@ -83,7 +110,7 @@ function metagameDeckPairSynergy(source, target) {
     );
     const carriedDefenseRate = metagameDeckClampUnit(carriedDefenseHits / 2);
     const defenseValue = 0.035 + reductionStrength * 0.075 + persistence * 0.025 + carriedDefenseRate * 0.02 + handoffValue;
-    return reliability * defenseValue * (0.4 + targetEndurance * 0.6);
+    return reliability * defenseValue * (0.12 + targetEndurance * 0.88);
   }
   if (["aoe_attack", "multi_hit_attack"].includes(skill.type)) {
     const followUpPressure = metagameDeckClampUnit(target.rating.counteraction / 2);
@@ -109,7 +136,7 @@ function metagameDeckStateScore(state, totalCost) {
   const deckProgress = state.deck.length / 5;
   const budgetShare = state.totalCost / Math.max(1, totalCost);
   const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
-  return averageScore + state.synergyScore + roleBonus - state.budgetStrain - earlyBudgetPressure * 0.18;
+  return averageScore + state.synergyScore + roleBonus - state.budgetStrain - state.handoffRisk - earlyBudgetPressure * 0.18;
 }
 
 function metagameTrimDeckBeam(states, width, totalCost) {
@@ -150,7 +177,7 @@ function metagameTrimDeckBeam(states, width, totalCost) {
 
 export function buildMetagameDeckCandidates(constraint, characters, options = {}) {
   const totalCost = Number(constraint?.totalCost) || 0;
-  const beamWidth = Math.max(500, Number(options.beamWidth) || 6000);
+  const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
   const pools = (constraint?.slots ?? []).map((slot) => slot.candidates.map((rating) => ({
     character: charactersById.get(String(rating.id)),
@@ -168,6 +195,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     legendCount: 0,
     proxyTotal: 0,
     synergyScore: 0,
+    handoffRisk: 0,
     budgetStrain: 0,
     advantageCount: 0,
     counterCount: 0,
@@ -183,6 +211,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
         const ids = new Set(state.ids);
         ids.add(id);
         const costShare = (Number(entry.character.cost) || 0) / Math.max(1, totalCost);
+        const immediatePredecessor = state.deck.at(-1);
         expanded.push({
           deck: [...state.deck, entry],
           ids,
@@ -192,6 +221,9 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
             total + metagameDeckPairSynergy(source, entry)
           ), 0),
+          handoffRisk: state.handoffRisk + (immediatePredecessor
+            ? metagameDeckHandoffRisk(immediatePredecessor, entry)
+            : 0),
           budgetStrain: state.budgetStrain + (
             Math.max(0, costShare - 0.28) ** 2 * (
               0.2 + (1 - metagameDeckClampUnit(entry.rating.practicalValue ?? entry.rating.expectedWinLowerBound)) * 0.8
@@ -211,6 +243,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     totalCost: state.totalCost,
     proxyScore: metagameDeckStateScore(state, totalCost),
     synergyScore: state.synergyScore,
+    handoffRisk: state.handoffRisk,
     budgetStrain: state.budgetStrain,
     advantageCount: state.advantageCount,
     counterCount: state.counterCount,
@@ -218,7 +251,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
 }
 
 function metagameSelectFinalists(candidates, limit) {
-  const maximum = Math.min(candidates.length, Math.max(20, Number(limit) || 24));
+  const maximum = Math.min(candidates.length, Math.max(36, Number(limit) || 40));
   const selected = new Map();
   const add = (candidate) => selected.set(candidate.deck.map((character) => character.id).join("|"), candidate);
   candidates.slice(0, Math.ceil(maximum * 0.55)).forEach(add);
@@ -229,6 +262,7 @@ function metagameSelectFinalists(candidates, limit) {
     (left, right) => right.advantageCount - left.advantageCount || right.proxyScore - left.proxyScore,
     (left, right) => right.counterCount - left.counterCount || right.proxyScore - left.proxyScore,
     (left, right) => right.synergyScore - left.synergyScore || right.proxyScore - left.proxyScore,
+    (left, right) => left.handoffRisk - right.handoffRisk || right.proxyScore - left.proxyScore,
     (left, right) => ratingTotal(right, "carriedContinuationWinGain") - ratingTotal(left, "carriedContinuationWinGain") || right.proxyScore - left.proxyScore,
     (left, right) => ratingTotal(right, "combinationPotential") - ratingTotal(left, "combinationPotential") || right.proxyScore - left.proxyScore,
     (left, right) => ratingTotal(right, "tacticalUpside") - ratingTotal(left, "tacticalUpside") || right.proxyScore - left.proxyScore,
@@ -364,6 +398,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
   evaluated.sort((left, right) => (
     right.expectedWinLowerBound - left.expectedWinLowerBound ||
     right.expectedWinRate - left.expectedWinRate ||
+    left.handoffRisk - right.handoffRisk ||
     right.proxyScore - left.proxyScore ||
     left.totalCost - right.totalCost
   ));

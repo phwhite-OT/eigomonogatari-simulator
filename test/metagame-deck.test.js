@@ -213,3 +213,64 @@ test("継続ガードは後続の高耐久キャラへ引き継ぐ価値を持�
   assert.ok(durableScore > unmeasuredScore);
   assert.ok(durableScore > 0.1);
 });
+
+test("継続ガードの直後には、単体評価より受け先耐久を優先する", () => {
+  const guard = metagameTestCharacter("guard", 12, "R", 20);
+  guard.skillTurn = 2;
+  guard.skill = {
+    ...guard.skill,
+    type: "guard",
+    target: "self",
+    duration: 4,
+    multiplier: 0.1,
+  };
+  const durable = metagameTestCharacter("durable", 12, "R", 100);
+  durable.hp = 9_000;
+  const fragile = metagameTestCharacter("fragile", 12, "R", 500);
+  fragile.hp = 150;
+  const tail = [3, 4, 5].map((position) => metagameTestCharacter(`tail-${position}`, 12, "R", 180));
+  const guardRating = {
+    ...metagameTestRating(guard, 1),
+    expectedWinRate: 0.4,
+    expectedWinLowerBound: 0.35,
+    practicalSkillReliability: 1,
+    carriedDefenseRate: 1,
+    carriedContinuationWinGain: 0.25,
+  };
+  const durableRating = {
+    ...metagameTestRating(durable, 2),
+    expectedWinRate: 0.55,
+    expectedWinLowerBound: 0.5,
+    practicalValue: 0.55,
+    allyRetentionRate: 0.95,
+  };
+  const fragileRating = {
+    ...metagameTestRating(fragile, 1),
+    expectedWinRate: 0.9,
+    expectedWinLowerBound: 0.85,
+    practicalValue: 0.9,
+    allyRetentionRate: 0.1,
+  };
+  const tailRatings = tail.map((character) => ({
+    ...metagameTestRating(character, 1),
+    expectedWinRate: 0.6,
+    expectedWinLowerBound: 0.55,
+    practicalValue: 0.6,
+    allyRetentionRate: 0.6,
+  }));
+  const constraint = {
+    totalCost: 100,
+    slots: [
+      { position: 1, candidates: [guardRating] },
+      { position: 2, candidates: [fragileRating, durableRating] },
+      ...tailRatings.map((rating, index) => ({ position: index + 3, candidates: [rating] })),
+    ],
+  };
+
+  const candidates = buildMetagameDeckCandidates(constraint, [guard, durable, fragile, ...tail], { beamWidth: 50 });
+  const durableCandidate = candidates.find((candidate) => candidate.deck[1].id === durable.id);
+  const fragileCandidate = candidates.find((candidate) => candidate.deck[1].id === fragile.id);
+
+  assert.equal(candidates[0].deck[1].id, durable.id);
+  assert.ok(fragileCandidate.handoffRisk > durableCandidate.handoffRisk);
+});
