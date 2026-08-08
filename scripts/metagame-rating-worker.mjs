@@ -25,20 +25,26 @@ const scenarioOptions = {
   positionEnvironments,
 };
 const results = [];
+const skippedCandidateIds = [];
 for (let index = 0; index < workerData.candidateIds.length; index += 1) {
   const id = workerData.candidateIds[index];
   const character = charactersById.get(String(id));
-  const scenarios = buildCandidatePositionEntryScenarios({
-    ...scenarioOptions,
-    character,
-    solveCompletion,
-    rules: DEFAULT_RULES,
-  });
-  results.push(evaluateCandidateMatchOutcome(character, scenarios, {
-    rules: DEFAULT_RULES,
-    solveCompletion,
-    turns: workerData.turns,
-  }));
+  try {
+    const scenarios = buildCandidatePositionEntryScenarios({
+      ...scenarioOptions,
+      character,
+      solveCompletion,
+      rules: DEFAULT_RULES,
+    });
+    results.push(evaluateCandidateMatchOutcome(character, scenarios, {
+      rules: DEFAULT_RULES,
+      solveCompletion,
+      turns: workerData.turns,
+    }));
+  } catch (error) {
+    if (error.code !== "INSUFFICIENT_ENTRY_SCENARIOS") throw error;
+    skippedCandidateIds.push(String(character.id));
+  }
   if ((index + 1) % 10 === 0 || index + 1 === workerData.candidateIds.length) {
     parentPort.postMessage({
       type: "progress",
@@ -49,4 +55,4 @@ for (let index = 0; index < workerData.candidateIds.length; index += 1) {
   }
 }
 
-parentPort.postMessage({ type: "result", workerIndex: workerData.workerIndex, results });
+parentPort.postMessage({ type: "result", workerIndex: workerData.workerIndex, results, skippedCandidateIds });

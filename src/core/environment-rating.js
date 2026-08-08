@@ -683,7 +683,9 @@ export function buildCandidatePositionEntryScenarios(options) {
   }
 
   if (scenarios.length < count) {
-    throw new Error(character.name + "を固定した" + targetPosition + "枠目の登場状態を" + count + "件集められませんでした（" + scenarios.length + "件）。");
+    const error = new Error(character.name + "を固定した" + targetPosition + "枠目の登場状態を" + count + "件集められませんでした（" + scenarios.length + "件）。");
+    error.code = "INSUFFICIENT_ENTRY_SCENARIOS";
+    throw error;
   }
   return scenarios;
 }

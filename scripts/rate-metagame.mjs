@@ -99,16 +99,78 @@ function evaluateCharacter(character, scenarioOptions, solveCompletion, turns) {
   });
 }
 
+function screeningBucketKey(character) {
+  const skillType = character.skill?.type ?? "none";
+  const costBand = Math.floor(Math.max(0, Number(character.cost) || 0) / 10);
+  return `${skillType}:${costBand}`;
+}
+
+function screeningPriority(character) {
+  const tier = { priority: 0, normal: 1, low: 2, exclude: 3 }[character.pvpTier] ?? 2;
+  return [
+    tier,
+    -(Number(character.pow) || 0),
+    -(Number(character.hp) || 0),
+    Number(character.cost) || 0,
+    String(character.id),
+  ];
+}
+
+function compareScreeningPriority(left, right) {
+  const leftPriority = screeningPriority(left);
+  const rightPriority = screeningPriority(right);
+  for (let index = 0; index < leftPriority.length; index += 1) {
+    if (leftPriority[index] < rightPriority[index]) return -1;
+    if (leftPriority[index] > rightPriority[index]) return 1;
+  }
+  return 0;
+}
+
+function selectScreeningCandidates(candidates, limit, offset = 0) {
+  if (!limit || candidates.length <= limit) return [...candidates];
+  const buckets = new Map();
+  for (const character of candidates) {
+    const key = screeningBucketKey(character);
+    const bucket = buckets.get(key) ?? [];
+    bucket.push(character);
+    buckets.set(key, bucket);
+  }
+  const groups = [...buckets.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([, bucket]) => bucket.sort(compareScreeningPriority));
+  const offsetStride = Math.max(1, Math.ceil(limit / Math.max(1, groups.length)));
+  const indices = groups.map((group) => Math.min(group.length, offset * offsetStride));
+  const selected = [];
+  while (selected.length < limit) {
+    let added = false;
+    for (let index = 0; index < groups.length && selected.length < limit; index += 1) {
+      const candidate = groups[index][indices[index]];
+      if (!candidate) continue;
+      selected.push(candidate);
+      indices[index] += 1;
+      added = true;
+    }
+    if (!added) break;
+  }
+  return selected;
+}
+
 async function evaluatePool(label, candidates, scenarioOptions, options) {
   const { workerCount, allowedAttributes, totalCost, turns, solveCompletion } = options;
   console.log(`${label}: ${candidates.length}体 × 候補別${scenarioOptions.count}盤面 × 最大${turns}ターン × ${workerCount}並列`);
   if (workerCount <= 1 || candidates.length < workerCount * 2) {
-    return candidates.map((character) => evaluateCharacter(
-      character,
-      scenarioOptions,
-      solveCompletion,
-      turns,
-    ));
+    const results = [];
+    const skippedCandidateIds = [];
+    for (const character of candidates) {
+      try {
+        results.push(evaluateCharacter(character, scenarioOptions, solveCompletion, turns));
+      } catch (error) {
+        if (error.code !== "INSUFFICIENT_ENTRY_SCENARIOS") throw error;
+        skippedCandidateIds.push(String(character.id));
+      }
+    }
+    if (skippedCandidateIds.length) console.warn(`${label}: 登場盤面を作れない${skippedCandidateIds.length}体を除外しました。`);
+    return { results, skippedCandidateIds };
   }
   const chunks = Array.from({ length: workerCount }, () => []);
   candidates.forEach((character, index) => chunks[index % workerCount].push(String(character.id)));
@@ -141,7 +203,12 @@ async function evaluatePool(label, candidates, scenarioOptions, options) {
       });
     })
   )));
-  return results.flat();
+  const skippedCandidateIds = results.flatMap((result) => result.skippedCandidateIds);
+  if (skippedCandidateIds.length) console.warn(`${label}: 登場盤面を作れない${skippedCandidateIds.length}体を除外しました。`);
+  return {
+    results: results.flatMap((result) => result.results),
+    skippedCandidateIds,
+  };
 }
 
 const totalCost = Number(readArgument("cost", "150"));
@@ -150,6 +217,8 @@ const allowedAttributes = readArgument("attributes", "fire").split(",").map((val
 const firstScenarioCount = Math.max(12, Number(readArgument("first-scenarios", "12")));
 const finalScenarioCount = Math.max(72, Number(readArgument("final-scenarios", "72")));
 const detailedCandidateLimit = Math.max(1, Math.floor(Number(readArgument("finalists", "96")) || 96));
+const screeningCandidateLimit = Math.max(0, Math.floor(Number(readArgument("screening-candidates", "0")) || 0));
+const screeningOffset = Math.max(0, Math.floor(Number(readArgument("screening-offset", "0")) || 0));
 const turns = Math.min(12, Math.max(1, Number(readArgument("turns", "12"))));
 const workerCount = Math.max(1, Math.min(
   Number(readArgument("workers", String(Math.min(6, Math.max(1, os.cpus().length - 1))))),
@@ -169,9 +238,11 @@ const positionPools = [1, 2, 3, 4, 5].map((slot) => buildEnvironmentPositionPool
   { allowedAttributes },
 ));
 const solveCompletion = createDeckCompletionSolver(positionPools, totalCost);
-const feasiblePositionPools = positionPools.map((pool, index) => pool.filter((character) => (
-  solveCompletion({ [index + 1]: character })
-)));
+const feasiblePositionPools = positionPools.map((pool, index) => selectScreeningCandidates(
+  pool,
+  screeningCandidateLimit,
+  screeningOffset,
+).filter((character) => solveCompletion({ [index + 1]: character })));
 const candidates = feasiblePositionPools[position - 1];
 const positionEnvironments = feasiblePositionPools.map((pool, index) => buildBootstrapEnvironment(pool, index + 1));
 const warmStartSources = positionPools.map(() => "bootstrap");
@@ -189,7 +260,10 @@ for (let slot = 1; slot <= 5; slot += 1) {
   warmStartSources[slot - 1] = "current-v6-100%";
 }
 console.log(`メタ環境評価開始: 総コスト${totalCost} / 属性${allowedAttributes.join(",")} / ${position}枠目`);
-console.log(`候補${candidates.length}体 / 候補ごとにコスト内デッキを再生成 / 伝説は1デッキ1体まで`);
+console.log(`候補${candidates.length}/${positionPools[position - 1].length}体 / 候補ごとにコスト内デッキを再生成 / 伝説は1デッキ1体まで`);
+if (screeningCandidateLimit) {
+  console.log(`一次評価はスキル種別・コスト帯・基本性能を分散した最大${screeningCandidateLimit}体（pass offset ${screeningOffset}）に絞ります。`);
+}
 console.time("metagame-rating");
 
 const firstScenarioOptions = {
@@ -199,13 +273,15 @@ const firstScenarioOptions = {
   seed: 5100 + position * 101 + totalCost,
   turns,
 };
-const firstResults = await evaluatePool("一次勝利評価", candidates, firstScenarioOptions, {
+const firstEvaluation = await evaluatePool("一次勝利評価", candidates, firstScenarioOptions, {
   workerCount,
   allowedAttributes,
   totalCost,
   turns,
   solveCompletion,
 });
+const firstResults = firstEvaluation.results;
+if (!firstResults.length) throw new Error("評価可能な候補の登場盤面を作れませんでした。");
 const firstRankings = rankMetagameResults(firstResults);
 const detailedCandidates = selectDetailedCandidates(firstRankings, detailedCandidateLimit);
 console.log(`Detailed evaluation shortlist: ${detailedCandidates.length}/${candidates.length}`);
@@ -219,13 +295,15 @@ const finalScenarioOptions = {
   seed: 7100 + position * 101 + totalCost,
   turns,
 };
-const finalResults = await evaluatePool("予測環境での最終勝利評価", detailedCandidates, finalScenarioOptions, {
+const finalEvaluation = await evaluatePool("予測環境での最終勝利評価", detailedCandidates, finalScenarioOptions, {
   workerCount,
   allowedAttributes,
   totalCost,
   turns,
   solveCompletion,
 });
+const finalResults = finalEvaluation.results;
+if (!finalResults.length) throw new Error("最終評価可能な候補の登場盤面を作れませんでした。");
 const finalRankings = rankDetailedMetagameResults(finalResults, finalScenarioCount);
 const finalUsage = buildUsageEnvironment(finalRankings);
 positionEnvironments[position - 1] = finalUsage;
@@ -282,8 +360,10 @@ const report = {
     totalCost,
     allowedAttributes,
     position,
-    candidateCount: candidates.length,
+    candidateCount: positionPools[position - 1].length,
     screeningCandidateCount: candidates.length,
+    screeningCandidateLimit,
+    screeningOffset,
     detailedCandidateCount: detailedCandidates.length,
     detailedCandidateLimit,
     firstScenarioCount,
@@ -295,8 +375,10 @@ const report = {
   },
   evaluation: {
     screeningCandidateCount: firstResults.length,
+    screeningSkippedCandidateCount: firstEvaluation.skippedCandidateIds.length,
     screeningScenarioCount: firstScenarioCount,
     detailedCandidateCount: finalResults.length,
+    detailedSkippedCandidateCount: finalEvaluation.skippedCandidateIds.length,
     detailedScenarioCount: finalScenarioCount,
     excludedFromFinalRankCount: Math.max(0, firstResults.length - finalResults.length),
   },

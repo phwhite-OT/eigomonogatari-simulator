@@ -85,6 +85,7 @@ const finalists = Math.max(1, Math.floor(Number(readArgument("finalists", "96"))
 const turns = Math.min(12, Math.max(1, Number(readArgument("turns", "12")) || 12));
 const workers = Math.max(1, Number(readArgument("workers", "6")) || 6);
 const fallbackWorkers = Math.min(workers, Math.max(1, Number(readArgument("fallback-workers", "1")) || 1));
+const screeningCandidateLimit = Math.max(0, Math.floor(Number(readArgument("screening-candidates", "0")) || 0));
 const maxTasks = Math.max(0, Math.floor(Number(readArgument("max-tasks", "0")) || 0));
 const maxConstraints = Math.max(0, Math.floor(Number(readArgument("max-constraints", "0")) || 0));
 const initialCompleted = new Set(parseList(readArgument("completed", "")));
@@ -112,6 +113,7 @@ const config = {
   turns,
   workers,
   fallbackWorkers,
+  screeningCandidateLimit,
   outputRoot,
   priorOutputRoot,
   modelVersion: MODEL_VERSION,
@@ -157,6 +159,8 @@ try {
       "--finalists=" + finalists,
       "--turns=" + turns,
       "--output-root=" + outputRoot,
+      "--screening-candidates=" + screeningCandidateLimit,
+      "--screening-offset=" + (task.pass - 1),
     ];
     let recoveredWithFallback = false;
     try {
