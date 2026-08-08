@@ -134,21 +134,27 @@
           </section>
 
           <section class="form-section">
-            <div class="section-title"><span>03</span><div><h3>必須・除外・配置</h3><p>キャラIDはカンマ区切りで指定できます。</p></div></div>
-            <div class="field-grid field-grid-2">
-              <label class="field"><span>必須キャラID</span><input type="text" name="requiredIds" placeholder="1001, 1002"></label>
-              <label class="field"><span>禁止キャラID</span><input type="text" name="forbiddenIds" placeholder="1099, 1100"></label>
+            <div class="section-title"><span>03</span><div><h3>必須・除外・配置</h3><p>すべてキャラ検索から指定します。名前・属性・スキルなどで探せます。</p></div></div>
+            <input type="hidden" name="requiredIds">
+            <input type="hidden" name="forbiddenIds">
+            <div class="deck-character-selection" data-deck-character-selection>
+              <section class="deck-character-selection-target" data-deck-character-selection-target="required"><div><strong>必須キャラ</strong><small>必ずデッキに入れるキャラです。</small></div><button class="button button-ghost" type="button" data-deck-character-picker-open="required">キャラを検索して追加</button><div class="deck-character-selection-chips" data-deck-character-selection-chips="required"></div></section>
+              <section class="deck-character-selection-target" data-deck-character-selection-target="forbidden"><div><strong>禁止キャラ</strong><small>デッキ候補から除外するキャラです。</small></div><button class="button button-ghost" type="button" data-deck-character-picker-open="forbidden">キャラを検索して追加</button><div class="deck-character-selection-chips" data-deck-character-selection-chips="forbidden"></div></section>
             </div>
             <details class="sub-settings">
               <summary>配置を固定する</summary>
-              <div class="fixed-position-grid">
-                <select data-fixed-position="1" aria-label="1枠目固定"></select>
-                <select data-fixed-position="2" aria-label="2枠目固定"></select>
-                <select data-fixed-position="3" aria-label="3枠目固定"></select>
-                <select data-fixed-position="4" aria-label="4枠目固定"></select>
-                <select data-fixed-position="5" aria-label="5枠目固定"></select>
-              </div>
+              <div class="fixed-position-grid" data-fixed-position-list></div>
+              <input type="hidden" data-fixed-position="1">
+              <input type="hidden" data-fixed-position="2">
+              <input type="hidden" data-fixed-position="3">
+              <input type="hidden" data-fixed-position="4">
+              <input type="hidden" data-fixed-position="5">
             </details>
+            <section class="deck-character-picker" data-deck-character-picker hidden>
+              <header><strong data-deck-character-picker-heading>キャラを検索</strong><button type="button" data-deck-character-picker-close aria-label="キャラ検索を閉じる">×</button></header>
+              <div class="deck-character-picker-form"><input type="search" name="deckCharacterPickerQuery" data-deck-character-picker-query placeholder="例: 火 回復 / 低コスト 蘇生"><button class="button" type="button" data-deck-character-picker-search>検索</button></div>
+              <div data-deck-character-picker-results></div>
+            </section>
           </section>
 
           <section class="form-section">

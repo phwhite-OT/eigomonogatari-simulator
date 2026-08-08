@@ -115,7 +115,7 @@ main, footer { width: min(1480px, calc(100% - 48px)); margin-inline: auto; }
 .field-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .field-wide { grid-column: 1 / -1; }
 .field > span, .field-group legend { display: block; margin-bottom: 7px; color: #5d6c67; font-size: 10px; font-weight: 800; }
-.field input, .field select, .fixed-position-grid select, .rules-settings textarea {
+.field input, .field select, .rules-settings textarea {
   width: 100%; min-height: 42px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--ink); padding: 9px 11px; font-size: 12px;
 }
 .field input::placeholder { color: #a6afab; }
@@ -144,7 +144,35 @@ main, footer { width: min(1480px, calc(100% - 48px)); margin-inline: auto; }
 .switch-row input:checked + i::after { transform: translateX(13px); }
 .sub-settings { margin-top: 14px; border: 1px solid var(--line); border-radius: 11px; background: #faf9f3; }
 .sub-settings summary { padding: 12px 14px; cursor: pointer; font-size: 11px; font-weight: 800; }
-.fixed-position-grid { display: grid; gap: 8px; padding: 0 12px 12px; }
+.deck-character-selection { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.deck-character-selection-target, .deck-fixed-position { display: grid; gap: 9px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.deck-character-selection-target > div:first-child, .deck-fixed-position-heading { display: grid; gap: 3px; }
+.deck-character-selection-target strong, .deck-fixed-position-heading strong { font-size: 11px; }
+.deck-character-selection-target small, .deck-fixed-position-heading small { color: #71807b; font-size: 9px; line-height: 1.45; }
+.deck-character-selection-target .button, .deck-fixed-position .button { justify-self: start; min-height: 31px; padding: 7px 9px; font-size: 9px; }
+.deck-character-selection-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 22px; }
+.deck-character-selection-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 5px 7px; border: 1px solid #d8dfcf; border-radius: 999px; background: #f9fbf5; font-size: 9px; }
+.deck-character-selection-chip strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-character-selection-chip button { width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: #dde5d2; color: #4a5a47; cursor: pointer; font: inherit; line-height: 1; }
+.deck-character-selection-empty { color: #87928e; font-size: 9px; }
+.fixed-position-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 0 12px 12px; }
+.deck-fixed-position { padding: 9px; }
+.deck-fixed-position .button { width: 100%; justify-self: stretch; }
+.deck-character-picker { margin: 12px 0 0; padding: 12px; border: 1px solid #cbd7ad; border-radius: 12px; background: #fbfdf5; }
+.deck-character-picker[hidden] { display: none; }
+.deck-character-picker header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.deck-character-picker header strong { color: #526128; font-size: 11px; }
+.deck-character-picker header button { width: 26px; height: 26px; padding: 0; border: 1px solid #cbd7ad; border-radius: 7px; background: #fff; color: #526128; font: inherit; font-size: 16px; cursor: pointer; }
+.deck-character-picker-form { display: flex; gap: 8px; margin-top: 10px; }
+.deck-character-picker-form input { min-width: 0; flex: 1; padding: 8px 10px; border: 1px solid #d5ddd0; border-radius: 8px; font: inherit; font-size: 10px; }
+.deck-character-picker-form .button { min-height: auto; padding: 8px 11px; border: 0; border-radius: 8px; background: var(--ink); color: #fff; font-size: 9px; }
+.deck-character-picker-message { margin: 10px 0 0; color: #6e7b70; font-size: 9px; line-height: 1.6; }
+.deck-character-picker-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.deck-character-picker-result { display: grid; gap: 5px; min-width: 0; padding: 9px; border: 1px solid #dce2d3; border-radius: 9px; background: #fff; }
+.deck-character-picker-result strong, .deck-character-picker-result small, .deck-character-picker-result p { overflow: hidden; margin: 0; text-overflow: ellipsis; white-space: nowrap; }
+.deck-character-picker-result strong { font-size: 10px; }
+.deck-character-picker-result small, .deck-character-picker-result p { color: #788174; font-size: 8px; }
+.deck-character-picker-result button { padding: 6px; border: 0; border-radius: 7px; background: #64772f; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
 .rules-settings p { margin: 0; padding: 0 14px 10px; color: #71807b; font-size: 10px; line-height: 1.6; }
 .rules-settings textarea { width: calc(100% - 24px); margin: 0 12px 12px; min-height: 250px; resize: vertical; font: 10px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .mode-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
@@ -266,7 +294,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .hero-flow div small { white-space: normal; }
   .assumption-banner { grid-template-columns: 28px 1fr; padding: 13px; }
   .form-section, .panel-heading { padding-inline: 18px; }
-  .field-grid-2, .check-grid { grid-template-columns: 1fr; }
+  .field-grid-2, .check-grid, .deck-character-selection { grid-template-columns: 1fr; }
+  .fixed-position-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deck-character-picker-results { grid-template-columns: 1fr; }
   .field-wide { grid-column: auto; }
   .search-actions { padding-inline: 18px; }
   .progress-card { margin-inline: 18px; }
@@ -802,21 +832,27 @@ footer span { font-weight: 800; letter-spacing: .1em; }
           </section>
 
           <section class="form-section">
-            <div class="section-title"><span>03</span><div><h3>必須・除外・配置</h3><p>キャラIDはカンマ区切りで指定できます。</p></div></div>
-            <div class="field-grid field-grid-2">
-              <label class="field"><span>必須キャラID</span><input type="text" name="requiredIds" placeholder="1001, 1002"></label>
-              <label class="field"><span>禁止キャラID</span><input type="text" name="forbiddenIds" placeholder="1099, 1100"></label>
+            <div class="section-title"><span>03</span><div><h3>必須・除外・配置</h3><p>すべてキャラ検索から指定します。名前・属性・スキルなどで探せます。</p></div></div>
+            <input type="hidden" name="requiredIds">
+            <input type="hidden" name="forbiddenIds">
+            <div class="deck-character-selection" data-deck-character-selection>
+              <section class="deck-character-selection-target" data-deck-character-selection-target="required"><div><strong>必須キャラ</strong><small>必ずデッキに入れるキャラです。</small></div><button class="button button-ghost" type="button" data-deck-character-picker-open="required">キャラを検索して追加</button><div class="deck-character-selection-chips" data-deck-character-selection-chips="required"></div></section>
+              <section class="deck-character-selection-target" data-deck-character-selection-target="forbidden"><div><strong>禁止キャラ</strong><small>デッキ候補から除外するキャラです。</small></div><button class="button button-ghost" type="button" data-deck-character-picker-open="forbidden">キャラを検索して追加</button><div class="deck-character-selection-chips" data-deck-character-selection-chips="forbidden"></div></section>
             </div>
             <details class="sub-settings">
               <summary>配置を固定する</summary>
-              <div class="fixed-position-grid">
-                <select data-fixed-position="1" aria-label="1枠目固定"></select>
-                <select data-fixed-position="2" aria-label="2枠目固定"></select>
-                <select data-fixed-position="3" aria-label="3枠目固定"></select>
-                <select data-fixed-position="4" aria-label="4枠目固定"></select>
-                <select data-fixed-position="5" aria-label="5枠目固定"></select>
-              </div>
+              <div class="fixed-position-grid" data-fixed-position-list></div>
+              <input type="hidden" data-fixed-position="1">
+              <input type="hidden" data-fixed-position="2">
+              <input type="hidden" data-fixed-position="3">
+              <input type="hidden" data-fixed-position="4">
+              <input type="hidden" data-fixed-position="5">
             </details>
+            <section class="deck-character-picker" data-deck-character-picker hidden>
+              <header><strong data-deck-character-picker-heading>キャラを検索</strong><button type="button" data-deck-character-picker-close aria-label="キャラ検索を閉じる">×</button></header>
+              <div class="deck-character-picker-form"><input type="search" name="deckCharacterPickerQuery" data-deck-character-picker-query placeholder="例: 火 回復 / 低コスト 蘇生"><button class="button" type="button" data-deck-character-picker-search>検索</button></div>
+              <div data-deck-character-picker-results></div>
+            </section>
           </section>
 
           <section class="form-section">
@@ -7189,19 +7225,20 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   }
   
   //# sourceURL=src/core/character-search.js
+  //# sourceURL=src/core/character-search.js
 
   function uniqueSorted(values) {
     return [...new Set(values.filter(Boolean).map(String))].sort((left, right) => left.localeCompare(right, "ja"));
   }
-  
+
   function readChecked(form, name) {
     return [...form.querySelectorAll(`[name="${name}"]:checked`)].map((input) => input.value);
   }
-  
+
   function parseList(value) {
     return [...new Set(String(value ?? "").split(/[\s,、]+/).map((item) => item.trim()).filter(Boolean))];
   }
-  
+
   function replaceOptions(select, options, placeholder) {
     select.replaceChildren();
     const empty = document.createElement("option");
@@ -7215,7 +7252,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       select.append(element);
     }
   }
-  
+
   function initializeStaticOptions(form) {
     const roleSelect = form.elements.requiredRole;
     replaceOptions(
@@ -7223,7 +7260,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       ROLE_TAGS.map((role) => ({ value: role, label: role })),
       "指定なし",
     );
-  
+
     for (const groupName of ["allowedAttributes", "forbiddenAttributes"]) {
       const container = form.querySelector(`[data-attribute-group="${groupName}"]`);
       container.replaceChildren();
@@ -7242,18 +7279,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       }
     }
   }
-  
+
   function hydrateCharacterOptions(form, characters) {
-    const options = characters.map((character) => ({
-      value: String(character.id),
-      label: `${character.name}（ID: ${character.id} / ${character.cost}）`,
-    }));
-    for (const select of form.querySelectorAll("[data-fixed-position]")) {
-      const currentValue = select.value;
-      replaceOptions(select, options, `${select.dataset.fixedPosition}枠目：指定なし`);
-      if (options.some((option) => option.value === currentValue)) select.value = currentValue;
-    }
-  
     const rarityList = form.querySelector("[data-rarity-list]");
     rarityList.replaceChildren();
     for (const rarity of uniqueSorted(characters.map((character) => character.rarity))) {
@@ -7261,7 +7288,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       option.value = rarity;
       rarityList.append(option);
     }
-  
+
     const regionList = form.querySelector("[data-region-list]");
     regionList.replaceChildren();
     for (const region of uniqueSorted(characters.map((character) => character.region))) {
@@ -7270,7 +7297,235 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       regionList.append(option);
     }
   }
-  
+
+  function formElement(tagName, className = "", textContent = "") {
+    const element = document.createElement(tagName);
+    if (className) element.className = className;
+    if (textContent) element.textContent = textContent;
+    return element;
+  }
+
+  function fieldIds(field) {
+    return parseList(field?.value);
+  }
+
+  function setFieldIds(field, values) {
+    field.value = [...new Set(values.map(String).filter(Boolean))].join(", ");
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function removeFieldId(field, characterId) {
+    setFieldIds(field, fieldIds(field).filter((id) => id !== String(characterId)));
+  }
+
+  function fixedTargetPosition(target) {
+    const match = /^fixed:(\d+)$/.exec(target ?? "");
+    return match ? Number(match[1]) : null;
+  }
+
+  function initializeDeckCharacterPicker(form, initialCharacters) {
+    const selectionRoot = form.querySelector("[data-deck-character-selection]");
+    const fixedPositionList = form.querySelector("[data-fixed-position-list]");
+    const picker = form.querySelector("[data-deck-character-picker]");
+    if (!selectionRoot || !fixedPositionList || !picker) return { setCharacters() {} };
+
+    const requiredInput = form.elements.requiredIds;
+    const forbiddenInput = form.elements.forbiddenIds;
+    const pickerHeading = picker.querySelector("[data-deck-character-picker-heading]");
+    const pickerClose = picker.querySelector("[data-deck-character-picker-close]");
+    const pickerQuery = picker.querySelector("[data-deck-character-picker-query]");
+    const pickerSearch = picker.querySelector("[data-deck-character-picker-search]");
+    const pickerResults = picker.querySelector("[data-deck-character-picker-results]");
+    const fixedPositionFields = [...form.querySelectorAll("[data-fixed-position]")]
+      .sort((left, right) => Number(left.dataset.fixedPosition) - Number(right.dataset.fixedPosition));
+    let charactersById = new Map();
+    let characterSearchIndex = createCharacterSearchIndex([]);
+    let pickerTarget = null;
+    let pickerSearchTimer = null;
+
+    const selectedCharacter = (characterId) => charactersById.get(String(characterId)) ?? {
+      id: String(characterId),
+      name: `ID ${characterId}`,
+    };
+    const renderChips = (target, field, emptyLabel) => {
+      const container = selectionRoot.querySelector(`[data-deck-character-selection-chips="${target}"]`);
+      container.replaceChildren();
+      const ids = fieldIds(field);
+      if (!ids.length) {
+        container.append(formElement("span", "deck-character-selection-empty", emptyLabel));
+        return;
+      }
+      for (const characterId of ids) {
+        const character = selectedCharacter(characterId);
+        const chip = formElement("span", "deck-character-selection-chip");
+        const name = formElement("strong", "", character.name);
+        const remove = formElement("button", "", "×");
+        remove.type = "button";
+        remove.ariaLabel = `${character.name}を解除`;
+        remove.addEventListener("click", () => removeFieldId(field, characterId));
+        chip.append(name, remove);
+        container.append(chip);
+      }
+    };
+    const renderFixedPositions = () => {
+      fixedPositionList.replaceChildren();
+      for (const field of fixedPositionFields) {
+        const position = Number(field.dataset.fixedPosition);
+        const character = field.value ? selectedCharacter(field.value) : null;
+        const card = formElement("section", "deck-fixed-position");
+        const heading = formElement("div", "deck-fixed-position-heading");
+        heading.append(
+          formElement("strong", "", `${position}枠目`),
+          formElement("small", "", character ? character.name : "固定なし"),
+        );
+        const select = formElement("button", "button button-ghost", character ? "キャラを変更" : "キャラを検索");
+        select.type = "button";
+        select.addEventListener("click", () => openPicker(`fixed:${position}`));
+        card.append(heading, select);
+        if (character) {
+          const clear = formElement("button", "button button-ghost", "固定解除");
+          clear.type = "button";
+          clear.addEventListener("click", () => {
+            field.value = "";
+            field.dispatchEvent(new Event("input", { bubbles: true }));
+          });
+          card.append(clear);
+        }
+        fixedPositionList.append(card);
+      }
+    };
+    const renderSelections = () => {
+      renderChips("required", requiredInput, "まだ指定されていません");
+      renderChips("forbidden", forbiddenInput, "まだ指定されていません");
+      renderFixedPositions();
+    };
+    const pickerTargetLabel = () => {
+      if (pickerTarget === "required") return "必須キャラを検索";
+      if (pickerTarget === "forbidden") return "禁止キャラを検索";
+      const position = fixedTargetPosition(pickerTarget);
+      return position ? `${position}枠目の固定キャラを検索` : "キャラを検索";
+    };
+    const renderPickerMessage = (message) => {
+      pickerResults.replaceChildren(formElement("p", "deck-character-picker-message", message));
+    };
+    const fixedField = (position) => fixedPositionFields.find((field) => Number(field.dataset.fixedPosition) === position);
+    const isFixedElsewhere = (characterId, position) => !form.elements.allowDuplicates.checked && fixedPositionFields.some((field) => (
+      Number(field.dataset.fixedPosition) !== position && field.value === String(characterId)
+    ));
+    const addCharacter = (character) => {
+      const characterId = String(character.id);
+      if (pickerTarget === "required") {
+        removeFieldId(forbiddenInput, characterId);
+        setFieldIds(requiredInput, [...fieldIds(requiredInput), characterId]);
+        renderPickerResults();
+        return;
+      }
+      if (pickerTarget === "forbidden") {
+        removeFieldId(requiredInput, characterId);
+        for (const field of fixedPositionFields) {
+          if (field.value === characterId) field.value = "";
+        }
+        setFieldIds(forbiddenInput, [...fieldIds(forbiddenInput), characterId]);
+        renderSelections();
+        renderPickerResults();
+        return;
+      }
+      const position = fixedTargetPosition(pickerTarget);
+      const field = fixedField(position);
+      if (!field || isFixedElsewhere(characterId, position)) return;
+      removeFieldId(forbiddenInput, characterId);
+      field.value = characterId;
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      picker.hidden = true;
+      pickerTarget = null;
+    };
+    const renderPickerResults = () => {
+      const query = pickerQuery.value.trim();
+      if (!query) {
+        renderPickerMessage("名前・属性・スキルなどで検索してください。例: 火 回復 / 低コスト 蘇生");
+        return;
+      }
+      const response = searchCharacters(characterSearchIndex, query, { limit: 18 });
+      if (!response.total) {
+        renderPickerMessage("一致するキャラがありません。キーワードを短くして試してください。");
+        return;
+      }
+      const list = formElement("div", "deck-character-picker-results");
+      for (const result of response.results) {
+        const character = result.character;
+        const card = formElement("article", "deck-character-picker-result");
+        card.append(
+          formElement("strong", "", character.name),
+          formElement("small", "", `${result.attributeLabel}・${character.rarity}・cost ${character.cost}・${character.skillTurn}T`),
+          formElement("p", "", character.skillName || "スキルなし"),
+        );
+        const select = formElement("button", "", "追加");
+        select.type = "button";
+        const position = fixedTargetPosition(pickerTarget);
+        const alreadySelected = pickerTarget === "required"
+          ? fieldIds(requiredInput).includes(String(character.id))
+          : pickerTarget === "forbidden"
+            ? fieldIds(forbiddenInput).includes(String(character.id))
+            : position && fixedField(position)?.value === String(character.id);
+        if (alreadySelected) {
+          select.disabled = true;
+          select.textContent = "選択済み";
+        } else if (position && isFixedElsewhere(character.id, position)) {
+          select.disabled = true;
+          select.textContent = "別枠で固定済み";
+        } else if (pickerTarget === "required") select.textContent = "必須へ追加";
+        else if (pickerTarget === "forbidden") select.textContent = "禁止へ追加";
+        else select.textContent = `${position}枠目に固定`;
+        select.addEventListener("click", () => addCharacter(character));
+        card.append(select);
+        list.append(card);
+      }
+      pickerResults.replaceChildren(list);
+    };
+    const openPicker = (target) => {
+      pickerTarget = target;
+      picker.hidden = false;
+      pickerHeading.textContent = pickerTargetLabel();
+      pickerQuery.value = "";
+      renderPickerResults();
+      pickerQuery.focus();
+    };
+
+    selectionRoot.querySelectorAll("[data-deck-character-picker-open]").forEach((button) => {
+      button.addEventListener("click", () => openPicker(button.dataset.deckCharacterPickerOpen));
+    });
+    pickerClose.addEventListener("click", () => {
+      picker.hidden = true;
+      pickerTarget = null;
+    });
+    pickerSearch.addEventListener("click", renderPickerResults);
+    pickerQuery.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      renderPickerResults();
+    });
+    pickerQuery.addEventListener("input", () => {
+      clearTimeout(pickerSearchTimer);
+      pickerSearchTimer = setTimeout(renderPickerResults, 120);
+    });
+    [requiredInput, forbiddenInput, ...fixedPositionFields].forEach((field) => {
+      field.addEventListener("input", renderSelections);
+    });
+    form.elements.allowDuplicates.addEventListener("change", () => {
+      if (!picker.hidden) renderPickerResults();
+    });
+
+    const setCharacters = (characters) => {
+      const nextCharacters = Array.isArray(characters) ? characters : [];
+      charactersById = new Map(nextCharacters.map((character) => [String(character.id), character]));
+      characterSearchIndex = createCharacterSearchIndex(nextCharacters);
+      renderSelections();
+      if (!picker.hidden) renderPickerResults();
+    };
+    setCharacters(initialCharacters);
+    return { setCharacters };
+  }
+
   function readConstraints(form) {
     const fixedPositions = {};
     for (const select of form.querySelectorAll("[data-fixed-position]")) {
@@ -7294,7 +7549,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       debugIncludeExcluded: form.elements.debugIncludeExcluded.checked,
     });
   }
-  
+
   function updateDataSummary(container, characters, sourceLabel) {
     const tiers = Object.groupBy(characters, (character) => character.pvpTier);
     const owned = characters.filter((character) => character.owned).length;
@@ -7303,7 +7558,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     container.querySelector("[data-owned-count]").textContent = owned.toLocaleString("ja-JP");
     container.querySelector("[data-priority-count]").textContent = (tiers.priority?.length ?? 0).toLocaleString("ja-JP");
   }
-  
+
   //# sourceURL=src/ui/form.js
 
   const METRIC_LABELS = {
@@ -9160,9 +9415,10 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   }  
   
   //# sourceURL=src/ui/tabs.js
+  //# sourceURL=src/ui/tabs.js
 
   const MANUAL_CHARACTERS_STORAGE_KEY = "eigo-deck-compass.manual-characters.v1";
-  
+
   function loadManualCharacters() {
     try {
       const raw = localStorage.getItem(MANUAL_CHARACTERS_STORAGE_KEY);
@@ -9171,14 +9427,14 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       return [];
     }
   }
-  
+
   function saveManualCharacters(characters) {
     try {
       localStorage.setItem(MANUAL_CHARACTERS_STORAGE_KEY, JSON.stringify(characters));
     } catch {
     }
   }
-  
+
   function combineCharacters(baseCharacters, manualCharacters) {
     const ids = new Set();
     return [...baseCharacters, ...manualCharacters].filter((character) => {
@@ -9210,15 +9466,17 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     let abortController = null;
     let characterSearchController = null;
     let lightestController = null;
-  
+    let deckCharacterPickerController = null;
+
     const refreshData = () => {
       hydrateCharacterOptions(form, characters);
       const manualLabel = manualCharacters.length ? ` + 手入力${manualCharacters.length.toLocaleString("ja-JP")}体` : "";
       updateDataSummary(dataSummary, characters, sourceLabel + manualLabel);
       characterSearchController?.setCharacters(characters);
       lightestController?.setCharacters(characters);
+      deckCharacterPickerController?.setCharacters(characters);
     };
-  
+
     const setBusy = (busy) => {
       searchButton.disabled = busy;
       cancelButton.hidden = !busy;
@@ -9226,9 +9484,10 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       form.setAttribute("aria-busy", String(busy));
       if (!busy) progressRoot.hidden = true;
     };
-  
+
     initializeStaticOptions(form);
     initializeAppTabs(document);
+    deckCharacterPickerController = initializeDeckCharacterPicker(form, characters);
     characterSearchController = initializeCharacterSearch(characterSearchRoot, characters);
     initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, WORKBOOK_CHARACTERS);
     lightestController = initializeLightest(lightestRoot, characters);
@@ -9251,7 +9510,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }, null, 2);
     refreshData();
     renderIdle(resultRoot);
-  
+
     fileInput.addEventListener("change", async () => {
       const [file] = fileInput.files;
       if (!file) return;
@@ -9267,7 +9526,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         fileInput.value = "";
       }
     });
-  
+
     resetDataButton.addEventListener("click", () => {
       baseCharacters = [...WORKBOOK_CHARACTERS];
       characters = combineCharacters(baseCharacters, manualCharacters);
@@ -9276,9 +9535,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       refreshData();
       renderIdle(resultRoot);
     });
-  
+
     cancelButton.addEventListener("click", () => abortController?.abort());
-  
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       let rules;
@@ -9294,7 +9553,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         renderError(resultRoot, ruleErrors);
         return;
       }
-  
+
       abortController = new AbortController();
       setBusy(true);
       resultRoot.replaceChildren();
@@ -9306,7 +9565,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       copy.textContent = "画面を固めないよう、処理を小分けにして進めます。";
       loading.append(heading, copy);
       resultRoot.append(loading);
-  
+
       try {
         const searchResult = await searchDecks(characters, readConstraints(form), rules, {
           signal: abortController.signal,
@@ -9322,7 +9581,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         setBusy(false);
       }
     });
-  
+
     window.EigoDeckApp = Object.freeze({
       version: "0.1.0",
       searchDecks,
@@ -9341,9 +9600,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       currentCharacters: () => [...characters],
     });
   }
-  
+
   bootstrap();
-  
+
   //# sourceURL=src/app.js
 
 })();

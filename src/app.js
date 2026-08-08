@@ -9,6 +9,7 @@ import { solveExactLightestStage } from "./core/lightest-exact.js";
 import { createCharacterSearchIndex, parseCharacterSearchQuery, searchCharacters } from "./core/character-search.js";
 import {
   hydrateCharacterOptions,
+  initializeDeckCharacterPicker,
   initializeStaticOptions,
   readConstraints,
   updateDataSummary,
@@ -75,6 +76,7 @@ function bootstrap() {
   let abortController = null;
   let characterSearchController = null;
   let lightestController = null;
+  let deckCharacterPickerController = null;
 
   const refreshData = () => {
     hydrateCharacterOptions(form, characters);
@@ -82,6 +84,7 @@ function bootstrap() {
     updateDataSummary(dataSummary, characters, sourceLabel + manualLabel);
     characterSearchController?.setCharacters(characters);
     lightestController?.setCharacters(characters);
+    deckCharacterPickerController?.setCharacters(characters);
   };
 
   const setBusy = (busy) => {
@@ -94,6 +97,7 @@ function bootstrap() {
 
   initializeStaticOptions(form);
   initializeAppTabs(document);
+  deckCharacterPickerController = initializeDeckCharacterPicker(form, characters);
   characterSearchController = initializeCharacterSearch(characterSearchRoot, characters);
   initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, WORKBOOK_CHARACTERS);
   lightestController = initializeLightest(lightestRoot, characters);
