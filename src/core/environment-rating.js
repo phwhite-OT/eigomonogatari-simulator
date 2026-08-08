@@ -594,6 +594,7 @@ export function buildCandidatePositionEntryScenarios(options) {
     battleProfiles = DEFAULT_ENVIRONMENT_BATTLE_PROFILES,
     seed = 909,
     turns = 12,
+    allowPartial = false,
   } = options;
   const targetPosition = Math.min(5, Math.max(1, Number(position) || 1));
   const selectedProfiles = availableBattleProfiles(battleProfiles);
@@ -682,7 +683,7 @@ export function buildCandidatePositionEntryScenarios(options) {
     attemptIndex += 1;
   }
 
-  if (scenarios.length < count) {
+  if (scenarios.length < count && !allowPartial) {
     const error = new Error(character.name + "を固定した" + targetPosition + "枠目の登場状態を" + count + "件集められませんでした（" + scenarios.length + "件）。");
     error.code = "INSUFFICIENT_ENTRY_SCENARIOS";
     throw error;

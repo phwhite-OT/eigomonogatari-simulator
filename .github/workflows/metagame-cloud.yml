@@ -20,22 +20,17 @@ on:
         default: "1"
         type: string
       workers:
-        description: Parallel workers per task (2 is appropriate for GitHub-hosted runners)
+        description: Workers per task (1 avoids rebuilding the full feasibility solver)
         required: false
-        default: "2"
+        default: "1"
         type: string
       fallback_workers:
         description: Retry a failed task with this many workers to reduce memory pressure
         required: false
         default: "1"
         type: string
-      screening_candidates:
-        description: Maximum candidates screened per position (0 disables the cap)
-        required: false
-        default: "240"
-        type: string
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "*/30 * * * *"
 
 permissions:
   actions: write
@@ -51,9 +46,10 @@ jobs:
     timeout-minutes: 180
     env:
       METAGAME_MAX_TASKS: ${{ inputs.max_tasks || '1' }}
-      METAGAME_WORKERS: ${{ inputs.workers || '2' }}
+      METAGAME_WORKERS: ${{ inputs.workers || '1' }}
       METAGAME_FALLBACK_WORKERS: ${{ inputs.fallback_workers || '1' }}
-      METAGAME_SCREENING_CANDIDATES: ${{ inputs.screening_candidates || '240' }}
+      METAGAME_CHECKPOINT_INTERVAL: "2"
+      METAGAME_TIME_BUDGET_SECONDS: "9000"
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -96,7 +92,8 @@ jobs:
             --final-scenarios=72 \
             --finalists=96 \
             --turns=12 \
-            --screening-candidates="$METAGAME_SCREENING_CANDIDATES" \
+            --checkpoint-interval="$METAGAME_CHECKPOINT_INTERVAL" \
+            --time-budget-seconds="$METAGAME_TIME_BUDGET_SECONDS" \
             --workers="$METAGAME_WORKERS"
           if grep -q '"status": "completed"' reports/metagame-v6-batch-status.json; then
             echo "completed_now=true" >> "$GITHUB_OUTPUT"
@@ -132,4 +129,4 @@ jobs:
             --header "Accept: application/vnd.github+json" \
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            --data "{\"ref\":\"master\",\"inputs\":{\"max_tasks\":\"$METAGAME_MAX_TASKS\",\"workers\":\"$METAGAME_WORKERS\",\"fallback_workers\":\"$METAGAME_FALLBACK_WORKERS\",\"screening_candidates\":\"$METAGAME_SCREENING_CANDIDATES\"}}"
+            --data "{\"ref\":\"master\",\"inputs\":{\"max_tasks\":\"$METAGAME_MAX_TASKS\",\"workers\":\"$METAGAME_WORKERS\",\"fallback_workers\":\"$METAGAME_FALLBACK_WORKERS\"}}"

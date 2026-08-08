@@ -56,6 +56,22 @@ async function writeStatus(status) {
   await fs.writeFile(statusPath, `${JSON.stringify(status, null, 2)}\n`, "utf8");
 }
 
+async function readTaskCheckpoint(task) {
+  const attributeKey = task.allowedAttributes.join("-") || "all";
+  const checkpointPath = path.resolve(
+    projectRoot,
+    outputRoot,
+    attributeKey,
+    `slot-${task.position}-cost-${task.cost}.progress.json`,
+  );
+  try {
+    return JSON.parse(await fs.readFile(checkpointPath, "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
 const MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
@@ -85,7 +101,8 @@ const finalists = Math.max(1, Math.floor(Number(readArgument("finalists", "96"))
 const turns = Math.min(12, Math.max(1, Number(readArgument("turns", "12")) || 12));
 const workers = Math.max(1, Number(readArgument("workers", "6")) || 6);
 const fallbackWorkers = Math.min(workers, Math.max(1, Number(readArgument("fallback-workers", "1")) || 1));
-const screeningCandidateLimit = Math.max(0, Math.floor(Number(readArgument("screening-candidates", "0")) || 0));
+const checkpointInterval = Math.max(1, Math.floor(Number(readArgument("checkpoint-interval", "2")) || 2));
+const timeBudgetSeconds = Math.max(0, Math.floor(Number(readArgument("time-budget-seconds", "0")) || 0));
 const maxTasks = Math.max(0, Math.floor(Number(readArgument("max-tasks", "0")) || 0));
 const maxConstraints = Math.max(0, Math.floor(Number(readArgument("max-constraints", "0")) || 0));
 const initialCompleted = new Set(parseList(readArgument("completed", "")));
@@ -113,7 +130,8 @@ const config = {
   turns,
   workers,
   fallbackWorkers,
-  screeningCandidateLimit,
+  checkpointInterval,
+  timeBudgetSeconds,
   outputRoot,
   priorOutputRoot,
   modelVersion: MODEL_VERSION,
@@ -127,6 +145,7 @@ if (resetForModelChange) {
 console.log(`Metagame batch: ${completedTaskIds.size}/${tasks.length} runs already complete`);
 
 let currentTask = null;
+let pausedTask = null;
 let completedThisRun = 0;
 const completedConstraintIdsThisRun = new Set();
 
@@ -159,8 +178,8 @@ try {
       "--finalists=" + finalists,
       "--turns=" + turns,
       "--output-root=" + outputRoot,
-      "--screening-candidates=" + screeningCandidateLimit,
-      "--screening-offset=" + (task.pass - 1),
+      "--checkpoint-interval=" + checkpointInterval,
+      "--time-budget-seconds=" + timeBudgetSeconds,
     ];
     let recoveredWithFallback = false;
     try {
@@ -181,6 +200,12 @@ try {
       });
       await runNode(ratingScript, [...ratingArguments, "--workers=" + fallbackWorkers]);
       recoveredWithFallback = true;
+    }
+    const checkpoint = await readTaskCheckpoint(task);
+    if (checkpoint?.status !== "completed") {
+      pausedTask = task;
+      console.log(`Saved ${checkpoint?.progress?.screeningCompleted ?? 0}/${checkpoint?.progress?.screeningTotal ?? 0} screening candidates; continuing this task in the next run.`);
+      break;
     }
     completedTaskIds.add(task.id);
     if (recoveredWithFallback) recoveredTaskIds.add(task.id);
@@ -212,7 +237,9 @@ try {
     console.log("All " + tasks.length + " metagame runs completed.");
   } else {
     const pausedAt = new Date().toISOString();
-    const pauseReason = maxConstraints
+    const pauseReason = pausedTask
+      ? "Stopped after saving partial candidate results; the same task will resume in the next run."
+      : maxConstraints
       ? "Stopped after " + completedThisRun + " task(s) across " + completedConstraintIdsThisRun.size + " constraint(s) due to max-constraints."
       : "Stopped after " + completedThisRun + " task(s) due to max-tasks.";
     await writeStatus({
@@ -226,7 +253,7 @@ try {
       completedRuns: completedTaskIds.size,
       completedTaskIds: [...completedTaskIds],
       recoveredTaskIds: [...recoveredTaskIds],
-      current: null,
+      current: pausedTask,
     });
     console.log(pauseReason);
   }

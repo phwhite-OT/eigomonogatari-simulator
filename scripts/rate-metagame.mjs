@@ -85,130 +85,150 @@ async function loadUsageEnvironment(reportPath, charactersById) {
   }
 }
 
+async function readCheckpoint(checkpointPath, context) {
+  try {
+    const checkpoint = JSON.parse(await fs.readFile(checkpointPath, "utf8"));
+    return JSON.stringify(checkpoint.context) === JSON.stringify(context) ? checkpoint : null;
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function writeCheckpoint(checkpointPath, checkpoint) {
+  const temporaryPath = `${checkpointPath}.${process.pid}.tmp`;
+  await fs.writeFile(temporaryPath, `${JSON.stringify(checkpoint)}\n`, "utf8");
+  await fs.rename(temporaryPath, checkpointPath);
+}
+
 function evaluateCharacter(character, scenarioOptions, solveCompletion, turns) {
   const scenarios = buildCandidatePositionEntryScenarios({
     ...scenarioOptions,
     character,
     solveCompletion,
     rules: DEFAULT_RULES,
+    allowPartial: true,
   });
-  return evaluateCandidateMatchOutcome(character, scenarios, {
-    rules: DEFAULT_RULES,
-    solveCompletion,
-    turns,
+  return {
+    ...evaluateCandidateMatchOutcome(character, scenarios, {
+      rules: DEFAULT_RULES,
+      solveCompletion,
+      turns,
+    }),
+    position: scenarioOptions.position,
+  };
+}
+
+function resultCharacterId(result) {
+  return String(result?.character?.id ?? "");
+}
+
+function orderResults(candidates, resultsById) {
+  return candidates.flatMap((character) => {
+    const result = resultsById.get(String(character.id));
+    return result ? [result] : [];
   });
-}
-
-function screeningBucketKey(character) {
-  const skillType = character.skill?.type ?? "none";
-  const costBand = Math.floor(Math.max(0, Number(character.cost) || 0) / 10);
-  return `${skillType}:${costBand}`;
-}
-
-function screeningPriority(character) {
-  const tier = { priority: 0, normal: 1, low: 2, exclude: 3 }[character.pvpTier] ?? 2;
-  return [
-    tier,
-    -(Number(character.pow) || 0),
-    -(Number(character.hp) || 0),
-    Number(character.cost) || 0,
-    String(character.id),
-  ];
-}
-
-function compareScreeningPriority(left, right) {
-  const leftPriority = screeningPriority(left);
-  const rightPriority = screeningPriority(right);
-  for (let index = 0; index < leftPriority.length; index += 1) {
-    if (leftPriority[index] < rightPriority[index]) return -1;
-    if (leftPriority[index] > rightPriority[index]) return 1;
-  }
-  return 0;
-}
-
-function selectScreeningCandidates(candidates, limit, offset = 0) {
-  if (!limit || candidates.length <= limit) return [...candidates];
-  const buckets = new Map();
-  for (const character of candidates) {
-    const key = screeningBucketKey(character);
-    const bucket = buckets.get(key) ?? [];
-    bucket.push(character);
-    buckets.set(key, bucket);
-  }
-  const groups = [...buckets.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([, bucket]) => bucket.sort(compareScreeningPriority));
-  const offsetStride = Math.max(1, Math.ceil(limit / Math.max(1, groups.length)));
-  const indices = groups.map((group) => Math.min(group.length, offset * offsetStride));
-  const selected = [];
-  while (selected.length < limit) {
-    let added = false;
-    for (let index = 0; index < groups.length && selected.length < limit; index += 1) {
-      const candidate = groups[index][indices[index]];
-      if (!candidate) continue;
-      selected.push(candidate);
-      indices[index] += 1;
-      added = true;
-    }
-    if (!added) break;
-  }
-  return selected;
 }
 
 async function evaluatePool(label, candidates, scenarioOptions, options) {
-  const { workerCount, allowedAttributes, totalCost, turns, solveCompletion } = options;
-  console.log(`${label}: ${candidates.length}体 × 候補別${scenarioOptions.count}盤面 × 最大${turns}ターン × ${workerCount}並列`);
-  if (workerCount <= 1 || candidates.length < workerCount * 2) {
-    const results = [];
-    const skippedCandidateIds = [];
-    for (const character of candidates) {
+  const {
+    workerCount,
+    allowedAttributes,
+    totalCost,
+    turns,
+    solveCompletion,
+    completedResults = [],
+    skippedCandidateIds = [],
+    checkpointInterval = 1,
+    deadlineAt = 0,
+    onCheckpoint,
+  } = options;
+  const candidateIds = new Set(candidates.map((character) => String(character.id)));
+  const resultsById = new Map(completedResults.flatMap((result) => {
+    const id = resultCharacterId(result);
+    return id && candidateIds.has(id) ? [[id, result]] : [];
+  }));
+  const skippedIds = new Set(skippedCandidateIds.filter((id) => candidateIds.has(String(id))).map(String));
+  const pendingCandidates = candidates.filter((character) => {
+    const id = String(character.id);
+    return !resultsById.has(id) && !skippedIds.has(id);
+  });
+  let completedSinceCheckpoint = 0;
+  let checkpointQueue = Promise.resolve();
+  const snapshot = () => ({
+    results: orderResults(candidates, resultsById),
+    skippedCandidateIds: candidates.map((character) => String(character.id)).filter((id) => skippedIds.has(id)),
+  });
+  const checkpoint = (force = false) => {
+    if (!onCheckpoint || (!force && completedSinceCheckpoint < checkpointInterval)) return;
+    completedSinceCheckpoint = 0;
+    checkpointQueue = checkpointQueue.then(() => onCheckpoint(snapshot()));
+  };
+  const recordCandidate = ({ result, skippedCandidateId }) => {
+    if (result) resultsById.set(resultCharacterId(result), result);
+    if (skippedCandidateId) skippedIds.add(String(skippedCandidateId));
+    completedSinceCheckpoint += 1;
+    checkpoint();
+  };
+  console.log(`${label}: ${pendingCandidates.length}/${candidates.length}体を評価 / 候補別${scenarioOptions.count}盤面 × 最大${turns}ターン × ${workerCount}並列`);
+  let paused = false;
+  if (workerCount <= 1 || pendingCandidates.length < workerCount * 2) {
+    for (const character of pendingCandidates) {
+      if (deadlineAt && Date.now() >= deadlineAt) {
+        paused = true;
+        break;
+      }
       try {
-        results.push(evaluateCharacter(character, scenarioOptions, solveCompletion, turns));
+        recordCandidate({ result: evaluateCharacter(character, scenarioOptions, solveCompletion, turns) });
       } catch (error) {
         if (error.code !== "INSUFFICIENT_ENTRY_SCENARIOS") throw error;
-        skippedCandidateIds.push(String(character.id));
+        recordCandidate({ skippedCandidateId: String(character.id) });
       }
     }
-    if (skippedCandidateIds.length) console.warn(`${label}: 登場盤面を作れない${skippedCandidateIds.length}体を除外しました。`);
-    return { results, skippedCandidateIds };
+  } else {
+    const chunks = Array.from({ length: workerCount }, () => []);
+    pendingCandidates.forEach((character, index) => chunks[index % workerCount].push(String(character.id)));
+    const progressByWorker = new Map();
+    const workerScenarioOptions = compactScenarioOptions(scenarioOptions);
+    const workerStates = await Promise.all(chunks.filter((chunk) => chunk.length).map((workerCandidateIds, workerIndex) => (
+      new Promise((resolve, reject) => {
+        const worker = new Worker(new URL("./metagame-rating-worker.mjs", import.meta.url), {
+          workerData: {
+            workerIndex,
+            candidateIds: workerCandidateIds,
+            scenarioOptions: workerScenarioOptions,
+            allowedAttributes,
+            totalCost,
+            turns,
+            deadlineAt,
+          },
+        });
+        worker.on("message", (message) => {
+          if (message.type === "candidate") {
+            recordCandidate(message);
+            return;
+          }
+          if (message.type === "progress") {
+            progressByWorker.set(workerIndex, message.completed);
+            const totalCompleted = [...progressByWorker.values()].reduce((sum, value) => sum + value, 0);
+            console.log(`  ${totalCompleted}/${pendingCandidates.length} (worker ${workerIndex + 1}: ${message.completed}/${message.total})`);
+            return;
+          }
+          if (message.type === "result") resolve({ paused: Boolean(message.paused) });
+        });
+        worker.once("error", reject);
+        worker.once("exit", (code) => {
+          if (code !== 0) reject(new Error(`メタ環境評価ワーカーが終了コード${code}で停止しました。`));
+        });
+      })
+    )));
+    paused = workerStates.some((state) => state.paused);
   }
-  const chunks = Array.from({ length: workerCount }, () => []);
-  candidates.forEach((character, index) => chunks[index % workerCount].push(String(character.id)));
-  const progressByWorker = new Map();
-  const workerScenarioOptions = compactScenarioOptions(scenarioOptions);
-  const results = await Promise.all(chunks.filter((chunk) => chunk.length).map((candidateIds, workerIndex) => (
-    new Promise((resolve, reject) => {
-      const worker = new Worker(new URL("./metagame-rating-worker.mjs", import.meta.url), {
-        workerData: {
-          workerIndex,
-          candidateIds,
-          scenarioOptions: workerScenarioOptions,
-          allowedAttributes,
-          totalCost,
-          turns,
-        },
-      });
-      worker.on("message", ({ type, completed, total, results: workerResults }) => {
-        if (type === "progress") {
-          progressByWorker.set(workerIndex, completed);
-          const totalCompleted = [...progressByWorker.values()].reduce((sum, value) => sum + value, 0);
-          console.log(`  ${totalCompleted}/${candidates.length} (worker ${workerIndex + 1}: ${completed}/${total})`);
-          return;
-        }
-        if (type === "result") resolve(workerResults);
-      });
-      worker.once("error", reject);
-      worker.once("exit", (code) => {
-        if (code !== 0) reject(new Error(`メタ環境評価ワーカーが終了コード${code}で停止しました。`));
-      });
-    })
-  )));
-  const skippedCandidateIds = results.flatMap((result) => result.skippedCandidateIds);
-  if (skippedCandidateIds.length) console.warn(`${label}: 登場盤面を作れない${skippedCandidateIds.length}体を除外しました。`);
-  return {
-    results: results.flatMap((result) => result.results),
-    skippedCandidateIds,
-  };
+  checkpoint(true);
+  await checkpointQueue;
+  const evaluated = snapshot();
+  if (evaluated.skippedCandidateIds.length) console.warn(`${label}: 登場盤面を作れない${evaluated.skippedCandidateIds.length}体を除外しました。`);
+  return { ...evaluated, paused };
 }
 
 const totalCost = Number(readArgument("cost", "150"));
@@ -217,8 +237,8 @@ const allowedAttributes = readArgument("attributes", "fire").split(",").map((val
 const firstScenarioCount = Math.max(12, Number(readArgument("first-scenarios", "12")));
 const finalScenarioCount = Math.max(72, Number(readArgument("final-scenarios", "72")));
 const detailedCandidateLimit = Math.max(1, Math.floor(Number(readArgument("finalists", "96")) || 96));
-const screeningCandidateLimit = Math.max(0, Math.floor(Number(readArgument("screening-candidates", "0")) || 0));
-const screeningOffset = Math.max(0, Math.floor(Number(readArgument("screening-offset", "0")) || 0));
+const checkpointInterval = Math.max(1, Math.floor(Number(readArgument("checkpoint-interval", "2")) || 2));
+const timeBudgetSeconds = Math.max(0, Math.floor(Number(readArgument("time-budget-seconds", "0")) || 0));
 const turns = Math.min(12, Math.max(1, Number(readArgument("turns", "12"))));
 const workerCount = Math.max(1, Math.min(
   Number(readArgument("workers", String(Math.min(6, Math.max(1, os.cpus().length - 1))))),
@@ -231,6 +251,7 @@ const outputRoot = path.resolve(projectRoot, readArgument("output-root", "report
 const outputDirectory = path.join(outputRoot, attributeKey);
 
 const outputBase = path.join(outputDirectory, `slot-${position}-cost-${totalCost}`);
+const checkpointPath = `${outputBase}.progress.json`;
 const charactersById = new Map(WORKBOOK_CHARACTERS.map((character) => [String(character.id), character]));
 const positionPools = [1, 2, 3, 4, 5].map((slot) => buildEnvironmentPositionPool(
   WORKBOOK_CHARACTERS,
@@ -238,11 +259,9 @@ const positionPools = [1, 2, 3, 4, 5].map((slot) => buildEnvironmentPositionPool
   { allowedAttributes },
 ));
 const solveCompletion = createDeckCompletionSolver(positionPools, totalCost);
-const feasiblePositionPools = positionPools.map((pool, index) => selectScreeningCandidates(
-  pool,
-  screeningCandidateLimit,
-  screeningOffset,
-).filter((character) => solveCompletion({ [index + 1]: character })));
+const feasiblePositionPools = positionPools.map((pool, index) => pool.filter((character) => (
+  solveCompletion({ [index + 1]: character })
+)));
 const candidates = feasiblePositionPools[position - 1];
 const positionEnvironments = feasiblePositionPools.map((pool, index) => buildBootstrapEnvironment(pool, index + 1));
 const warmStartSources = positionPools.map(() => "bootstrap");
@@ -261,9 +280,52 @@ for (let slot = 1; slot <= 5; slot += 1) {
 }
 console.log(`メタ環境評価開始: 総コスト${totalCost} / 属性${allowedAttributes.join(",")} / ${position}枠目`);
 console.log(`候補${candidates.length}/${positionPools[position - 1].length}体 / 候補ごとにコスト内デッキを再生成 / 伝説は1デッキ1体まで`);
-if (screeningCandidateLimit) {
-  console.log(`一次評価はスキル種別・コスト帯・基本性能を分散した最大${screeningCandidateLimit}体（pass offset ${screeningOffset}）に絞ります。`);
+const checkpointContext = {
+  modelVersion: MODEL_VERSION,
+  totalCost,
+  allowedAttributes,
+  position,
+  candidateIds: candidates.map((character) => String(character.id)),
+  firstScenarioCount,
+  finalScenarioCount,
+  detailedCandidateLimit,
+  turns,
+};
+const restoredCheckpoint = await readCheckpoint(checkpointPath, checkpointContext);
+if (restoredCheckpoint?.status === "completed") {
+  console.log("この評価タスクは保存済みです。");
+  process.exit(0);
 }
+const deadlineAt = timeBudgetSeconds ? Date.now() + timeBudgetSeconds * 1000 : 0;
+const restoredFirstResults = restoredCheckpoint?.firstResults ?? [];
+const restoredFirstSkippedCandidateIds = restoredCheckpoint?.firstSkippedCandidateIds ?? [];
+const restoredFinalResults = restoredCheckpoint?.finalResults ?? [];
+const restoredFinalSkippedCandidateIds = restoredCheckpoint?.finalSkippedCandidateIds ?? [];
+const makeCheckpoint = ({
+  status,
+  phase,
+  firstResults,
+  firstSkippedCandidateIds,
+  finalResults = [],
+  finalSkippedCandidateIds = [],
+}) => ({
+  version: 1,
+  status,
+  phase,
+  updatedAt: new Date().toISOString(),
+  context: checkpointContext,
+  progress: {
+    screeningCompleted: firstResults.length + firstSkippedCandidateIds.length,
+    screeningTotal: candidates.length,
+    screeningSkipped: firstSkippedCandidateIds.length,
+    detailedCompleted: finalResults.length + finalSkippedCandidateIds.length,
+    detailedSkipped: finalSkippedCandidateIds.length,
+  },
+  firstResults,
+  firstSkippedCandidateIds,
+  finalResults,
+  finalSkippedCandidateIds,
+});
 console.time("metagame-rating");
 
 const firstScenarioOptions = {
@@ -279,7 +341,31 @@ const firstEvaluation = await evaluatePool("一次勝利評価", candidates, fir
   totalCost,
   turns,
   solveCompletion,
+  completedResults: restoredFirstResults,
+  skippedCandidateIds: restoredFirstSkippedCandidateIds,
+  checkpointInterval,
+  deadlineAt,
+  onCheckpoint: ({ results, skippedCandidateIds }) => writeCheckpoint(checkpointPath, makeCheckpoint({
+    status: "running",
+    phase: "screening",
+    firstResults: results,
+    firstSkippedCandidateIds: skippedCandidateIds,
+    finalResults: restoredFinalResults,
+    finalSkippedCandidateIds: restoredFinalSkippedCandidateIds,
+  })),
 });
+if (firstEvaluation.paused) {
+  await writeCheckpoint(checkpointPath, makeCheckpoint({
+    status: "paused",
+    phase: "screening",
+    firstResults: firstEvaluation.results,
+    firstSkippedCandidateIds: firstEvaluation.skippedCandidateIds,
+    finalResults: restoredFinalResults,
+    finalSkippedCandidateIds: restoredFinalSkippedCandidateIds,
+  }));
+  console.log("時間予算に達したため、一次評価の途中結果を保存して次回実行へ引き継ぎます。");
+  process.exit(0);
+}
 const firstResults = firstEvaluation.results;
 if (!firstResults.length) throw new Error("評価可能な候補の登場盤面を作れませんでした。");
 const firstRankings = rankMetagameResults(firstResults);
@@ -301,7 +387,31 @@ const finalEvaluation = await evaluatePool("予測環境での最終勝利評価
   totalCost,
   turns,
   solveCompletion,
+  completedResults: restoredFinalResults,
+  skippedCandidateIds: restoredFinalSkippedCandidateIds,
+  checkpointInterval,
+  deadlineAt,
+  onCheckpoint: ({ results, skippedCandidateIds }) => writeCheckpoint(checkpointPath, makeCheckpoint({
+    status: "running",
+    phase: "detailed",
+    firstResults,
+    firstSkippedCandidateIds: firstEvaluation.skippedCandidateIds,
+    finalResults: results,
+    finalSkippedCandidateIds: skippedCandidateIds,
+  })),
 });
+if (finalEvaluation.paused) {
+  await writeCheckpoint(checkpointPath, makeCheckpoint({
+    status: "paused",
+    phase: "detailed",
+    firstResults,
+    firstSkippedCandidateIds: firstEvaluation.skippedCandidateIds,
+    finalResults: finalEvaluation.results,
+    finalSkippedCandidateIds: finalEvaluation.skippedCandidateIds,
+  }));
+  console.log("時間予算に達したため、最終評価の途中結果を保存して次回実行へ引き継ぎます。");
+  process.exit(0);
+}
 const finalResults = finalEvaluation.results;
 if (!finalResults.length) throw new Error("最終評価可能な候補の登場盤面を作れませんでした。");
 const finalRankings = rankDetailedMetagameResults(finalResults, finalScenarioCount);
@@ -362,8 +472,6 @@ const report = {
     position,
     candidateCount: positionPools[position - 1].length,
     screeningCandidateCount: candidates.length,
-    screeningCandidateLimit,
-    screeningOffset,
     detailedCandidateCount: detailedCandidates.length,
     detailedCandidateLimit,
     firstScenarioCount,
@@ -403,6 +511,14 @@ await Promise.all([
   fs.writeFile(`${outputBase}.json`, `${JSON.stringify(report, null, 2)}\n`, "utf8"),
   fs.writeFile(`${outputBase}.csv`, metagameReportToCsv(report), "utf8"),
 ]);
+await writeCheckpoint(checkpointPath, makeCheckpoint({
+  status: "completed",
+  phase: "completed",
+  firstResults,
+  firstSkippedCandidateIds: firstEvaluation.skippedCandidateIds,
+  finalResults,
+  finalSkippedCandidateIds: finalEvaluation.skippedCandidateIds,
+}));
 console.timeEnd("metagame-rating");
 console.log("最終総合上位:");
 for (const entry of report.rankings.overall.slice(0, 10)) {
