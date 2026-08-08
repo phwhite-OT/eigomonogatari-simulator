@@ -103,6 +103,33 @@ test("metagame deck candidates obey cost, duplicate, and legend limits", () => {
   }
 });
 
+test("fixed slots remain in generated metagame decks", async () => {
+  const fixture = metagameTestFixture();
+  const fixedSlots = {
+    1: "candidate-1-b",
+    4: "candidate-4-a",
+  };
+  const candidates = buildMetagameDeckCandidates(
+    fixture.constraint,
+    fixture.characters,
+    { beamWidth: 100, fixedSlots },
+  );
+  assert.ok(candidates.length > 0);
+  assert.ok(candidates.every((candidate) => (
+    candidate.deck[0].id === fixedSlots[1] && candidate.deck[3].id === fixedSlots[4]
+  )));
+
+  const result = await findBestMetagameDeck(
+    fixture.data,
+    fixture.constraint.id,
+    fixture.characters,
+    { beamWidth: 100, finalistCount: 10, fixedSlots },
+  );
+  assert.ok(result.results.every((candidate) => (
+    candidate.deck[0].id === fixedSlots[1] && candidate.deck[3].id === fixedSlots[4]
+  )));
+});
+
 test("metagame simulator ranks complete decks by simulated win value", async () => {
   const fixture = metagameTestFixture();
   const result = await findBestMetagameDeck(

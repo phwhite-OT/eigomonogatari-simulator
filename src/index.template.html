@@ -63,6 +63,19 @@
         </label>
         <button class="button button-search" type="submit" data-metagame-submit><span>最高勝率デッキを計算</span><b>→</b></button>
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
+        <section class="metagame-fixed-slots" data-metagame-fixed-slots>
+          <div class="metagame-fixed-slots-heading">
+            <div><strong>固定キャラ（任意）</strong><small>固定した枠以外だけを探索します。選べるのは選択中の環境で評価済みの候補です。</small></div>
+            <button type="button" data-metagame-fixed-clear>すべて解除</button>
+          </div>
+          <div class="metagame-fixed-slot-grid">
+            <label><span>1枠目</span><select name="metagameFixedSlot1" data-metagame-fixed-slot="1"></select></label>
+            <label><span>2枠目</span><select name="metagameFixedSlot2" data-metagame-fixed-slot="2"></select></label>
+            <label><span>3枠目</span><select name="metagameFixedSlot3" data-metagame-fixed-slot="3"></select></label>
+            <label><span>4枠目</span><select name="metagameFixedSlot4" data-metagame-fixed-slot="4"></select></label>
+            <label><span>5枠目</span><select name="metagameFixedSlot5" data-metagame-fixed-slot="5"></select></label>
+          </div>
+        </section>
       </form>
       <section class="metagame-surveyed-constraints" data-metagame-surveyed-constraints aria-label="実装済みの環境"></section>
       <details class="metagame-environment-preview" data-metagame-environment-preview open>

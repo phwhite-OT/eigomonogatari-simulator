@@ -175,7 +175,61 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   return [...selected.values()];
 }
 
+function metagameFixedSlots(fixedSlots) {
+  const entries = fixedSlots instanceof Map
+    ? [...fixedSlots.entries()]
+    : Array.isArray(fixedSlots)
+      ? fixedSlots.map((value, index) => [index + 1, value])
+      : Object.entries(fixedSlots ?? {});
+  const fixedByPosition = new Map();
+  const fixedIds = new Set();
+  for (const [rawPosition, rawValue] of entries) {
+    const position = Number(rawPosition);
+    const id = String(rawValue?.id ?? rawValue ?? "").trim();
+    if (!id) continue;
+    if (!Number.isInteger(position) || position < 1 || position > 5) {
+      throw new Error("固定できる枠は1〜5枠目です。");
+    }
+    if (fixedByPosition.has(position)) {
+      throw new Error(`${position}枠目の固定キャラが重複しています。`);
+    }
+    if (fixedIds.has(id)) {
+      throw new Error("同じキャラを複数の固定枠には指定できません。");
+    }
+    fixedByPosition.set(position, id);
+    fixedIds.add(id);
+  }
+  return fixedByPosition;
+}
+
+function metagameConstraintWithFixedSlots(constraint, options = {}) {
+  const fixedByPosition = metagameFixedSlots(options.fixedSlots);
+  if (!fixedByPosition.size) return constraint;
+  let fixedCost = 0;
+  let fixedLegendCount = 0;
+  const slots = (constraint?.slots ?? []).map((slot) => {
+    const position = Number(slot.position);
+    const fixedId = fixedByPosition.get(position);
+    if (!fixedId) return slot;
+    const rating = slot.candidates.find((candidate) => String(candidate.id) === fixedId);
+    if (!rating) {
+      throw new Error(`${position}枠目に指定したキャラは、この環境の評価候補にありません。`);
+    }
+    fixedCost += Math.max(0, Number(rating.cost) || 0);
+    if (rating.rarity === "伝") fixedLegendCount += 1;
+    return { ...slot, candidates: [rating] };
+  });
+  if (fixedCost > (Number(constraint?.totalCost) || 0)) {
+    throw new Error("固定キャラの合計コストが上限を超えています。");
+  }
+  if (fixedLegendCount > 1) {
+    throw new Error("伝説キャラは1体まで固定できます。");
+  }
+  return { ...constraint, slots };
+}
+
 export function buildMetagameDeckCandidates(constraint, characters, options = {}) {
+  constraint = metagameConstraintWithFixedSlots(constraint, options);
   const totalCost = Number(constraint?.totalCost) || 0;
   const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
@@ -255,6 +309,7 @@ function metagameYieldToBrowser() {
 }
 
 async function buildMetagameDeckCandidatesWithProgress(constraint, characters, options = {}) {
+  constraint = metagameConstraintWithFixedSlots(constraint, options);
   const totalCost = Number(constraint?.totalCost) || 0;
   const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
   const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);

@@ -317,6 +317,17 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-data-status { flex: 0 0 auto; padding: 9px 13px; border: 1px solid #cddd9b; border-radius: 999px; background: #f4f9df; color: #536523; font-size: 10px; font-weight: 800; }
 .metagame-simulator-form { display: grid; grid-template-columns: minmax(260px, 420px) minmax(250px, 330px) auto; gap: 12px; align-items: end; margin-top: 24px; }
 .metagame-simulator-form .button { min-height: 52px; }
+.metagame-fixed-slots { grid-column: 1 / -1; padding: 14px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
+.metagame-fixed-slots-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.metagame-fixed-slots-heading strong, .metagame-fixed-slots-heading small { display: block; }
+.metagame-fixed-slots-heading strong { color: #526128; font-size: 12px; }
+.metagame-fixed-slots-heading small { margin-top: 3px; color: #788174; font-size: 9px; line-height: 1.5; }
+.metagame-fixed-slots-heading button { padding: 6px 9px; border: 1px solid #cbd7ad; border-radius: 8px; background: #fff; color: #526128; font: inherit; font-size: 9px; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.metagame-fixed-slots-heading button:disabled { cursor: wait; opacity: .6; }
+.metagame-fixed-slot-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.metagame-fixed-slot-grid label { display: grid; gap: 5px; min-width: 0; color: #66744a; font-size: 9px; font-weight: 800; }
+.metagame-fixed-slot-grid select { width: 100%; min-width: 0; padding: 8px; border: 1px solid #d5ddd0; border-radius: 8px; background: #fff; color: var(--ink); font: inherit; font-size: 9px; }
+.metagame-fixed-slot-grid select:disabled { cursor: wait; background: #f3f5ef; }
 .metagame-surveyed-constraints { margin-top: 16px; padding: 14px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
 .metagame-surveyed-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
 .metagame-surveyed-heading strong { color: #526128; font-size: 12px; }
@@ -380,6 +391,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .metagame-data-status { justify-self: start; }
   .metagame-simulator-form { grid-template-columns: 1fr; }
   .metagame-simulator-form .button { width: 100%; }
+  .metagame-fixed-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metagame-slot-list { grid-template-columns: 1fr 1fr; }
 }
 
@@ -387,6 +399,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .metagame-simulator { padding: 17px 13px; }
   .metagame-surveyed-heading { align-items: start; flex-direction: column; gap: 3px; }
   .metagame-surveyed-list { grid-template-columns: 1fr 1fr; }
+  .metagame-fixed-slot-grid { grid-template-columns: 1fr; }
   .metagame-result-overview, .metagame-result-header { align-items: start; flex-direction: column; }
   .metagame-win-rate { justify-items: start; }
   .metagame-slot-list { grid-template-columns: 1fr; }
@@ -718,6 +731,19 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         </label>
         <button class="button button-search" type="submit" data-metagame-submit><span>最高勝率デッキを計算</span><b>→</b></button>
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
+        <section class="metagame-fixed-slots" data-metagame-fixed-slots>
+          <div class="metagame-fixed-slots-heading">
+            <div><strong>固定キャラ（任意）</strong><small>固定した枠以外だけを探索します。選べるのは選択中の環境で評価済みの候補です。</small></div>
+            <button type="button" data-metagame-fixed-clear>すべて解除</button>
+          </div>
+          <div class="metagame-fixed-slot-grid">
+            <label><span>1枠目</span><select name="metagameFixedSlot1" data-metagame-fixed-slot="1"></select></label>
+            <label><span>2枠目</span><select name="metagameFixedSlot2" data-metagame-fixed-slot="2"></select></label>
+            <label><span>3枠目</span><select name="metagameFixedSlot3" data-metagame-fixed-slot="3"></select></label>
+            <label><span>4枠目</span><select name="metagameFixedSlot4" data-metagame-fixed-slot="4"></select></label>
+            <label><span>5枠目</span><select name="metagameFixedSlot5" data-metagame-fixed-slot="5"></select></label>
+          </div>
+        </section>
       </form>
       <section class="metagame-surveyed-constraints" data-metagame-surveyed-constraints aria-label="実装済みの環境"></section>
       <details class="metagame-environment-preview" data-metagame-environment-preview open>
@@ -4066,7 +4092,59 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return [...selected.values()];
   }
   
+  function metagameFixedSlots(fixedSlots) {
+    const entries = fixedSlots instanceof Map
+      ? [...fixedSlots.entries()]
+      : Array.isArray(fixedSlots)
+        ? fixedSlots.map((value, index) => [index + 1, value])
+        : Object.entries(fixedSlots ?? {});
+    const fixedByPosition = new Map();
+    const fixedIds = new Set();
+    for (const [rawPosition, rawValue] of entries) {
+      const position = Number(rawPosition);
+      const id = String(rawValue?.id ?? rawValue ?? "").trim();
+      if (!id) continue;
+      if (!Number.isInteger(position) || position < 1 || position > 5) {
+        throw new Error("固定できる枠は1〜5枠目です。");
+      }
+      if (fixedByPosition.has(position)) {
+        throw new Error(`${position}枠目の固定キャラが重複しています。`);
+      }
+      if (fixedIds.has(id)) {
+        throw new Error("同じキャラを複数の固定枠には指定できません。");
+      }
+      fixedByPosition.set(position, id);
+      fixedIds.add(id);
+    }
+    return fixedByPosition;
+  }
+  function metagameConstraintWithFixedSlots(constraint, options = {}) {
+    const fixedByPosition = metagameFixedSlots(options.fixedSlots);
+    if (!fixedByPosition.size) return constraint;
+    let fixedCost = 0;
+    let fixedLegendCount = 0;
+    const slots = (constraint?.slots ?? []).map((slot) => {
+      const position = Number(slot.position);
+      const fixedId = fixedByPosition.get(position);
+      if (!fixedId) return slot;
+      const rating = slot.candidates.find((candidate) => String(candidate.id) === fixedId);
+      if (!rating) {
+        throw new Error(`${position}枠目に指定したキャラは、この環境の評価候補にありません。`);
+      }
+      fixedCost += Math.max(0, Number(rating.cost) || 0);
+      if (rating.rarity === "伝") fixedLegendCount += 1;
+      return { ...slot, candidates: [rating] };
+    });
+    if (fixedCost > (Number(constraint?.totalCost) || 0)) {
+      throw new Error("固定キャラの合計コストが上限を超えています。");
+    }
+    if (fixedLegendCount > 1) {
+      throw new Error("伝説キャラは1体まで固定できます。");
+    }
+    return { ...constraint, slots };
+  }
   function buildMetagameDeckCandidates(constraint, characters, options = {}) {
+    constraint = metagameConstraintWithFixedSlots(constraint, options);
     const totalCost = Number(constraint?.totalCost) || 0;
     const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
     const charactersById = new Map(characters.map((character) => [String(character.id), character]));
@@ -4145,6 +4223,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return new Promise((resolve) => setTimeout(resolve, 0));
   }
   async function buildMetagameDeckCandidatesWithProgress(constraint, characters, options = {}) {
+    constraint = metagameConstraintWithFixedSlots(constraint, options);
     const totalCost = Number(constraint?.totalCost) || 0;
     const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
     const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
@@ -4157,7 +4236,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
       throw new Error("Metagame deck candidates require five populated slots.");
     }
-  let states = [{
+    let states = [{
       deck: [],
       ids: new Set(),
       totalCost: 0,
@@ -4432,6 +4511,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   }
   
   //# sourceURL=src/core/metagame-deck.js
+
 
 
 
@@ -7809,6 +7889,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const previewStatus = root.querySelector("[data-metagame-environment-preview-status]");
     const previewContent = root.querySelector("[data-metagame-environment-preview-content]");
     const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
+    const fixedSlotControls = [...form.querySelectorAll("[data-metagame-fixed-slot]")];
+    const fixedClearButton = form.querySelector("[data-metagame-fixed-clear]");
     let abortController = null;
   
     select.replaceChildren();
@@ -7824,6 +7906,29 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       : "利用可能な調査済み環境がありません";
     renderMetagameCalculationStatus(calculationStatus, data);
     submitButton.disabled = data.constraints.length === 0;
+    const fixedSlots = () => Object.fromEntries(fixedSlotControls
+      .filter((control) => control.value)
+      .map((control) => [Number(control.dataset.metagameFixedSlot), control.value]));
+    const renderFixedSlots = (constraint) => {
+      const selected = new Map(fixedSlotControls.map((control) => [
+        Number(control.dataset.metagameFixedSlot),
+        control.value,
+      ]));
+      for (const control of fixedSlotControls) {
+        const position = Number(control.dataset.metagameFixedSlot);
+        const slot = constraint?.slots.find((entry) => Number(entry.position) === position);
+        control.replaceChildren(new Option("自動選択（固定なし）", ""));
+        for (const rating of slot?.candidates ?? []) {
+          const option = new Option(
+            `${rating.name} · cost ${rating.cost} · スキル${rating.skillTurn}T`,
+            String(rating.id),
+          );
+          option.selected = String(rating.id) === selected.get(position);
+          control.append(option);
+        }
+        control.disabled = !slot || Boolean(abortController);
+      }
+    };
     const updateEnvironmentPreview = () => {
       const constraint = data.constraints.find((entry) => entry.id === select.value);
       previewStatus.textContent = constraint
@@ -7831,9 +7936,13 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         : "調査済み環境なし";
       renderMetagameEnvironmentPreview(previewContent, constraint);
       renderSurveyedMetagameConstraints(surveyedConstraints, data.constraints, constraint?.id);
+      renderFixedSlots(constraint);
     };
     updateEnvironmentPreview();
     select.addEventListener("change", updateEnvironmentPreview);
+    fixedClearButton.addEventListener("click", () => {
+      fixedSlotControls.forEach((control) => { control.value = ""; });
+    });
     surveyedConstraints.addEventListener("click", (event) => {
       const button = event.target.closest("[data-metagame-surveyed-constraint]");
       if (!button || button.disabled) return;
@@ -7850,6 +7959,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const setBusy = (busy) => {
       submitButton.disabled = busy || data.constraints.length === 0;
       select.disabled = busy;
+      fixedSlotControls.forEach((control) => { control.disabled = busy; });
+      fixedClearButton.disabled = busy;
       surveyedConstraints.querySelectorAll("[data-metagame-surveyed-constraint]").forEach((button) => {
         button.disabled = busy;
       });
@@ -7871,6 +7982,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       try {
         const searchResult = await findBestMetagameDeck(data, select.value, characters, {
           signal: abortController.signal,
+          fixedSlots: fixedSlots(),
           onProgress: ({
             phase,
             completed,
@@ -7927,6 +8039,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   }
   
   //# sourceURL=src/ui/metagame-simulator.js
+
 
 
   function lightestElement(tag, className, text) {

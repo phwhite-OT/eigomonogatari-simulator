@@ -287,6 +287,8 @@ export function initializeMetagameSimulator(root, data, characters) {
   const previewStatus = root.querySelector("[data-metagame-environment-preview-status]");
   const previewContent = root.querySelector("[data-metagame-environment-preview-content]");
   const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
+  const fixedSlotControls = [...form.querySelectorAll("[data-metagame-fixed-slot]")];
+  const fixedClearButton = form.querySelector("[data-metagame-fixed-clear]");
   let abortController = null;
 
   select.replaceChildren();
@@ -302,6 +304,29 @@ export function initializeMetagameSimulator(root, data, characters) {
     : "利用可能な調査済み環境がありません";
   renderMetagameCalculationStatus(calculationStatus, data);
   submitButton.disabled = data.constraints.length === 0;
+  const fixedSlots = () => Object.fromEntries(fixedSlotControls
+    .filter((control) => control.value)
+    .map((control) => [Number(control.dataset.metagameFixedSlot), control.value]));
+  const renderFixedSlots = (constraint) => {
+    const selected = new Map(fixedSlotControls.map((control) => [
+      Number(control.dataset.metagameFixedSlot),
+      control.value,
+    ]));
+    for (const control of fixedSlotControls) {
+      const position = Number(control.dataset.metagameFixedSlot);
+      const slot = constraint?.slots.find((entry) => Number(entry.position) === position);
+      control.replaceChildren(new Option("自動選択（固定なし）", ""));
+      for (const rating of slot?.candidates ?? []) {
+        const option = new Option(
+          `${rating.name} · cost ${rating.cost} · スキル${rating.skillTurn}T`,
+          String(rating.id),
+        );
+        option.selected = String(rating.id) === selected.get(position);
+        control.append(option);
+      }
+      control.disabled = !slot || Boolean(abortController);
+    }
+  };
   const updateEnvironmentPreview = () => {
     const constraint = data.constraints.find((entry) => entry.id === select.value);
     previewStatus.textContent = constraint
@@ -309,9 +334,13 @@ export function initializeMetagameSimulator(root, data, characters) {
       : "調査済み環境なし";
     renderMetagameEnvironmentPreview(previewContent, constraint);
     renderSurveyedMetagameConstraints(surveyedConstraints, data.constraints, constraint?.id);
+    renderFixedSlots(constraint);
   };
   updateEnvironmentPreview();
   select.addEventListener("change", updateEnvironmentPreview);
+  fixedClearButton.addEventListener("click", () => {
+    fixedSlotControls.forEach((control) => { control.value = ""; });
+  });
   surveyedConstraints.addEventListener("click", (event) => {
     const button = event.target.closest("[data-metagame-surveyed-constraint]");
     if (!button || button.disabled) return;
@@ -328,6 +357,8 @@ export function initializeMetagameSimulator(root, data, characters) {
   const setBusy = (busy) => {
     submitButton.disabled = busy || data.constraints.length === 0;
     select.disabled = busy;
+    fixedSlotControls.forEach((control) => { control.disabled = busy; });
+    fixedClearButton.disabled = busy;
     surveyedConstraints.querySelectorAll("[data-metagame-surveyed-constraint]").forEach((button) => {
       button.disabled = busy;
     });
@@ -349,6 +380,7 @@ export function initializeMetagameSimulator(root, data, characters) {
     try {
       const searchResult = await findBestMetagameDeck(data, select.value, characters, {
         signal: abortController.signal,
+        fixedSlots: fixedSlots(),
         onProgress: ({
           phase,
           completed,
