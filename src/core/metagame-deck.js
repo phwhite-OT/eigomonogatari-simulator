@@ -1,7 +1,7 @@
 import { createBattleState } from "./battleState.js";
 import { simulateBattle } from "./simulate.js";
 import { DEFAULT_ENVIRONMENT_BATTLE_PROFILES } from "./environment-rating.js";
-import { DEFAULT_RULES } from "../data/rules.js";
+import { DEFAULT_RULES, resolveAttributeClass } from "../data/rules.js";
 
 const METAGAME_DECK_PROFILES = DEFAULT_ENVIRONMENT_BATTLE_PROFILES;
 
@@ -202,21 +202,70 @@ function metagameFixedSlots(fixedSlots) {
   return fixedByPosition;
 }
 
-function metagameConstraintWithFixedSlots(constraint, options = {}) {
+export function matchesMetagameFixedConstraint(character, constraint) {
+  if (!character || !resolveAttributeClass(character.attributes)) return false;
+  const allowedAttributes = new Set(constraint?.allowedAttributes ?? []);
+  if (allowedAttributes.size && !(character.attributes ?? []).some((attribute) => allowedAttributes.has(attribute))) return false;
+  return Math.max(0, Number(character.cost) || 0) <= Math.max(0, Number(constraint?.totalCost) || 0);
+}
+
+function metagameFixedFallbackRating(character) {
+  return {
+    id: String(character.id),
+    name: character.name,
+    attributes: character.attributes,
+    rarity: character.rarity,
+    cost: character.cost,
+    skillTurn: character.skillTurn,
+    skillType: character.skill?.type ?? "none",
+    skillName: character.skillName ?? "",
+    overallRank: Number.MAX_SAFE_INTEGER,
+    expectedWinRate: 0,
+    expectedWinLowerBound: 0,
+    balancedContribution: 0,
+    practicalValue: 0,
+    practicalSkillReliability: 0,
+    powerPreference: 0,
+    enemyPressureRate: 0,
+    combinationPotential: 0,
+    continuationWinGain: 0,
+    carriedContinuationWinGain: 0,
+    tacticalUpside: 0,
+    tacticalRisk: 0,
+    advantageCreation: 0,
+    counteraction: 0,
+    skillActivationRate: 0,
+  };
+}
+
+function metagameConstraintWithFixedSlots(constraint, characters, options = {}) {
   const fixedByPosition = metagameFixedSlots(options.fixedSlots);
   if (!fixedByPosition.size) return constraint;
+  const charactersById = new Map((characters ?? []).map((character) => [String(character.id), character]));
+  const ratingsById = new Map();
+  for (const slot of constraint?.slots ?? []) {
+    for (const rating of slot.candidates ?? []) {
+      if (!ratingsById.has(String(rating.id))) ratingsById.set(String(rating.id), rating);
+    }
+  }
   let fixedCost = 0;
   let fixedLegendCount = 0;
   const slots = (constraint?.slots ?? []).map((slot) => {
     const position = Number(slot.position);
     const fixedId = fixedByPosition.get(position);
     if (!fixedId) return slot;
-    const rating = slot.candidates.find((candidate) => String(candidate.id) === fixedId);
-    if (!rating) {
-      throw new Error(`${position}枠目に指定したキャラは、この環境の評価候補にありません。`);
+    const character = charactersById.get(fixedId);
+    if (!character) {
+      throw new Error(`${position}枠目に指定したキャラが見つかりません。`);
     }
-    fixedCost += Math.max(0, Number(rating.cost) || 0);
-    if (rating.rarity === "伝") fixedLegendCount += 1;
+    if (!matchesMetagameFixedConstraint(character, constraint)) {
+      throw new Error(`${position}枠目に指定したキャラは、選択中の属性・コスト縛りに合いません。`);
+    }
+    const rating = slot.candidates.find((candidate) => String(candidate.id) === fixedId)
+      ?? ratingsById.get(fixedId)
+      ?? metagameFixedFallbackRating(character);
+    fixedCost += Math.max(0, Number(character.cost) || 0);
+    if (character.rarity === "伝") fixedLegendCount += 1;
     return { ...slot, candidates: [rating] };
   });
   if (fixedCost > (Number(constraint?.totalCost) || 0)) {
@@ -229,7 +278,7 @@ function metagameConstraintWithFixedSlots(constraint, options = {}) {
 }
 
 export function buildMetagameDeckCandidates(constraint, characters, options = {}) {
-  constraint = metagameConstraintWithFixedSlots(constraint, options);
+  constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
   const totalCost = Number(constraint?.totalCost) || 0;
   const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
@@ -309,7 +358,7 @@ function metagameYieldToBrowser() {
 }
 
 async function buildMetagameDeckCandidatesWithProgress(constraint, characters, options = {}) {
-  constraint = metagameConstraintWithFixedSlots(constraint, options);
+  constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
   const totalCost = Number(constraint?.totalCost) || 0;
   const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
   const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);

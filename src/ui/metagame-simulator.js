@@ -1,5 +1,5 @@
 import { attributeClassLabel } from "../data/rules.js";
-import { findBestMetagameDeck } from "../core/metagame-deck.js";
+import { findBestMetagameDeck, matchesMetagameFixedConstraint } from "../core/metagame-deck.js";
 import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
 
 function metagameUiElement(tag, className, text) {
@@ -296,7 +296,6 @@ export function initializeMetagameSimulator(root, data, characters) {
   const fixedPickerQuery = form.querySelector("[data-metagame-fixed-picker-query]");
   const fixedPickerSearchButton = form.querySelector("[data-metagame-fixed-picker-search]");
   const fixedPickerResults = form.querySelector("[data-metagame-fixed-picker-results]");
-  const charactersById = new Map(characters.map((character) => [String(character.id), character]));
   let fixedSlots = new Map();
   let fixedPickerPosition = null;
   let fixedPickerIndex = createCharacterSearchIndex([]);
@@ -320,11 +319,9 @@ export function initializeMetagameSimulator(root, data, characters) {
     [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
   );
   const selectedConstraint = () => data.constraints.find((entry) => entry.id === select.value);
-  const fixedSlotCandidates = (constraint, position) => (
-    constraint?.slots.find((entry) => Number(entry.position) === position)?.candidates
-      .map((rating) => charactersById.get(String(rating.id)))
-      .filter(Boolean) ?? []
-  );
+  const fixedSlotCandidates = (constraint) => characters.filter((character) => (
+    matchesMetagameFixedConstraint(character, constraint)
+  ));
   const renderFixedPickerMessage = (message) => {
     fixedPickerResults.replaceChildren(metagameUiElement("p", "metagame-fixed-picker-message", message));
   };
@@ -343,7 +340,7 @@ export function initializeMetagameSimulator(root, data, characters) {
     }
     const response = searchCharacters(fixedPickerIndex, query, { limit: 24 });
     if (!response.total) {
-      renderFixedPickerMessage("この枠の評価候補には一致するキャラがありません。");
+      renderFixedPickerMessage("選択中の属性・コスト縛りに一致するキャラがありません。");
       return;
     }
     const list = metagameUiElement("div", "metagame-fixed-picker-results");
@@ -374,19 +371,19 @@ export function initializeMetagameSimulator(root, data, characters) {
     fixedPickerResults.replaceChildren(list);
   };
   const openFixedPicker = (position) => {
-    const candidates = fixedSlotCandidates(selectedConstraint(), position);
+    const candidates = fixedSlotCandidates(selectedConstraint());
     if (!candidates.length) return;
     fixedPickerPosition = position;
     fixedPickerIndex = createCharacterSearchIndex(candidates);
     fixedPickerHeading.textContent = `${position}枠目の固定キャラを検索`;
     fixedPicker.hidden = false;
     fixedPickerQuery.value = "";
-    renderFixedPickerMessage(`${candidates.length.toLocaleString("ja-JP")}体の評価候補を、名前・属性・スキルで検索できます。`);
+    renderFixedPickerMessage(`${candidates.length.toLocaleString("ja-JP")}体の縛り一致キャラを、名前・属性・スキルで検索できます。スキルターンや枠別評価では絞り込みません。`);
     fixedPickerQuery.focus();
   };
   const renderFixedSlots = (constraint) => {
     for (const [position, character] of fixedSlots) {
-      if (!fixedSlotCandidates(constraint, position).some((entry) => String(entry.id) === String(character.id))) {
+      if (!fixedSlotCandidates(constraint).some((entry) => String(entry.id) === String(character.id))) {
         fixedSlots.delete(position);
       }
     }
@@ -403,12 +400,12 @@ export function initializeMetagameSimulator(root, data, characters) {
       } else {
         card.append(
           metagameUiElement("strong", "", "自動選択"),
-          metagameUiElement("small", "", "この枠の候補をキャラ検索"),
+          metagameUiElement("small", "", "縛り一致キャラを検索"),
         );
       }
       const action = metagameUiElement("button", "", character ? "キャラを変更" : "キャラ検索");
       action.type = "button";
-      action.disabled = !fixedSlotCandidates(constraint, position).length || Boolean(abortController);
+      action.disabled = !fixedSlotCandidates(constraint).length || Boolean(abortController);
       action.addEventListener("click", () => {
         openFixedPicker(position);
       });

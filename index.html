@@ -763,7 +763,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
         <section class="metagame-fixed-slots" data-metagame-fixed-slots>
           <div class="metagame-fixed-slots-heading">
-            <div><strong>固定キャラ（任意）</strong><small>キャラ検索から選び、固定した枠以外だけを探索します。選択中の環境・枠で評価済みの候補を検索できます。</small></div>
+            <div><strong>固定キャラ（任意）</strong><small>キャラ検索から選び、固定した枠以外だけを探索します。選択中の属性・コスト縛りに合う全キャラを検索できます。</small></div>
             <button type="button" data-metagame-fixed-clear>すべて解除</button>
           </div>
           <div class="metagame-fixed-slot-grid" data-metagame-fixed-slot-list></div>
@@ -3961,12 +3961,13 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   }
   
   //# sourceURL=src/core/search-fast.js
+
   const METAGAME_DECK_PROFILES = DEFAULT_ENVIRONMENT_BATTLE_PROFILES;
-  
+
   function metagameDeckClampUnit(value) {
     return Math.min(1, Math.max(0, Number(value) || 0));
   }
-  
+
   function metagameCandidateScore(rating) {
     const advantage = Math.min(1, Math.max(0, Number(rating.advantageCreation) || 0) / 2);
     const counter = Math.min(1, Math.max(0, Number(rating.counteraction) || 0) / 2);
@@ -3998,6 +3999,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       tacticalRisk * 0.04
     );
   }
+
   function metagameSkillMatchesTarget(source, target) {
     const skill = source.character.skill ?? {};
     const affectedCharacter = skill.target === "self" ? source.character : target.character;
@@ -4005,12 +4007,14 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       condition.type !== "ally_attribute" || (affectedCharacter.attributes ?? []).includes(condition.attribute)
     ));
   }
+
   function metagameDeckTargetEndurance(target) {
     const hp = Math.max(0, Number(target.character.hp) || 0);
     const hpFactor = hp / (hp + 5_000);
     const retention = metagameDeckClampUnit(target.rating.allyRetentionRate);
     return metagameDeckClampUnit(hpFactor * 0.65 + retention * 0.35);
   }
+
   function metagamePersistentDefenseCommitment(source) {
     const skill = source.character.skill ?? {};
     const duration = Math.max(0, Number(skill.duration) || 0);
@@ -4027,6 +4031,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       Math.max(carriedDefenseRate / 4, carriedWinGain) * 0.08
     ));
   }
+
   function metagameDeckHandoffRisk(source, target) {
     const commitment = metagamePersistentDefenseCommitment(source);
     if (!commitment) return 0;
@@ -4036,6 +4041,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const lowHp = metagameDeckClampUnit((1_600 - hp) / 1_600);
     return commitment * (lowEndurance * 0.12 + lowHp * 0.10);
   }
+
   function metagameDeckPairSynergy(source, target) {
     const skill = source.character.skill ?? {};
     const duration = Math.max(0, Number(skill.duration) || 0);
@@ -4071,6 +4077,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }
     return 0;
   }
+
   function calculateMetagameDeckSynergy(deck, ratings) {
     return deck.reduce((total, character, targetIndex) => (
       total + deck.slice(0, targetIndex).reduce((pairTotal, sourceCharacter, sourceIndex) => (
@@ -4081,7 +4088,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       ), 0)
     ), 0);
   }
-  
+
   function metagameDeckStateScore(state, totalCost) {
     const averageScore = state.proxyTotal / Math.max(1, state.deck.length);
     const roleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.012 : 0;
@@ -4090,7 +4097,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
     return averageScore + state.synergyScore + roleBonus - state.budgetStrain - state.handoffRisk - earlyBudgetPressure * 0.18;
   }
-  
+
   function metagameTrimDeckBeam(states, width, totalCost) {
     const byId = new Map();
     for (const state of states) {
@@ -4126,7 +4133,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }
     return [...selected.values()];
   }
-  
+
   function metagameFixedSlots(fixedSlots) {
     const entries = fixedSlots instanceof Map
       ? [...fixedSlots.entries()]
@@ -4153,21 +4160,71 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }
     return fixedByPosition;
   }
-  function metagameConstraintWithFixedSlots(constraint, options = {}) {
+
+  function matchesMetagameFixedConstraint(character, constraint) {
+    if (!character || !resolveAttributeClass(character.attributes)) return false;
+    const allowedAttributes = new Set(constraint?.allowedAttributes ?? []);
+    if (allowedAttributes.size && !(character.attributes ?? []).some((attribute) => allowedAttributes.has(attribute))) return false;
+    return Math.max(0, Number(character.cost) || 0) <= Math.max(0, Number(constraint?.totalCost) || 0);
+  }
+
+  function metagameFixedFallbackRating(character) {
+    return {
+      id: String(character.id),
+      name: character.name,
+      attributes: character.attributes,
+      rarity: character.rarity,
+      cost: character.cost,
+      skillTurn: character.skillTurn,
+      skillType: character.skill?.type ?? "none",
+      skillName: character.skillName ?? "",
+      overallRank: Number.MAX_SAFE_INTEGER,
+      expectedWinRate: 0,
+      expectedWinLowerBound: 0,
+      balancedContribution: 0,
+      practicalValue: 0,
+      practicalSkillReliability: 0,
+      powerPreference: 0,
+      enemyPressureRate: 0,
+      combinationPotential: 0,
+      continuationWinGain: 0,
+      carriedContinuationWinGain: 0,
+      tacticalUpside: 0,
+      tacticalRisk: 0,
+      advantageCreation: 0,
+      counteraction: 0,
+      skillActivationRate: 0,
+    };
+  }
+
+  function metagameConstraintWithFixedSlots(constraint, characters, options = {}) {
     const fixedByPosition = metagameFixedSlots(options.fixedSlots);
     if (!fixedByPosition.size) return constraint;
+    const charactersById = new Map((characters ?? []).map((character) => [String(character.id), character]));
+    const ratingsById = new Map();
+    for (const slot of constraint?.slots ?? []) {
+      for (const rating of slot.candidates ?? []) {
+        if (!ratingsById.has(String(rating.id))) ratingsById.set(String(rating.id), rating);
+      }
+    }
     let fixedCost = 0;
     let fixedLegendCount = 0;
     const slots = (constraint?.slots ?? []).map((slot) => {
       const position = Number(slot.position);
       const fixedId = fixedByPosition.get(position);
       if (!fixedId) return slot;
-      const rating = slot.candidates.find((candidate) => String(candidate.id) === fixedId);
-      if (!rating) {
-        throw new Error(`${position}枠目に指定したキャラは、この環境の評価候補にありません。`);
+      const character = charactersById.get(fixedId);
+      if (!character) {
+        throw new Error(`${position}枠目に指定したキャラが見つかりません。`);
       }
-      fixedCost += Math.max(0, Number(rating.cost) || 0);
-      if (rating.rarity === "伝") fixedLegendCount += 1;
+      if (!matchesMetagameFixedConstraint(character, constraint)) {
+        throw new Error(`${position}枠目に指定したキャラは、選択中の属性・コスト縛りに合いません。`);
+      }
+      const rating = slot.candidates.find((candidate) => String(candidate.id) === fixedId)
+        ?? ratingsById.get(fixedId)
+        ?? metagameFixedFallbackRating(character);
+      fixedCost += Math.max(0, Number(character.cost) || 0);
+      if (character.rarity === "伝") fixedLegendCount += 1;
       return { ...slot, candidates: [rating] };
     });
     if (fixedCost > (Number(constraint?.totalCost) || 0)) {
@@ -4178,8 +4235,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }
     return { ...constraint, slots };
   }
+
   function buildMetagameDeckCandidates(constraint, characters, options = {}) {
-    constraint = metagameConstraintWithFixedSlots(constraint, options);
+    constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
     const totalCost = Number(constraint?.totalCost) || 0;
     const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
     const charactersById = new Map(characters.map((character) => [String(character.id), character]));
@@ -4191,7 +4249,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
       throw new Error("この縛りは5枠分の詳細評価データが揃っていません。");
     }
-  
+
     let states = [{
       deck: [],
       ids: new Set(),
@@ -4253,12 +4311,13 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       counterCount: state.counterCount,
     })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
   }
-  
+
   function metagameYieldToBrowser() {
     return new Promise((resolve) => setTimeout(resolve, 0));
   }
+
   async function buildMetagameDeckCandidatesWithProgress(constraint, characters, options = {}) {
-    constraint = metagameConstraintWithFixedSlots(constraint, options);
+    constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
     const totalCost = Number(constraint?.totalCost) || 0;
     const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
     const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
@@ -4271,6 +4330,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
       throw new Error("Metagame deck candidates require five populated slots.");
     }
+
     let states = [{
       deck: [],
       ids: new Set(),
@@ -4372,6 +4432,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       counterCount: state.counterCount,
     })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
   }
+
   function metagameSelectFinalists(candidates, limit) {
     const maximum = Math.min(candidates.length, Math.max(36, Number(limit) || 40));
     const selected = new Map();
@@ -4407,7 +4468,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }
     return [...selected.values()];
   }
-  
+
   function metagameProjectedWinValue(result) {
     if (result.outcome === "allies") return 1;
     if (result.outcome === "draw") return 0.5;
@@ -4424,7 +4485,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       : 0;
     return metagameDeckClampUnit(0.5 + (enemyProgress - allyProgress) * 0.35 + (allyHp - enemyHp) * 0.15);
   }
-  
+
   function metagameMeanLowerBound(values) {
     if (!values.length) return 0;
     const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -4432,13 +4493,13 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
     return metagameDeckClampUnit(mean - 1.96 * Math.sqrt(variance / values.length));
   }
-  
+
   function metagameAbortError() {
     const error = new Error("デッキシミュレーションを中止しました。");
     error.name = "AbortError";
     return error;
   }
-  
+
   function metagameHydrateEnvironment(constraint, charactersById) {
     return constraint.environmentScenarios.map((scenario) => scenario.map((deck) => deck.map((id) => {
       const character = charactersById.get(String(id));
@@ -4446,7 +4507,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       return character;
     })));
   }
-  
+
   async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, options) {
     const winValues = [];
     const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
@@ -4484,7 +4545,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       ongoingRate: outcomes.ongoing / Math.max(1, winValues.length),
     };
   }
-  
+
   async function findBestMetagameDeck(data, constraintId, characters, options = {}) {
     const constraint = data?.constraints?.find((entry) => entry.id === constraintId);
     if (!constraint) throw new Error("選択した縛りの調査データがありません。");
@@ -4544,7 +4605,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       results: evaluated.slice(0, 3),
     };
   }
-  
+
   //# sourceURL=src/core/metagame-deck.js
 
 
@@ -7861,34 +7922,37 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     
   
   //# sourceURL=src/ui/result.js
+
   function metagameUiElement(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
   }
-  
+
   function metagameUiPercent(value) {
     return `${(Number(value) * 100).toFixed(1)}%`;
   }
-  
+
   function metagameUiSigned(value) {
     const number = Number(value) || 0;
     return `${number >= 0 ? "+" : ""}${number.toFixed(2)}`;
   }
-  
+
   function metagameUiModelLabel(data) {
     const version = String(data.sourceModelVersion ?? "").match(/v\d+/i)?.[0]?.toUpperCase();
     return version ? `GitHub環境${version}` : data.sourceIsLegacy ? "旧評価" : "環境評価";
   }
-    function metagameUiCalculationState(status) {
+
+  function metagameUiCalculationState(status) {
     return {
       complete: "完了",
       in_progress: "計算中",
       paused: "一時停止",
     }[status] ?? "集計済み";
   }
-    function metagameUiDateTime(value) {
+
+  function metagameUiDateTime(value) {
     if (!value) return "取得日時なし";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "取得日時なし";
@@ -7898,7 +7962,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       timeZone: "Asia/Tokyo",
     }).format(date);
   }
-    function renderMetagameCalculationStatus(container, data) {
+
+  function renderMetagameCalculationStatus(container, data) {
     container.replaceChildren();
     const totalRuns = Number(data.sourceTotalRuns) || 0;
     const completedRuns = Number(data.sourceCompletedRuns) || 0;
@@ -7937,7 +8002,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     );
     container.append(heading, metrics, note, methodology);
   }
-    function metagameUiImpactReasons(character, rating, environment, deck) {
+
+  function metagameUiImpactReasons(character, rating, environment, deck) {
     const reasons = [
       `このキャラを${rating.scenarioCount}盤面で固定評価: 予測勝率 ${metagameUiPercent(rating.expectedWinRate)} / 信頼下限 ${metagameUiPercent(rating.expectedWinLowerBound)}`,
       `スキル有効時と無効時の勝率差 ${metagameUiSigned((Number(rating.skillWinGain) || 0) * 100)}pt / 実発動率 ${metagameUiPercent(rating.skillActivationRate)}`,
@@ -7968,7 +8034,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }
     return reasons;
   }
-  
+
   function metagameUiSlot(character, rating, position, environment, deck) {
     const card = metagameUiElement("article", "metagame-slot-card");
     const number = metagameUiElement("span", "metagame-slot-number", String(position));
@@ -7996,7 +8062,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     card.append(number, copy);
     return card;
   }
-  
+
   function metagameUiEnvironmentAudit(constraint) {
     const section = metagameUiElement("section", "metagame-environment-audit");
     const heading = metagameUiElement("div", "metagame-environment-heading");
@@ -8025,7 +8091,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     section.append(heading, grid);
     return section;
   }
-  
+
   function metagameUiResultCard(result, rank, constraint) {
     const card = metagameUiElement("article", `metagame-deck-result${rank === 1 ? " is-best" : ""}`);
     const header = metagameUiElement("header", "metagame-result-header");
@@ -8061,7 +8127,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     card.append(header, summary, slots);
     return card;
   }
-  
+
   function renderMetagameSimulatorResult(container, searchResult) {
     container.replaceChildren();
     const overview = metagameUiElement("section", "metagame-result-overview");
@@ -8082,7 +8148,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     note.textContent = "採用根拠は、そのキャラを対象枠へ固定した30盤面での差分です。完成デッキの予測勝率は、別途30環境へ再投入して比較しています。引き分けは0.5、12ターンで未決着の場合は残数と残HPから勝利見込みを算出します。";
     container.append(note);
   }
-  
+
   function renderSurveyedMetagameConstraints(container, constraints, selectedId) {
     container.replaceChildren();
     const heading = metagameUiElement("div", "metagame-surveyed-heading");
@@ -8127,7 +8193,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       message,
     ));
   }
-  
+
   function initializeMetagameSimulator(root, data, characters) {
     const form = root.querySelector("[data-metagame-form]");
     const select = form.elements.metagameConstraint;
@@ -8151,13 +8217,12 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const fixedPickerQuery = form.querySelector("[data-metagame-fixed-picker-query]");
     const fixedPickerSearchButton = form.querySelector("[data-metagame-fixed-picker-search]");
     const fixedPickerResults = form.querySelector("[data-metagame-fixed-picker-results]");
-    const charactersById = new Map(characters.map((character) => [String(character.id), character]));
     let fixedSlots = new Map();
     let fixedPickerPosition = null;
     let fixedPickerIndex = createCharacterSearchIndex([]);
     let fixedPickerSearchTimer = null;
     let abortController = null;
-  
+
     select.replaceChildren();
     for (const constraint of data.constraints) {
       const option = document.createElement("option");
@@ -8175,11 +8240,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
     );
     const selectedConstraint = () => data.constraints.find((entry) => entry.id === select.value);
-    const fixedSlotCandidates = (constraint, position) => (
-      constraint?.slots.find((entry) => Number(entry.position) === position)?.candidates
-        .map((rating) => charactersById.get(String(rating.id)))
-        .filter(Boolean) ?? []
-    );
+    const fixedSlotCandidates = (constraint) => characters.filter((character) => (
+      matchesMetagameFixedConstraint(character, constraint)
+    ));
     const renderFixedPickerMessage = (message) => {
       fixedPickerResults.replaceChildren(metagameUiElement("p", "metagame-fixed-picker-message", message));
     };
@@ -8198,7 +8261,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       }
       const response = searchCharacters(fixedPickerIndex, query, { limit: 24 });
       if (!response.total) {
-        renderFixedPickerMessage("この枠の評価候補には一致するキャラがありません。");
+        renderFixedPickerMessage("選択中の属性・コスト縛りに一致するキャラがありません。");
         return;
       }
       const list = metagameUiElement("div", "metagame-fixed-picker-results");
@@ -8229,19 +8292,19 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       fixedPickerResults.replaceChildren(list);
     };
     const openFixedPicker = (position) => {
-      const candidates = fixedSlotCandidates(selectedConstraint(), position);
+      const candidates = fixedSlotCandidates(selectedConstraint());
       if (!candidates.length) return;
       fixedPickerPosition = position;
       fixedPickerIndex = createCharacterSearchIndex(candidates);
       fixedPickerHeading.textContent = `${position}枠目の固定キャラを検索`;
       fixedPicker.hidden = false;
       fixedPickerQuery.value = "";
-      renderFixedPickerMessage(`${candidates.length.toLocaleString("ja-JP")}体の評価候補を、名前・属性・スキルで検索できます。`);
+      renderFixedPickerMessage(`${candidates.length.toLocaleString("ja-JP")}体の縛り一致キャラを、名前・属性・スキルで検索できます。スキルターンや枠別評価では絞り込みません。`);
       fixedPickerQuery.focus();
     };
     const renderFixedSlots = (constraint) => {
       for (const [position, character] of fixedSlots) {
-        if (!fixedSlotCandidates(constraint, position).some((entry) => String(entry.id) === String(character.id))) {
+        if (!fixedSlotCandidates(constraint).some((entry) => String(entry.id) === String(character.id))) {
           fixedSlots.delete(position);
         }
       }
@@ -8258,12 +8321,12 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         } else {
           card.append(
             metagameUiElement("strong", "", "自動選択"),
-            metagameUiElement("small", "", "この枠の候補をキャラ検索"),
+            metagameUiElement("small", "", "縛り一致キャラを検索"),
           );
         }
         const action = metagameUiElement("button", "", character ? "キャラを変更" : "キャラ検索");
         action.type = "button";
-        action.disabled = !fixedSlotCandidates(constraint, position).length || Boolean(abortController);
+        action.disabled = !fixedSlotCandidates(constraint).length || Boolean(abortController);
         action.addEventListener("click", () => {
           openFixedPicker(position);
         });
@@ -8310,7 +8373,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         ? "縛りを選び、「最高勝率デッキを計算」を押してください。"
         : "枠別メタ環境評価が1縛り分完了すると利用できます。",
     );
-  
+
     const setBusy = (busy) => {
       submitButton.disabled = busy || data.constraints.length === 0;
       select.disabled = busy;
@@ -8331,7 +8394,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         progressBar.style.width = "0%";
       }
     };
-  
+
     cancelButton.addEventListener("click", () => abortController?.abort());
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -8396,7 +8459,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       }
     });
   }
-  
+
   //# sourceURL=src/ui/metagame-simulator.js
 
 

@@ -4,6 +4,7 @@ import {
   buildMetagameDeckCandidates,
   calculateMetagameDeckSynergy,
   findBestMetagameDeck,
+  matchesMetagameFixedConstraint,
 } from "../src/core/metagame-deck.js";
 
 function metagameTestCharacter(id, cost, rarity = "R", power = 100) {
@@ -128,6 +129,23 @@ test("fixed slots remain in generated metagame decks", async () => {
   assert.ok(result.results.every((candidate) => (
     candidate.deck[0].id === fixedSlots[1] && candidate.deck[3].id === fixedSlots[4]
   )));
+});
+
+test("fixed slots accept every character matching the metagame attribute and cost constraint", () => {
+  const fixture = metagameTestFixture();
+  const fixedCharacter = fixture.characters.find((character) => character.id === "environment-1");
+  assert.ok(matchesMetagameFixedConstraint(fixedCharacter, fixture.constraint));
+
+  const candidates = buildMetagameDeckCandidates(
+    fixture.constraint,
+    fixture.characters,
+    { beamWidth: 100, fixedSlots: { 3: fixedCharacter.id } },
+  );
+  assert.ok(candidates.length > 0);
+  assert.ok(candidates.every((candidate) => candidate.deck[2].id === fixedCharacter.id));
+
+  const outsideConstraint = { ...fixedCharacter, attributes: ["water"] };
+  assert.equal(matchesMetagameFixedConstraint(outsideConstraint, fixture.constraint), false);
 });
 
 test("metagame simulator ranks complete decks by simulated win value", async () => {
