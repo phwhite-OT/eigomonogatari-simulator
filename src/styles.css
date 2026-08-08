@@ -317,9 +317,28 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-fixed-slots-heading button { padding: 6px 9px; border: 1px solid #cbd7ad; border-radius: 8px; background: #fff; color: #526128; font: inherit; font-size: 9px; font-weight: 800; white-space: nowrap; cursor: pointer; }
 .metagame-fixed-slots-heading button:disabled { cursor: wait; opacity: .6; }
 .metagame-fixed-slot-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
-.metagame-fixed-slot-grid label { display: grid; gap: 5px; min-width: 0; color: #66744a; font-size: 9px; font-weight: 800; }
-.metagame-fixed-slot-grid select { width: 100%; min-width: 0; padding: 8px; border: 1px solid #d5ddd0; border-radius: 8px; background: #fff; color: var(--ink); font: inherit; font-size: 9px; }
-.metagame-fixed-slot-grid select:disabled { cursor: wait; background: #f3f5ef; }
+.metagame-fixed-slot { display: grid; gap: 7px; min-width: 0; padding: 9px; border: 1px solid #d5ddd0; border-radius: 10px; background: #fff; }
+.metagame-fixed-slot > span { color: #66744a; font-size: 9px; font-weight: 900; }
+.metagame-fixed-slot strong, .metagame-fixed-slot small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-fixed-slot strong { color: var(--ink); font-size: 10px; }
+.metagame-fixed-slot small { color: #788174; font-size: 8px; }
+.metagame-fixed-slot button { width: 100%; padding: 6px; border: 1px solid #cbd7ad; border-radius: 7px; background: #f7faec; color: #526128; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-fixed-slot button:disabled { cursor: wait; opacity: .6; }
+.metagame-fixed-picker { margin-top: 12px; padding: 12px; border: 1px solid #cbd7ad; border-radius: 12px; background: #fbfdf5; }
+.metagame-fixed-picker[hidden] { display: none; }
+.metagame-fixed-picker header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.metagame-fixed-picker header strong { color: #526128; font-size: 11px; }
+.metagame-fixed-picker header button { width: 26px; height: 26px; padding: 0; border: 1px solid #cbd7ad; border-radius: 7px; background: #fff; color: #526128; font: inherit; font-size: 16px; cursor: pointer; }
+.metagame-fixed-picker-form { display: flex; gap: 8px; margin-top: 10px; }
+.metagame-fixed-picker-form input { min-width: 0; flex: 1; padding: 8px 10px; border: 1px solid #d5ddd0; border-radius: 8px; font: inherit; font-size: 10px; }
+.metagame-fixed-picker-form button { padding: 8px 11px; border: 0; border-radius: 8px; background: var(--ink); color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-fixed-picker-message { margin: 10px 0 0; color: #6e7b70; font-size: 9px; line-height: 1.6; }
+.metagame-fixed-picker-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.metagame-fixed-picker-result { display: grid; gap: 5px; min-width: 0; padding: 9px; border: 1px solid #dce2d3; border-radius: 9px; background: #fff; }
+.metagame-fixed-picker-result strong, .metagame-fixed-picker-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-fixed-picker-result strong { font-size: 10px; }
+.metagame-fixed-picker-result small { color: #788174; font-size: 8px; }
+.metagame-fixed-picker-result button { padding: 6px; border: 0; border-radius: 7px; background: #64772f; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
 .metagame-surveyed-constraints { margin-top: 16px; padding: 14px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
 .metagame-surveyed-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
 .metagame-surveyed-heading strong { color: #526128; font-size: 12px; }
@@ -384,6 +403,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .metagame-simulator-form { grid-template-columns: 1fr; }
   .metagame-simulator-form .button { width: 100%; }
   .metagame-fixed-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metagame-fixed-picker-results { grid-template-columns: 1fr; }
   .metagame-slot-list { grid-template-columns: 1fr 1fr; }
 }
 

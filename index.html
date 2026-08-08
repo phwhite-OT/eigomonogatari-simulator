@@ -733,16 +733,15 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
         <section class="metagame-fixed-slots" data-metagame-fixed-slots>
           <div class="metagame-fixed-slots-heading">
-            <div><strong>固定キャラ（任意）</strong><small>固定した枠以外だけを探索します。選べるのは選択中の環境で評価済みの候補です。</small></div>
+            <div><strong>固定キャラ（任意）</strong><small>キャラ検索から選び、固定した枠以外だけを探索します。選択中の環境・枠で評価済みの候補を検索できます。</small></div>
             <button type="button" data-metagame-fixed-clear>すべて解除</button>
           </div>
-          <div class="metagame-fixed-slot-grid">
-            <label><span>1枠目</span><select name="metagameFixedSlot1" data-metagame-fixed-slot="1"></select></label>
-            <label><span>2枠目</span><select name="metagameFixedSlot2" data-metagame-fixed-slot="2"></select></label>
-            <label><span>3枠目</span><select name="metagameFixedSlot3" data-metagame-fixed-slot="3"></select></label>
-            <label><span>4枠目</span><select name="metagameFixedSlot4" data-metagame-fixed-slot="4"></select></label>
-            <label><span>5枠目</span><select name="metagameFixedSlot5" data-metagame-fixed-slot="5"></select></label>
-          </div>
+          <div class="metagame-fixed-slot-grid" data-metagame-fixed-slot-list></div>
+          <section class="metagame-fixed-picker" data-metagame-fixed-picker hidden>
+            <header><strong data-metagame-fixed-picker-heading>固定キャラを検索</strong><button type="button" data-metagame-fixed-picker-close aria-label="キャラ検索を閉じる">×</button></header>
+            <div class="metagame-fixed-picker-form"><input type="search" name="metagameFixedQuery" data-metagame-fixed-picker-query placeholder="例: 火 回復 / 低コスト 蘇生"><button type="button" data-metagame-fixed-picker-search>検索</button></div>
+            <div data-metagame-fixed-picker-results></div>
+          </section>
         </section>
       </form>
       <section class="metagame-surveyed-constraints" data-metagame-surveyed-constraints aria-label="実装済みの環境"></section>
@@ -7627,14 +7626,14 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const version = String(data.sourceModelVersion ?? "").match(/v\d+/i)?.[0]?.toUpperCase();
     return version ? `GitHub環境${version}` : data.sourceIsLegacy ? "旧評価" : "環境評価";
   }
-  function metagameUiCalculationState(status) {
+    function metagameUiCalculationState(status) {
     return {
       complete: "完了",
       in_progress: "計算中",
       paused: "一時停止",
     }[status] ?? "集計済み";
   }
-  function metagameUiDateTime(value) {
+    function metagameUiDateTime(value) {
     if (!value) return "取得日時なし";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "取得日時なし";
@@ -7644,7 +7643,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       timeZone: "Asia/Tokyo",
     }).format(date);
   }
-  function renderMetagameCalculationStatus(container, data) {
+    function renderMetagameCalculationStatus(container, data) {
     container.replaceChildren();
     const totalRuns = Number(data.sourceTotalRuns) || 0;
     const completedRuns = Number(data.sourceCompletedRuns) || 0;
@@ -7683,7 +7682,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     );
     container.append(heading, metrics, note, methodology);
   }
-  function metagameUiImpactReasons(character, rating, environment, deck) {
+    function metagameUiImpactReasons(character, rating, environment, deck) {
     const reasons = [
       `このキャラを${rating.scenarioCount}盤面で固定評価: 予測勝率 ${metagameUiPercent(rating.expectedWinRate)} / 信頼下限 ${metagameUiPercent(rating.expectedWinLowerBound)}`,
       `スキル有効時と無効時の勝率差 ${metagameUiSigned((Number(rating.skillWinGain) || 0) * 100)}pt / 実発動率 ${metagameUiPercent(rating.skillActivationRate)}`,
@@ -7889,8 +7888,19 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const previewStatus = root.querySelector("[data-metagame-environment-preview-status]");
     const previewContent = root.querySelector("[data-metagame-environment-preview-content]");
     const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
-    const fixedSlotControls = [...form.querySelectorAll("[data-metagame-fixed-slot]")];
+    const fixedSlotList = form.querySelector("[data-metagame-fixed-slot-list]");
     const fixedClearButton = form.querySelector("[data-metagame-fixed-clear]");
+    const fixedPicker = form.querySelector("[data-metagame-fixed-picker]");
+    const fixedPickerHeading = form.querySelector("[data-metagame-fixed-picker-heading]");
+    const fixedPickerCloseButton = form.querySelector("[data-metagame-fixed-picker-close]");
+    const fixedPickerQuery = form.querySelector("[data-metagame-fixed-picker-query]");
+    const fixedPickerSearchButton = form.querySelector("[data-metagame-fixed-picker-search]");
+    const fixedPickerResults = form.querySelector("[data-metagame-fixed-picker-results]");
+    const charactersById = new Map(characters.map((character) => [String(character.id), character]));
+    let fixedSlots = new Map();
+    let fixedPickerPosition = null;
+    let fixedPickerIndex = createCharacterSearchIndex([]);
+    let fixedPickerSearchTimer = null;
     let abortController = null;
   
     select.replaceChildren();
@@ -7906,27 +7916,104 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       : "利用可能な調査済み環境がありません";
     renderMetagameCalculationStatus(calculationStatus, data);
     submitButton.disabled = data.constraints.length === 0;
-    const fixedSlots = () => Object.fromEntries(fixedSlotControls
-      .filter((control) => control.value)
-      .map((control) => [Number(control.dataset.metagameFixedSlot), control.value]));
+    const fixedSlotValues = () => Object.fromEntries(
+      [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
+    );
+    const selectedConstraint = () => data.constraints.find((entry) => entry.id === select.value);
+    const fixedSlotCandidates = (constraint, position) => (
+      constraint?.slots.find((entry) => Number(entry.position) === position)?.candidates
+        .map((rating) => charactersById.get(String(rating.id)))
+        .filter(Boolean) ?? []
+    );
+    const renderFixedPickerMessage = (message) => {
+      fixedPickerResults.replaceChildren(metagameUiElement("p", "metagame-fixed-picker-message", message));
+    };
+    const closeFixedPicker = () => {
+      fixedPicker.hidden = true;
+      fixedPickerPosition = null;
+      fixedPickerQuery.value = "";
+      fixedPickerResults.replaceChildren();
+    };
+    const renderFixedPickerResults = () => {
+      if (!fixedPickerPosition) return;
+      const query = fixedPickerQuery.value.trim();
+      if (!query) {
+        renderFixedPickerMessage("名前・属性・スキルなどで検索してください。例: 火 回復 / 低コスト 蘇生");
+        return;
+      }
+      const response = searchCharacters(fixedPickerIndex, query, { limit: 24 });
+      if (!response.total) {
+        renderFixedPickerMessage("この枠の評価候補には一致するキャラがありません。");
+        return;
+      }
+      const list = metagameUiElement("div", "metagame-fixed-picker-results");
+      for (const result of response.results) {
+        const character = result.character;
+        const card = metagameUiElement("article", "metagame-fixed-picker-result");
+        card.append(
+          metagameUiElement("strong", "", character.name),
+          metagameUiElement("small", "", `${attributeClassLabel(character.attributes)}・${character.rarity}・cost ${character.cost}・スキル${character.skillTurn}T`),
+        );
+        const choose = metagameUiElement("button", "", "この枠に固定");
+        choose.type = "button";
+        choose.addEventListener("click", () => {
+          const duplicate = [...fixedSlots.entries()].find(([position, entry]) => (
+            position !== fixedPickerPosition && String(entry.id) === String(character.id)
+          ));
+          if (duplicate) {
+            renderFixedPickerMessage(`${duplicate[0]}枠目ですでに固定されています。`);
+            return;
+          }
+          fixedSlots.set(fixedPickerPosition, character);
+          renderFixedSlots(selectedConstraint());
+          closeFixedPicker();
+        });
+        card.append(choose);
+        list.append(card);
+      }
+      fixedPickerResults.replaceChildren(list);
+    };
+    const openFixedPicker = (position) => {
+      const candidates = fixedSlotCandidates(selectedConstraint(), position);
+      if (!candidates.length) return;
+      fixedPickerPosition = position;
+      fixedPickerIndex = createCharacterSearchIndex(candidates);
+      fixedPickerHeading.textContent = `${position}枠目の固定キャラを検索`;
+      fixedPicker.hidden = false;
+      fixedPickerQuery.value = "";
+      renderFixedPickerMessage(`${candidates.length.toLocaleString("ja-JP")}体の評価候補を、名前・属性・スキルで検索できます。`);
+      fixedPickerQuery.focus();
+    };
     const renderFixedSlots = (constraint) => {
-      const selected = new Map(fixedSlotControls.map((control) => [
-        Number(control.dataset.metagameFixedSlot),
-        control.value,
-      ]));
-      for (const control of fixedSlotControls) {
-        const position = Number(control.dataset.metagameFixedSlot);
-        const slot = constraint?.slots.find((entry) => Number(entry.position) === position);
-        control.replaceChildren(new Option("自動選択（固定なし）", ""));
-        for (const rating of slot?.candidates ?? []) {
-          const option = new Option(
-            `${rating.name} · cost ${rating.cost} · スキル${rating.skillTurn}T`,
-            String(rating.id),
-          );
-          option.selected = String(rating.id) === selected.get(position);
-          control.append(option);
+      for (const [position, character] of fixedSlots) {
+        if (!fixedSlotCandidates(constraint, position).some((entry) => String(entry.id) === String(character.id))) {
+          fixedSlots.delete(position);
         }
-        control.disabled = !slot || Boolean(abortController);
+      }
+      fixedSlotList.replaceChildren();
+      for (let position = 1; position <= 5; position += 1) {
+        const character = fixedSlots.get(position);
+        const card = metagameUiElement("article", "metagame-fixed-slot");
+        card.append(metagameUiElement("span", "", `${position}枠目`));
+        if (character) {
+          card.append(
+            metagameUiElement("strong", "", character.name),
+            metagameUiElement("small", "", `${attributeClassLabel(character.attributes)}・cost ${character.cost}・スキル${character.skillTurn}T`),
+          );
+        } else {
+          card.append(
+            metagameUiElement("strong", "", "自動選択"),
+            metagameUiElement("small", "", "この枠の候補をキャラ検索"),
+          );
+        }
+        const action = metagameUiElement("button", "", character ? "キャラを変更" : "キャラ検索");
+        action.type = "button";
+        action.disabled = !fixedSlotCandidates(constraint, position).length || Boolean(abortController);
+        action.addEventListener("click", () => {
+          openFixedPicker(position);
+        });
+        card.append(action);
+        fixedSlotList.append(card);
       }
     };
     const updateEnvironmentPreview = () => {
@@ -7941,7 +8028,20 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     updateEnvironmentPreview();
     select.addEventListener("change", updateEnvironmentPreview);
     fixedClearButton.addEventListener("click", () => {
-      fixedSlotControls.forEach((control) => { control.value = ""; });
+      fixedSlots.clear();
+      closeFixedPicker();
+      renderFixedSlots(selectedConstraint());
+    });
+    fixedPickerCloseButton.addEventListener("click", closeFixedPicker);
+    fixedPickerSearchButton.addEventListener("click", renderFixedPickerResults);
+    fixedPickerQuery.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      renderFixedPickerResults();
+    });
+    fixedPickerQuery.addEventListener("input", () => {
+      clearTimeout(fixedPickerSearchTimer);
+      fixedPickerSearchTimer = setTimeout(renderFixedPickerResults, 120);
     });
     surveyedConstraints.addEventListener("click", (event) => {
       const button = event.target.closest("[data-metagame-surveyed-constraint]");
@@ -7959,8 +8059,12 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const setBusy = (busy) => {
       submitButton.disabled = busy || data.constraints.length === 0;
       select.disabled = busy;
-      fixedSlotControls.forEach((control) => { control.disabled = busy; });
+      fixedSlotList.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
       fixedClearButton.disabled = busy;
+      fixedPickerCloseButton.disabled = busy;
+      fixedPickerSearchButton.disabled = busy;
+      fixedPickerQuery.disabled = busy;
+      if (busy) closeFixedPicker();
       surveyedConstraints.querySelectorAll("[data-metagame-surveyed-constraint]").forEach((button) => {
         button.disabled = busy;
       });
@@ -7982,7 +8086,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       try {
         const searchResult = await findBestMetagameDeck(data, select.value, characters, {
           signal: abortController.signal,
-          fixedSlots: fixedSlots(),
+          fixedSlots: fixedSlotValues(),
           onProgress: ({
             phase,
             completed,
@@ -8039,6 +8143,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   }
   
   //# sourceURL=src/ui/metagame-simulator.js
+
 
 
 

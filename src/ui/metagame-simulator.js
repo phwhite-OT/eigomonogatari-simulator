@@ -1,5 +1,6 @@
 import { attributeClassLabel } from "../data/rules.js";
 import { findBestMetagameDeck } from "../core/metagame-deck.js";
+import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
 
 function metagameUiElement(tag, className, text) {
   const node = document.createElement(tag);
@@ -287,8 +288,19 @@ export function initializeMetagameSimulator(root, data, characters) {
   const previewStatus = root.querySelector("[data-metagame-environment-preview-status]");
   const previewContent = root.querySelector("[data-metagame-environment-preview-content]");
   const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
-  const fixedSlotControls = [...form.querySelectorAll("[data-metagame-fixed-slot]")];
+  const fixedSlotList = form.querySelector("[data-metagame-fixed-slot-list]");
   const fixedClearButton = form.querySelector("[data-metagame-fixed-clear]");
+  const fixedPicker = form.querySelector("[data-metagame-fixed-picker]");
+  const fixedPickerHeading = form.querySelector("[data-metagame-fixed-picker-heading]");
+  const fixedPickerCloseButton = form.querySelector("[data-metagame-fixed-picker-close]");
+  const fixedPickerQuery = form.querySelector("[data-metagame-fixed-picker-query]");
+  const fixedPickerSearchButton = form.querySelector("[data-metagame-fixed-picker-search]");
+  const fixedPickerResults = form.querySelector("[data-metagame-fixed-picker-results]");
+  const charactersById = new Map(characters.map((character) => [String(character.id), character]));
+  let fixedSlots = new Map();
+  let fixedPickerPosition = null;
+  let fixedPickerIndex = createCharacterSearchIndex([]);
+  let fixedPickerSearchTimer = null;
   let abortController = null;
 
   select.replaceChildren();
@@ -304,27 +316,104 @@ export function initializeMetagameSimulator(root, data, characters) {
     : "利用可能な調査済み環境がありません";
   renderMetagameCalculationStatus(calculationStatus, data);
   submitButton.disabled = data.constraints.length === 0;
-  const fixedSlots = () => Object.fromEntries(fixedSlotControls
-    .filter((control) => control.value)
-    .map((control) => [Number(control.dataset.metagameFixedSlot), control.value]));
+  const fixedSlotValues = () => Object.fromEntries(
+    [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
+  );
+  const selectedConstraint = () => data.constraints.find((entry) => entry.id === select.value);
+  const fixedSlotCandidates = (constraint, position) => (
+    constraint?.slots.find((entry) => Number(entry.position) === position)?.candidates
+      .map((rating) => charactersById.get(String(rating.id)))
+      .filter(Boolean) ?? []
+  );
+  const renderFixedPickerMessage = (message) => {
+    fixedPickerResults.replaceChildren(metagameUiElement("p", "metagame-fixed-picker-message", message));
+  };
+  const closeFixedPicker = () => {
+    fixedPicker.hidden = true;
+    fixedPickerPosition = null;
+    fixedPickerQuery.value = "";
+    fixedPickerResults.replaceChildren();
+  };
+  const renderFixedPickerResults = () => {
+    if (!fixedPickerPosition) return;
+    const query = fixedPickerQuery.value.trim();
+    if (!query) {
+      renderFixedPickerMessage("名前・属性・スキルなどで検索してください。例: 火 回復 / 低コスト 蘇生");
+      return;
+    }
+    const response = searchCharacters(fixedPickerIndex, query, { limit: 24 });
+    if (!response.total) {
+      renderFixedPickerMessage("この枠の評価候補には一致するキャラがありません。");
+      return;
+    }
+    const list = metagameUiElement("div", "metagame-fixed-picker-results");
+    for (const result of response.results) {
+      const character = result.character;
+      const card = metagameUiElement("article", "metagame-fixed-picker-result");
+      card.append(
+        metagameUiElement("strong", "", character.name),
+        metagameUiElement("small", "", `${attributeClassLabel(character.attributes)}・${character.rarity}・cost ${character.cost}・スキル${character.skillTurn}T`),
+      );
+      const choose = metagameUiElement("button", "", "この枠に固定");
+      choose.type = "button";
+      choose.addEventListener("click", () => {
+        const duplicate = [...fixedSlots.entries()].find(([position, entry]) => (
+          position !== fixedPickerPosition && String(entry.id) === String(character.id)
+        ));
+        if (duplicate) {
+          renderFixedPickerMessage(`${duplicate[0]}枠目ですでに固定されています。`);
+          return;
+        }
+        fixedSlots.set(fixedPickerPosition, character);
+        renderFixedSlots(selectedConstraint());
+        closeFixedPicker();
+      });
+      card.append(choose);
+      list.append(card);
+    }
+    fixedPickerResults.replaceChildren(list);
+  };
+  const openFixedPicker = (position) => {
+    const candidates = fixedSlotCandidates(selectedConstraint(), position);
+    if (!candidates.length) return;
+    fixedPickerPosition = position;
+    fixedPickerIndex = createCharacterSearchIndex(candidates);
+    fixedPickerHeading.textContent = `${position}枠目の固定キャラを検索`;
+    fixedPicker.hidden = false;
+    fixedPickerQuery.value = "";
+    renderFixedPickerMessage(`${candidates.length.toLocaleString("ja-JP")}体の評価候補を、名前・属性・スキルで検索できます。`);
+    fixedPickerQuery.focus();
+  };
   const renderFixedSlots = (constraint) => {
-    const selected = new Map(fixedSlotControls.map((control) => [
-      Number(control.dataset.metagameFixedSlot),
-      control.value,
-    ]));
-    for (const control of fixedSlotControls) {
-      const position = Number(control.dataset.metagameFixedSlot);
-      const slot = constraint?.slots.find((entry) => Number(entry.position) === position);
-      control.replaceChildren(new Option("自動選択（固定なし）", ""));
-      for (const rating of slot?.candidates ?? []) {
-        const option = new Option(
-          `${rating.name} · cost ${rating.cost} · スキル${rating.skillTurn}T`,
-          String(rating.id),
-        );
-        option.selected = String(rating.id) === selected.get(position);
-        control.append(option);
+    for (const [position, character] of fixedSlots) {
+      if (!fixedSlotCandidates(constraint, position).some((entry) => String(entry.id) === String(character.id))) {
+        fixedSlots.delete(position);
       }
-      control.disabled = !slot || Boolean(abortController);
+    }
+    fixedSlotList.replaceChildren();
+    for (let position = 1; position <= 5; position += 1) {
+      const character = fixedSlots.get(position);
+      const card = metagameUiElement("article", "metagame-fixed-slot");
+      card.append(metagameUiElement("span", "", `${position}枠目`));
+      if (character) {
+        card.append(
+          metagameUiElement("strong", "", character.name),
+          metagameUiElement("small", "", `${attributeClassLabel(character.attributes)}・cost ${character.cost}・スキル${character.skillTurn}T`),
+        );
+      } else {
+        card.append(
+          metagameUiElement("strong", "", "自動選択"),
+          metagameUiElement("small", "", "この枠の候補をキャラ検索"),
+        );
+      }
+      const action = metagameUiElement("button", "", character ? "キャラを変更" : "キャラ検索");
+      action.type = "button";
+      action.disabled = !fixedSlotCandidates(constraint, position).length || Boolean(abortController);
+      action.addEventListener("click", () => {
+        openFixedPicker(position);
+      });
+      card.append(action);
+      fixedSlotList.append(card);
     }
   };
   const updateEnvironmentPreview = () => {
@@ -339,7 +428,20 @@ export function initializeMetagameSimulator(root, data, characters) {
   updateEnvironmentPreview();
   select.addEventListener("change", updateEnvironmentPreview);
   fixedClearButton.addEventListener("click", () => {
-    fixedSlotControls.forEach((control) => { control.value = ""; });
+    fixedSlots.clear();
+    closeFixedPicker();
+    renderFixedSlots(selectedConstraint());
+  });
+  fixedPickerCloseButton.addEventListener("click", closeFixedPicker);
+  fixedPickerSearchButton.addEventListener("click", renderFixedPickerResults);
+  fixedPickerQuery.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    renderFixedPickerResults();
+  });
+  fixedPickerQuery.addEventListener("input", () => {
+    clearTimeout(fixedPickerSearchTimer);
+    fixedPickerSearchTimer = setTimeout(renderFixedPickerResults, 120);
   });
   surveyedConstraints.addEventListener("click", (event) => {
     const button = event.target.closest("[data-metagame-surveyed-constraint]");
@@ -357,8 +459,12 @@ export function initializeMetagameSimulator(root, data, characters) {
   const setBusy = (busy) => {
     submitButton.disabled = busy || data.constraints.length === 0;
     select.disabled = busy;
-    fixedSlotControls.forEach((control) => { control.disabled = busy; });
+    fixedSlotList.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
     fixedClearButton.disabled = busy;
+    fixedPickerCloseButton.disabled = busy;
+    fixedPickerSearchButton.disabled = busy;
+    fixedPickerQuery.disabled = busy;
+    if (busy) closeFixedPicker();
     surveyedConstraints.querySelectorAll("[data-metagame-surveyed-constraint]").forEach((button) => {
       button.disabled = busy;
     });
@@ -380,7 +486,7 @@ export function initializeMetagameSimulator(root, data, characters) {
     try {
       const searchResult = await findBestMetagameDeck(data, select.value, characters, {
         signal: abortController.signal,
-        fixedSlots: fixedSlots(),
+        fixedSlots: fixedSlotValues(),
         onProgress: ({
           phase,
           completed,

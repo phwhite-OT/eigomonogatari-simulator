@@ -65,16 +65,15 @@
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
         <section class="metagame-fixed-slots" data-metagame-fixed-slots>
           <div class="metagame-fixed-slots-heading">
-            <div><strong>固定キャラ（任意）</strong><small>固定した枠以外だけを探索します。選べるのは選択中の環境で評価済みの候補です。</small></div>
+            <div><strong>固定キャラ（任意）</strong><small>キャラ検索から選び、固定した枠以外だけを探索します。選択中の環境・枠で評価済みの候補を検索できます。</small></div>
             <button type="button" data-metagame-fixed-clear>すべて解除</button>
           </div>
-          <div class="metagame-fixed-slot-grid">
-            <label><span>1枠目</span><select name="metagameFixedSlot1" data-metagame-fixed-slot="1"></select></label>
-            <label><span>2枠目</span><select name="metagameFixedSlot2" data-metagame-fixed-slot="2"></select></label>
-            <label><span>3枠目</span><select name="metagameFixedSlot3" data-metagame-fixed-slot="3"></select></label>
-            <label><span>4枠目</span><select name="metagameFixedSlot4" data-metagame-fixed-slot="4"></select></label>
-            <label><span>5枠目</span><select name="metagameFixedSlot5" data-metagame-fixed-slot="5"></select></label>
-          </div>
+          <div class="metagame-fixed-slot-grid" data-metagame-fixed-slot-list></div>
+          <section class="metagame-fixed-picker" data-metagame-fixed-picker hidden>
+            <header><strong data-metagame-fixed-picker-heading>固定キャラを検索</strong><button type="button" data-metagame-fixed-picker-close aria-label="キャラ検索を閉じる">×</button></header>
+            <div class="metagame-fixed-picker-form"><input type="search" name="metagameFixedQuery" data-metagame-fixed-picker-query placeholder="例: 火 回復 / 低コスト 蘇生"><button type="button" data-metagame-fixed-picker-search>検索</button></div>
+            <div data-metagame-fixed-picker-results></div>
+          </section>
         </section>
       </form>
       <section class="metagame-surveyed-constraints" data-metagame-surveyed-constraints aria-label="実装済みの環境"></section>
