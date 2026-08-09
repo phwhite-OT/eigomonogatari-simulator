@@ -37,6 +37,10 @@
 
     npm run build
 
+## v7 fixed-environment evaluation
+
+Fire / cost 100 is evaluated by `.github/workflows/metagame-v7-cloud.yml`. It saves resumable progress to the `metagame-v7-results` branch at `reports/metagame-ratings-v7/fire-100/progress.json`, then writes `report.json` and `report.csv` after all five positions finish.
+
 ## 注意
 
 - GitHubホステッドランナーは、PCをスリープしても計算を続行します。

@@ -16,7 +16,16 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
+const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
+  Object.freeze({
+    type: "v7",
+    statusPath: "reports/metagame-ratings-v7/fire-100/progress.json",
+    reportPath: "reports/metagame-ratings-v7/fire-100/report.json",
+    reportRoot: "reports/metagame-ratings-v7",
+    requiredModelVersion: METAGAME_V7_MODEL_VERSION,
+    legacy: false,
+  }),
   Object.freeze({
     statusPath: "reports/metagame-v6-batch-status.json",
     reportRoot: "reports/metagame-ratings-v6",
@@ -62,7 +71,48 @@ function completedMetagameConstraints(status) {
   return completedConstraints;
 }
 
+function v7CompletedRunCount(progress) {
+  return (progress.resultsByPosition ?? []).filter((ratings, index) => (
+    ratings.length > 0 && ratings.length >= (progress.context?.candidateIdsByPosition?.[index]?.length ?? Infinity)
+  )).length;
+}
+
+async function readMetagameV7Source(projectRoot, source) {
+  const statusPath = path.resolve(projectRoot, source.statusPath);
+  const reportPath = path.resolve(projectRoot, source.reportPath);
+  try {
+    const progress = await readMetagameJson(statusPath);
+    const status = {
+      status: progress.status ?? "unknown",
+      updatedAt: progress.updatedAt ?? null,
+      completedRuns: v7CompletedRunCount(progress),
+      totalRuns: 5,
+      config: { modelVersion: progress.context?.version ?? "unknown", passes: 1 },
+    };
+    const modelCompatible = status.config.modelVersion === source.requiredModelVersion;
+    const complete = modelCompatible && progress.status === "complete";
+    const report = complete ? await readMetagameJson(reportPath) : null;
+    if (report && report.model?.version !== source.requiredModelVersion) {
+      throw new Error(`v7 report model mismatch: ${report.model?.version ?? "unknown"}`);
+    }
+    return {
+      ...source,
+      statusPath,
+      reportPath,
+      reportRoot: path.resolve(projectRoot, source.reportRoot),
+      status,
+      report,
+      modelCompatible,
+      completedConstraints: complete && report ? [report] : [],
+    };
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return null;
+  }
+}
+
 async function readMetagameSource(projectRoot, source) {
+  if (source.type === "v7") return readMetagameV7Source(projectRoot, source);
   const statusPath = path.resolve(projectRoot, source.statusPath);
   try {
     const status = await readMetagameJson(statusPath);
@@ -160,6 +210,100 @@ function metagameEnvironmentScenarios(decks) {
   return scenarios;
 }
 
+function compactMetagameV7Candidate(entry, character) {
+  const skill = character?.skill ?? {};
+  const duration = Math.max(1, Number(skill.duration) || 1);
+  const defenseTypes = new Set(["damage_reduction", "guard", "attribute_guard", "heal", "revive"]);
+  const attackTypes = new Set(["single_attack", "aoe_attack", "attack_buff", "multi_hit_attack"]);
+  return {
+    id: String(entry.id),
+    name: entry.name,
+    attributes: entry.attributes,
+    rarity: entry.rarity,
+    cost: entry.cost,
+    skillTurn: entry.skillTurn,
+    skillType: entry.skillType,
+    skillName: entry.skillName,
+    overallRank: entry.rank ?? null,
+    scenarioCount: entry.bestDeck?.scenarioCount ?? 0,
+    expectedWinRate: entry.bestDeck?.expectedWinRate ?? 0,
+    expectedWinLowerBound: entry.bestDeck?.expectedWinLowerBound ?? 0,
+    baselineExpectedWinRate: entry.bestDeck?.expectedWinRate ?? 0,
+    skillWinGain: 0,
+    allyRetentionRate: 0,
+    enemyPressureRate: 0,
+    balancedContribution: 0,
+    practicalValue: entry.bestDeck?.expectedWinRate ?? 0,
+    practicalSkillReliability: skill.type && skill.type !== "none" ? 1 : 0,
+    powerPreference: 0,
+    combinationPotential: duration > 1 ? Math.min(1, (duration - 1) / 4) : 0,
+    tacticalUpside: attackTypes.has(skill.type) ? 0.5 : 0,
+    tacticalRisk: 0,
+    carriedDefenseRate: defenseTypes.has(skill.type) && duration > 1 ? 0.5 : 0,
+    continuationWinGain: duration > 1 ? 0.25 : 0,
+    carriedContinuationWinGain: duration > 1 ? 0.25 : 0,
+    strategicClass: "v7-fixed-environment",
+    advantageCreation: defenseTypes.has(skill.type) ? 0.5 : 0,
+    counteraction: attackTypes.has(skill.type) ? 0.5 : 0,
+    allyPreservationNet: 0,
+    enemyRemovalNet: 0,
+    skillActivationRate: skill.type && skill.type !== "none" ? 1 : 0,
+    v7BestDeck: entry.bestDeck ?? null,
+    v7ExampleDeck: entry.exampleDeck ?? null,
+  };
+}
+
+function v7EnvironmentPools(report) {
+  if (report.environmentPools?.length === 5) return report.environmentPools;
+  return [0, 1, 2, 3, 4].map((index) => {
+    const seen = new Set();
+    return report.environmentDecks.reduce((pool, deck) => {
+      const entry = deck[index];
+      if (entry && !seen.has(String(entry.id))) {
+        seen.add(String(entry.id));
+        pool.push(entry);
+      }
+      return pool;
+    }, []);
+  });
+}
+
+export function buildMetagameV7Constraint(report, charactersById) {
+  const rankings = new Map((report.rankingsByPosition ?? []).map((slot) => [Number(slot.position), slot]));
+  const pools = v7EnvironmentPools(report);
+  return {
+    id: report.context?.inputId ?? "fire:100",
+    attributeKey: (report.context?.allowedAttributes ?? []).join("-"),
+    label: report.context?.label ?? "火・コスト100",
+    allowedAttributes: report.context?.allowedAttributes ?? [],
+    totalCost: Number(report.context?.totalCost) || 100,
+    turns: Number(report.context?.turns) || 12,
+    scenarioCount: Number(report.context?.environmentCount) || report.environmentDecks?.length || 0,
+    modelVersion: report.model?.version ?? "unknown",
+    reportGeneratedAt: report.generatedAt ?? null,
+    slots: [1, 2, 3, 4, 5].map((position) => ({
+      position,
+      candidates: (rankings.get(position)?.characters ?? []).map((entry) => (
+        compactMetagameV7Candidate(entry, charactersById.get(String(entry.id)))
+      )),
+      environment: (pools[position - 1] ?? []).map((entry) => {
+        const character = charactersById.get(String(entry.id));
+        return {
+          id: String(entry.id),
+          name: entry.name ?? character?.name ?? String(entry.id),
+          attributes: character?.attributes ?? [],
+          rarity: character?.rarity ?? "unknown",
+          cost: entry.cost ?? character?.cost ?? null,
+          battleRank: null,
+          usageRank: null,
+          projectedUsageShare: 1 / Math.max(1, (pools[position - 1] ?? []).length),
+        };
+      }),
+    })),
+    environmentScenarios: metagameEnvironmentScenarios(report.environmentDecks ?? []),
+  };
+}
+
 async function buildMetagameConstraint(config, charactersById, seed, reportRoot) {
   const attributeKey = config.allowedAttributes.join("-");
   const reportDirectory = path.join(reportRoot, attributeKey);
@@ -226,13 +370,17 @@ export async function buildMetagameSimulatorData(options = {}) {
   const { status, completedConstraints } = source;
   const charactersById = new Map(WORKBOOK_CHARACTERS.map((character) => [String(character.id), character]));
   const constraints = [];
-  for (let index = 0; index < completedConstraints.length; index += 1) {
-    constraints.push(await buildMetagameConstraint(
-      completedConstraints[index],
-      charactersById,
-      7301 + index * 100003,
-      source.reportRoot,
-    ));
+  if (source.type === "v7") {
+    constraints.push(buildMetagameV7Constraint(source.report, charactersById));
+  } else {
+    for (let index = 0; index < completedConstraints.length; index += 1) {
+      constraints.push(await buildMetagameConstraint(
+        completedConstraints[index],
+        charactersById,
+        7301 + index * 100003,
+        source.reportRoot,
+      ));
+    }
   }
   const data = {
     generatedAt: new Date().toISOString(),
