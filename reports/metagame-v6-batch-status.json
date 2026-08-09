@@ -1,7 +1,7 @@
 {
   "status": "running",
   "startedAt": "2026-08-07T13:06:05.100Z",
-  "updatedAt": "2026-08-08T22:11:09.538Z",
+  "updatedAt": "2026-08-09T02:27:01.357Z",
   "config": {
     "attributeGroups": [
       [
@@ -51,12 +51,14 @@
     "turns": 12,
     "workers": 6,
     "fallbackWorkers": 1,
+    "checkpointInterval": 2,
+    "timeBudgetSeconds": 0,
     "outputRoot": "reports/metagame-ratings-v6",
     "priorOutputRoot": "",
     "modelVersion": "iterative-metagame-v6-continuation-decks"
   },
   "totalRuns": 280,
-  "completedRuns": 69,
+  "completedRuns": 73,
   "completedTaskIds": [
     "1:fire:100:1",
     "1:fire:100:2",
@@ -126,20 +128,22 @@
     "2:fire-water-wind:100:5",
     "2:fire-water-wind:100:4",
     "2:fire-water-wind:100:3",
-    "2:fire-water-wind:100:2"
+    "2:fire-water-wind:100:2",
+    "2:fire-water-wind:100:1",
+    "1:fire:200:1",
+    "1:fire:200:2",
+    "1:fire:200:3"
   ],
   "recoveredTaskIds": [],
   "current": {
     "allowedAttributes": [
-      "fire",
-      "water",
-      "wind"
+      "fire"
     ],
-    "attributeKey": "fire-water-wind",
-    "cost": 100,
-    "position": 1,
-    "pass": 2,
-    "constraintId": "fire-water-wind:100",
-    "id": "2:fire-water-wind:100:1"
+    "attributeKey": "fire",
+    "cost": 200,
+    "position": 4,
+    "pass": 1,
+    "constraintId": "fire:200",
+    "id": "1:fire:200:4"
   }
 }
