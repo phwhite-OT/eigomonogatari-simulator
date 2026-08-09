@@ -26,6 +26,7 @@ import { initializeLightest } from "./ui/lightest.js";
 import { initializeCharacterSearch } from "./ui/character-search.js";
 import { initializeCharacterEditor } from "./ui/character-editor.js";
 import { initializeAppTabs } from "./ui/tabs.js";
+import { initializeSupabaseAuth } from "./auth/supabase-auth.js";
 
 const MANUAL_CHARACTERS_STORAGE_KEY = "eigo-deck-compass.manual-characters.v1";
 
@@ -55,6 +56,7 @@ function combineCharacters(baseCharacters, manualCharacters) {
   });
 }
 function bootstrap() {
+  void initializeSupabaseAuth();
   const form = document.querySelector("[data-search-form]");
   const dataSummary = document.querySelector("[data-data-summary]");
   const resultRoot = document.querySelector("[data-results]");

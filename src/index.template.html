@@ -16,7 +16,14 @@
       <span class="brand-mark">DC</span>
       <span><strong>DECK COMPASS</strong><small>英語物語 対戦デッキ推薦</small></span>
     </a>
-    <span class="version-badge"><i></i> prototype v0.1</span>
+    <div class="header-actions">
+      <span class="version-badge"><i></i> prototype v0.1</span>
+      <div class="auth-controls" data-auth-root>
+        <span class="auth-status" data-auth-status aria-live="polite">ログイン状態を確認中…</span>
+        <button class="auth-button" type="button" data-auth-open>ログイン</button>
+        <button class="auth-button auth-button-logout" type="button" data-auth-logout hidden>ログアウト</button>
+      </div>
+    </div>
   </header>
 
   <main id="top">
@@ -362,6 +369,25 @@
   </main>
 
 
+  <dialog class="auth-dialog" data-auth-dialog aria-labelledby="auth-dialog-title">
+    <section class="auth-dialog-content">
+      <header class="auth-dialog-heading">
+        <div><span class="eyebrow">ACCOUNT</span><h2 id="auth-dialog-title">ログイン</h2></div>
+        <button class="auth-dialog-close" type="button" data-auth-close aria-label="閉じる">×</button>
+      </header>
+      <form class="auth-form" data-auth-form novalidate>
+        <label><span>メールアドレス</span><input type="email" data-auth-email autocomplete="email" required></label>
+        <label><span>パスワード</span><input type="password" data-auth-password autocomplete="current-password" minlength="6" required></label>
+        <p class="auth-message" data-auth-message role="status" aria-live="polite"></p>
+        <div class="auth-actions">
+          <button class="button button-primary" type="submit" data-auth-login>ログイン</button>
+          <button class="button button-ghost" type="button" data-auth-signup>新規登録</button>
+        </div>
+        <p class="auth-help">新規登録後は、届いた確認メールのリンクを開いてからログインしてください。</p>
+      </form>
+    </section>
+  </dialog>
+
   <dialog class="character-editor-dialog" data-character-editor>
     <form class="character-editor-form" data-character-editor-form>
       <header class="character-editor-heading">
@@ -429,6 +455,7 @@
     <span>DECK COMPASS / PROTOTYPE 0.1</span>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
 //__INLINE_SCRIPT__
   </script>

@@ -15,6 +15,7 @@ const sourceFiles = [
   "src/core/skills.js",
   "src/core/simulate.js",
   "src/core/evaluate.js",
+  "src/core/environment-rating.js",
   "src/core/search-fast.js",
   "src/core/metagame-deck.js",
   "src/core/lightest-exact.js",
@@ -27,6 +28,7 @@ const sourceFiles = [
   "src/ui/character-search.js",
   "src/ui/character-editor.js",
   "src/ui/tabs.js",
+  "src/auth/supabase-auth.js",
   "src/app.js",
 ];
 
