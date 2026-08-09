@@ -22,14 +22,8 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Build public site
+      - name: Prepare public site
         run: |
-          npm run build
           mkdir -p _site
           cp index.html _site/index.html
 
