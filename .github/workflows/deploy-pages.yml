@@ -27,6 +27,23 @@ jobs:
           mkdir -p _site
           cp index.html _site/index.html
 
+      - name: Enable GitHub Pages
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          response_file="$(mktemp)"
+          status="$(curl --silent --show-error --output "$response_file" --write-out "%{http_code}" \
+            --request POST \
+            --url "${{ github.api_url }}/repos/${{ github.repository }}/pages" \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            --data '{"build_type":"workflow"}')"
+          if [ "$status" = "201" ] || [ "$status" = "409" ]; then exit 0; fi
+          cat "$response_file" >&2
+          exit 1
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
