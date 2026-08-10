@@ -44,11 +44,20 @@ jobs:
         name: Select incomplete fixed environments
         shell: bash
         run: |
-          git fetch origin metagame-v7-results || true
+          # The results branch is force-updated after each segment.  Fetch it
+          # into the tracking ref explicitly; `git fetch origin <branch>` only
+          # updates FETCH_HEAD and leaves origin/metagame-v7-results stale.
+          results_ref="refs/remotes/origin/metagame-v7-results"
+          remote_result="$(git ls-remote --heads origin metagame-v7-results)"
+          if [ -n "$remote_result" ]; then
+            git fetch --no-tags origin "+refs/heads/metagame-v7-results:$results_ref"
+          fi
           is_complete() {
             local progress_path="$1"
-            git show "origin/metagame-v7-results:$progress_path" 2>/dev/null | grep -q '"status": "complete"' && \
-              git show "origin/metagame-v7-results:$progress_path" 2>/dev/null | grep -q '"version": "fixed-environment-v7.4"'
+            local progress
+            progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
+            jq -e '.status == "complete" and .context.version == "fixed-environment-v7.4"' \
+              <<< "$progress" >/dev/null
           }
 
           targets='[]'
@@ -115,9 +124,13 @@ jobs:
         run: |
           checkpoint_path="$RUNNER_TEMP/v7-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json"
           mkdir -p "$(dirname "$checkpoint_path")"
-          git fetch origin metagame-v7-results || true
+          results_ref="refs/remotes/origin/metagame-v7-results"
+          remote_result="$(git ls-remote --heads origin metagame-v7-results)"
+          if [ -n "$remote_result" ]; then
+            git fetch --no-tags origin "+refs/heads/metagame-v7-results:$results_ref"
+          fi
           progress_path="reports/metagame-ratings-v7/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
-          if git show "origin/metagame-v7-results:$progress_path" > "$checkpoint_path" 2>/dev/null; then
+          if git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null; then
             echo "Restored canonical progress for ${METAGAME_INPUT}, position ${{ matrix.position }}"
           fi
 
@@ -165,7 +178,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin metagame-v7-results || true
+          remote_result="$(git ls-remote --heads origin metagame-v7-results)"
+          if [ -n "$remote_result" ]; then
+            git fetch --no-tags origin "+refs/heads/metagame-v7-results:refs/remotes/origin/metagame-v7-results"
+          fi
           if git show-ref --verify --quiet refs/remotes/origin/metagame-v7-results; then
             git switch --create metagame-v7-results --track origin/metagame-v7-results
           else
@@ -224,8 +240,9 @@ jobs:
         run: |
           is_complete_file() {
             local progress_path="$1"
-            [ -f "$progress_path" ] && grep -q '"status": "complete"' "$progress_path" && \
-              grep -q '"version": "fixed-environment-v7.4"' "$progress_path"
+            [ -f "$progress_path" ] && jq -e \
+              '.status == "complete" and .context.version == "fixed-environment-v7.4"' \
+              "$progress_path" >/dev/null
           }
 
           completed_any=false
