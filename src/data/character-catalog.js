@@ -43,8 +43,15 @@ export const MANUAL_CHARACTER_SUPPLEMENTS = Object.freeze([
   }),
 ]);
 
+export const CHARACTER_ATTRIBUTE_CORRECTIONS = Object.freeze({
+  "em-c87499b64151": Object.freeze(["water", "wind"]),
+});
+
 export const CHARACTER_CATALOG = Object.freeze([
-  ...WORKBOOK_CHARACTERS,
+  ...WORKBOOK_CHARACTERS.map((character) => {
+    const attributes = CHARACTER_ATTRIBUTE_CORRECTIONS[character.id];
+    return attributes ? Object.freeze({ ...character, attributes }) : character;
+  }),
   ...MANUAL_CHARACTER_SUPPLEMENTS,
 ]);
 
