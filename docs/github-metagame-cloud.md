@@ -39,7 +39,7 @@
 
 ## v7 fixed-environment evaluation
 
-`.github/workflows/metagame-v7-cloud.yml` evaluates all incomplete supplied fixed environments at the same time. Each environment uses five independent position workers, so the four current inputs (fire, water, wind, and fire-water at cost 100) use up to 20 workers. Every worker writes only its own temporary checkpoint; one final publish job merges those checkpoints and is the only job that writes to `metagame-v7-results`. This preserves the calculation and avoids branch-write conflicts while allowing every input to resume independently below `reports/metagame-ratings-v7/<input>/`.
+`.github/workflows/metagame-v7-cloud.yml` evaluates up to four incomplete supplied fixed environments at the same time. Each environment uses five independent position workers, so a batch uses up to 20 workers. The current inputs are fire, water, wind, fire-water, fire-wind, water-wind, and all attributes at cost 100; after one batch saves its results, the next incomplete batch starts automatically. Every worker writes only its own temporary checkpoint; one final publish job merges those checkpoints and is the only job that writes to `metagame-v7-results`. This preserves the calculation and avoids branch-write conflicts while allowing every input to resume independently below `reports/metagame-ratings-v7/<input>/`.
 
 The supplied deck examples may leave slots blank. Those patterns are preserved as intended usage examples: their named characters are fixed in the stated slots, the remaining slots are completed within the cost cap, and the completed deck is included in the character evaluation. Patterns that violate the existing skill-turn, placement, duplicate, legend, or cost rules are recorded but not used.
 

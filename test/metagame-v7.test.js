@@ -122,11 +122,14 @@ test("v7 completes partial deck examples before evaluating their specified chara
   assert.equal(example.deck[3].id, "pattern-4");
 });
 
-test("v7 registers the supplied water, wind, and fire-water environments", () => {
+test("v7 registers every supplied fixed environment", () => {
   const expectedPoolCounts = {
     "water:100": [8, 16, 19, 22, 32],
     "wind:100": [7, 15, 16, 20, 26],
     "fire-water:100": [14, 22, 21, 25, 23],
+    "fire-wind:100": [15, 16, 17, 23, 23],
+    "water-wind:100": [12, 21, 16, 28, 29],
+    "all:100": [34, 45, 34, 66, 63],
   };
   for (const input of METAGAME_V7_INPUTS.filter((entry) => entry.id in expectedPoolCounts)) {
     const resolved = resolveMetagameV7Input(input, WORKBOOK_CHARACTERS);

@@ -52,8 +52,14 @@ jobs:
 
           targets='[]'
           work_items='[]'
-          input_ids=("fire:100" "water:100" "wind:100" "fire-water:100")
+          # Keep every run within the 20 standard-runner capacity: four inputs
+          # times five positions. The next incomplete batch is dispatched after
+          # this one has saved its merged checkpoints.
+          input_ids=("fire:100" "water:100" "wind:100" "fire-water:100" "fire-wind:100" "water-wind:100" "all:100")
           for input_id in "${input_ids[@]}"; do
+            if [ "$(jq 'length' <<< "$targets")" -ge 4 ]; then
+              break
+            fi
             output_directory="${input_id//:/-}"
             progress_path="reports/metagame-ratings-v7/$output_directory/progress.json"
             if is_complete "$progress_path"; then
@@ -230,7 +236,7 @@ jobs:
           done < <(jq -c '.[]' <<< "$TARGETS")
 
           all_completed=true
-          for output_directory in fire-100 water-100 wind-100 fire-water-100; do
+          for output_directory in fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100 all-100; do
             if ! is_complete_file "reports/metagame-ratings-v7/${output_directory}/progress.json"; then
               all_completed=false
               break
