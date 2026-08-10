@@ -23,7 +23,14 @@ function metagameUiModelLabel(data) {
   return version ? `GitHub環境${version}` : data.sourceIsLegacy ? "旧評価" : "環境評価";
 }
 
-function metagameUiCalculationState(status) {
+function metagameUiUsesProvisionalV7Data(data) {
+  const version = String(data.sourceModelVersion ?? "");
+  return /^fixed-environment-v7\./.test(version) && version !== "fixed-environment-v7.4";
+}
+
+function metagameUiCalculationState(data) {
+  if (metagameUiUsesProvisionalV7Data(data)) return "V7.4反映待ち";
+  const status = data.sourceStatus;
   return {
     complete: "完了",
     in_progress: "計算中",
@@ -50,7 +57,7 @@ function renderMetagameCalculationStatus(container, data) {
   const heading = metagameUiElement("div", "metagame-calculation-heading");
   heading.append(
     metagameUiElement("strong", "", "現在の環境データ"),
-    metagameUiElement("span", "", `${metagameUiModelLabel(data)}・${metagameUiCalculationState(data.sourceStatus)}`),
+    metagameUiElement("span", "", `${metagameUiModelLabel(data)}・${metagameUiCalculationState(data)}`),
   );
   const metrics = metagameUiElement("div", "metagame-calculation-metrics");
   [
@@ -70,7 +77,9 @@ function renderMetagameCalculationStatus(container, data) {
   const note = metagameUiElement(
     "p",
     "metagame-calculation-note",
-    data.constraints.length
+    metagameUiUsesProvisionalV7Data(data)
+      ? `${availableLabels}は保存済みのV7.2結果です。現在V7.4で再計算中のため、完了後に補正済み評価へ自動的に置き換えます。`
+      : data.constraints.length
       ? `${availableLabels}は${passLabel}の全5枠が完了済みです。未完了の条件は表示・デッキ計算に含めません。`
       : "完了済みの5枠セットがまだないため、環境データは表示できません。",
   );

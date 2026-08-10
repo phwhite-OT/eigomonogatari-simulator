@@ -15,7 +15,11 @@ test("埋め込み済みの環境データは完全な5枠と30盤面を持つ",
   }
   for (const constraint of METAGAME_SIMULATOR_DATA.constraints) {
     assert.equal(constraint.slots.length, 5);
-    assert.equal(constraint.environmentScenarios.length, constraint.scenarioCount);
+    const isV7 = String(constraint.modelVersion ?? "").startsWith("fixed-environment-v7");
+    const expectedScenarioGroups = isV7
+      ? Math.ceil(constraint.scenarioCount / 9)
+      : constraint.scenarioCount;
+    assert.equal(constraint.environmentScenarios.length, expectedScenarioGroups);
     assert.deepEqual(constraint.slots.map((slot) => slot.position), [1, 2, 3, 4, 5]);
     assert.ok(constraint.slots.every((slot) => slot.environment.length > 0));
     assert.ok(constraint.slots.every((slot) => slot.candidates.length > 0));
