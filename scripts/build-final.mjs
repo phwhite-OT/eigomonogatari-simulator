@@ -8,6 +8,7 @@ const sourceFiles = [
   "src/data/rules.js",
   "src/data/characters.js",
   "src/data/workbook-characters.js",
+  "src/data/character-catalog.js",
   "src/data/metagame-simulator-data.js",
   "src/core/damage.js",
   "src/core/filter.js",

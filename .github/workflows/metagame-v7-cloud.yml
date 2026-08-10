@@ -12,6 +12,7 @@ on:
       - src/core/metagame-deck.js
       - src/core/simulate.js
       - src/data/metagame-v7-inputs.js
+      - src/data/character-catalog.js
       - src/data/workbook-characters.js
   workflow_dispatch:
 
@@ -47,7 +48,7 @@ jobs:
           is_complete() {
             local progress_path="$1"
             git show "origin/metagame-v7-results:$progress_path" 2>/dev/null | grep -q '"status": "complete"' && \
-              git show "origin/metagame-v7-results:$progress_path" 2>/dev/null | grep -q '"version": "fixed-environment-v7.2"'
+              git show "origin/metagame-v7-results:$progress_path" 2>/dev/null | grep -q '"version": "fixed-environment-v7.3"'
           }
 
           targets='[]'
@@ -224,7 +225,7 @@ jobs:
           is_complete_file() {
             local progress_path="$1"
             [ -f "$progress_path" ] && grep -q '"status": "complete"' "$progress_path" && \
-              grep -q '"version": "fixed-environment-v7.2"' "$progress_path"
+              grep -q '"version": "fixed-environment-v7.3"' "$progress_path"
           }
 
           completed_any=false

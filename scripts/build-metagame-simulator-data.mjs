@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { WORKBOOK_CHARACTERS } from "../src/data/workbook-characters.js";
+import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
 import {
   buildEnvironmentPositionPool,
@@ -313,7 +313,7 @@ async function buildMetagameConstraint(config, charactersById, seed, reportRoot)
     readMetagameJson(path.join(reportDirectory, `slot-${position}-cost-${config.cost}.json`))
   )));
   const positionPools = [1, 2, 3, 4, 5].map((position) => buildEnvironmentPositionPool(
-    WORKBOOK_CHARACTERS,
+    CHARACTER_CATALOG,
     position,
     { allowedAttributes: config.allowedAttributes },
   ));
@@ -374,7 +374,7 @@ export async function buildMetagameSimulatorData(options = {}) {
       completedConstraints: [],
     };
   const { status, completedConstraints } = source;
-  const charactersById = new Map(WORKBOOK_CHARACTERS.map((character) => [String(character.id), character]));
+  const charactersById = new Map(CHARACTER_CATALOG.map((character) => [String(character.id), character]));
   const constraints = [];
   if (completedV7Sources.length) {
     constraints.push(...completedV7Sources.map((entry) => buildMetagameV7Constraint(entry.report, charactersById)));
