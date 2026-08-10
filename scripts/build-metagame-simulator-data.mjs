@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WORKBOOK_CHARACTERS } from "../src/data/workbook-characters.js";
+import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
 import {
   buildEnvironmentPositionPool,
   DEFAULT_STRATEGIC_DECK_PROFILES,
@@ -16,16 +17,17 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.1";
+const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.2";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
-  Object.freeze({
+  ...METAGAME_V7_INPUTS.map((input) => Object.freeze({
     type: "v7",
-    statusPath: "reports/metagame-ratings-v7/fire-100/progress.json",
-    reportPath: "reports/metagame-ratings-v7/fire-100/report.json",
+    inputId: input.id,
+    statusPath: `reports/metagame-ratings-v7/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v7/${input.id.replaceAll(":", "-")}/report.json`,
     reportRoot: "reports/metagame-ratings-v7",
     requiredModelVersion: METAGAME_V7_MODEL_VERSION,
     legacy: false,
-  }),
+  })),
   Object.freeze({
     statusPath: "reports/metagame-v6-batch-status.json",
     reportRoot: "reports/metagame-ratings-v6",
@@ -358,7 +360,11 @@ export async function buildMetagameSimulatorData(options = {}) {
   const availableSources = (await Promise.all(
     configuredSources.map((source) => readMetagameSource(projectRoot, source)),
   )).filter(Boolean);
-  const source = availableSources.find((candidate) => candidate.completedConstraints.length)
+  const completedV7Sources = availableSources.filter((candidate) => (
+    candidate.type === "v7" && candidate.completedConstraints.length && candidate.report
+  ));
+  const source = completedV7Sources[0]
+    ?? availableSources.find((candidate) => candidate.completedConstraints.length)
     ?? availableSources[0]
     ?? {
       statusPath: path.resolve(projectRoot, configuredSources[0].statusPath),
@@ -370,7 +376,9 @@ export async function buildMetagameSimulatorData(options = {}) {
   const { status, completedConstraints } = source;
   const charactersById = new Map(WORKBOOK_CHARACTERS.map((character) => [String(character.id), character]));
   const constraints = [];
-  if (source.type === "v7") {
+  if (completedV7Sources.length) {
+    constraints.push(...completedV7Sources.map((entry) => buildMetagameV7Constraint(entry.report, charactersById)));
+  } else if (source.type === "v7" && source.report) {
     constraints.push(buildMetagameV7Constraint(source.report, charactersById));
   } else {
     for (let index = 0; index < completedConstraints.length; index += 1) {

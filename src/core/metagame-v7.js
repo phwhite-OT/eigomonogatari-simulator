@@ -11,7 +11,7 @@ import {
 import { createBattleState } from "./battleState.js";
 import { DEFAULT_RULES } from "../data/rules.js";
 
-export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.1";
+export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.2";
 
 const V7_BATTLE_PROFILES = Object.freeze([
   Object.freeze({
@@ -176,6 +176,22 @@ function isDeckWithinRules(deck, input) {
   return deck.filter((character) => character.rarity === "伝").length <= 1;
 }
 
+function isExamplePatternWithinRules(pattern, input) {
+  const specified = pattern.filter(Boolean);
+  if (!specified.length) return false;
+  if (specified.reduce((sum, character) => sum + (Number(character.cost) || 0), 0) > input.totalCost) return false;
+  if (new Set(specified.map((character) => String(character.id))).size !== specified.length) return false;
+  return specified.filter((character) => character.rarity === "伝").length <= 1;
+}
+
+function normalizedExamplePatterns(input) {
+  const completeDecks = input.exampleDeckNames ?? [];
+  const partialDecks = input.exampleDeckPatterns ?? [];
+  return [...completeDecks, ...partialDecks].map((pattern) => (
+    [0, 1, 2, 3, 4].map((index) => String(pattern?.[index] ?? "").trim() || null)
+  ));
+}
+
 /** Resolve the user-provided environment pools and deck examples without hand-entering IDs. */
 export function resolveMetagameV7Input(input, characters) {
   const environmentMatches = input.environmentNamesByPosition.map((names, index) => (
@@ -188,18 +204,25 @@ export function resolveMetagameV7Input(input, characters) {
     }
     return matches.map((match) => match.character);
   });
-  const exampleMatches = input.exampleDeckNames.map((names) => (
-    names.flatMap((name, index) => resolveDeckNames([name], characters, input, index + 1, true))
-  ));
-  const exampleDecks = exampleMatches.map((matches) => matches.map((match) => match.character));
-  const invalidExamples = exampleDecks
-    .map((deck, index) => ({ deck, index }))
-    .filter(({ deck }) => !isDeckWithinRules(deck, input) || deck.some((character, index) => (
-      !character.allowedPositions?.includes(index + 1) || !isSkillTurnAllowedAtPosition(character, index + 1)
-    )));
+  const exampleNamePatterns = normalizedExamplePatterns(input);
+  const exampleMatches = exampleNamePatterns.map((names) => names.map((name, index) => (
+    name ? resolveDeckNames([name], characters, input, index + 1, false)[0] : null
+  )));
+  const examplePatterns = exampleMatches.map((matches) => matches.map((match) => match?.character ?? null));
+  const invalidExamples = examplePatterns
+    .map((pattern, index) => ({ pattern, matches: exampleMatches[index], index }))
+    .filter(({ pattern, matches }) => (
+      matches.some((match) => match && !match.character) ||
+      !isExamplePatternWithinRules(pattern, input) ||
+      pattern.some((character, index) => character && (
+        !character.allowedPositions?.includes(index + 1) || !isSkillTurnAllowedAtPosition(character, index + 1)
+      ))
+    ));
+  const validExamplePatterns = examplePatterns.filter((_, index) => !invalidExamples.some((entry) => entry.index === index));
+  const exampleDecks = validExamplePatterns.filter((pattern) => pattern.every(Boolean) && isDeckWithinRules(pattern, input));
   const audit = [
     ...environmentMatches.flat(),
-    ...exampleMatches.flat(),
+    ...exampleMatches.flat().filter(Boolean),
   ].map((match) => ({
     inputName: match.inputName,
     position: match.position,
@@ -214,6 +237,7 @@ export function resolveMetagameV7Input(input, characters) {
     environmentPools,
     environmentMatches,
     exampleDecks,
+    examplePatterns: validExamplePatterns,
     exampleMatches,
     invalidExamples: invalidExamples.map(({ index }) => index + 1),
     audit,
@@ -395,7 +419,7 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
     characterProxyRating(character, index + 1, resolvedInput.environmentPools[index], maxima, rules),
   ])));
   const exampleIdsByPosition = [0, 1, 2, 3, 4].map((index) => new Set(
-    resolvedInput.exampleDecks.map((deck) => deck[index]).filter(Boolean).map((character) => String(character.id)),
+    resolvedInput.examplePatterns.map((deck) => deck[index]).filter(Boolean).map((character) => String(character.id)),
   ));
   const partnerRatingsByPosition = ratingsByPosition.map((ratings, index) => {
     const listed = [...ratings.values()].sort((left, right) => (
@@ -435,20 +459,11 @@ function v7DeckKey(deck) {
   return deck.map((character) => String(character.id)).join("|");
 }
 
-function v7ExampleDecksFor(character, position, resolvedInput) {
-  return resolvedInput.exampleDecks
-    .filter((deck) => String(deck[position - 1]?.id) === String(character.id))
-    .filter((deck) => isDeckWithinRules(deck, resolvedInput) && deck.every((entry, index) => (
-      entry.allowedPositions?.includes(index + 1) && isSkillTurnAllowedAtPosition(entry, index + 1)
-    )))
-    .map((deck) => ({ deck, origin: "example" }));
-}
-
 function isV7DeckInfeasibility(error) {
   return error instanceof Error && error.message.includes("総コスト内の5体を構成できませんでした");
 }
 
-function buildV7AutomaticDecks(constraint, character, position, candidatePools, options) {
+function buildV7AutomaticDecks(constraint, character, position, candidatePools, options, fixedRatingsByPosition = []) {
   const characters = [...candidatePools.charactersById.values()];
   const build = (candidateConstraint) => buildMetagameDeckCandidates(candidateConstraint, characters, {
     beamWidth: options.beamWidth ?? 500,
@@ -460,12 +475,15 @@ function buildV7AutomaticDecks(constraint, character, position, candidatePools, 
   }
 
   const fallbackPartnerLimit = Math.max(32, Number(options.fallbackPartnerLimit) || 48);
+  const targetRating = candidatePools.ratingsByPosition[position - 1].get(String(character.id));
   const fallbackConstraint = {
     ...constraint,
     slots: candidatePools.ratingsByPosition.map((ratings, index) => ({
       position: index + 1,
-      candidates: index + 1 === position
-        ? [candidatePools.ratingsByPosition[position - 1].get(String(character.id))]
+      candidates: fixedRatingsByPosition[index]
+        ? [fixedRatingsByPosition[index]]
+        : index + 1 === position
+        ? [targetRating]
         : [...ratings.values()].sort((left, right) => (
           left.cost - right.cost || right.practicalValue - left.practicalValue || left.id.localeCompare(right.id)
         )).slice(0, fallbackPartnerLimit),
@@ -477,6 +495,38 @@ function buildV7AutomaticDecks(constraint, character, position, candidatePools, 
     if (!isV7DeckInfeasibility(error)) throw error;
     return [];
   }
+}
+
+function v7ExampleDecksFor(character, position, resolvedInput, candidatePools, options) {
+  const targetRating = candidatePools.ratingsByPosition[position - 1].get(String(character.id));
+  if (!targetRating) return [];
+  const exampleDeckLimit = Math.max(1, Number(options.exampleDeckLimit) || 1);
+  return resolvedInput.examplePatterns
+    .filter((pattern) => String(pattern[position - 1]?.id) === String(character.id))
+    .flatMap((pattern) => {
+      const fixedRatings = pattern.map((entry, index) => (
+        entry ? candidatePools.ratingsByPosition[index].get(String(entry.id)) ?? null : null
+      ));
+      if (fixedRatings.some((rating, index) => pattern[index] && !rating)) return [];
+      const constraint = {
+        totalCost: resolvedInput.totalCost,
+        allowedAttributes: resolvedInput.allowedAttributes,
+        slots: candidatePools.partnerRatingsByPosition.map((ratings, index) => ({
+          position: index + 1,
+          candidates: fixedRatings[index]
+            ? [fixedRatings[index]]
+            : index + 1 === position ? [targetRating] : ratings,
+        })),
+      };
+      return buildV7AutomaticDecks(constraint, character, position, candidatePools, options, fixedRatings)
+        .slice(0, exampleDeckLimit)
+        .map((entry) => ({
+          deck: entry.deck,
+          origin: "example",
+          proxyScore: entry.proxyScore,
+          synergyScore: entry.synergyScore,
+        }));
+    });
 }
 
 export function buildMetagameV7DeckCandidates(character, position, resolvedInput, candidatePools, options = {}) {
@@ -497,7 +547,7 @@ export function buildMetagameV7DeckCandidates(character, position, resolvedInput
     proxyScore: entry.proxyScore,
     synergyScore: entry.synergyScore,
   }));
-  const examples = v7ExampleDecksFor(character, position, resolvedInput);
+  const examples = v7ExampleDecksFor(character, position, resolvedInput, candidatePools, options);
   const unique = new Map();
   for (const entry of [...automatic, ...examples]) {
     const key = v7DeckKey(entry.deck);
