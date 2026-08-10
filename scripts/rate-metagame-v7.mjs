@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { WORKBOOK_CHARACTERS } from "../src/data/workbook-characters.js";
+import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
 import {
   METAGAME_V7_MODEL_VERSION,
@@ -114,7 +114,7 @@ const mergeCheckpointPaths = readArgument("merge-checkpoint-paths", "")
   .map((entry) => path.resolve(projectRoot, entry));
 const finalizeOnly = readArgument("finalize-only", "false").toLowerCase() === "true";
 
-const resolvedInput = resolveMetagameV7Input(input, WORKBOOK_CHARACTERS);
+const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const nonExactMatches = resolvedInput.audit.filter((entry) => !["exact", "high"].includes(entry.confidence));
 console.log(`v7固定環境: ${resolvedInput.label} / 環境候補 ${resolvedInput.environmentPools.map((pool) => pool.length).join(", ")}体`);
 console.log(`名前照合: ${resolvedInput.audit.length}件（要確認 ${nonExactMatches.length}件）`);
@@ -126,7 +126,7 @@ if (resolvedInput.invalidExamples.length) {
 }
 
 const environmentDecks = createMetagameV7EnvironmentDecks(resolvedInput, { count: environmentCount });
-const candidatePools = buildMetagameV7CandidatePools(resolvedInput, WORKBOOK_CHARACTERS, { partnerLimit });
+const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
 const selectedCandidatesByPosition = [1, 2, 3, 4, 5].map((position) => {
   const candidates = candidatePools.allByPosition[position - 1];
   return maxCandidates ? candidates.slice(0, maxCandidates) : candidates;

@@ -11,7 +11,7 @@ import {
 } from "../src/core/metagame-v7.js";
 import { findBestMetagameDeck } from "../src/core/metagame-deck.js";
 import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
-import { WORKBOOK_CHARACTERS } from "../src/data/workbook-characters.js";
+import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { buildMetagameV7Constraint } from "../scripts/build-metagame-simulator-data.mjs";
 
 function v7TestCharacter(id, name, position, options = {}) {
@@ -64,7 +64,7 @@ test("v7の固定環境は提示された枠候補だけでコスト内デッキ
 });
 
 test("v7 real environment includes every supplied candidate within the cost cap", () => {
-  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], WORKBOOK_CHARACTERS);
+  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
   const decks = createMetagameV7EnvironmentDecks(resolved, { count: 72, seed: 7107 });
 
   assert.equal(decks.length, 77);
@@ -81,8 +81,8 @@ test("v7 real environment includes every supplied candidate within the cost cap"
 });
 
 test("v7 includes affordable partners so high-cost targets cannot stop the batch", () => {
-  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], WORKBOOK_CHARACTERS);
-  const pools = buildMetagameV7CandidatePools(resolved, WORKBOOK_CHARACTERS, { partnerLimit: 24 });
+  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
+  const pools = buildMetagameV7CandidatePools(resolved, CHARACTER_CATALOG, { partnerLimit: 24 });
   const target = pools.allByPosition[0].find((character) => character.name === "なっとくん様");
   const decks = buildMetagameV7DeckCandidates(target, 1, resolved, pools, {
     beamWidth: 500,
@@ -132,7 +132,7 @@ test("v7 registers every supplied fixed environment", () => {
     "all:100": [34, 45, 34, 66, 63],
   };
   for (const input of METAGAME_V7_INPUTS.filter((entry) => entry.id in expectedPoolCounts)) {
-    const resolved = resolveMetagameV7Input(input, WORKBOOK_CHARACTERS);
+    const resolved = resolveMetagameV7Input(input, CHARACTER_CATALOG);
     const decks = createMetagameV7EnvironmentDecks(resolved, { count: 5 });
     assert.deepEqual(resolved.environmentPools.map((pool) => pool.length), expectedPoolCounts[input.id]);
     assert.ok(resolved.examplePatterns.length > 0);
@@ -146,9 +146,24 @@ test("v7 registers every supplied fixed environment", () => {
   }
 });
 
+test("v7 resolves 二条嬢浴衣モード as its own fire-water character", () => {
+  const input = METAGAME_V7_INPUTS.find((entry) => entry.id === "water-wind:100");
+  const resolved = resolveMetagameV7Input(input, CHARACTER_CATALOG);
+  const character = resolved.environmentMatches[1]
+    .find((entry) => entry.inputName === "二条嬢浴衣モードニジョウジョウユカタ")
+    ?.character;
+
+  assert.equal(character?.id, "manual-nijo-yukata-mode");
+  assert.deepEqual(character?.attributes, ["fire", "water"]);
+  assert.equal(character?.cost, 19);
+  assert.equal(character?.skillTurn, 1);
+  assert.equal(character?.skill?.type, "attribute_guard");
+  assert.equal(character?.skill?.multiplier, 0.2);
+});
+
 test("v7 records genuinely infeasible cost-100 targets without stopping the batch", () => {
-  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], WORKBOOK_CHARACTERS);
-  const pools = buildMetagameV7CandidatePools(resolved, WORKBOOK_CHARACTERS, { partnerLimit: 24 });
+  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
+  const pools = buildMetagameV7CandidatePools(resolved, CHARACTER_CATALOG, { partnerLimit: 24 });
   const target = pools.allByPosition[0].find((character) => character.name === "ピンギヌスのたまご");
   const rating = rateMetagameV7Character(target, 1, resolved, pools, [], {
     beamWidth: 500,
@@ -161,7 +176,7 @@ test("v7 records genuinely infeasible cost-100 targets without stopping the batc
 });
 
 test("completed v7 report is converted into a precomputed deck-generator constraint", async () => {
-  const characters = WORKBOOK_CHARACTERS.slice(0, 5);
+  const characters = CHARACTER_CATALOG.slice(0, 5);
   const report = {
     generatedAt: "2026-08-09T00:00:00.000Z",
     model: { version: "fixed-environment-v7" },

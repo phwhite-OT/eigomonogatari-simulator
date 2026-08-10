@@ -657,10 +657,7 @@ export const METAGAME_V7_INPUTS = Object.freeze([
     source: "火風100, 水風100, 全属性100.xlsx / 水風100環境",
     nameAliases: Object.freeze({
       "オロモ君は鬱気味クンウツギミ": "オロモ君は欝気味",
-      "二条嬢浴衣モードニジョウジョウユカタ": "二条嬢",
-    }),
-    environmentNameAllowedAttributes: Object.freeze({
-      "二条嬢浴衣モードニジョウジョウユカタ": Object.freeze(["fire"]),
+      "二条嬢浴衣モードニジョウジョウユカタ": "二条嬢☆浴衣モード",
     }),
     environmentNamesByPosition: [
       [

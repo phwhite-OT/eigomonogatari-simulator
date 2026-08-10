@@ -1,6 +1,6 @@
 import { DEFAULT_RULES, mergeRules, validateRules } from "./data/rules.js";
 import { parseCharacterPayload } from "./data/characters.js";
-import { WORKBOOK_CHARACTERS, WORKBOOK_DATA_SUMMARY } from "./data/workbook-characters.js";
+import { CHARACTER_CATALOG, CHARACTER_CATALOG_SUMMARY } from "./data/character-catalog.js";
 import { METAGAME_SIMULATOR_DATA } from "./data/metagame-simulator-data.js";
 import { searchDecks } from "./core/search-fast.js";
 import { findBestMetagameDeck } from "./core/metagame-deck.js";
@@ -70,8 +70,8 @@ function bootstrap() {
   const cancelButton = form.querySelector("[data-cancel-button]");
   const fileInput = document.querySelector("[data-character-file]");
   const resetDataButton = document.querySelector("[data-reset-demo]");
-  const bundledSourceLabel = `Book1.xlsx 収録データ（${WORKBOOK_DATA_SUMMARY.uniqueCharacters.toLocaleString("ja-JP")}体）`;
-  let baseCharacters = [...WORKBOOK_CHARACTERS];
+  const bundledSourceLabel = `Book1.xlsx＋手動補完データ（${CHARACTER_CATALOG_SUMMARY.totalCharacters.toLocaleString("ja-JP")}体）`;
+  let baseCharacters = [...CHARACTER_CATALOG];
   let manualCharacters = loadManualCharacters();
   let characters = combineCharacters(baseCharacters, manualCharacters);
   let sourceLabel = bundledSourceLabel;
@@ -101,7 +101,7 @@ function bootstrap() {
   initializeAppTabs(document);
   deckCharacterPickerController = initializeDeckCharacterPicker(form, characters);
   characterSearchController = initializeCharacterSearch(characterSearchRoot, characters);
-  initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, WORKBOOK_CHARACTERS);
+  initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, CHARACTER_CATALOG);
   lightestController = initializeLightest(lightestRoot, characters);
   initializeCharacterEditor(characterEditor, {
     getExistingIds: () => characters.map((character) => character.id),
@@ -140,7 +140,7 @@ function bootstrap() {
   });
 
   resetDataButton.addEventListener("click", () => {
-    baseCharacters = [...WORKBOOK_CHARACTERS];
+    baseCharacters = [...CHARACTER_CATALOG];
     characters = combineCharacters(baseCharacters, manualCharacters);
     sourceLabel = bundledSourceLabel;
     fileInput.value = "";
@@ -207,8 +207,8 @@ function bootstrap() {
     metagameSimulatorData: METAGAME_SIMULATOR_DATA,
     parseCharacterPayload,
     defaultRules: DEFAULT_RULES,
-    bundledCharacters: WORKBOOK_CHARACTERS,
-    dataSummary: WORKBOOK_DATA_SUMMARY,
+    bundledCharacters: CHARACTER_CATALOG,
+    dataSummary: CHARACTER_CATALOG_SUMMARY,
     currentCharacters: () => [...characters],
   });
 }
