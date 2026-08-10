@@ -159,14 +159,21 @@ export function resolveMetagameV7Name(inputName, characters, options = {}) {
   };
 }
 
-function resolveDeckNames(names, characters, input, position, enforcePosition = false) {
-  return names.map((name) => ({
-    position,
-    ...resolveMetagameV7Name(name, characters, {
-      allowedAttributes: input.allowedAttributes,
-      position: enforcePosition ? position : 0,
-    }),
-  }));
+function resolveDeckNames(names, characters, input, position, enforcePosition = false, options = {}) {
+  return names.map((inputName) => {
+    const name = input.nameAliases?.[inputName] ?? inputName;
+    const allowedAttributes = options.nameAllowedAttributes?.[inputName]
+      ?? options.allowedAttributes
+      ?? input.allowedAttributes;
+    return {
+      position,
+      ...resolveMetagameV7Name(name, characters, {
+        allowedAttributes,
+        position: enforcePosition ? position : 0,
+      }),
+      inputName,
+    };
+  });
 }
 
 function isDeckWithinRules(deck, input) {
@@ -195,7 +202,9 @@ function normalizedExamplePatterns(input) {
 /** Resolve the user-provided environment pools and deck examples without hand-entering IDs. */
 export function resolveMetagameV7Input(input, characters) {
   const environmentMatches = input.environmentNamesByPosition.map((names, index) => (
-    resolveDeckNames(names, characters, input, index + 1, false)
+    resolveDeckNames(names, characters, input, index + 1, false, {
+      nameAllowedAttributes: input.environmentNameAllowedAttributes,
+    })
   ));
   const environmentPools = environmentMatches.map((matches, index) => {
     const unresolved = matches.filter((match) => !match.character);
