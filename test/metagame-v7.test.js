@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildMetagameV7CandidatePools,
+  buildMetagameV7DeckCandidates,
   createMetagameV7EnvironmentDecks,
+  rateMetagameV7Character,
   resolveMetagameV7Input,
   resolveMetagameV7Name,
 } from "../src/core/metagame-v7.js";
@@ -75,6 +78,33 @@ test("v7 real environment includes every supplied candidate within the cost cap"
       assert.ok(included.has(String(character.id)), `${index + 1}: ${character.name}`);
     }
   }
+});
+
+test("v7 includes affordable partners so high-cost targets cannot stop the batch", () => {
+  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], WORKBOOK_CHARACTERS);
+  const pools = buildMetagameV7CandidatePools(resolved, WORKBOOK_CHARACTERS, { partnerLimit: 24 });
+  const target = pools.allByPosition[0].find((character) => character.name === "なっとくん様");
+  const decks = buildMetagameV7DeckCandidates(target, 1, resolved, pools, {
+    beamWidth: 500,
+    autoDeckLimit: 8,
+  });
+
+  assert.ok(decks.length > 0);
+  assert.ok(decks.every((entry) => entry.deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
+});
+
+test("v7 records genuinely infeasible cost-100 targets without stopping the batch", () => {
+  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], WORKBOOK_CHARACTERS);
+  const pools = buildMetagameV7CandidatePools(resolved, WORKBOOK_CHARACTERS, { partnerLimit: 24 });
+  const target = pools.allByPosition[0].find((character) => character.name === "ピンギヌスのたまご");
+  const rating = rateMetagameV7Character(target, 1, resolved, pools, [], {
+    beamWidth: 500,
+    autoDeckLimit: 8,
+  });
+
+  assert.equal(rating.infeasible, true);
+  assert.equal(rating.evaluatedDeckCount, 0);
+  assert.equal(rating.v7Score, 0);
 });
 
 test("completed v7 report is converted into a precomputed deck-generator constraint", async () => {

@@ -11,7 +11,7 @@ import {
 import { createBattleState } from "./battleState.js";
 import { DEFAULT_RULES } from "../data/rules.js";
 
-export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7";
+export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.1";
 
 const V7_BATTLE_PROFILES = Object.freeze([
   Object.freeze({
@@ -407,6 +407,7 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
     const remainingLimit = Math.max(1, partnerLimit - exampleRatings.length);
     const strengthLimit = Math.max(1, Math.ceil(remainingLimit * 0.6));
     const costLimit = Math.max(1, remainingLimit - strengthLimit);
+    const affordableLimit = Math.max(8, Math.ceil(partnerLimit * 0.5));
     const selected = new Map();
     listed.slice(0, strengthLimit).forEach((rating) => selected.set(rating.id, rating));
     listed.sort((left, right) => (
@@ -414,6 +415,11 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
         (left.practicalValue - left.cost / Math.max(1, resolvedInput.totalCost) * 0.24) ||
       left.cost - right.cost
     )).slice(0, costLimit).forEach((rating) => selected.set(rating.id, rating));
+    listed.sort((left, right) => (
+      left.cost - right.cost ||
+      right.practicalValue - left.practicalValue ||
+      left.id.localeCompare(right.id)
+    )).slice(0, affordableLimit).forEach((rating) => selected.set(rating.id, rating));
     exampleRatings.forEach((rating) => selected.set(rating.id, rating));
     return [...selected.values()];
   });
@@ -438,6 +444,41 @@ function v7ExampleDecksFor(character, position, resolvedInput) {
     .map((deck) => ({ deck, origin: "example" }));
 }
 
+function isV7DeckInfeasibility(error) {
+  return error instanceof Error && error.message.includes("総コスト内の5体を構成できませんでした");
+}
+
+function buildV7AutomaticDecks(constraint, character, position, candidatePools, options) {
+  const characters = [...candidatePools.charactersById.values()];
+  const build = (candidateConstraint) => buildMetagameDeckCandidates(candidateConstraint, characters, {
+    beamWidth: options.beamWidth ?? 500,
+  });
+  try {
+    return build(constraint);
+  } catch (error) {
+    if (!isV7DeckInfeasibility(error)) throw error;
+  }
+
+  const fallbackPartnerLimit = Math.max(32, Number(options.fallbackPartnerLimit) || 48);
+  const fallbackConstraint = {
+    ...constraint,
+    slots: candidatePools.ratingsByPosition.map((ratings, index) => ({
+      position: index + 1,
+      candidates: index + 1 === position
+        ? [candidatePools.ratingsByPosition[position - 1].get(String(character.id))]
+        : [...ratings.values()].sort((left, right) => (
+          left.cost - right.cost || right.practicalValue - left.practicalValue || left.id.localeCompare(right.id)
+        )).slice(0, fallbackPartnerLimit),
+    })),
+  };
+  try {
+    return build(fallbackConstraint);
+  } catch (error) {
+    if (!isV7DeckInfeasibility(error)) throw error;
+    return [];
+  }
+}
+
 export function buildMetagameV7DeckCandidates(character, position, resolvedInput, candidatePools, options = {}) {
   const targetRating = candidatePools.ratingsByPosition[position - 1].get(String(character.id));
   if (!targetRating) return [];
@@ -449,9 +490,8 @@ export function buildMetagameV7DeckCandidates(character, position, resolvedInput
       candidates: index + 1 === position ? [targetRating] : ratings,
     })),
   };
-  const automatic = buildMetagameDeckCandidates(constraint, [...candidatePools.charactersById.values()], {
-    beamWidth: options.beamWidth ?? 500,
-  }).slice(0, Math.max(1, Number(options.autoDeckLimit) || 10)).map((entry) => ({
+  const automatic = buildV7AutomaticDecks(constraint, character, position, candidatePools, options)
+    .slice(0, Math.max(1, Number(options.autoDeckLimit) || 10)).map((entry) => ({
     deck: entry.deck,
     origin: "automatic",
     proxyScore: entry.proxyScore,
@@ -530,7 +570,41 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     (right.origin === "example") - (left.origin === "example")
   ));
   const best = evaluatedDecks[0];
-  if (!best) return null;
+  if (!best) {
+    return {
+      id: String(character.id),
+      name: character.name,
+      attributes: character.attributes,
+      rarity: character.rarity,
+      cost: character.cost,
+      hp: character.hp,
+      pow: character.pow,
+      skillTurn: character.skillTurn,
+      skillType: character.skill?.type ?? "none",
+      skillName: character.skillName ?? "",
+      position,
+      evaluatedDeckCount: 0,
+      infeasible: true,
+      bestDeck: {
+        origin: "infeasible",
+        totalCost: resolvedInput.totalCost + 1,
+        remainingCost: 0,
+        ids: [],
+        names: [],
+        proxyScore: 0,
+        synergyScore: 0,
+        expectedWinRate: 0,
+        expectedWinLowerBound: 0,
+        scenarioCount: 0,
+        decisiveWinRate: 0,
+        decisiveDrawRate: 0,
+        decisiveLossRate: 0,
+        ongoingRate: 0,
+      },
+      exampleDeck: null,
+      v7Score: 0,
+    };
+  }
   const example = evaluatedDecks.find((entry) => entry.origin === "example");
   return {
     id: String(character.id),

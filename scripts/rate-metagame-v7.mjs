@@ -64,11 +64,16 @@ async function readCheckpoint(checkpointPath, context) {
   try {
     const parsed = JSON.parse(await fs.readFile(checkpointPath, "utf8"));
     if (stableJson(parsed.context) !== stableJson(context)) {
-      throw new Error(`Checkpoint settings do not match: ${checkpointPath}`);
+      console.warn(`Ignoring incompatible checkpoint: ${checkpointPath}`);
+      return null;
     }
     return parsed;
   } catch (error) {
     if (error?.code === "ENOENT") return null;
+    if (error instanceof SyntaxError) {
+      console.warn(`Ignoring unreadable checkpoint: ${checkpointPath}`);
+      return null;
+    }
     throw error;
   }
 }

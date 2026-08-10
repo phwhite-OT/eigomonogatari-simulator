@@ -16,7 +16,7 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7";
+const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.1";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   Object.freeze({
     type: "v7",
