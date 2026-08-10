@@ -107,6 +107,12 @@ const checkpointArgument = readArgument("checkpoint-path", "");
 const checkpointPath = checkpointArgument
   ? path.resolve(projectRoot, checkpointArgument)
   : path.join(outputDirectory, "progress.json");
+const mergeCheckpointPaths = readArgument("merge-checkpoint-paths", "")
+  .split(",")
+  .map((entry) => entry.trim())
+  .filter(Boolean)
+  .map((entry) => path.resolve(projectRoot, entry));
+const finalizeOnly = readArgument("finalize-only", "false").toLowerCase() === "true";
 
 const resolvedInput = resolveMetagameV7Input(input, WORKBOOK_CHARACTERS);
 const nonExactMatches = resolvedInput.audit.filter((entry) => !["exact", "high"].includes(entry.confidence));
@@ -142,6 +148,14 @@ const loadedCheckpoint = await readCheckpoint(checkpointPath, checkpointContext)
 const resultsByPosition = [0, 1, 2, 3, 4].map((index) => (
   new Map((loadedCheckpoint?.resultsByPosition?.[index] ?? []).map((rating) => [String(rating.id), rating]))
 ));
+const mergedCheckpoints = await Promise.all(mergeCheckpointPaths.map((entry) => readCheckpoint(entry, checkpointContext)));
+for (const checkpoint of mergedCheckpoints) {
+  if (!checkpoint) continue;
+  for (const [index, ratings] of (checkpoint.resultsByPosition ?? []).entries()) {
+    if (!resultsByPosition[index]) continue;
+    for (const rating of ratings ?? []) resultsByPosition[index].set(String(rating.id), rating);
+  }
+}
 const deadline = timeBudgetSeconds ? Date.now() + timeBudgetSeconds * 1000 : Infinity;
 let stoppedEarly = false;
 
@@ -158,6 +172,10 @@ if (loadedCheckpoint) {
   const restored = resultsByPosition.reduce((sum, ratings) => sum + ratings.size, 0);
   console.log(`Resuming checkpoint: ${restored} character ratings restored`);
 }
+if (mergeCheckpointPaths.length) {
+  const merged = mergedCheckpoints.filter(Boolean).length;
+  console.log(`Merged ${merged}/${mergeCheckpointPaths.length} position checkpoints`);
+}
 
 const positionsToEvaluate = requestedPosition === "all"
   ? [1, 2, 3, 4, 5]
@@ -165,32 +183,34 @@ const positionsToEvaluate = requestedPosition === "all"
     ? [resultsByPosition.findIndex((ratings, index) => ratings.size < selectedCandidatesByPosition[index].length) + 1].filter(Boolean)
     : [Number(requestedPosition)];
 
-for (const position of positionsToEvaluate) {
-  const candidates = candidatePools.allByPosition[position - 1];
-  const selectedCandidates = selectedCandidatesByPosition[position - 1];
-  const results = resultsByPosition[position - 1];
-  console.log(`${position}枠目: ${selectedCandidates.length}/${candidates.length}体を評価`);
-  for (const [index, character] of selectedCandidates.entries()) {
-    if (results.has(String(character.id))) continue;
-    if (Date.now() >= deadline) {
-      stoppedEarly = true;
-      break;
+if (!finalizeOnly) {
+  for (const position of positionsToEvaluate) {
+    const candidates = candidatePools.allByPosition[position - 1];
+    const selectedCandidates = selectedCandidatesByPosition[position - 1];
+    const results = resultsByPosition[position - 1];
+    console.log(`${position}枠目: ${selectedCandidates.length}/${candidates.length}体を評価`);
+    for (const [index, character] of selectedCandidates.entries()) {
+      if (results.has(String(character.id))) continue;
+      if (Date.now() >= deadline) {
+        stoppedEarly = true;
+        break;
+      }
+      const rating = rateMetagameV7Character(
+        character,
+        position,
+        resolvedInput,
+        candidatePools,
+        environmentDecks,
+        { autoDeckLimit, beamWidth, turns },
+      );
+      if (rating) results.set(String(rating.id), rating);
+      if ((index + 1) % 5 === 0) await saveProgress();
+      if ((index + 1) % 20 === 0 || index + 1 === selectedCandidates.length) {
+        console.log(`  ${index + 1}/${selectedCandidates.length}`);
+      }
     }
-    const rating = rateMetagameV7Character(
-      character,
-      position,
-      resolvedInput,
-      candidatePools,
-      environmentDecks,
-      { autoDeckLimit, beamWidth, turns },
-    );
-    if (rating) results.set(String(rating.id), rating);
-    if ((index + 1) % 5 === 0) await saveProgress();
-    if ((index + 1) % 20 === 0 || index + 1 === selectedCandidates.length) {
-      console.log(`  ${index + 1}/${selectedCandidates.length}`);
-    }
+    if (stoppedEarly) break;
   }
-  if (stoppedEarly) break;
 }
 
 const allRatingsComplete = resultsByPosition.every((ratings, index) => (
@@ -201,7 +221,9 @@ if (stoppedEarly || !allRatingsComplete) {
   await saveProgress();
   const completed = resultsByPosition.reduce((sum, ratings) => sum + ratings.size, 0);
   const total = selectedCandidatesByPosition.reduce((sum, candidates) => sum + candidates.length, 0);
-  const reason = stoppedEarly ? "Time budget reached" : "Selected positions complete";
+  const reason = stoppedEarly
+    ? "Time budget reached"
+    : finalizeOnly ? "Finalization found incomplete position checkpoints" : "Selected positions complete";
   console.log(`${reason}. Saved ${completed}/${total} ratings to ${path.relative(projectRoot, checkpointPath)}.`);
   process.exit(0);
 }
