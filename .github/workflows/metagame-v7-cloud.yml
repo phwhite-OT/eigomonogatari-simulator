@@ -20,6 +20,8 @@ permissions:
   contents: write
   issues: write
 
+# The matrix workers never write to this branch. Keep the single publish job
+# serialized so independent runs cannot overwrite one another's checkpoints.
 concurrency:
   group: metagame-v7
   cancel-in-progress: false
@@ -28,8 +30,8 @@ jobs:
   select:
     runs-on: ubuntu-latest
     outputs:
-      input: ${{ steps.next.outputs.input }}
-      output_directory: ${{ steps.next.outputs.output_directory }}
+      work_matrix: ${{ steps.next.outputs.work_matrix }}
+      targets: ${{ steps.next.outputs.targets }}
       all_completed: ${{ steps.next.outputs.all_completed }}
     steps:
       - name: Check out source
@@ -38,7 +40,7 @@ jobs:
           fetch-depth: 0
 
       - id: next
-        name: Select the next fixed environment
+        name: Select incomplete fixed environments
         shell: bash
         run: |
           git fetch origin metagame-v7-results || true
@@ -47,6 +49,9 @@ jobs:
             git show "origin/metagame-v7-results:$progress_path" 2>/dev/null | grep -q '"status": "complete"' && \
               git show "origin/metagame-v7-results:$progress_path" 2>/dev/null | grep -q '"version": "fixed-environment-v7.2"'
           }
+
+          targets='[]'
+          work_items='[]'
           input_ids=("fire:100" "water:100" "wind:100" "fire-water:100")
           for input_id in "${input_ids[@]}"; do
             output_directory="${input_id//:/-}"
@@ -54,27 +59,39 @@ jobs:
             if is_complete "$progress_path"; then
               continue
             fi
-            echo "input=$input_id" >> "$GITHUB_OUTPUT"
-            echo "output_directory=$output_directory" >> "$GITHUB_OUTPUT"
-            echo "all_completed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+
+            targets="$(jq -c --arg input "$input_id" --arg output_directory "$output_directory" \
+              '. + [{input: $input, output_directory: $output_directory}]' <<< "$targets")"
+            for position in 1 2 3 4 5; do
+              work_items="$(jq -c --arg input "$input_id" --arg output_directory "$output_directory" --argjson position "$position" \
+                '. + [{input: $input, output_directory: $output_directory, position: $position}]' <<< "$work_items")"
+            done
           done
-          echo "input=" >> "$GITHUB_OUTPUT"
-          echo "output_directory=" >> "$GITHUB_OUTPUT"
-          echo "all_completed=true" >> "$GITHUB_OUTPUT"
+
+          work_matrix="$(jq -cn --argjson include "$work_items" '{include: $include}')"
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "work_matrix=$work_matrix" >> "$GITHUB_OUTPUT"
+          if [ "$targets" = '[]' ]; then
+            echo "all_completed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "all_completed=false" >> "$GITHUB_OUTPUT"
+          fi
 
   evaluate:
     needs: select
-    if: needs.select.outputs.input != ''
+    if: needs.select.outputs.all_completed != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      max-parallel: 5
-      matrix:
-        position: [1, 2, 3, 4, 5]
+      # The repository is public and GitHub Free permits 20 standard hosted jobs.
+      # Four independent inputs times five deck positions use that capacity exactly.
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.select.outputs.work_matrix) }}
     env:
       METAGAME_TIME_BUDGET_SECONDS: "10000"
+      METAGAME_INPUT: ${{ matrix.input }}
+      METAGAME_OUTPUT_DIRECTORY: ${{ matrix.output_directory }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -86,33 +103,33 @@ jobs:
         with:
           node-version: 22
 
-      - name: Restore the canonical progress for this position
+      - name: Restore the canonical progress for this input and position
         shell: bash
         run: |
-          checkpoint_path="$RUNNER_TEMP/v7-position-progress/position-${{ matrix.position }}.json"
+          checkpoint_path="$RUNNER_TEMP/v7-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json"
           mkdir -p "$(dirname "$checkpoint_path")"
           git fetch origin metagame-v7-results || true
-          progress_path="reports/metagame-ratings-v7/${{ needs.select.outputs.output_directory }}/progress.json"
+          progress_path="reports/metagame-ratings-v7/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
           if git show "origin/metagame-v7-results:$progress_path" > "$checkpoint_path" 2>/dev/null; then
-            echo "Restored canonical progress for position ${{ matrix.position }}"
+            echo "Restored canonical progress for ${METAGAME_INPUT}, position ${{ matrix.position }}"
           fi
 
       - id: rate
-        name: Evaluate position ${{ matrix.position }}
+        name: Evaluate ${{ matrix.input }}, position ${{ matrix.position }}
         continue-on-error: true
         run: |
           node scripts/rate-metagame-v7.mjs \
-            --input="${{ needs.select.outputs.input }}" \
+            --input="$METAGAME_INPUT" \
             --position=${{ matrix.position }} \
-            --checkpoint-path="$RUNNER_TEMP/v7-position-progress/position-${{ matrix.position }}.json" \
+            --checkpoint-path="$RUNNER_TEMP/v7-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json" \
             --time-budget-seconds="$METAGAME_TIME_BUDGET_SECONDS"
 
       - name: Upload position progress
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v7-progress-${{ needs.select.outputs.output_directory }}-${{ matrix.position }}
-          path: ${{ runner.temp }}/v7-position-progress/position-${{ matrix.position }}.json
+          name: v7-progress-${{ matrix.output_directory }}-${{ matrix.position }}
+          path: ${{ runner.temp }}/v7-position-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}.json
           if-no-files-found: warn
           retention-days: 2
 
@@ -122,7 +139,7 @@ jobs:
 
   publish:
     needs: [select, evaluate]
-    if: always() && needs.select.outputs.input != ''
+    if: always() && needs.select.outputs.all_completed != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -149,46 +166,77 @@ jobs:
           fi
           git rebase ${{ github.sha }}
 
-      - name: Download position progress
+      - id: download
+        name: Download independent position checkpoints
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          pattern: v7-progress-${{ needs.select.outputs.output_directory }}-*
+          pattern: v7-progress-*
           merge-multiple: true
           path: ${{ runner.temp }}/v7-position-progress
 
       - id: finalize
-        name: Merge the five position checkpoints
+        name: Merge checkpoints for every selected input
         continue-on-error: true
         shell: bash
+        env:
+          TARGETS: ${{ needs.select.outputs.targets }}
         run: |
-          checkpoint_paths="$(printf '%s,' "$RUNNER_TEMP/v7-position-progress/position-1.json" "$RUNNER_TEMP/v7-position-progress/position-2.json" "$RUNNER_TEMP/v7-position-progress/position-3.json" "$RUNNER_TEMP/v7-position-progress/position-4.json" "$RUNNER_TEMP/v7-position-progress/position-5.json")"
-          checkpoint_paths="${checkpoint_paths%,}"
-          node scripts/rate-metagame-v7.mjs \
-            --input="${{ needs.select.outputs.input }}" \
-            --position=all \
-            --checkpoint-path="reports/metagame-ratings-v7/${{ needs.select.outputs.output_directory }}/progress.json" \
-            --merge-checkpoint-paths="$checkpoint_paths" \
-            --finalize-only=true
+          set +e
+          finalization_failed=false
+          while IFS= read -r target; do
+            input="$(jq -r '.input' <<< "$target")"
+            output_directory="$(jq -r '.output_directory' <<< "$target")"
+            checkpoint_paths="$(printf '%s,' \
+              "$RUNNER_TEMP/v7-position-progress/${output_directory}-position-1.json" \
+              "$RUNNER_TEMP/v7-position-progress/${output_directory}-position-2.json" \
+              "$RUNNER_TEMP/v7-position-progress/${output_directory}-position-3.json" \
+              "$RUNNER_TEMP/v7-position-progress/${output_directory}-position-4.json" \
+              "$RUNNER_TEMP/v7-position-progress/${output_directory}-position-5.json")"
+            checkpoint_paths="${checkpoint_paths%,}"
+            node scripts/rate-metagame-v7.mjs \
+              --input="$input" \
+              --position=all \
+              --checkpoint-path="reports/metagame-ratings-v7/${output_directory}/progress.json" \
+              --merge-checkpoint-paths="$checkpoint_paths" \
+              --finalize-only=true
+            if [ "$?" -ne 0 ]; then
+              finalization_failed=true
+            fi
+          done < <(jq -c '.[]' <<< "$TARGETS")
+          if [ "$finalization_failed" = true ]; then
+            exit 1
+          fi
 
       - id: status
-        name: Check evaluation status
+        name: Check all environment evaluation statuses
         if: always()
         shell: bash
+        env:
+          TARGETS: ${{ needs.select.outputs.targets }}
         run: |
-          progress_path="reports/metagame-ratings-v7/${{ needs.select.outputs.output_directory }}/progress.json"
-          input_completed=false
-          if [ -f "$progress_path" ] && grep -q '"status": "complete"' "$progress_path" && grep -q '"version": "fixed-environment-v7.2"' "$progress_path"; then
-            input_completed=true
-          fi
+          is_complete_file() {
+            local progress_path="$1"
+            [ -f "$progress_path" ] && grep -q '"status": "complete"' "$progress_path" && \
+              grep -q '"version": "fixed-environment-v7.2"' "$progress_path"
+          }
+
+          completed_any=false
+          while IFS= read -r target; do
+            output_directory="$(jq -r '.output_directory' <<< "$target")"
+            if is_complete_file "reports/metagame-ratings-v7/${output_directory}/progress.json"; then
+              completed_any=true
+            fi
+          done < <(jq -c '.[]' <<< "$TARGETS")
+
           all_completed=true
           for output_directory in fire-100 water-100 wind-100 fire-water-100; do
-            if ! [ -f "reports/metagame-ratings-v7/$output_directory/progress.json" ] || ! grep -q '"status": "complete"' "reports/metagame-ratings-v7/$output_directory/progress.json" || ! grep -q '"version": "fixed-environment-v7.2"' "reports/metagame-ratings-v7/$output_directory/progress.json"; then
+            if ! is_complete_file "reports/metagame-ratings-v7/${output_directory}/progress.json"; then
               all_completed=false
               break
             fi
           done
-          echo "input_completed=$input_completed" >> "$GITHUB_OUTPUT"
+          echo "completed_any=$completed_any" >> "$GITHUB_OUTPUT"
           echo "all_completed=$all_completed" >> "$GITHUB_OUTPUT"
 
       - id: recovery
@@ -196,10 +244,10 @@ jobs:
         if: always()
         shell: bash
         run: |
-          state_path="reports/metagame-ratings-v7/${{ needs.select.outputs.output_directory }}/recovery.json"
+          state_path="reports/metagame-ratings-v7/recovery.json"
           mkdir -p "$(dirname "$state_path")"
           outcome="${{ steps.finalize.outcome }}"
-          if [ "${{ needs.evaluate.result }}" != "success" ]; then
+          if [ "${{ steps.download.outcome }}" != "success" ] || [ "${{ needs.evaluate.result }}" != "success" ]; then
             outcome="failure"
           fi
           previous=0
@@ -224,8 +272,8 @@ jobs:
             echo "retry_exhausted=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build browser data from the completed v7 report
-        if: steps.status.outputs.input_completed == 'true' && steps.finalize.outcome == 'success' && needs.evaluate.result == 'success'
+      - name: Build browser data from completed v7 reports
+        if: steps.status.outputs.completed_any == 'true' && steps.finalize.outcome == 'success' && steps.download.outcome == 'success' && needs.evaluate.result == 'success'
         run: npm run build
 
       - name: Save v7 progress to the result branch
@@ -247,7 +295,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          body="The v7 metagame evaluator for ${{ needs.select.outputs.input }} failed three consecutive times. Progress and recovery state are saved on the metagame-v7-results branch. Review the latest Actions run for the error log."
+          body="The v7 metagame evaluator stopped after three consecutive failures. Progress and recovery state are saved on the metagame-v7-results branch. Review the latest Actions run for the error log."
           payload="$(jq -n --arg title "v7 evaluation stopped after automatic retries" --arg body "$body" '{title: $title, body: $body}')"
           curl --fail-with-body --silent --show-error \
             --request POST \

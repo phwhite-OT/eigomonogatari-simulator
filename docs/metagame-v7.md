@@ -44,6 +44,6 @@ npm run rate:metagame:v7 -- --position=next --time-budget-seconds=600
 
 各環境候補を少なくとも1回含めるため、火・コスト100では指定値72より多い77環境デッキを使用する。
 
-`.github/workflows/metagame-v7-cloud.yml` は `metagame-v7-results` ブランチに進捗を保存する。GitHub Actionsでは1回につき未完了枠を時間上限まで計算し、自動で次の実行を起動する。
+`.github/workflows/metagame-v7-cloud.yml` は `metagame-v7-results` ブランチに進捗を保存する。未完了の環境はすべて同時に開始し、各環境の5枠も並列に計算する。各ワーカーは独立した一時チェックポイントだけを書き込み、最後の1ジョブが結果ブランチへ統合保存するため、環境間の競合なしに自動再開できる。
 
 `--partner-limit` は固定キャラの残り4枠を探すためのパートナー候補数、`--auto-deck-limit` はそのキャラごとに実戦再現へ送る自動生成デッキ数である。これらは探索を絞る補助値であり、最終順位そのものは戦闘結果だけで決める。
