@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  buildMetagameV7CandidatePools,
+  buildMetagameV7DeckCandidates,
   createMetagameV7EnvironmentDecks,
+  rateMetagameV7Character,
   resolveMetagameV7Input,
   resolveMetagameV7Name,
 } from "../src/core/metagame-v7.js";
@@ -75,6 +78,83 @@ test("v7 real environment includes every supplied candidate within the cost cap"
       assert.ok(included.has(String(character.id)), `${index + 1}: ${character.name}`);
     }
   }
+});
+
+test("v7 includes affordable partners so high-cost targets cannot stop the batch", () => {
+  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], WORKBOOK_CHARACTERS);
+  const pools = buildMetagameV7CandidatePools(resolved, WORKBOOK_CHARACTERS, { partnerLimit: 24 });
+  const target = pools.allByPosition[0].find((character) => character.name === "なっとくん様");
+  const decks = buildMetagameV7DeckCandidates(target, 1, resolved, pools, {
+    beamWidth: 500,
+    autoDeckLimit: 8,
+  });
+
+  assert.ok(decks.length > 0);
+  assert.ok(decks.every((entry) => entry.deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
+});
+
+test("v7 completes partial deck examples before evaluating their specified character", () => {
+  const characters = [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`pattern-${position}`, `pattern-${position}`, position)
+  ));
+  const input = {
+    id: "fire:100-pattern-test",
+    label: "pattern test",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: characters.map((character) => [character.name]),
+    exampleDeckNames: [],
+    exampleDeckPatterns: [["pattern-1", null, null, "pattern-4", null]],
+  };
+  const resolved = resolveMetagameV7Input(input, characters);
+  const pools = buildMetagameV7CandidatePools(resolved, characters, { partnerLimit: 8 });
+  const decks = buildMetagameV7DeckCandidates(characters[0], 1, resolved, pools, {
+    beamWidth: 500,
+    autoDeckLimit: 1,
+    exampleDeckLimit: 1,
+  });
+  const example = decks.find((entry) => entry.origin === "example");
+
+  assert.equal(resolved.examplePatterns.length, 1);
+  assert.equal(resolved.invalidExamples.length, 0);
+  assert.ok(example);
+  assert.equal(example.deck[0].id, "pattern-1");
+  assert.equal(example.deck[3].id, "pattern-4");
+});
+
+test("v7 registers the supplied water, wind, and fire-water environments", () => {
+  const expectedPoolCounts = {
+    "water:100": [8, 16, 19, 22, 32],
+    "wind:100": [7, 15, 16, 20, 26],
+    "fire-water:100": [14, 22, 21, 25, 23],
+  };
+  for (const input of METAGAME_V7_INPUTS.filter((entry) => entry.id in expectedPoolCounts)) {
+    const resolved = resolveMetagameV7Input(input, WORKBOOK_CHARACTERS);
+    const decks = createMetagameV7EnvironmentDecks(resolved, { count: 5 });
+    assert.deepEqual(resolved.environmentPools.map((pool) => pool.length), expectedPoolCounts[input.id]);
+    assert.ok(resolved.examplePatterns.length > 0);
+    assert.equal(resolved.audit.filter((entry) => !entry.name).length, 0);
+    assert.ok(decks.every((deck) => deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
+    for (let position = 0; position < 5; position += 1) {
+      for (const character of resolved.environmentPools[position]) {
+        assert.ok(decks.some((deck) => String(deck[position].id) === String(character.id)));
+      }
+    }
+  }
+});
+
+test("v7 records genuinely infeasible cost-100 targets without stopping the batch", () => {
+  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], WORKBOOK_CHARACTERS);
+  const pools = buildMetagameV7CandidatePools(resolved, WORKBOOK_CHARACTERS, { partnerLimit: 24 });
+  const target = pools.allByPosition[0].find((character) => character.name === "ピンギヌスのたまご");
+  const rating = rateMetagameV7Character(target, 1, resolved, pools, [], {
+    beamWidth: 500,
+    autoDeckLimit: 8,
+  });
+
+  assert.equal(rating.infeasible, true);
+  assert.equal(rating.evaluatedDeckCount, 0);
+  assert.equal(rating.v7Score, 0);
 });
 
 test("completed v7 report is converted into a precomputed deck-generator constraint", async () => {

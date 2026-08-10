@@ -645,7 +645,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     stageTotal: 0,
     retained: 0,
   });
-  if (constraint.modelVersion === "fixed-environment-v7") {
+  if (String(constraint.modelVersion ?? "").startsWith("fixed-environment-v7")) {
     const fixedSlots = metagameFixedSlots(options.fixedSlots);
     const precomputed = metagameV7PrecomputedResults(constraint, characters, fixedSlots);
     if (!precomputed.length) {
