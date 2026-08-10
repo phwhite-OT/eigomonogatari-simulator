@@ -11,7 +11,7 @@ import {
 import { createBattleState } from "./battleState.js";
 import { DEFAULT_RULES } from "../data/rules.js";
 
-export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.3";
+export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.4";
 
 const V7_BATTLE_PROFILES = Object.freeze([
   Object.freeze({

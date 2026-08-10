@@ -161,6 +161,13 @@ test("v7 resolves 二条嬢浴衣モード as its own fire-water character", () 
   assert.equal(character?.skill?.multiplier, 0.2);
 });
 
+test("character catalog corrects ラパヌイ先生 to water-wind", () => {
+  const character = CHARACTER_CATALOG.find((entry) => entry.id === "em-c87499b64151");
+
+  assert.equal(character?.name, "ラパヌイ先生");
+  assert.deepEqual(character?.attributes, ["water", "wind"]);
+});
+
 test("v7 records genuinely infeasible cost-100 targets without stopping the batch", () => {
   const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
   const pools = buildMetagameV7CandidatePools(resolved, CHARACTER_CATALOG, { partnerLimit: 24 });
