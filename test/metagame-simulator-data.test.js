@@ -1,7 +1,11 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
 
 import { METAGAME_SIMULATOR_DATA } from "../src/data/metagame-simulator-data.js";
+import { buildMetagameSimulatorData } from "../scripts/build-metagame-simulator-data.mjs";
 
 test("埋め込み済みの環境データは完全な5枠と30盤面を持つ", () => {
   assert.ok(METAGAME_SIMULATOR_DATA.sourceCompletedRuns >= 0);
@@ -31,4 +35,17 @@ test("埋め込み済みの環境データは完全な5枠と30盤面を持つ",
     assert.ok(constraint.slots.every((slot) => slot.environment.length > 0));
     assert.ok(constraint.slots.every((slot) => slot.candidates.length > 0));
   }
+});
+
+test("公開ビルドは結果ブランチ不在でも完了済みV7データを空にしない", async (t) => {
+  const temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), "metagame-browser-data-"));
+  t.after(() => fs.rm(temporaryDirectory, { recursive: true, force: true }));
+  const outputPath = path.join(temporaryDirectory, "metagame-simulator-data.js");
+
+  const { data } = await buildMetagameSimulatorData({ outputPath });
+
+  assert.equal(data.sourceModelVersion, "fixed-environment-v7.4");
+  assert.equal(data.sourceModelCompatible, true);
+  assert.equal(data.constraints.length, 7);
+  assert.match(await fs.readFile(outputPath, "utf8"), /"constraints":\[/);
 });

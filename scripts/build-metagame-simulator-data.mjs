@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
+import { METAGAME_SIMULATOR_DATA as EXISTING_METAGAME_SIMULATOR_DATA } from "../src/data/metagame-simulator-data.js";
 import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
 import {
   buildEnvironmentPositionPool,
@@ -77,6 +78,14 @@ function v7CompletedRunCount(progress) {
   return (progress.resultsByPosition ?? []).filter((ratings, index) => (
     ratings.length > 0 && ratings.length >= (progress.context?.candidateIdsByPosition?.[index]?.length ?? Infinity)
   )).length;
+}
+
+function hasCompletedV7BrowserData(data) {
+  return data?.sourceStatus === "complete"
+    && data?.sourceModelCompatible === true
+    && /^fixed-environment-v7\./.test(String(data.sourceModelVersion ?? ""))
+    && Array.isArray(data.constraints)
+    && data.constraints.length > 0;
 }
 
 async function readMetagameV7Source(projectRoot, source) {
@@ -350,7 +359,8 @@ export async function buildMetagameSimulatorData(options = {}) {
   const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
   const projectRoot = path.resolve(scriptDirectory, "..");
   const outputPath = path.resolve(projectRoot, options.outputPath ?? "src/data/metagame-simulator-data.js");
-  const configuredSources = options.statusPath || options.reportRoot
+  const usesDefaultSources = !options.statusPath && !options.reportRoot;
+  const configuredSources = !usesDefaultSources
     ? [{
       statusPath: options.statusPath ?? DEFAULT_METAGAME_SOURCES[0].statusPath,
       reportRoot: options.reportRoot ?? DEFAULT_METAGAME_SOURCES[0].reportRoot,
@@ -363,6 +373,18 @@ export async function buildMetagameSimulatorData(options = {}) {
   const completedV7Sources = availableSources.filter((candidate) => (
     candidate.type === "v7" && candidate.completedConstraints.length && candidate.report
   ));
+  // The public Pages build has no reports/metagame-ratings-v7 directory. Do
+  // not replace its already-published completed V7 data with an empty source
+  // merely because the reports live on the dedicated results branch.
+  if (usesDefaultSources && !completedV7Sources.length && hasCompletedV7BrowserData(EXISTING_METAGAME_SIMULATOR_DATA)) {
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+    await fs.writeFile(
+      outputPath,
+      `export const METAGAME_SIMULATOR_DATA = Object.freeze(${JSON.stringify(EXISTING_METAGAME_SIMULATOR_DATA)});\n`,
+      "utf8",
+    );
+    return { outputPath, data: EXISTING_METAGAME_SIMULATOR_DATA };
+  }
   const source = completedV7Sources[0]
     ?? availableSources.find((candidate) => candidate.completedConstraints.length)
     ?? availableSources[0]
