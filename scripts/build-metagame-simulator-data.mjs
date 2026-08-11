@@ -265,22 +265,23 @@ function compactMetagameV7Candidate(entry, character) {
 }
 
 function compactMetagameV7Deck(entry) {
-  if (!Array.isArray(entry?.ids) || entry.ids.length !== 5) return null;
+  const ids = entry?.i ?? entry?.ids;
+  if (!Array.isArray(ids) || ids.length !== 5) return null;
   return {
     // Short field names keep the browser payload small. They are expanded by
     // metagame-deck.js when a result is displayed.
-    i: entry.ids.map(String),
-    c: Number(entry.totalCost) || 0,
-    p: Number(entry.proxyScore) || 0,
-    y: Number(entry.synergyScore) || 0,
-    w: Number(entry.expectedWinRate) || 0,
-    l: Number(entry.expectedWinLowerBound) || 0,
-    s: Number(entry.scenarioCount) || 0,
-    a: Number(entry.decisiveWinRate) || 0,
-    d: Number(entry.decisiveDrawRate) || 0,
-    e: Number(entry.decisiveLossRate) || 0,
-    o: Number(entry.ongoingRate) || 0,
-    x: entry.origin === "example" ? "example" : "automatic",
+    i: ids.map(String),
+    c: Number(entry.c ?? entry.totalCost) || 0,
+    p: Number(entry.p ?? entry.proxyScore) || 0,
+    y: Number(entry.y ?? entry.synergyScore) || 0,
+    w: Number(entry.w ?? entry.expectedWinRate) || 0,
+    l: Number(entry.l ?? entry.expectedWinLowerBound) || 0,
+    s: Number(entry.s ?? entry.scenarioCount) || 0,
+    a: Number(entry.a ?? entry.decisiveWinRate) || 0,
+    d: Number(entry.d ?? entry.decisiveDrawRate) || 0,
+    e: Number(entry.e ?? entry.decisiveLossRate) || 0,
+    o: Number(entry.o ?? entry.ongoingRate) || 0,
+    x: entry.x ?? (entry.origin === "example" ? "example" : "automatic"),
   };
 }
 
