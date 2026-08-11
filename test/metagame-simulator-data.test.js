@@ -9,6 +9,13 @@ test("埋め込み済みの環境データは完全な5枠と30盤面を持つ",
   assert.equal(typeof METAGAME_SIMULATOR_DATA.sourceStatus, "string");
   assert.equal(typeof METAGAME_SIMULATOR_DATA.sourcePasses, "number");
 
+  const isCompletedV7 = METAGAME_SIMULATOR_DATA.sourceStatus === "complete"
+    && String(METAGAME_SIMULATOR_DATA.sourceModelVersion).startsWith("fixed-environment-v7");
+  if (isCompletedV7) {
+    assert.equal(METAGAME_SIMULATOR_DATA.sourceModelCompatible, true);
+    assert.ok(METAGAME_SIMULATOR_DATA.constraints.length > 0);
+  }
+
   if (!METAGAME_SIMULATOR_DATA.sourceModelCompatible) {
     assert.equal(METAGAME_SIMULATOR_DATA.constraints.length, 0);
     return;
