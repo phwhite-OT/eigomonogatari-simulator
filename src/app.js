@@ -56,7 +56,9 @@ function combineCharacters(baseCharacters, manualCharacters) {
   });
 }
 function bootstrap() {
-  void initializeSupabaseAuth();
+  const initializeAuthWhenAvailable = () => void initializeSupabaseAuth();
+  if (globalThis.supabase?.createClient) initializeAuthWhenAvailable();
+  else window.addEventListener("eigo-supabase-ready", initializeAuthWhenAvailable, { once: true });
   const form = document.querySelector("[data-search-form]");
   const dataSummary = document.querySelector("[data-data-summary]");
   const resultRoot = document.querySelector("[data-results]");
@@ -213,4 +215,12 @@ function bootstrap() {
   });
 }
 
-bootstrap();
+try {
+  bootstrap();
+} catch (error) {
+  const resultRoot = document.querySelector("[data-metagame-result]");
+  if (resultRoot) {
+    resultRoot.textContent = `対戦デッキ機能の初期化に失敗しました: ${error.message ?? String(error)}`;
+  }
+  console.error(error);
+}
