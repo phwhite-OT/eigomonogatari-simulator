@@ -231,7 +231,8 @@ test("completed v7 report is converted into a precomputed deck-generator constra
 
   assert.equal(constraint.id, "fire:100");
   assert.equal(constraint.slots.length, 5);
-  assert.equal(constraint.slots[0].candidates[0].expectedWinLowerBound, 0.5);
+  assert.equal(constraint.slots[0].candidates, undefined);
+  assert.equal(constraint.precomputedDecks[0].l, 0.5);
   assert.equal(constraint.environmentScenarios.length, 1);
 
   const result = await findBestMetagameDeck(
