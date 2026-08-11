@@ -505,8 +505,9 @@ export function initializeMetagameSimulator(root, data, characters) {
   };
 
   cancelButton.addEventListener("click", () => abortController?.abort());
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  const startCalculation = async (event) => {
+    event?.preventDefault();
+    if (abortController) return;
     displayedPrecomputedConstraintId = null;
     abortController = new AbortController();
     setBusy(true);
@@ -567,5 +568,7 @@ export function initializeMetagameSimulator(root, data, characters) {
       abortController = null;
       setBusy(false);
     }
-  });
+  };
+  form.addEventListener("submit", startCalculation);
+  submitButton.addEventListener("click", startCalculation);
 }

@@ -68,7 +68,7 @@
           <span>調査済みの属性・コスト縛り</span>
           <select name="metagameConstraint" aria-label="調査済み縛り"></select>
         </label>
-        <button class="button button-search" type="submit" data-metagame-submit><span>最高勝率デッキを計算</span><b>→</b></button>
+        <button class="button button-search" type="button" data-metagame-submit><span>最高勝率デッキを計算</span><b>→</b></button>
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
         <section class="metagame-fixed-slots" data-metagame-fixed-slots>
           <div class="metagame-fixed-slots-heading">
@@ -92,7 +92,7 @@
         <div><strong data-metagame-progress-label>候補デッキを生成</strong><span data-metagame-progress-value></span></div>
         <span><i data-metagame-progress-bar></i></span>
       </div>
-      <div class="metagame-simulator-results" data-metagame-result aria-live="polite"></div>
+      <div class="metagame-simulator-results" data-metagame-result aria-live="polite">調査済み環境を読み込んでいます…</div>
     </section>
 
     <div class="workspace">
@@ -455,7 +455,7 @@
     <span>DECK COMPASS / PROTOTYPE 0.1</span>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onload="window.dispatchEvent(new Event('eigo-supabase-ready'))"></script>
   <script>
 //__INLINE_SCRIPT__
   </script>
