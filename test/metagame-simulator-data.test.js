@@ -5,6 +5,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { METAGAME_SIMULATOR_DATA } from "../src/data/metagame-simulator-data.js";
+import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
+import { findBestMetagameDeck } from "../src/core/metagame-deck.js";
 import { buildMetagameSimulatorData } from "../scripts/build-metagame-simulator-data.mjs";
 
 test("埋め込み済みの環境データは完全な5枠と30盤面を持つ", () => {
@@ -48,4 +50,22 @@ test("公開ビルドは結果ブランチ不在でも完了済みV7データを
   assert.equal(data.sourceModelCompatible, true);
   assert.equal(data.constraints.length, 7);
   assert.match(await fs.readFile(outputPath, "utf8"), /"constraints":\[/);
+});
+
+test("完了済みV7データは、追加計算なしで表示用の推奨デッキを返せる", async () => {
+  const constraint = METAGAME_SIMULATOR_DATA.constraints.find((entry) => (
+    String(entry.modelVersion ?? "").startsWith("fixed-environment-v7")
+  ));
+  if (!constraint) return;
+
+  const result = await findBestMetagameDeck(
+    METAGAME_SIMULATOR_DATA,
+    constraint.id,
+    CHARACTER_CATALOG,
+  );
+
+  assert.equal(result.simulatedDeckCount, 0);
+  assert.ok(result.results.length > 0);
+  assert.equal(result.results[0].deck.length, 5);
+  assert.ok(result.results[0].deck.every((character) => character.name));
 });

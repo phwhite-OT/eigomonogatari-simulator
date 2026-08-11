@@ -318,6 +318,9 @@ export function initializeMetagameSimulator(root, data, characters) {
     option.textContent = constraint.label;
     select.append(option);
   }
+  // Keep the initial selection valid when a browser restores an old form state
+  // after newly published constraint data has been deployed.
+  if (data.constraints[0]) select.value = data.constraints[0].id;
   const sourceLabel = metagameUiModelLabel(data);
   status.textContent = data.constraints.length
     ? `利用可能 ${data.constraints.length}条件 / 評価完了 ${data.sourceCompletedRuns}/${data.sourceTotalRuns} / ${sourceLabel}`
@@ -328,6 +331,26 @@ export function initializeMetagameSimulator(root, data, characters) {
     [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
   );
   const selectedConstraint = () => data.constraints.find((entry) => entry.id === select.value);
+  let displayedPrecomputedConstraintId = null;
+  const renderAvailablePrecomputedDeck = () => {
+    const constraint = selectedConstraint();
+    const hasV7Decks = String(constraint?.modelVersion ?? "").startsWith("fixed-environment-v7");
+    if (!hasV7Decks || fixedSlots.size) return false;
+
+    const constraintId = constraint.id;
+    displayedPrecomputedConstraintId = constraintId;
+    renderMetagameSimulatorMessage(resultRoot, "計算済みの推奨デッキを表示しています。");
+    void findBestMetagameDeck(data, constraintId, characters).then((searchResult) => {
+      // A prior selection must not overwrite the current selection or a
+      // user-initiated calculation if it completes afterwards.
+      if (displayedPrecomputedConstraintId !== constraintId || abortController) return;
+      renderMetagameSimulatorResult(resultRoot, searchResult);
+    }).catch((error) => {
+      if (displayedPrecomputedConstraintId !== constraintId || abortController) return;
+      renderMetagameSimulatorMessage(resultRoot, error.message ?? String(error), true);
+    });
+    return true;
+  };
   const fixedSlotCandidates = (constraint) => characters.filter((character) => (
     matchesMetagameFixedConstraint(character, constraint)
   ));
@@ -430,6 +453,7 @@ export function initializeMetagameSimulator(root, data, characters) {
     renderMetagameEnvironmentPreview(previewContent, constraint);
     renderSurveyedMetagameConstraints(surveyedConstraints, data.constraints, constraint?.id);
     renderFixedSlots(constraint);
+    if (!renderAvailablePrecomputedDeck()) displayedPrecomputedConstraintId = null;
   };
   updateEnvironmentPreview();
   select.addEventListener("change", updateEnvironmentPreview);
@@ -455,12 +479,9 @@ export function initializeMetagameSimulator(root, data, characters) {
     select.value = button.dataset.metagameSurveyedConstraint;
     updateEnvironmentPreview();
   });
-  renderMetagameSimulatorMessage(
-    resultRoot,
-    data.constraints.length
-      ? "縛りを選び、「最高勝率デッキを計算」を押してください。"
-      : "枠別メタ環境評価が1縛り分完了すると利用できます。",
-  );
+  if (!data.constraints.length) {
+    renderMetagameSimulatorMessage(resultRoot, "枠別メタ環境評価が1縛り分完了すると利用できます。");
+  }
 
   const setBusy = (busy) => {
     submitButton.disabled = busy || data.constraints.length === 0;
@@ -486,6 +507,7 @@ export function initializeMetagameSimulator(root, data, characters) {
   cancelButton.addEventListener("click", () => abortController?.abort());
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    displayedPrecomputedConstraintId = null;
     abortController = new AbortController();
     setBusy(true);
     renderMetagameSimulatorMessage(resultRoot, "合法デッキを組み合わせ、調査済み環境で再対戦しています。");
