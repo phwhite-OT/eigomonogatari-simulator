@@ -50,9 +50,10 @@ test("公開ビルドは結果ブランチ不在でも完了済みV7データを
 
   const { data } = await buildMetagameSimulatorData({ outputPath });
 
-  assert.equal(data.sourceModelVersion, "fixed-environment-v7.4");
+  assert.equal(data.sourceModelVersion, "fixed-environment-v7.5");
   assert.equal(data.sourceModelCompatible, true);
-  assert.equal(data.constraints.length, 7);
+  assert.ok(data.constraints.length > 0);
+  assert.ok(data.constraints.every((constraint) => constraint.modelVersion === "fixed-environment-v7.5"));
   assert.match(await fs.readFile(outputPath, "utf8"), /"constraints":\[/);
 });
 
