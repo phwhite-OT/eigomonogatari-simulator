@@ -1,4 +1,4 @@
-name: Metagame v8.1 broad 5v5 team-battle evaluation
+name: Metagame v8.2 broad 5v5 team-battle evaluation
 
 on:
   push:
@@ -26,7 +26,7 @@ permissions:
 # The matrix workers never write to this branch. Keep the single publish job
 # serialized so independent runs cannot overwrite one another's checkpoints.
 concurrency:
-  group: metagame-v8.1
+  group: metagame-v8.2
   cancel-in-progress: false
 
 jobs:
@@ -48,17 +48,17 @@ jobs:
         run: |
           # The results branch is force-updated after each segment.  Fetch it
           # into the tracking ref explicitly; `git fetch origin <branch>` only
-          # updates FETCH_HEAD and leaves origin/metagame-v8.1-results stale.
-          results_ref="refs/remotes/origin/metagame-v8.1-results"
-          remote_result="$(git ls-remote --heads origin metagame-v8.1-results)"
+          # updates FETCH_HEAD and leaves origin/metagame-v8.2-results stale.
+          results_ref="refs/remotes/origin/metagame-v8.2-results"
+          remote_result="$(git ls-remote --heads origin metagame-v8.2-results)"
           if [ -n "$remote_result" ]; then
-            git fetch --no-tags origin "+refs/heads/metagame-v8.1-results:$results_ref"
+            git fetch --no-tags origin "+refs/heads/metagame-v8.2-results:$results_ref"
           fi
           is_complete() {
             local progress_path="$1"
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
-            jq -e '.status == "complete" and .context.version == "team-battle-v8.1"' \
+            jq -e '.status == "complete" and .context.version == "team-battle-v8.2"' \
               <<< "$progress" >/dev/null
           }
 
@@ -73,7 +73,7 @@ jobs:
               break
             fi
             output_directory="${input_id//:/-}"
-            progress_path="reports/metagame-ratings-v8.1/$output_directory/progress.json"
+            progress_path="reports/metagame-ratings-v8.2/$output_directory/progress.json"
             if is_complete "$progress_path"; then
               continue
             fi
@@ -124,14 +124,14 @@ jobs:
       - name: Restore the canonical progress for this input and position
         shell: bash
         run: |
-          checkpoint_path="$RUNNER_TEMP/v8.1-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json"
+          checkpoint_path="$RUNNER_TEMP/v8.2-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json"
           mkdir -p "$(dirname "$checkpoint_path")"
-          results_ref="refs/remotes/origin/metagame-v8.1-results"
-          remote_result="$(git ls-remote --heads origin metagame-v8.1-results)"
+          results_ref="refs/remotes/origin/metagame-v8.2-results"
+          remote_result="$(git ls-remote --heads origin metagame-v8.2-results)"
           if [ -n "$remote_result" ]; then
-            git fetch --no-tags origin "+refs/heads/metagame-v8.1-results:$results_ref"
+            git fetch --no-tags origin "+refs/heads/metagame-v8.2-results:$results_ref"
           fi
-          progress_path="reports/metagame-ratings-v8.1/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
+          progress_path="reports/metagame-ratings-v8.2/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
           if git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null; then
             echo "Restored canonical progress for ${METAGAME_INPUT}, position ${{ matrix.position }}"
           fi
@@ -143,15 +143,15 @@ jobs:
           node scripts/rate-metagame-v7.mjs \
             --input="$METAGAME_INPUT" \
             --position=${{ matrix.position }} \
-            --checkpoint-path="$RUNNER_TEMP/v8.1-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json" \
+            --checkpoint-path="$RUNNER_TEMP/v8.2-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json" \
             --time-budget-seconds="$METAGAME_TIME_BUDGET_SECONDS"
 
       - name: Upload position progress
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v8.1-progress-${{ matrix.output_directory }}-${{ matrix.position }}
-          path: ${{ runner.temp }}/v8.1-position-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}.json
+          name: v8.2-progress-${{ matrix.output_directory }}-${{ matrix.position }}
+          path: ${{ runner.temp }}/v8.2-position-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}.json
           if-no-files-found: warn
           retention-days: 2
 
@@ -175,19 +175,19 @@ jobs:
         with:
           node-version: 22
 
-      - name: Restore the v8.1 result branch
+      - name: Restore the v8.2 result branch
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          remote_result="$(git ls-remote --heads origin metagame-v8.1-results)"
+          remote_result="$(git ls-remote --heads origin metagame-v8.2-results)"
           if [ -n "$remote_result" ]; then
-            git fetch --no-tags origin "+refs/heads/metagame-v8.1-results:refs/remotes/origin/metagame-v8.1-results"
+            git fetch --no-tags origin "+refs/heads/metagame-v8.2-results:refs/remotes/origin/metagame-v8.2-results"
           fi
-          if git show-ref --verify --quiet refs/remotes/origin/metagame-v8.1-results; then
-            git switch --create metagame-v8.1-results --track origin/metagame-v8.1-results
+          if git show-ref --verify --quiet refs/remotes/origin/metagame-v8.2-results; then
+            git switch --create metagame-v8.2-results --track origin/metagame-v8.2-results
           else
-            git switch --create metagame-v8.1-results
+            git switch --create metagame-v8.2-results
           fi
           git rebase ${{ github.sha }}
 
@@ -196,9 +196,9 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          pattern: v8.1-progress-*
+          pattern: v8.2-progress-*
           merge-multiple: true
-          path: ${{ runner.temp }}/v8.1-position-progress
+          path: ${{ runner.temp }}/v8.2-position-progress
 
       - id: finalize
         name: Merge checkpoints for every selected input
@@ -213,16 +213,16 @@ jobs:
             input="$(jq -r '.input' <<< "$target")"
             output_directory="$(jq -r '.output_directory' <<< "$target")"
             checkpoint_paths="$(printf '%s,' \
-              "$RUNNER_TEMP/v8.1-position-progress/${output_directory}-position-1.json" \
-              "$RUNNER_TEMP/v8.1-position-progress/${output_directory}-position-2.json" \
-              "$RUNNER_TEMP/v8.1-position-progress/${output_directory}-position-3.json" \
-              "$RUNNER_TEMP/v8.1-position-progress/${output_directory}-position-4.json" \
-              "$RUNNER_TEMP/v8.1-position-progress/${output_directory}-position-5.json")"
+              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-1.json" \
+              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-2.json" \
+              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-3.json" \
+              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-4.json" \
+              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-5.json")"
             checkpoint_paths="${checkpoint_paths%,}"
             node scripts/rate-metagame-v7.mjs \
               --input="$input" \
               --position=all \
-              --checkpoint-path="reports/metagame-ratings-v8.1/${output_directory}/progress.json" \
+              --checkpoint-path="reports/metagame-ratings-v8.2/${output_directory}/progress.json" \
               --merge-checkpoint-paths="$checkpoint_paths" \
               --finalize-only=true
             if [ "$?" -ne 0 ]; then
@@ -243,21 +243,21 @@ jobs:
           is_complete_file() {
             local progress_path="$1"
             [ -f "$progress_path" ] && jq -e \
-              '.status == "complete" and .context.version == "team-battle-v8.1"' \
+              '.status == "complete" and .context.version == "team-battle-v8.2"' \
               "$progress_path" >/dev/null
           }
 
           completed_any=false
           while IFS= read -r target; do
             output_directory="$(jq -r '.output_directory' <<< "$target")"
-            if is_complete_file "reports/metagame-ratings-v8.1/${output_directory}/progress.json"; then
+            if is_complete_file "reports/metagame-ratings-v8.2/${output_directory}/progress.json"; then
               completed_any=true
             fi
           done < <(jq -c '.[]' <<< "$TARGETS")
 
           all_completed=true
           for output_directory in fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100 all-100; do
-            if ! is_complete_file "reports/metagame-ratings-v8.1/${output_directory}/progress.json"; then
+            if ! is_complete_file "reports/metagame-ratings-v8.2/${output_directory}/progress.json"; then
               all_completed=false
               break
             fi
@@ -270,7 +270,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          state_path="reports/metagame-ratings-v8.1/recovery.json"
+          state_path="reports/metagame-ratings-v8.2/recovery.json"
           mkdir -p "$(dirname "$state_path")"
           outcome="${{ steps.finalize.outcome }}"
           if [ "${{ steps.download.outcome }}" != "success" ] || [ "${{ needs.evaluate.result }}" != "success" ]; then
@@ -298,22 +298,22 @@ jobs:
             echo "retry_exhausted=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build browser data from completed v8.1 reports
+      - name: Build browser data from completed v8.2 reports
         if: steps.status.outputs.completed_any == 'true' && steps.finalize.outcome == 'success' && steps.download.outcome == 'success' && needs.evaluate.result == 'success'
         run: npm run build
 
-      - name: Save v8.1 progress to the result branch
+      - name: Save v8.2 progress to the result branch
         if: always()
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f reports/metagame-ratings-v8.1
+          git add -f reports/metagame-ratings-v8.2
           if [ -f src/data/metagame-simulator-data.js ]; then git add src/data/metagame-simulator-data.js; fi
           if [ -f index.html ]; then git add index.html; fi
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "chore: save metagame v8.1 evaluation progress"
-          git push --force-with-lease=refs/heads/metagame-v8.1-results origin HEAD:metagame-v8.1-results
+          git commit -m "chore: save metagame v8.2 evaluation progress"
+          git push --force-with-lease=refs/heads/metagame-v8.2-results origin HEAD:metagame-v8.2-results
 
       - name: Create an issue after automatic retries are exhausted
         if: always() && steps.recovery.outputs.retry_exhausted == 'true'
@@ -321,8 +321,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          body="The V8.1 broad 5v5 metagame evaluator stopped after three consecutive failures. Progress and recovery state are saved on the metagame-v8.1-results branch. Review the latest Actions run for the error log."
-          payload="$(jq -n --arg title "V8.1 evaluation stopped after automatic retries" --arg body "$body" '{title: $title, body: $body}')"
+          body="The V8.2 broad 5v5 metagame evaluator stopped after three consecutive failures. Progress and recovery state are saved on the metagame-v8.2-results branch. Review the latest Actions run for the error log."
+          payload="$(jq -n --arg title "V8.2 evaluation stopped after automatic retries" --arg body "$body" '{title: $title, body: $body}')"
           curl --fail-with-body --silent --show-error \
             --request POST \
             --url "${{ github.api_url }}/repos/${{ github.repository }}/issues" \
@@ -375,23 +375,23 @@ jobs:
         run: |
           echo "changed=false" >> "$GITHUB_OUTPUT"
           data_path="src/data/metagame-simulator-data.js"
-          results_ref="refs/remotes/origin/metagame-v8.1-results"
+          results_ref="refs/remotes/origin/metagame-v8.2-results"
 
           # The first segment has no result branch yet. Later failures must
           # not publish stale data, so always fetch the force-updated branch.
-          if ! git ls-remote --exit-code --heads origin metagame-v8.1-results >/dev/null; then
-            echo "No v8.1 result branch exists yet."
+          if ! git ls-remote --exit-code --heads origin metagame-v8.2-results >/dev/null; then
+            echo "No v8.2 result branch exists yet."
             exit 0
           fi
           git fetch --no-tags origin \
             "+refs/heads/master:refs/remotes/origin/master" \
-            "+refs/heads/metagame-v8.1-results:$results_ref"
+            "+refs/heads/metagame-v8.2-results:$results_ref"
 
           git switch --detach origin/master
-          git checkout "$results_ref" -- reports/metagame-ratings-v8.1
+          git checkout "$results_ref" -- reports/metagame-ratings-v8.2
           npm run build:metagame-data
           set +e
-          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; if (data.sourceModelVersion !== "team-battle-v8.1") throw new Error("V8.1 browser-data build used an incompatible model."); if (!data.constraints.length) { console.log("No fully completed V8.1 constraint yet; keeping the existing public data."); process.exit(3); } console.log(`Built ${data.constraints.length} V8.1 browser constraints.`);'
+          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; if (data.sourceModelVersion !== "team-battle-v8.2") throw new Error("V8.2 browser-data build used an incompatible model."); if (!data.constraints.length) { console.log("No fully completed V8.2 constraint yet; keeping the existing public data."); process.exit(3); } console.log(`Built ${data.constraints.length} V8.2 browser constraints.`);'
           validation_status=$?
           set -e
           if [ "$validation_status" -eq 3 ]; then exit 0; fi
@@ -403,7 +403,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$data_path"
-          git commit --only "$data_path" -m "chore: publish completed v8.1 metagame data"
+          git commit --only "$data_path" -m "chore: publish completed v8.2 metagame data"
           git push origin HEAD:master
           echo "changed=true" >> "$GITHUB_OUTPUT"
 

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { WORKBOOK_CHARACTERS, WORKBOOK_DATA_SUMMARY } from "../src/data/workbook-characters.js";
+import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { ATTRIBUTES, ATTRIBUTE_CLASSES, DEFAULT_RULES, resolveAttributeClass } from "../src/data/rules.js";
 import { validateDeck } from "../src/core/filter.js";
 import { searchDecks } from "../src/core/search-fast.js";
@@ -8,6 +9,16 @@ import { searchDecks } from "../src/core/search-fast.js";
 function charactersNamed(name) {
   return WORKBOOK_CHARACTERS.filter((character) => character.name === name);
 }
+
+test("verified skill-turn corrections are reflected in the catalog", () => {
+  const holtBarge = CHARACTER_CATALOG.find((character) => character.id === "em-8cafabee26c4");
+  const stonehengeEngineer = CHARACTER_CATALOG.find((character) => character.id === "em-dec390a52ee6");
+
+  assert.equal(holtBarge?.id, "em-8cafabee26c4");
+  assert.equal(holtBarge?.skillTurn, 4);
+  assert.equal(stonehengeEngineer?.id, "em-dec390a52ee6");
+  assert.equal(stonehengeEngineer?.skillTurn, 2);
+});
 
 test("Book1.xlsx由来の2,216体を収録する", () => {
   assert.equal(WORKBOOK_DATA_SUMMARY.sourceRows, 2217);

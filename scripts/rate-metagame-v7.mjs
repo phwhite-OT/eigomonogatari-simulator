@@ -101,7 +101,7 @@ const requestedPosition = readArgument("position", "all").toLowerCase();
 if (!/^(all|next|[1-5])$/.test(requestedPosition)) {
   throw new Error(`Invalid --position value: ${requestedPosition}`);
 }
-const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8.1");
+const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8.2");
 const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds", "0")) || 0);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");

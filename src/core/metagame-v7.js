@@ -15,7 +15,7 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // input sheet still describes the five positions within one player's deck,
 // but a match is always simulated as five player decks versus five player
 // decks (25 characters per team including reserves).
-export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.1";
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.2";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
 // decide whether a report is compatible.

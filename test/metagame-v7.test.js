@@ -108,7 +108,7 @@ test("v7 completes each environment pivot with strong feasible partners instead 
   }
 });
 
-test("v8.1 broad environment gives each supplied pivot multiple legal partner completions", () => {
+test("v8.2 broad environment gives each supplied pivot multiple legal partner completions", () => {
   const characters = [1, 2, 3, 4, 5].flatMap((position) => [
     v7TestCharacter(`pivot-${position}`, `pivot-${position}`, position, { cost: 20, hp: 2_000, pow: 2_000 }),
     v7TestCharacter(`alternate-${position}`, `alternate-${position}`, position, { cost: 20, hp: 1_700, pow: 1_700 }),
