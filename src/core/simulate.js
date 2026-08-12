@@ -493,7 +493,11 @@ function attackIntents(state, selectedSkills, rules, options) {
     enemies: activeTokens(state, "enemies"),
   };
   return ["allies", "enemies"].flatMap((side) => orderAttackIntents(tokens[side].map((token) => {
-    const skill = attackSkillWithEffects(token.actor);
+    const selectedSkill = selected.get(`${side}:${token.actorIndex}`)?.skill;
+    // A selected attack skill changes this turn's attack.  Support skills have
+    // already been applied in their own phases, so their owner still makes a
+    // normal attack (possibly modified by the resulting continuous effects).
+    const skill = attackSkillWithEffects(token.actor, isAttackSkill(selectedSkill) ? selectedSkill : BASIC_ATTACK);
     return {
       ...token,
       skill,

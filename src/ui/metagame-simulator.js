@@ -23,13 +23,13 @@ function metagameUiModelLabel(data) {
   return version ? `GitHub環境${version}` : data.sourceIsLegacy ? "旧評価" : "環境評価";
 }
 
-function metagameUiUsesProvisionalV7Data(data) {
+function metagameUiUsesInvalidPreV8Data(data) {
   const version = String(data.sourceModelVersion ?? "");
-  return /^fixed-environment-v7\./.test(version) && version !== "fixed-environment-v7.5";
+  return /^fixed-environment-v7\./.test(version);
 }
 
 function metagameUiCalculationState(data) {
-  if (metagameUiUsesProvisionalV7Data(data)) return "V7.4反映待ち";
+  if (metagameUiUsesInvalidPreV8Data(data)) return "V7.5 results invalid; V8 5v5 recalculating";
   const status = data.sourceStatus;
   return {
     complete: "完了",
@@ -77,8 +77,8 @@ function renderMetagameCalculationStatus(container, data) {
   const note = metagameUiElement(
     "p",
     "metagame-calculation-note",
-    metagameUiUsesProvisionalV7Data(data)
-      ? `${availableLabels}は保存済みのV7.2結果です。現在V7.4で再計算中のため、完了後に補正済み評価へ自動的に置き換えます。`
+    metagameUiUsesInvalidPreV8Data(data)
+      ? "旧V7.5の1対1結果は無効です。5対5・継続ありのV8評価を再計算中のため、完了まで最高勝率デッキは表示しません。"
       : data.constraints.length
       ? `${availableLabels}は${passLabel}の全5枠が完了済みです。未完了の条件は表示・デッキ計算に含めません。`
       : "完了済みの5枠セットがまだないため、環境データは表示できません。",
@@ -334,8 +334,8 @@ export function initializeMetagameSimulator(root, data, characters) {
   let displayedPrecomputedConstraintId = null;
   const renderAvailablePrecomputedDeck = () => {
     const constraint = selectedConstraint();
-    const hasV7Decks = String(constraint?.modelVersion ?? "").startsWith("fixed-environment-v7");
-    if (!hasV7Decks || fixedSlots.size) return false;
+    const hasV8Decks = String(constraint?.modelVersion ?? "").startsWith("team-battle-v8");
+    if (!hasV8Decks || fixedSlots.size) return false;
 
     const constraintId = constraint.id;
     displayedPrecomputedConstraintId = constraintId;

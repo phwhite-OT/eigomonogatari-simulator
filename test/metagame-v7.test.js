@@ -5,6 +5,8 @@ import {
   buildMetagameV7CandidatePools,
   buildMetagameV7DeckCandidates,
   createMetagameV7EnvironmentDecks,
+  createMetagameV8TeamScenarios,
+  evaluateMetagameV7Deck,
   rateMetagameV7Character,
   resolveMetagameV7Input,
   resolveMetagameV7Name,
@@ -12,7 +14,7 @@ import {
 import { findBestMetagameDeck } from "../src/core/metagame-deck.js";
 import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
-import { buildMetagameV7Constraint } from "../scripts/build-metagame-simulator-data.mjs";
+import { buildMetagameV8Constraint } from "../scripts/build-metagame-simulator-data.mjs";
 
 function v7TestCharacter(id, name, position, options = {}) {
   return {
@@ -23,7 +25,7 @@ function v7TestCharacter(id, name, position, options = {}) {
     cost: options.cost ?? 20,
     hp: options.hp ?? 1_000,
     pow: options.pow ?? 1_000,
-    skillTurn: position - 1,
+    skillTurn: options.skillTurn ?? position - 1,
     maxUses: 0,
     allowedPositions: [1, 2, 3, 4, 5],
     skill: { type: "none", multiplier: 1, duration: 1, target: "self", conditions: [] },
@@ -67,7 +69,7 @@ test("v7 real environment includes every supplied candidate within the cost cap"
   const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
   const decks = createMetagameV7EnvironmentDecks(resolved, { count: 72, seed: 7107 });
 
-  assert.ok(decks.length >= 77);
+  assert.ok(decks.length >= resolved.environmentPools.flat().length);
   for (const deck of decks) {
     assert.equal(deck.length, 5);
     assert.ok(deck.reduce((sum, character) => sum + character.cost, 0) <= 100);
@@ -104,6 +106,64 @@ test("v7 completes each environment pivot with strong feasible partners instead 
     if (weakPivot < 0) continue;
     assert.ok(deck.every((character, index) => index === weakPivot || character.id.startsWith("high-")));
   }
+});
+
+test("v8 evaluates a candidate deck within a 5v5 team scenario", () => {
+  const teams = [0, 1, 2, 3, 4].map((team) => [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`team-${team}-slot-${position}`, `team-${team}-slot-${position}`, position, {
+      cost: 20,
+      hp: 1_000,
+      pow: 1_000,
+    })
+  )));
+  const scenarios = createMetagameV8TeamScenarios({
+    environmentPools: teams[0].map((character) => [character]),
+    examplePatterns: [],
+  }, { environmentDecks: teams.concat(teams), count: 2 });
+  const result = evaluateMetagameV7Deck(teams[0], scenarios, { turns: 1 });
+
+  assert.equal(scenarios.length, 2);
+  assert.ok(scenarios.every((scenario) => scenario.allyDecks.length === 4));
+  assert.ok(scenarios.every((scenario) => scenario.enemyDecks.length === 5));
+  assert.equal(result.scenarioCount, 2);
+  assert.ok(Number.isFinite(result.expectedWinRate));
+});
+
+test("v8 team scenarios cover every supplied environment deck", () => {
+  const decks = Array.from({ length: 23 }, (_, team) => [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`coverage-${team}-${position}`, `coverage-${team}-${position}`, position)
+  )));
+  const scenarios = createMetagameV8TeamScenarios({ environmentPools: [], examplePatterns: [] }, {
+    environmentDecks: decks,
+    count: 3,
+  });
+  const included = new Set(scenarios.flatMap((scenario) => [
+    ...scenario.allyDecks,
+    ...scenario.enemyDecks,
+  ]).map((deck) => deck[0].id));
+
+  assert.equal(scenarios.length, 3);
+  assert.deepEqual(included, new Set(decks.map((deck) => deck[0].id)));
+});
+
+test("v8 removes environment candidates that violate their supplied deck position", () => {
+  const legal = [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`legal-${position}`, `legal-${position}`, position)
+  ));
+  const illegal = v7TestCharacter("illegal", "illegal", 2, { skillTurn: 0 });
+  const input = {
+    id: "fire:100-position-audit-test",
+    label: "position audit",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: [["legal-1"], ["legal-2", "illegal"], ["legal-3"], ["legal-4"], ["legal-5"]],
+    exampleDeckNames: [],
+  };
+  const resolved = resolveMetagameV7Input(input, [...legal, illegal]);
+
+  assert.deepEqual(resolved.environmentPools[1].map((character) => character.id), ["legal-2"]);
+  assert.equal(resolved.invalidEnvironmentCandidates.length, 1);
+  assert.equal(resolved.invalidEnvironmentCandidates[0].id, "illegal");
 });
 
 test("v7 includes affordable partners so high-cost targets cannot stop the batch", () => {
@@ -158,18 +218,14 @@ test("v7 completes partial deck examples before evaluating their specified chara
 });
 
 test("v7 registers every supplied fixed environment", () => {
-  const expectedPoolCounts = {
-    "water:100": [8, 16, 19, 22, 32],
-    "wind:100": [7, 15, 16, 20, 26],
-    "fire-water:100": [14, 22, 21, 25, 23],
-    "fire-wind:100": [15, 16, 17, 23, 23],
-    "water-wind:100": [12, 21, 16, 28, 29],
-    "all:100": [34, 45, 34, 66, 63],
-  };
-  for (const input of METAGAME_V7_INPUTS.filter((entry) => entry.id in expectedPoolCounts)) {
+  for (const input of METAGAME_V7_INPUTS) {
     const resolved = resolveMetagameV7Input(input, CHARACTER_CATALOG);
     const decks = createMetagameV7EnvironmentDecks(resolved, { count: 5 });
-    assert.deepEqual(resolved.environmentPools.map((pool) => pool.length), expectedPoolCounts[input.id]);
+    assert.ok(resolved.environmentPools.every((pool) => pool.length > 0));
+    assert.equal(
+      resolved.environmentPools.flat().length + resolved.invalidEnvironmentCandidates.length,
+      input.environmentNamesByPosition.flat().length,
+    );
     assert.ok(resolved.examplePatterns.length > 0);
     assert.equal(resolved.audit.filter((entry) => !entry.name).length, 0);
     assert.ok(decks.every((deck) => deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
@@ -221,7 +277,7 @@ test("completed v7 report is converted into a precomputed deck-generator constra
   const characters = CHARACTER_CATALOG.slice(0, 5);
   const report = {
     generatedAt: "2026-08-09T00:00:00.000Z",
-    model: { version: "fixed-environment-v7" },
+    model: { version: "team-battle-v8.0" },
     context: {
       inputId: "fire:100",
       label: "火・コスト100",
@@ -259,7 +315,7 @@ test("completed v7 report is converted into a precomputed deck-generator constra
     })),
   };
 
-  const constraint = buildMetagameV7Constraint(
+  const constraint = buildMetagameV8Constraint(
     report,
     new Map(characters.map((character) => [String(character.id), character])),
   );

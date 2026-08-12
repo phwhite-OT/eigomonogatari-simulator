@@ -205,7 +205,7 @@ function effectValue(combatant) {
 function combatantValue(combatant) {
   if (!combatant.alive || combatant.isGhost) return 0;
   const hpRatio = combatant.maxHp > 0 ? combatant.currentHp / combatant.maxHp : 0;
-  const roleImportance = combatant.character.roleTags.some((role) =>
+  const roleImportance = (combatant.character.roleTags ?? []).some((role) =>
     ["revive", "aoe_attacker", "guard", "finisher"].includes(role),
   )
     ? 6

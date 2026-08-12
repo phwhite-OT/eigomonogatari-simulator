@@ -587,7 +587,7 @@ async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, opt
   };
 }
 
-function metagameV7PrecomputedResults(constraint, characters, fixedSlots) {
+function metagameV8PrecomputedResults(constraint, characters, fixedSlots) {
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
   const ratingsByPosition = (constraint.slots ?? []).map((slot) => (
     new Map((slot.candidates ?? []).map((rating) => [String(rating.id), rating]))
@@ -596,7 +596,7 @@ function metagameV7PrecomputedResults(constraint, characters, fixedSlots) {
   const precomputedDecks = Array.isArray(constraint.precomputedDecks)
     ? constraint.precomputedDecks
     : (constraint.slots ?? []).flatMap((slot) => (
-      (slot.candidates ?? []).map((rating) => rating.v7BestDeck)
+      (slot.candidates ?? []).map((rating) => rating.v8BestDeck ?? rating.v7BestDeck)
     ));
   for (const rawPrecomputed of precomputedDecks) {
       const ids = rawPrecomputed?.i ?? rawPrecomputed?.ids;
@@ -657,11 +657,11 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     stageTotal: 0,
     retained: 0,
   });
-  if (String(constraint.modelVersion ?? "").startsWith("fixed-environment-v7")) {
+  if (String(constraint.modelVersion ?? "").startsWith("team-battle-v8")) {
     const fixedSlots = metagameFixedSlots(options.fixedSlots);
-    const precomputed = metagameV7PrecomputedResults(constraint, characters, fixedSlots);
+    const precomputed = metagameV8PrecomputedResults(constraint, characters, fixedSlots);
     if (!precomputed.length) {
-      throw new Error("選択した固定キャラを同時に含むv7事前評価済みデッキがありません。");
+      throw new Error("選択した固定キャラを同時に含むV8事前評価済みデッキがありません。");
     }
     return {
       constraint,

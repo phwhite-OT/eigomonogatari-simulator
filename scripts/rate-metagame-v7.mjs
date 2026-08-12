@@ -8,6 +8,7 @@ import {
   METAGAME_V7_MODEL_VERSION,
   buildMetagameV7CandidatePools,
   createMetagameV7EnvironmentDecks,
+  createMetagameV8TeamScenarios,
   rankMetagameV7Characters,
   rateMetagameV7Character,
   resolveMetagameV7Input,
@@ -88,9 +89,10 @@ const inputId = readArgument("input", "fire:100");
 const input = METAGAME_V7_INPUTS.find((entry) => entry.id === inputId);
 if (!input) throw new Error(`v7入力 ${inputId} が見つかりません。`);
 
-const environmentCount = positiveInteger(readArgument("environment-count", "72"), 72, 5);
+const environmentCount = positiveInteger(readArgument("environment-count", "24"), 24, 5);
 const partnerLimit = positiveInteger(readArgument("partner-limit", "32"), 32, 32);
-const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "8"), 8, 1);
+const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "2"), 2, 1);
+const anchorDeckLimit = Math.max(0, Math.floor(Number(readArgument("anchor-deck-limit", "0")) || 0));
 const beamWidth = positiveInteger(readArgument("beam-width", "500"), 500, 50);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
@@ -98,7 +100,7 @@ const requestedPosition = readArgument("position", "all").toLowerCase();
 if (!/^(all|next|[1-5])$/.test(requestedPosition)) {
   throw new Error(`Invalid --position value: ${requestedPosition}`);
 }
-const outputRoot = readArgument("output-root", "reports/metagame-ratings-v7");
+const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8");
 const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds", "0")) || 0);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
@@ -126,6 +128,10 @@ if (resolvedInput.invalidExamples.length) {
 }
 
 const environmentDecks = createMetagameV7EnvironmentDecks(resolvedInput, { count: environmentCount });
+const teamScenarios = createMetagameV8TeamScenarios(resolvedInput, {
+  environmentDecks,
+  count: environmentCount,
+});
 const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
 const selectedCandidatesByPosition = [1, 2, 3, 4, 5].map((position) => {
   const candidates = candidatePools.allByPosition[position - 1];
@@ -135,8 +141,10 @@ const checkpointContext = {
   version: METAGAME_V7_MODEL_VERSION,
   inputId,
   environmentCount,
+  teamScenarioCount: teamScenarios.length,
   partnerLimit,
   autoDeckLimit,
+  anchorDeckLimit,
   beamWidth,
   turns,
   maxCandidates: maxCandidates || null,
@@ -200,8 +208,8 @@ if (!finalizeOnly) {
         position,
         resolvedInput,
         candidatePools,
-        environmentDecks,
-        { autoDeckLimit, beamWidth, turns },
+        teamScenarios,
+        { autoDeckLimit, anchorDeckLimit, beamWidth, turns },
       );
       if (rating) results.set(String(rating.id), rating);
       if ((index + 1) % 5 === 0) await saveProgress();
@@ -238,6 +246,8 @@ const report = {
   generatedAt: new Date().toISOString(),
   model: {
     version: METAGAME_V7_MODEL_VERSION,
+    battleFormat: "5v5",
+    teamScenarioCount: teamScenarios.length,
     objective: "ユーザー提示の固定環境に対し、コスト100内で完成するデッキの下限勝率をキャラ評価へ使う。",
     environment: "環境は枠別の提示候補からのみ構成し、予測使用率・所持率・自動メタ生成を使わない。",
     characterScope: "属性・コスト・配置・従来のスキルターン制限を満たす全キャラ。",
@@ -245,7 +255,7 @@ const report = {
     continuationPolicy: "継続効果は12ターンの戦闘再現で評価し、提示デッキ例は成立済みの運用候補として自動生成候補と同列に検証する。",
     proxyPolicy: "パートナー探索だけに軽量の補助点を用い、最終順位は固定環境との戦闘結果だけで決める。",
     recoveryPolicy: "Recovery is normal up to maximum HP, half-effective above it, and capped at double maximum HP.",
-    excludedSkillPolicy: "Delay and skill-reduction are excluded from V7: they neither activate nor consume a use.",
+    excludedSkillPolicy: "Delay and skill-reduction are excluded from V8: they neither activate nor consume a use.",
     environmentPolicy: "Each supplied environment character is evaluated in a strong, feasible cost-capped deck; infeasible partial examples are omitted.",
   },
   context: {
@@ -256,8 +266,10 @@ const report = {
     turns,
     requestedEnvironmentCount: environmentCount,
     environmentCount: environmentDecks.length,
+    teamScenarioCount: teamScenarios.length,
     partnerLimit,
     autoDeckLimit,
+    anchorDeckLimit,
     beamWidth,
     maxCandidates: maxCandidates || null,
     eligibleCandidateCountByPosition: candidatePools.allByPosition.map((pool) => pool.length),
@@ -266,11 +278,20 @@ const report = {
     source: resolvedInput.source,
     environmentPoolCounts: resolvedInput.environmentPools.map((pool) => pool.length),
     invalidExamples: resolvedInput.invalidExamples,
+    invalidEnvironmentCandidates: resolvedInput.invalidEnvironmentCandidates,
     matches: resolvedInput.audit,
   },
   environmentDecks: environmentDecks.map((deck) => deck.map((character) => ({
     id: String(character.id), name: character.name, cost: character.cost,
   }))),
+  teamScenarios: teamScenarios.map((scenario) => ({
+    allyDecks: scenario.allyDecks.map((deck) => deck.map((character) => ({
+      id: String(character.id), name: character.name, cost: character.cost,
+    }))),
+    enemyDecks: scenario.enemyDecks.map((deck) => deck.map((character) => ({
+      id: String(character.id), name: character.name, cost: character.cost,
+    }))),
+  })),
   environmentPools: resolvedInput.environmentPools.map((pool) => pool.map((character) => ({
     id: String(character.id), name: character.name, cost: character.cost,
   }))),

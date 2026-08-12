@@ -11,7 +11,15 @@ import {
 import { createBattleState } from "./battleState.js";
 import { DEFAULT_RULES } from "../data/rules.js";
 
-export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.5";
+// This replaces the invalid one-deck-versus-one-deck V7.5 evaluator.  The
+// input sheet still describes the five positions within one player's deck,
+// but a match is always simulated as five player decks versus five player
+// decks (25 characters per team including reserves).
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.0";
+// Keep the export name while the surrounding command and input filenames are
+// migrated.  Consumers must use the model version, never the filename, to
+// decide whether a report is compatible.
+export const METAGAME_V7_MODEL_VERSION = METAGAME_V8_MODEL_VERSION;
 
 const V7_BATTLE_PROFILES = Object.freeze([
   Object.freeze({
@@ -206,12 +214,27 @@ export function resolveMetagameV7Input(input, characters) {
       nameAllowedAttributes: input.environmentNameAllowedAttributes,
     })
   ));
+  const invalidEnvironmentMatches = environmentMatches.flatMap((matches, index) => matches.filter((match) => (
+    match.character && (
+      !match.character.allowedPositions?.includes(index + 1) ||
+      !isSkillTurnAllowedAtPosition(match.character, index + 1)
+    )
+  )));
   const environmentPools = environmentMatches.map((matches, index) => {
     const unresolved = matches.filter((match) => !match.character);
     if (unresolved.length) {
       throw new Error(`${index + 1}枠目の環境キャラを照合できません: ${unresolved.map((match) => match.inputName).join("、")}`);
     }
-    return matches.map((match) => match.character);
+    const usable = matches
+      .filter((match) => (
+        match.character.allowedPositions?.includes(index + 1) &&
+        isSkillTurnAllowedAtPosition(match.character, index + 1)
+      ))
+      .map((match) => match.character);
+    if (!usable.length) {
+      throw new Error(`${index + 1}枠目の環境キャラがスキルターン制限を満たしません。`);
+    }
+    return usable;
   });
   const exampleNamePatterns = normalizedExamplePatterns(input);
   const exampleMatches = exampleNamePatterns.map((names) => names.map((name, index) => (
@@ -240,6 +263,9 @@ export function resolveMetagameV7Input(input, characters) {
     confidence: match.confidence,
     score: match.score,
     alternatives: match.alternatives,
+    usableAsEnvironment: match.character
+      ? match.character.allowedPositions?.includes(match.position) && isSkillTurnAllowedAtPosition(match.character, match.position)
+      : false,
   }));
   return {
     ...input,
@@ -249,6 +275,13 @@ export function resolveMetagameV7Input(input, characters) {
     examplePatterns: validExamplePatterns,
     exampleMatches,
     invalidExamples: invalidExamples.map(({ index }) => index + 1),
+    invalidEnvironmentCandidates: invalidEnvironmentMatches.map((match) => ({
+      position: match.position,
+      inputName: match.inputName,
+      id: String(match.character.id),
+      name: match.character.name,
+      skillTurn: match.character.skillTurn,
+    })),
     audit,
   };
 }
@@ -366,6 +399,49 @@ export function createMetagameV7EnvironmentDecks(resolvedInput, options = {}) {
     decks.push(deck);
   }
   return decks;
+}
+
+/**
+ * Build deterministic five-player-versus-five-player match scenarios from the
+ * supplied fixed-environment decks.  Four decks form the candidate's allied
+ * team; the fifth allied deck is inserted at evaluation time.  Five further
+ * decks form the enemy team.  A scenario therefore always starts 5v5, never
+ * as the invalid V7.5 one-player-versus-one-player approximation.
+ */
+export function createMetagameV8TeamScenarios(resolvedInput, options = {}) {
+  const environmentDecks = options.environmentDecks ?? createMetagameV7EnvironmentDecks(resolvedInput, options);
+  if (environmentDecks.length < 9) {
+    throw new Error("5対5環境の作成には、異なる完成デッキが9本以上必要です。");
+  }
+  const deckCount = environmentDecks.length;
+  const minimumCoverageCount = Math.ceil(deckCount / 9);
+  const requestedCount = Math.max(minimumCoverageCount, Number(options.count) || deckCount);
+  // Make a deterministic permutation so that each nine-deck block is varied,
+  // while the first coverage pass still includes every supplied environment
+  // deck exactly once.  A stride coprime to the deck count is a permutation.
+  let stride = 17;
+  const greatestCommonDivisor = (left, right) => {
+    let a = Math.abs(left);
+    let b = Math.abs(right);
+    while (b) [a, b] = [b, a % b];
+    return a;
+  };
+  while (greatestCommonDivisor(stride, deckCount) !== 1) stride += 2;
+  const deckOrder = Array.from({ length: deckCount }, (_, index) => (
+    (index * stride) % deckCount
+  ));
+  const scenarios = [];
+  for (let scenarioIndex = 0; scenarioIndex < requestedCount; scenarioIndex += 1) {
+    const decks = Array.from({ length: 9 }, (_, offset) => (
+      environmentDecks[deckOrder[(scenarioIndex * 9 + offset) % deckCount]]
+    ));
+    scenarios.push({
+      id: `team-${scenarioIndex + 1}`,
+      allyDecks: decks.slice(0, 4),
+      enemyDecks: decks.slice(4),
+    });
+  }
+  return scenarios;
 }
 
 function characterEligibleAtV7Position(character, input, position) {
@@ -690,15 +766,22 @@ function meanLowerBound(values) {
   return clampUnit(mean - 1.96 * Math.sqrt(variance / values.length));
 }
 
-/** Evaluates a completed user deck directly against the supplied fixed environment decks. */
-export function evaluateMetagameV7Deck(deck, environmentDecks, options = {}) {
+/** Evaluates a completed deck as one player within a 5v5 team battle. */
+export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
   const rules = options.rules ?? DEFAULT_RULES;
   const turns = Math.min(12, Math.max(1, Number(options.turns) || 12));
   const values = [];
   const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
-  for (let index = 0; index < environmentDecks.length; index += 1) {
+  for (let index = 0; index < teamScenarios.length; index += 1) {
     const profile = V7_BATTLE_PROFILES[index % V7_BATTLE_PROFILES.length];
-    const result = simulateBattle(createBattleState([deck], [environmentDecks[index]]), rules, {
+    const scenario = teamScenarios[index];
+    if (!Array.isArray(scenario?.allyDecks) || scenario.allyDecks.length !== 4 ||
+      !Array.isArray(scenario?.enemyDecks) || scenario.enemyDecks.length !== 5) {
+      throw new Error("5対5環境シナリオが不正です。");
+    }
+    const allyDecks = [...scenario.allyDecks];
+    allyDecks.splice(index % 5, 0, deck);
+    const result = simulateBattle(createBattleState(allyDecks, scenario.enemyDecks), rules, {
       turns,
       targetPolicy: profile.targetPolicy,
       attackOrderPolicy: profile.attackOrderPolicy,
@@ -719,12 +802,12 @@ export function evaluateMetagameV7Deck(deck, environmentDecks, options = {}) {
   };
 }
 
-export function rateMetagameV7Character(character, position, resolvedInput, candidatePools, environmentDecks, options = {}) {
+export function rateMetagameV7Character(character, position, resolvedInput, candidatePools, teamScenarios, options = {}) {
   const deckCandidates = buildMetagameV7DeckCandidates(character, position, resolvedInput, candidatePools, options);
   const evaluatedDecks = deckCandidates.map((candidate) => ({
     ...candidate,
     totalCost: candidate.deck.reduce((sum, entry) => sum + (Number(entry.cost) || 0), 0),
-    result: evaluateMetagameV7Deck(candidate.deck, environmentDecks, options),
+    result: evaluateMetagameV7Deck(candidate.deck, teamScenarios, options),
   })).sort((left, right) => (
     right.result.expectedWinLowerBound - left.result.expectedWinLowerBound ||
     right.result.expectedWinRate - left.result.expectedWinRate ||

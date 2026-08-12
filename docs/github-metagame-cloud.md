@@ -37,11 +37,15 @@
 
     npm run build
 
-## v7 fixed-environment evaluation
+## V8: 5対5 固定環境評価
 
-`.github/workflows/metagame-v7-cloud.yml` evaluates up to four incomplete supplied fixed environments at the same time. Each environment uses five independent position workers, so a batch uses up to 20 workers. The current inputs are fire, water, wind, fire-water, fire-wind, water-wind, and all attributes at cost 100; after one batch saves its results, the next incomplete batch starts automatically. Every worker writes only its own temporary checkpoint; one final publish job merges those checkpoints and is the only job that writes to `metagame-v7-results`. This preserves the calculation and avoids branch-write conflicts while allowing every input to resume independently below `reports/metagame-ratings-v7/<input>/`.
+`.github/workflows/metagame-v7-cloud.yml` はV8の評価器を実行します。V7.5の1対1結果は無効であり、再利用しません。各対戦は「評価対象の5枚デッキ + 環境側の味方4デッキ」対「環境側の敵5デッキ」の5対5です。全員の先頭キャラが同じターンに行動し、倒れたプレイヤーだけが自分の次枠へ交代します。継続効果は残りターンがある限り、そのプレイヤーの次枠へ引き継ぎます。遅延・短縮は従来どおり発動も使用回数消費もしません。
 
-The supplied deck examples may leave slots blank. Those patterns are preserved as intended usage examples: their named characters are fixed in the stated slots, the remaining slots are completed within the cost cap, and the completed deck is included in the character evaluation. Patterns that violate the existing skill-turn, placement, duplicate, legend, or cost rules are recorded but not used.
+一度のバッチでは未完了の縛りを最大4つ選び、各縛りの5枠を別ワーカーで評価します（最大20並列）。各ワーカーは自分のチェックポイントだけを書き、最後の1ジョブだけが統合・公開するため、並列ワーカー間で結果が競合しません。結果は `metagame-v8-results` ブランチと `reports/metagame-ratings-v8/<input>/` に保存され、次のバッチは未完了の縛りだけを自動再開します。
+
+各候補キャラは、コスト100以内で組んだ上位2本の自動デッキを、少なくとも24通りの決定的な5対5環境に当てて評価します。提示された環境デッキが24通りでは収まらない縛りでは、全デッキを少なくとも1回含める数まで自動的に増やします。個別のデッキ例は別枠で保持し、該当キャラの評価時に実際の例デッキとして追加評価します。したがって、継続前提など通常の自動候補だけでは再現しにくい運用も失われません。
+
+環境表に書かれたキャラでも、指定枠の配置条件またはスキルターン条件を満たさないものは環境候補から除外し、レポートの入力監査に記録します。例デッキについても、枠・スキルターン・重複・レジェンド・コスト制限に反するものは記録だけして評価には使いません。
 
 ## 注意
 

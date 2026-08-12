@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { advanceTurn, createBattleState } from "../src/core/battleState.js";
 import { applySkill } from "../src/core/skills.js";
+import { simulateBattle } from "../src/core/simulate.js";
 import { DEFAULT_RULES, mergeRules } from "../src/data/rules.js";
 
 function character(name, { pow = 100, hp = 1000, attributes = ["fire"], skill } = {}) {
@@ -541,4 +542,25 @@ test("継続バフの味方属性条件は属性変更後の攻撃時点で判�
   buffed.allies[1].attributes = ["fire"];
   const attacked = applySkill(buffed, "allies", 1, simpleRules);
   assert.equal(attacked.enemies[0].currentHp, 800);
+});
+
+test("5対5では全プレイヤーが同じターンに攻撃し、選んだ攻撃スキルを使う", () => {
+  const attackSkill = { type: "single_attack", multiplier: 3, target: "self", duration: 1, conditions: [] };
+  const allies = [0, 1, 2, 3, 4].map((index) => [character(`ally-${index}`, {
+    pow: index === 0 ? 200 : 100,
+    skill: index === 0 ? attackSkill : { type: "none" },
+  })]);
+  const enemies = [0, 1, 2, 3, 4].map((index) => [character(`enemy-${index}`, {
+    hp: 10_000,
+    pow: 0,
+    skill: { type: "none" },
+  })]);
+  const state = createBattleState(allies, enemies);
+  const result = simulateBattle(state, simpleRules, { turns: 1 });
+  const attacks = result.history[0].actions.filter((action) => action.side === "allies");
+  const skilled = attacks.find((action) => action.actorName === "ally-0");
+
+  assert.equal(attacks.length, 5);
+  assert.equal(skilled.skillType, "single_attack");
+  assert.equal(skilled.hits[0].damage, 600);
 });
