@@ -101,6 +101,16 @@ const requestedPosition = readArgument("position", "all").toLowerCase();
 if (!/^(all|next|[1-5])$/.test(requestedPosition)) {
   throw new Error(`Invalid --position value: ${requestedPosition}`);
 }
+const candidateIndicesArgument = readArgument("candidate-indices", "").trim();
+const candidateIndices = candidateIndicesArgument
+  ? new Set(candidateIndicesArgument.split(",").map((value) => {
+    if (!/^\d+$/.test(value.trim())) throw new Error(`Invalid candidate index: ${value}`);
+    return Number(value);
+  }))
+  : null;
+if (candidateIndices && !/^[1-5]$/.test(requestedPosition)) {
+  throw new Error("--candidate-indices requires one explicit --position from 1 through 5");
+}
 const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8.2");
 const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds", "0")) || 0);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -196,13 +206,26 @@ const positionsToEvaluate = requestedPosition === "all"
     ? [resultsByPosition.findIndex((ratings, index) => ratings.size < selectedCandidatesByPosition[index].length) + 1].filter(Boolean)
     : [Number(requestedPosition)];
 
+if (candidateIndices) {
+  const selectedCandidates = selectedCandidatesByPosition[positionsToEvaluate[0] - 1];
+  for (const candidateIndex of candidateIndices) {
+    if (candidateIndex >= selectedCandidates.length) {
+      throw new Error(`Candidate index ${candidateIndex} is outside position ${positionsToEvaluate[0]}`);
+    }
+  }
+}
+
 if (!finalizeOnly) {
   for (const position of positionsToEvaluate) {
     const candidates = candidatePools.allByPosition[position - 1];
     const selectedCandidates = selectedCandidatesByPosition[position - 1];
     const results = resultsByPosition[position - 1];
-    console.log(`${position}枠目: ${selectedCandidates.length}/${candidates.length}体を評価`);
-    for (const [index, character] of selectedCandidates.entries()) {
+    const selectedWork = selectedCandidates
+      .map((character, index) => ({ character, index }))
+      .filter(({ index }) => !candidateIndices || candidateIndices.has(index));
+    console.log(`${position}枠目: ${selectedWork.length}/${selectedCandidates.length}/${candidates.length}体を評価`);
+    let processedWork = 0;
+    for (const { index, character } of selectedWork) {
       if (results.has(String(character.id))) continue;
       if (Date.now() >= deadline) {
         stoppedEarly = true;
@@ -217,9 +240,10 @@ if (!finalizeOnly) {
         { autoDeckLimit, anchorDeckLimit, beamWidth, turns },
       );
       if (rating) results.set(String(rating.id), rating);
-      if ((index + 1) % 5 === 0) await saveProgress();
-      if ((index + 1) % 20 === 0 || index + 1 === selectedCandidates.length) {
-        console.log(`  ${index + 1}/${selectedCandidates.length}`);
+      processedWork += 1;
+      if (processedWork % 5 === 0) await saveProgress();
+      if (processedWork % 20 === 0 || processedWork === selectedWork.length) {
+        console.log(`  ${processedWork}/${selectedWork.length} (global index ${index})`);
       }
     }
     if (stoppedEarly) break;

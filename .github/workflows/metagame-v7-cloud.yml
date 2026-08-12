@@ -7,8 +7,10 @@ on:
     paths:
       - .github/workflows/metagame-v7-cloud.yml
       - scripts/rate-metagame-v7.mjs
+      - scripts/build-metagame-work-matrix.mjs
       - scripts/build-metagame-simulator-data.mjs
       - src/core/metagame-v7.js
+      - src/core/metagame-work-shards.js
       - src/core/battleState.js
       - src/core/metagame-deck.js
       - src/core/simulate.js
@@ -42,8 +44,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - id: next
-        name: Select incomplete fixed environments
+        name: Select one incomplete environment and its candidate shards
         shell: bash
         run: |
           # The results branch is force-updated after each segment.  Fetch it
@@ -63,15 +70,10 @@ jobs:
           }
 
           targets='[]'
-          work_items='[]'
-          # Keep every run within the 20 standard-runner capacity: four inputs
-          # times five positions. The next incomplete batch is dispatched after
-          # this one has saved its merged checkpoints.
+          # Finish one constraint before starting another.  Its remaining
+          # candidate ratings are then split across all available workers.
           input_ids=("fire:100" "water:100" "wind:100" "fire-water:100" "fire-wind:100" "water-wind:100" "all:100")
           for input_id in "${input_ids[@]}"; do
-            if [ "$(jq 'length' <<< "$targets")" -ge 4 ]; then
-              break
-            fi
             output_directory="${input_id//:/-}"
             progress_path="reports/metagame-ratings-v8.2/$output_directory/progress.json"
             if is_complete "$progress_path"; then
@@ -80,13 +82,21 @@ jobs:
 
             targets="$(jq -c --arg input "$input_id" --arg output_directory "$output_directory" \
               '. + [{input: $input, output_directory: $output_directory}]' <<< "$targets")"
-            for position in 1 2 3 4 5; do
-              work_items="$(jq -c --arg input "$input_id" --arg output_directory "$output_directory" --argjson position "$position" \
-                '. + [{input: $input, output_directory: $output_directory, position: $position}]' <<< "$work_items")"
-            done
+            checkpoint_path="$RUNNER_TEMP/v8.2-selection/$output_directory-progress.json"
+            mkdir -p "$(dirname "$checkpoint_path")"
+            git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null || true
+            break
           done
 
-          work_matrix="$(jq -cn --argjson include "$work_items" '{include: $include}')"
+          if [ "$targets" = '[]' ]; then
+            work_matrix='{"include":[]}'
+          else
+            input_id="$(jq -r '.[0].input' <<< "$targets")"
+            work_matrix="$(node scripts/build-metagame-work-matrix.mjs \
+              --input="$input_id" \
+              --checkpoint-path="$checkpoint_path" \
+              --max-workers=20)"
+          fi
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "work_matrix=$work_matrix" >> "$GITHUB_OUTPUT"
           if [ "$targets" = '[]' ]; then
@@ -121,10 +131,10 @@ jobs:
         with:
           node-version: 22
 
-      - name: Restore the canonical progress for this input and position
+      - name: Restore the canonical progress for this candidate shard
         shell: bash
         run: |
-          checkpoint_path="$RUNNER_TEMP/v8.2-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json"
+          checkpoint_path="$RUNNER_TEMP/v8.2-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json"
           mkdir -p "$(dirname "$checkpoint_path")"
           results_ref="refs/remotes/origin/metagame-v8.2-results"
           remote_result="$(git ls-remote --heads origin metagame-v8.2-results)"
@@ -133,25 +143,26 @@ jobs:
           fi
           progress_path="reports/metagame-ratings-v8.2/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
           if git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null; then
-            echo "Restored canonical progress for ${METAGAME_INPUT}, position ${{ matrix.position }}"
+            echo "Restored canonical progress for ${METAGAME_INPUT}, position ${{ matrix.position }}, shard ${{ matrix.shard }}"
           fi
 
       - id: rate
-        name: Evaluate ${{ matrix.input }}, position ${{ matrix.position }}
+        name: Evaluate ${{ matrix.input }}, position ${{ matrix.position }}, shard ${{ matrix.shard }}
         continue-on-error: true
         run: |
           node scripts/rate-metagame-v7.mjs \
             --input="$METAGAME_INPUT" \
             --position=${{ matrix.position }} \
-            --checkpoint-path="$RUNNER_TEMP/v8.2-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}.json" \
+            --candidate-indices="${{ matrix.candidate_indices }}" \
+            --checkpoint-path="$RUNNER_TEMP/v8.2-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json" \
             --time-budget-seconds="$METAGAME_TIME_BUDGET_SECONDS"
 
-      - name: Upload position progress
+      - name: Upload candidate-shard progress
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v8.2-progress-${{ matrix.output_directory }}-${{ matrix.position }}
-          path: ${{ runner.temp }}/v8.2-position-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}.json
+          name: v8.2-progress-${{ matrix.output_directory }}-${{ matrix.position }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/v8.2-position-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
           if-no-files-found: warn
           retention-days: 2
 
@@ -192,7 +203,7 @@ jobs:
           git rebase ${{ github.sha }}
 
       - id: download
-        name: Download independent position checkpoints
+        name: Download independent candidate-shard checkpoints
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
@@ -201,7 +212,7 @@ jobs:
           path: ${{ runner.temp }}/v8.2-position-progress
 
       - id: finalize
-        name: Merge checkpoints for every selected input
+        name: Merge checkpoints for the selected input
         continue-on-error: true
         shell: bash
         env:
@@ -212,13 +223,14 @@ jobs:
           while IFS= read -r target; do
             input="$(jq -r '.input' <<< "$target")"
             output_directory="$(jq -r '.output_directory' <<< "$target")"
-            checkpoint_paths="$(printf '%s,' \
-              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-1.json" \
-              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-2.json" \
-              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-3.json" \
-              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-4.json" \
-              "$RUNNER_TEMP/v8.2-position-progress/${output_directory}-position-5.json")"
-            checkpoint_paths="${checkpoint_paths%,}"
+            mapfile -t checkpoint_files < <(find "$RUNNER_TEMP/v8.2-position-progress" -maxdepth 1 -type f \
+              -name "${output_directory}-position-*-shard-*.json" -print | sort)
+            if [ "${#checkpoint_files[@]}" -eq 0 ]; then
+              echo "No shard checkpoints were downloaded for $input" >&2
+              finalization_failed=true
+              continue
+            fi
+            checkpoint_paths="$(IFS=,; echo "${checkpoint_files[*]}")"
             node scripts/rate-metagame-v7.mjs \
               --input="$input" \
               --position=all \
@@ -391,7 +403,7 @@ jobs:
           git checkout "$results_ref" -- reports/metagame-ratings-v8.2
           npm run build:metagame-data
           set +e
-          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; if (data.sourceModelVersion !== "team-battle-v8.2") throw new Error("V8.2 browser-data build used an incompatible model."); if (!data.constraints.length) { console.log("No fully completed V8.2 constraint yet; keeping the existing public data."); process.exit(3); } console.log(`Built ${data.constraints.length} V8.2 browser constraints.`);'
+          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; const v82 = data.constraints.filter((constraint) => constraint.modelVersion === "team-battle-v8.2"); if (!v82.length) { console.log("No fully completed V8.2 constraint yet; keeping the existing public data."); process.exit(3); } if (data.sourceModelVersion !== "team-battle-v8.2") throw new Error("V8.2 browser-data build used an incompatible model."); console.log(`Built ${v82.length} V8.2 browser constraints.`);'
           validation_status=$?
           set -e
           if [ "$validation_status" -eq 3 ]; then exit 0; fi
