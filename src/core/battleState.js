@@ -165,10 +165,28 @@ export function applyDamageToCombatant(state, side, index, amount, options = {})
   });
 }
 
+/**
+ * Recovery can over-heal to twice the maximum HP.  The portion restored above
+ * the normal maximum is only half as effective, matching the battle rule.
+ */
+export function recoveredHp(currentHp, maxHp, amount) {
+  const maximum = Math.max(0, Number(maxHp) || 0);
+  const current = Math.min(maximum * 2, Math.max(0, Number(currentHp) || 0));
+  const recovery = Math.max(0, Number(amount) || 0);
+  if (!maximum || !recovery) return current;
+
+  const normalRecovery = Math.min(recovery, Math.max(0, maximum - current));
+  const overflowRecovery = Math.max(0, recovery - normalRecovery) / 2;
+  return Math.min(maximum * 2, current + normalRecovery + overflowRecovery);
+}
+
 export function applyHealingToCombatant(state, side, index, amount) {
   return updateCombatant(state, side, index, (combatant) => {
     if (!combatant.alive || combatant.isGhost) return combatant;
-    return { ...combatant, currentHp: Math.min(combatant.maxHp * 2, combatant.currentHp + Math.max(0, amount)) };
+    return {
+      ...combatant,
+      currentHp: recoveredHp(combatant.currentHp, combatant.maxHp, amount),
+    };
   });
 }
 

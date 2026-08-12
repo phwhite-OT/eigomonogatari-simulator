@@ -25,7 +25,7 @@ function metagameUiModelLabel(data) {
 
 function metagameUiUsesProvisionalV7Data(data) {
   const version = String(data.sourceModelVersion ?? "");
-  return /^fixed-environment-v7\./.test(version) && version !== "fixed-environment-v7.4";
+  return /^fixed-environment-v7\./.test(version) && version !== "fixed-environment-v7.5";
 }
 
 function metagameUiCalculationState(data) {

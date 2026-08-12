@@ -3,7 +3,7 @@ import {
   resolveAttackBuffMultiplier,
   resolveDefenseMultiplier,
 } from "./damage.js";
-import { activateNextCharacter, evaluateBoard } from "./battleState.js";
+import { activateNextCharacter, evaluateBoard, recoveredHp } from "./battleState.js";
 
 const attackTypes = new Set(["single_attack", "aoe_attack", "multi_hit_attack"]);
 const defenseTypes = new Set(["damage_reduction", "guard", "attribute_guard"]);
@@ -242,7 +242,11 @@ export function applySupportSkill(state, actorSide, actorIndex, skill, options =
   } else if (skill.type === "heal") {
     for (const index of supportTargetIndexes(allies, actorIndex, skill)) {
       const target = allies[index];
-      target.currentHp = Math.min(target.maxHp * 2, target.currentHp + target.maxHp * skill.multiplier);
+      target.currentHp = recoveredHp(
+        target.currentHp,
+        target.maxHp,
+        target.maxHp * (Number(skill.multiplier) || 0),
+      );
     }
   } else if (skill.type === "revive") {
     for (const index of supportTargetIndexes(allies, actorIndex, skill, { alive: false })) {

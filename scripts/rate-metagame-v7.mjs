@@ -89,7 +89,7 @@ const input = METAGAME_V7_INPUTS.find((entry) => entry.id === inputId);
 if (!input) throw new Error(`v7入力 ${inputId} が見つかりません。`);
 
 const environmentCount = positiveInteger(readArgument("environment-count", "72"), 72, 5);
-const partnerLimit = positiveInteger(readArgument("partner-limit", "24"), 24, 8);
+const partnerLimit = positiveInteger(readArgument("partner-limit", "32"), 32, 32);
 const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "8"), 8, 1);
 const beamWidth = positiveInteger(readArgument("beam-width", "500"), 500, 50);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
@@ -244,6 +244,9 @@ const report = {
     costPolicy: "単体コストで割らず、そのキャラを固定した完成5体デッキの結果で比較する。高コストによる残り枠の弱体化、低コストによる全体強化を勝率へ反映する。",
     continuationPolicy: "継続効果は12ターンの戦闘再現で評価し、提示デッキ例は成立済みの運用候補として自動生成候補と同列に検証する。",
     proxyPolicy: "パートナー探索だけに軽量の補助点を用い、最終順位は固定環境との戦闘結果だけで決める。",
+    recoveryPolicy: "Recovery is normal up to maximum HP, half-effective above it, and capped at double maximum HP.",
+    excludedSkillPolicy: "Delay and skill-reduction are excluded from V7: they neither activate nor consume a use.",
+    environmentPolicy: "Each supplied environment character is evaluated in a strong, feasible cost-capped deck; infeasible partial examples are omitted.",
   },
   context: {
     inputId: resolvedInput.id,
