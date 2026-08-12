@@ -1,6 +1,6 @@
 {
   "status": "in_progress",
-  "updatedAt": "2026-08-12T21:20:29.413Z",
+  "updatedAt": "2026-08-12T22:38:20.656Z",
   "context": {
     "version": "team-battle-v8.2",
     "inputId": "fire:100",
@@ -30140,6 +30140,3732 @@
         },
         "exampleDeck": null,
         "v7Score": 0.5745
+      },
+      {
+        "id": "em-955edfecd83b",
+        "name": "天晴！ぶんぶくん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 22,
+        "hp": 1883,
+        "pow": 1162,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を1%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-955edfecd83b",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "天晴！ぶんぶくん",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7301,
+          "synergyScore": 0.1818,
+          "expectedWinRate": 0.6597,
+          "expectedWinLowerBound": 0.5575,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2778,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5575
+      },
+      {
+        "id": "em-1ad78d7d3c2f",
+        "name": "狐仮面",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 22,
+        "hp": 2215,
+        "pow": 1789,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を1%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-1ad78d7d3c2f",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "狐仮面",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8254,
+          "synergyScore": 0.2447,
+          "expectedWinRate": 0.7014,
+          "expectedWinLowerBound": 0.6013,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6013
+      },
+      {
+        "id": "em-c89260e1ef3b",
+        "name": "曲芸師・ブンブク",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6305,
+        "pow": 2996,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を10%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-c89260e1ef3b",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "曲芸師・ブンブク",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5584,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.5486,
+          "expectedWinLowerBound": 0.4439,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4583,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.3611,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4439
+      },
+      {
+        "id": "em-942c8f8de44d",
+        "name": "エンゼルちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 22,
+        "hp": 1772,
+        "pow": 2590,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "水属性の味方全員のHPを90%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-942c8f8de44d",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "エンゼルちゃん",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8377,
+          "synergyScore": 0.2447,
+          "expectedWinRate": 0.7431,
+          "expectedWinLowerBound": 0.6481,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6944,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6481
+      },
+      {
+        "id": "em-05de078a2e7c",
+        "name": "幼妻！エンゼルちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 22,
+        "hp": 1993,
+        "pow": 2913,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "水属性の味方全員のHPを100%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-05de078a2e7c",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "幼妻！エンゼルちゃん",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8432,
+          "synergyScore": 0.2447,
+          "expectedWinRate": 0.7431,
+          "expectedWinLowerBound": 0.6481,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6944,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6481
+      },
+      {
+        "id": "em-81078d011501",
+        "name": "年齢不詳！エンゼル様",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 22,
+        "hp": 2215,
+        "pow": 3237,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "水属性の味方全員のHPを111%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-81078d011501",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "年齢不詳！エンゼル様",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.848,
+          "synergyScore": 0.2447,
+          "expectedWinRate": 0.7431,
+          "expectedWinLowerBound": 0.6501,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6501
+      },
+      {
+        "id": "em-4805525cb8a4",
+        "name": "ｴﾝｾﾞﾘｯｸ☆エンゼル",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6816,
+        "pow": 4771,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "自身のHPを200%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-4805525cb8a4",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "ｴﾝｾﾞﾘｯｸ☆エンゼル",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5901,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.6736,
+          "expectedWinLowerBound": 0.5764,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5833,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5764
+      },
+      {
+        "id": "em-2080ae65b62a",
+        "name": "モヅルン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 37,
+        "hp": 3771,
+        "pow": 1908,
+        "skillTurn": 3,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、風属性の攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-2080ae65b62a",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "モヅルン",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.7203,
+          "synergyScore": 0.1961,
+          "expectedWinRate": 0.7361,
+          "expectedWinLowerBound": 0.6412,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6412
+      },
+      {
+        "id": "em-b041a6f6cf00",
+        "name": "テヅルモヅルン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 37,
+        "hp": 5367,
+        "pow": 2147,
+        "skillTurn": 3,
+        "skillType": "attribute_guard",
+        "skillName": "2ターンの間、風属性の攻撃を自身に集中させる(82%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-b041a6f6cf00",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "テヅルモヅルン",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.7399,
+          "synergyScore": 0.1961,
+          "expectedWinRate": 0.7917,
+          "expectedWinLowerBound": 0.7055,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7361,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.1528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7055
+      },
+      {
+        "id": "em-6c2ea8631e0d",
+        "name": "深海美少年モヅルン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 37,
+        "hp": 5964,
+        "pow": 2385,
+        "skillTurn": 3,
+        "skillType": "attribute_guard",
+        "skillName": "2ターンの間、風属性の攻撃を自身に集中させる(85%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-6c2ea8631e0d",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "深海美少年モヅルン",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.7463,
+          "synergyScore": 0.1961,
+          "expectedWinRate": 0.8194,
+          "expectedWinLowerBound": 0.7412,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.75,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.1111,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7412
+      },
+      {
+        "id": "em-54cb13a72721",
+        "name": "不思議の海のモヅルン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6475,
+        "pow": 4941,
+        "skillTurn": 3,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、風属性の攻撃を自身に集中させる(92%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-54cb13a72721",
+            "em-f203cae3d671",
+            "em-4f0b20692fd7",
+            "em-489782f8e31c",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "不思議の海のモヅルン",
+            "ペーチパイセン",
+            "コンドアーズ",
+            "愛のぴよ子",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.6072,
+          "synergyScore": 0.1732,
+          "expectedWinRate": 0.7083,
+          "expectedWinLowerBound": 0.61,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.61
+      },
+      {
+        "id": "em-bf54cef3c3e9",
+        "name": "タツノコくん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 12,
+        "hp": 1058,
+        "pow": 1362,
+        "skillTurn": 5,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員にダメージを70%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-bf54cef3c3e9",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "タツノコくん",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9051,
+          "synergyScore": 0.3482,
+          "expectedWinRate": 0.7778,
+          "expectedWinLowerBound": 0.6913,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7083,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.1528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6913
+      },
+      {
+        "id": "em-bdf5b4886e9a",
+        "name": "シーホーすん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 12,
+        "hp": 1191,
+        "pow": 1532,
+        "skillTurn": 5,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員にダメージを72%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-bdf5b4886e9a",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "シーホーすん",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9107,
+          "synergyScore": 0.3507,
+          "expectedWinRate": 0.7917,
+          "expectedWinLowerBound": 0.7077,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7222,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7077
+      },
+      {
+        "id": "em-f88796a335ca",
+        "name": "勇者オトシゴ",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 12,
+        "hp": 1324,
+        "pow": 1703,
+        "skillTurn": 5,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員にダメージを75%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-f88796a335ca",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "勇者オトシゴ",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9169,
+          "synergyScore": 0.3543,
+          "expectedWinRate": 0.8125,
+          "expectedWinLowerBound": 0.7316,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.75,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7316
+      },
+      {
+        "id": "em-0a34a4b839d5",
+        "name": "堕落勇者オトシゴ",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4732,
+        "pow": 5111,
+        "skillTurn": 8,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを100%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-0a34a4b839d5",
+            "em-f203cae3d671",
+            "em-4f0b20692fd7",
+            "em-489782f8e31c",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "堕落勇者オトシゴ",
+            "ペーチパイセン",
+            "コンドアーズ",
+            "愛のぴよ子",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.6016,
+          "synergyScore": 0.1732,
+          "expectedWinRate": 0.5764,
+          "expectedWinLowerBound": 0.4656,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5417,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.3889,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4656
+      },
+      {
+        "id": "em-267a29792afd",
+        "name": "ウーミン",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 33,
+        "hp": 2249,
+        "pow": 2658,
+        "skillTurn": 5,
+        "skillType": "skill_reduction",
+        "skillName": "味方全員のスキルカウントを2減少させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-267a29792afd",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ウーミン",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.7243,
+          "synergyScore": 0.1808,
+          "expectedWinRate": 0.6944,
+          "expectedWinLowerBound": 0.6004,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6004
+      },
+      {
+        "id": "em-f53bffc021ea",
+        "name": "曲弾動物ウーミン",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 33,
+        "hp": 2999,
+        "pow": 3544,
+        "skillTurn": 5,
+        "skillType": "skill_reduction",
+        "skillName": "味方全員のスキルカウントを2減少させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-f53bffc021ea",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "曲弾動物ウーミン",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.7376,
+          "synergyScore": 0.1808,
+          "expectedWinRate": 0.7014,
+          "expectedWinLowerBound": 0.6032,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6032
+      },
+      {
+        "id": "em-c4663d98c2ff",
+        "name": "海・百合男",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 33,
+        "hp": 3748,
+        "pow": 4430,
+        "skillTurn": 5,
+        "skillType": "skill_reduction",
+        "skillName": "味方全員のスキルカウントを2減少させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-c4663d98c2ff",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "海・百合男",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.7478,
+          "synergyScore": 0.1808,
+          "expectedWinRate": 0.7639,
+          "expectedWinLowerBound": 0.671,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7222,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.671
+      },
+      {
+        "id": "em-7547c480c963",
+        "name": "ウミユリーず",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4430,
+        "pow": 6475,
+        "skillTurn": 5,
+        "skillType": "skill_reduction",
+        "skillName": "味方全員のスキルカウントを2減少させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-7547c480c963",
+            "em-13a4b4b54b04",
+            "em-4f0b20692fd7",
+            "em-ea813aee5d92",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "ウミユリーず",
+            "北間・クラリス嬢",
+            "コンドアーズ",
+            "ブラジリアン首都術",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.4824,
+          "synergyScore": 0.0756,
+          "expectedWinRate": 0.5694,
+          "expectedWinLowerBound": 0.4663,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4722,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.3333,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4663
+      },
+      {
+        "id": "em-34853ed0f0f8",
+        "name": "ユーコちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 24,
+        "hp": 2556,
+        "pow": 1533,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している風属性の味方全員を15%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-34853ed0f0f8",
+            "em-344c7687cce5",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ユーコちゃん",
+            "アウス大先輩",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.7353,
+          "synergyScore": 0.2002,
+          "expectedWinRate": 0.6528,
+          "expectedWinLowerBound": 0.5546,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5556,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5546
+      },
+      {
+        "id": "em-e6110f879f18",
+        "name": "ユーコ隊",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 24,
+        "hp": 3408,
+        "pow": 2044,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している風属性の味方全員を20%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-e6110f879f18",
+            "em-52b1a63b86dd",
+            "em-344c7687cce5",
+            "em-4f0b20692fd7",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "ユーコ隊",
+            "ヤマさんヤミーさん",
+            "アウス大先輩",
+            "コンドアーズ",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.8165,
+          "synergyScore": 0.2479,
+          "expectedWinRate": 0.7014,
+          "expectedWinLowerBound": 0.6091,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6091
+      },
+      {
+        "id": "em-d0639c20e6b1",
+        "name": "ユーコ☆宇宙",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 24,
+        "hp": 4260,
+        "pow": 2556,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している風属性の味方全員を25%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-d0639c20e6b1",
+            "em-344c7687cce5",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ユーコ☆宇宙",
+            "アウス大先輩",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.7577,
+          "synergyScore": 0.2002,
+          "expectedWinRate": 0.7847,
+          "expectedWinLowerBound": 0.6963,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7361,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.1667,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6963
+      },
+      {
+        "id": "em-337e85c2cd90",
+        "name": "ユーコ☆スターダスト",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6053,
+        "pow": 4354,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している風属性の味方全員を40%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-337e85c2cd90",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "ユーコ☆スターダスト",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5673,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.7083,
+          "expectedWinLowerBound": 0.6139,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6139
+      },
+      {
+        "id": "em-9f9bdf00a915",
+        "name": "ハンドフィッシュさん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 27,
+        "hp": 1635,
+        "pow": 2862,
+        "skillTurn": 3,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを62%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-9f9bdf00a915",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ハンドフィッシュさん",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.8247,
+          "synergyScore": 0.2434,
+          "expectedWinRate": 0.7083,
+          "expectedWinLowerBound": 0.61,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.61
+      },
+      {
+        "id": "em-9d7275c7d84e",
+        "name": "ハンドさんの匍匐前進",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 27,
+        "hp": 1840,
+        "pow": 3220,
+        "skillTurn": 3,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員にダメージを50%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-9d7275c7d84e",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハンドさんの匍匐前進",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8808,
+          "synergyScore": 0.3341,
+          "expectedWinRate": 0.6875,
+          "expectedWinLowerBound": 0.5897,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5897
+      },
+      {
+        "id": "em-40350463a9fa",
+        "name": "ハンドさんは泳がない",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 27,
+        "hp": 2044,
+        "pow": 3578,
+        "skillTurn": 3,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員にダメージを56%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-40350463a9fa",
+            "em-f203cae3d671",
+            "em-344c7687cce5",
+            "em-93a9275d427c",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "ハンドさんは泳がない",
+            "ペーチパイセン",
+            "アウス大先輩",
+            "肉食ドゥブロさん",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.9494,
+          "synergyScore": 0.3811,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6295,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6295
+      },
+      {
+        "id": "em-32dd2642183e",
+        "name": "ハイパーハンギョジン",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 5889,
+        "pow": 3996,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、味方全員の攻撃力を78%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-32dd2642183e",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "ハイパーハンギョジン",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.7021,
+          "synergyScore": 0.2525,
+          "expectedWinRate": 0.5833,
+          "expectedWinLowerBound": 0.4772,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5139,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.3472,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4772
+      },
+      {
+        "id": "em-301c11f4a1d7",
+        "name": "ウサポワンちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 20,
+        "hp": 1363,
+        "pow": 2317,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(85%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-301c11f4a1d7",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-a8f48fb9a527",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ウサポワンちゃん",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "タミちゃんの火祭り",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8445,
+          "synergyScore": 0.2499,
+          "expectedWinRate": 0.7361,
+          "expectedWinLowerBound": 0.6452,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6452
+      },
+      {
+        "id": "em-845e49247e45",
+        "name": "ウサポワン海人",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 20,
+        "hp": 1533,
+        "pow": 2607,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(88%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-845e49247e45",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-a8f48fb9a527",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ウサポワン海人",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "タミちゃんの火祭り",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8496,
+          "synergyScore": 0.2499,
+          "expectedWinRate": 0.7431,
+          "expectedWinLowerBound": 0.6522,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6522
+      },
+      {
+        "id": "em-bbda291d459c",
+        "name": "漆黒及び純白のポワン",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 20,
+        "hp": 1704,
+        "pow": 2896,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(90%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-bbda291d459c",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-a8f48fb9a527",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "漆黒及び純白のポワン",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "タミちゃんの火祭り",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8543,
+          "synergyScore": 0.2499,
+          "expectedWinRate": 0.7224,
+          "expectedWinLowerBound": 0.6318,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6318
+      },
+      {
+        "id": "em-f7f78d464e92",
+        "name": "ウミウサーヌ",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 3408,
+        "pow": 4601,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(92%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-f7f78d464e92",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "ウミウサーヌ",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5684,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.4931,
+          "expectedWinLowerBound": 0.3843,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4306,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3843
+      },
+      {
+        "id": "em-504b87d4019a",
+        "name": "ニタリくん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 16,
+        "hp": 817,
+        "pow": 1533,
+        "skillTurn": 3,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、味方全員の攻撃が2回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-504b87d4019a",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ニタリくん",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "にほりん"
+          ],
+          "proxyScore": 0.7671,
+          "synergyScore": 0.1903,
+          "expectedWinRate": 0.7778,
+          "expectedWinLowerBound": 0.6935,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6944,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6935
+      },
+      {
+        "id": "em-d22cc44e6b53",
+        "name": "ニタりん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 16,
+        "hp": 1090,
+        "pow": 2044,
+        "skillTurn": 3,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、味方全員の攻撃が2回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-d22cc44e6b53",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ニタりん",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "にほりん"
+          ],
+          "proxyScore": 0.7759,
+          "synergyScore": 0.1903,
+          "expectedWinRate": 0.7708,
+          "expectedWinLowerBound": 0.6865,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6865
+      },
+      {
+        "id": "em-e778e99b9218",
+        "name": "不敵な笑みのニタりん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 16,
+        "hp": 1363,
+        "pow": 2556,
+        "skillTurn": 3,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、味方全員の攻撃が2回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-e778e99b9218",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "不敵な笑みのニタりん",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.8141,
+          "synergyScore": 0.2299,
+          "expectedWinRate": 0.7847,
+          "expectedWinLowerBound": 0.6984,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7222,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.1528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6984
+      },
+      {
+        "id": "em-48a7e7dd243f",
+        "name": "鮫男子・ニタりん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4601,
+        "pow": 7157,
+        "skillTurn": 3,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、味方全員の攻撃が2回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-48a7e7dd243f",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "鮫男子・ニタりん",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5894,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.5903,
+          "expectedWinLowerBound": 0.4818,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5417,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.3611,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4818
+      },
+      {
+        "id": "em-d8d7722f9f21",
+        "name": "赤パジャマさん",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 20,
+        "hp": 2240,
+        "pow": 3262,
+        "skillTurn": 5,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(98%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-d8d7722f9f21",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-a8f48fb9a527",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "赤パジャマさん",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "タミちゃんの火祭り",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8461,
+          "synergyScore": 0.2499,
+          "expectedWinRate": 0.7155,
+          "expectedWinLowerBound": 0.6229,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6229
+      },
+      {
+        "id": "em-eea7e5ad714b",
+        "name": "饅頭石餅子",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 30,
+        "hp": 3433,
+        "pow": 4114,
+        "skillTurn": 5,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(99%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-eea7e5ad714b",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "饅頭石餅子",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.7479,
+          "synergyScore": 0.1808,
+          "expectedWinRate": 0.6736,
+          "expectedWinLowerBound": 0.5745,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5745
+      },
+      {
+        "id": "em-bc583c6ff83e",
+        "name": "卍石★モチ子",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 40,
+        "hp": 4625,
+        "pow": 4966,
+        "skillTurn": 5,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(100%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-bc583c6ff83e",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-ea813aee5d92"
+          ],
+          "names": [
+            "卍石★モチ子",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ブラジリアン首都術"
+          ],
+          "proxyScore": 0.7186,
+          "synergyScore": 0.1744,
+          "expectedWinRate": 0.5764,
+          "expectedWinLowerBound": 0.4744,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4722,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.3194,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4744
+      },
+      {
+        "id": "em-29be2edf2271",
+        "name": "餅子・ﾏｰﾒｲﾄﾞｽﾀｲﾙ",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4797,
+        "pow": 5308,
+        "skillTurn": 5,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に水属性の敵からのダメージを99%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-29be2edf2271",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "餅子・ﾏｰﾒｲﾄﾞｽﾀｲﾙ",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5673,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.4722,
+          "expectedWinLowerBound": 0.368,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.375,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.4306,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.368
+      },
+      {
+        "id": "em-2998c94ac8cc",
+        "name": "ギガ☆キプちゃん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 28,
+        "hp": 1874,
+        "pow": 1874,
+        "skillTurn": 4,
+        "skillType": "multi_hit_attack",
+        "skillName": "2ターンの間、水属性の味方全員の攻撃が3回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-2998c94ac8cc",
+            "em-f203cae3d671",
+            "em-d09d2f80d34e",
+            "em-93a9275d427c",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "ギガ☆キプちゃん",
+            "ペーチパイセン",
+            "トマティーナ少佐",
+            "肉食ドゥブロさん",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.8077,
+          "synergyScore": 0.2383,
+          "expectedWinRate": 0.6736,
+          "expectedWinLowerBound": 0.5745,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5745
+      },
+      {
+        "id": "em-6aaeda4f2f3a",
+        "name": "ギガキプ☆アガッシイ",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 35,
+        "hp": 2726,
+        "pow": 2726,
+        "skillTurn": 4,
+        "skillType": "multi_hit_attack",
+        "skillName": "3ターンの間、水属性の味方全員の攻撃が3回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-6aaeda4f2f3a",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ギガキプ☆アガッシイ",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.7661,
+          "synergyScore": 0.2173,
+          "expectedWinRate": 0.6667,
+          "expectedWinLowerBound": 0.5641,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2778,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5641
+      },
+      {
+        "id": "em-960c8d1446c2",
+        "name": "GC・アガッシィΩ",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 42,
+        "hp": 3578,
+        "pow": 3578,
+        "skillTurn": 4,
+        "skillType": "multi_hit_attack",
+        "skillName": "3ターンの間、水属性の味方全員の攻撃が4回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-960c8d1446c2",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-ea813aee5d92"
+          ],
+          "names": [
+            "GC・アガッシィΩ",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "ブラジリアン首都術"
+          ],
+          "proxyScore": 0.7098,
+          "synergyScore": 0.1729,
+          "expectedWinRate": 0.6111,
+          "expectedWinLowerBound": 0.5081,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5278,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.3056,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5081
+      },
+      {
+        "id": "em-67c9c425e81c",
+        "name": "大いなる奇なる皇女",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4260,
+        "pow": 4260,
+        "skillTurn": 5,
+        "skillType": "multi_hit_attack",
+        "skillName": "4ターンの間、水属性の味方全員の攻撃が5回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-67c9c425e81c",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "大いなる奇なる皇女",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5842,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.5278,
+          "expectedWinLowerBound": 0.42,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4583,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.4028,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.42
+      },
+      {
+        "id": "em-10aded4f89d1",
+        "name": "ゲイコツガブリムシ",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 13,
+        "hp": 820,
+        "pow": 2300,
+        "skillTurn": 5,
+        "skillType": "revive",
+        "skillName": "死亡している火属性の味方全員を20%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-10aded4f89d1",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ゲイコツガブリムシ",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8001,
+          "synergyScore": 0.1913,
+          "expectedWinRate": 0.8125,
+          "expectedWinLowerBound": 0.7316,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.75,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7316
+      },
+      {
+        "id": "em-e73e837049b5",
+        "name": "ｿﾞﾝﾋﾞｶﾞｰﾙ･ガブリン",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 28,
+        "hp": 1366,
+        "pow": 3834,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している火属性の味方全員を20%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-e73e837049b5",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ｿﾞﾝﾋﾞｶﾞｰﾙ･ガブリン",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7698,
+          "synergyScore": 0.1818,
+          "expectedWinRate": 0.7361,
+          "expectedWinLowerBound": 0.6432,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6432
+      },
+      {
+        "id": "em-9372502bc6a4",
+        "name": "餞のガブリン",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 42,
+        "hp": 1913,
+        "pow": 5367,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している火属性の味方全員を40%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-9372502bc6a4",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "餞のガブリン",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.6968,
+          "synergyScore": 0.1711,
+          "expectedWinRate": 0.6597,
+          "expectedWinLowerBound": 0.5593,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5833,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5593
+      },
+      {
+        "id": "em-11f22e87203d",
+        "name": "骨喰　花蟲",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 2300,
+        "pow": 5708,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している火属性の味方全員を60%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-11f22e87203d",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "骨喰　花蟲",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5699,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.5278,
+          "expectedWinLowerBound": 0.4166,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4861,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.4306,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4166
+      },
+      {
+        "id": "em-42b503c8643c",
+        "name": "姉上と青コリくん",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 48,
+        "hp": 3322,
+        "pow": 3322,
+        "skillTurn": 0,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に火属性の敵からのダメージを20%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-42b503c8643c",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "姉上と青コリくん",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.6496,
+          "synergyScore": 0.1479,
+          "expectedWinRate": 0.7292,
+          "expectedWinLowerBound": 0.6324,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6324
+      },
+      {
+        "id": "em-f9fcb91b983d",
+        "name": "アエネウスと弟くん",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4175,
+        "pow": 4175,
+        "skillTurn": 0,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員に火属性の敵からのダメージを15%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-f9fcb91b983d",
+            "em-f203cae3d671",
+            "em-4f0b20692fd7",
+            "em-ea813aee5d92",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "アエネウスと弟くん",
+            "ペーチパイセン",
+            "コンドアーズ",
+            "ブラジリアン首都術",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.6511,
+          "synergyScore": 0.2318,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6187,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6187
+      },
+      {
+        "id": "em-83954a93a691",
+        "name": "閃きのヒラメちゃん",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6560,
+        "pow": 4430,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "4ターンの間、自身の属性を全属性(3色混合)に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-83954a93a691",
+            "em-f203cae3d671",
+            "em-4f0b20692fd7",
+            "em-489782f8e31c",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "閃きのヒラメちゃん",
+            "ペーチパイセン",
+            "コンドアーズ",
+            "愛のぴよ子",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.6251,
+          "synergyScore": 0.1732,
+          "expectedWinRate": 0.7083,
+          "expectedWinLowerBound": 0.61,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.61
+      },
+      {
+        "id": "em-8cff13c7ab2a",
+        "name": "ツボの中のウツボン",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 13,
+        "hp": 1917,
+        "pow": 1917,
+        "skillTurn": 6,
+        "skillType": "damage_reduction",
+        "skillName": "3ターンの間、味方全員に水属性の敵からのダメージを80%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-8cff13c7ab2a",
+            "em-712bee050113",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-ea813aee5d92"
+          ],
+          "names": [
+            "ツボの中のウツボン",
+            "ターヌムンゴネキ",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "ブラジリアン首都術"
+          ],
+          "proxyScore": 0.9264,
+          "synergyScore": 0.3513,
+          "expectedWinRate": 0.7014,
+          "expectedWinLowerBound": 0.6051,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6051
+      },
+      {
+        "id": "em-93e0810ca88c",
+        "name": "宇壺田ウツ雄",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 25,
+        "hp": 3067,
+        "pow": 3067,
+        "skillTurn": 6,
+        "skillType": "damage_reduction",
+        "skillName": "3ターンの間、味方全員に水属性の敵からのダメージを85%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-93e0810ca88c",
+            "em-d09d2f80d34e",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "宇壺田ウツ雄",
+            "トマティーナ少佐",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9581,
+          "synergyScore": 0.3601,
+          "expectedWinRate": 0.7154,
+          "expectedWinLowerBound": 0.6188,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6188
+      },
+      {
+        "id": "em-36d4f380dee2",
+        "name": "ギャングなウツ雄様",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4856,
+        "pow": 4856,
+        "skillTurn": 5,
+        "skillType": "damage_reduction",
+        "skillName": "3ターンの間、味方全員に水属性の敵からのダメージを85%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-36d4f380dee2",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-ea813aee5d92",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ギャングなウツ雄様",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "ブラジリアン首都術",
+            "にほりん"
+          ],
+          "proxyScore": 0.6671,
+          "synergyScore": 0.2481,
+          "expectedWinRate": 0.6806,
+          "expectedWinLowerBound": 0.585,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5833,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.585
+      },
+      {
+        "id": "em-d9bd2d5de563",
+        "name": "コンクちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 20,
+        "hp": 2556,
+        "pow": 1704,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを23%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-d9bd2d5de563",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-a8f48fb9a527",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "コンクちゃん",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "タミちゃんの火祭り",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8364,
+          "synergyScore": 0.2499,
+          "expectedWinRate": 0.7083,
+          "expectedWinLowerBound": 0.6159,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6159
+      },
+      {
+        "id": "em-1211d6248533",
+        "name": "ピンクなコンクさん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 32,
+        "hp": 3067,
+        "pow": 2044,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを27%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-1211d6248533",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ピンクなコンクさん",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.7314,
+          "synergyScore": 0.1808,
+          "expectedWinRate": 0.6875,
+          "expectedWinLowerBound": 0.5937,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5833,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5937
+      },
+      {
+        "id": "em-cdd2ac5f0a12",
+        "name": "クイーンなコンク様",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 44,
+        "hp": 3578,
+        "pow": 2385,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを30%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-cdd2ac5f0a12",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "クイーンなコンク様",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.669,
+          "synergyScore": 0.1711,
+          "expectedWinRate": 0.5625,
+          "expectedWinLowerBound": 0.46,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4583,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.3333,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.46
+      },
+      {
+        "id": "em-ab3947962bd3",
+        "name": "姫騎士なコンクさん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4856,
+        "pow": 3237,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを30%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-ab3947962bd3",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "姫騎士なコンクさん",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5596,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.5764,
+          "expectedWinLowerBound": 0.4708,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.3472,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4708
+      },
+      {
+        "id": "em-b9b869c15b9f",
+        "name": "ルリマダラー",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 15,
+        "hp": 3786,
+        "pow": 378,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-b9b869c15b9f",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ルリマダラー",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "にほりん"
+          ],
+          "proxyScore": 0.7434,
+          "synergyScore": 0.1903,
+          "expectedWinRate": 0.7569,
+          "expectedWinLowerBound": 0.664,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7083,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.664
+      },
+      {
+        "id": "em-67086191a83f",
+        "name": "マダラなシオマネキ君",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 27,
+        "hp": 5490,
+        "pow": 1059,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-67086191a83f",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "マダラなシオマネキ君",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.8122,
+          "synergyScore": 0.2434,
+          "expectedWinRate": 0.7639,
+          "expectedWinLowerBound": 0.6751,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6944,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.1667,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6751
+      },
+      {
+        "id": "em-cb9a138787d0",
+        "name": "摩陀羅　潮真",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 27,
+        "hp": 7194,
+        "pow": 1741,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-cb9a138787d0",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "摩陀羅　潮真",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.8314,
+          "synergyScore": 0.2434,
+          "expectedWinRate": 0.7847,
+          "expectedWinLowerBound": 0.6984,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7222,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.1528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6984
+      },
+      {
+        "id": "em-814e01d05463",
+        "name": "非伝説の潮真",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 7535,
+        "pow": 2423,
+        "skillTurn": 1,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(50%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-814e01d05463",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "非伝説の潮真",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5659,
+          "synergyScore": 0.1394,
+          "expectedWinRate": 0.6528,
+          "expectedWinLowerBound": 0.5527,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5694,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5527
+      },
+      {
+        "id": "em-e6496091dd0f",
+        "name": "シャーミーくん",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 20,
+        "hp": 2948,
+        "pow": 2556,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、火属性の敵に対する自身の攻撃力を60%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-e6496091dd0f",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-a8f48fb9a527",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "シャーミーくん",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "タミちゃんの火祭り",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9393,
+          "synergyScore": 0.351,
+          "expectedWinRate": 0.7083,
+          "expectedWinLowerBound": 0.6159,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6159
+      },
+      {
+        "id": "em-fef48f3b2f9e",
+        "name": "まん丸！シャーミー君",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 28,
+        "hp": 3800,
+        "pow": 3237,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、火属性の敵に対する自身の攻撃力を70%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-fef48f3b2f9e",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "まん丸！シャーミー君",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.879,
+          "synergyScore": 0.2886,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6187,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6187
+      },
+      {
+        "id": "em-9974d2b554c4",
+        "name": "ｼｬﾐｯ子！シャーミー君",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 36,
+        "hp": 4652,
+        "pow": 3919,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、火属性の敵に対する自身の攻撃力を80%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-9974d2b554c4",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ｼｬﾐｯ子！シャーミー君",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.8676,
+          "synergyScore": 0.3076,
+          "expectedWinRate": 0.6806,
+          "expectedWinLowerBound": 0.5811,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5811
+      },
+      {
+        "id": "em-207f3b89da64",
+        "name": "ピンギヌスのたまご",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 100,
+        "hp": 1,
+        "pow": 1,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "自身へのダメージを99%カットする",
+        "position": 1,
+        "evaluatedDeckCount": 0,
+        "infeasible": true,
+        "bestDeck": {
+          "origin": "infeasible",
+          "totalCost": 101,
+          "remainingCost": 0,
+          "ids": [],
+          "names": [],
+          "proxyScore": 0,
+          "synergyScore": 0,
+          "expectedWinRate": 0,
+          "expectedWinLowerBound": 0,
+          "scenarioCount": 0,
+          "decisiveWinRate": 0,
+          "decisiveDrawRate": 0,
+          "decisiveLossRate": 0,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0
+      },
+      {
+        "id": "em-b2d6a846bb36",
+        "name": "哀哭のオオウミガラス",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "伝",
+        "cost": 75,
+        "hp": 9713,
+        "pow": 4941,
+        "skillTurn": 2,
+        "skillType": "damage_reduction",
+        "skillName": "5ターンの間、味方全員に火属性の敵からのダメージを25%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-b2d6a846bb36",
+            "em-f203cae3d671",
+            "em-70861f8a23e9",
+            "em-489782f8e31c",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "哀哭のオオウミガラス",
+            "ペーチパイセン",
+            "ウナギーヌくん",
+            "愛のぴよ子",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.5087,
+          "synergyScore": 0.2065,
+          "expectedWinRate": 0.403,
+          "expectedWinLowerBound": 0.2939,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3611,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.5556,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2939
+      },
+      {
+        "id": "em-53ece7a43871",
+        "name": "キステチスのたまご",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 100,
+        "hp": 1,
+        "pow": 1,
+        "skillTurn": 40,
+        "skillType": "guard",
+        "skillName": "5ターンの間、攻撃を自身に集中させる(100%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 0,
+        "infeasible": true,
+        "bestDeck": {
+          "origin": "infeasible",
+          "totalCost": 101,
+          "remainingCost": 0,
+          "ids": [],
+          "names": [],
+          "proxyScore": 0,
+          "synergyScore": 0,
+          "expectedWinRate": 0,
+          "expectedWinLowerBound": 0,
+          "scenarioCount": 0,
+          "decisiveWinRate": 0,
+          "decisiveDrawRate": 0,
+          "decisiveLossRate": 0,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0
+      },
+      {
+        "id": "em-ceda64319ca1",
+        "name": "蜜香のウミリンゴ",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "伝",
+        "cost": 75,
+        "hp": 8520,
+        "pow": 5453,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "5ターンの間、風属性の敵に対する味方全員の攻撃力を25%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-ceda64319ca1",
+            "em-f203cae3d671",
+            "em-70861f8a23e9",
+            "em-489782f8e31c",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "蜜香のウミリンゴ",
+            "ペーチパイセン",
+            "ウナギーヌくん",
+            "愛のぴよ子",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.4267,
+          "synergyScore": 0.0933,
+          "expectedWinRate": 0.5693,
+          "expectedWinLowerBound": 0.4626,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.3611,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4626
+      },
+      {
+        "id": "em-41b8799b7505",
+        "name": "まおーちゃん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 50,
+        "hp": 3748,
+        "pow": 4941,
+        "skillTurn": 3,
+        "skillType": "revive",
+        "skillName": "死亡している水属性の味方全員を33%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-41b8799b7505",
+            "em-f203cae3d671",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "まおーちゃん",
+            "ペーチパイセン",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.6477,
+          "synergyScore": 0.1479,
+          "expectedWinRate": 0.6597,
+          "expectedWinLowerBound": 0.5556,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.2917,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5556
+      },
+      {
+        "id": "em-271fbedbbf39",
+        "name": "レオ",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 22,
+        "hp": 2737,
+        "pow": 2093,
+        "skillTurn": 4,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを80%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-271fbedbbf39",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "レオ",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8327,
+          "synergyScore": 0.2447,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6255,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6255
+      },
+      {
+        "id": "em-048f5c5385db",
+        "name": "Mr.バトラー",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 34,
+        "hp": 4771,
+        "pow": 3067,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を風属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-048f5c5385db",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "Mr.バトラー",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.7647,
+          "synergyScore": 0.2141,
+          "expectedWinRate": 0.7708,
+          "expectedWinLowerBound": 0.6821,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7083,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.1667,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6821
+      },
+      {
+        "id": "em-fa3191833d67",
+        "name": "エヴァン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 28,
+        "hp": 3381,
+        "pow": 2776,
+        "skillTurn": 2,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを50%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-fa3191833d67",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "エヴァン",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7749,
+          "synergyScore": 0.1818,
+          "expectedWinRate": 0.8333,
+          "expectedWinLowerBound": 0.7558,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7778,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.1111,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7558
+      },
+      {
+        "id": "em-59636157ae2e",
+        "name": "コーベンパイア天爵",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 45,
+        "hp": 5282,
+        "pow": 1757,
+        "skillTurn": 2,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員に火属性の敵からのダメージを33%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-59636157ae2e",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-ea813aee5d92",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "コーベンパイア天爵",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "ブラジリアン首都術",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.7507,
+          "synergyScore": 0.2973,
+          "expectedWinRate": 0.6736,
+          "expectedWinLowerBound": 0.5726,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5726
+      },
+      {
+        "id": "em-edb254f0a679",
+        "name": "カナちゃんのなごみ",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 41,
+        "hp": 5453,
+        "pow": 3408,
+        "skillTurn": 2,
+        "skillType": "heal",
+        "skillName": "水属性の味方全員のHPを120%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-edb254f0a679",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-ea813aee5d92"
+          ],
+          "names": [
+            "カナちゃんのなごみ",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ブラジリアン首都術"
+          ],
+          "proxyScore": 0.7037,
+          "synergyScore": 0.1744,
+          "expectedWinRate": 0.6111,
+          "expectedWinLowerBound": 0.5138,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4861,
+          "decisiveDrawRate": 0.25,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5138
+      },
+      {
+        "id": "em-5a047ed41d97",
+        "name": "KJの少女Hi児",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 48,
+        "hp": 4941,
+        "pow": 3919,
+        "skillTurn": 5,
+        "skillType": "multi_hit_attack",
+        "skillName": "2ターンの間、味方全員の攻撃が3回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-5a047ed41d97",
+            "em-f203cae3d671",
+            "em-4f0b20692fd7",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "KJの少女Hi児",
+            "ペーチパイセン",
+            "コンドアーズ",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.7626,
+          "synergyScore": 0.2535,
+          "expectedWinRate": 0.6946,
+          "expectedWinLowerBound": 0.5947,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5947
+      },
+      {
+        "id": "em-4d9586371e6c",
+        "name": "鞭・打つ子さん",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 38,
+        "hp": 4106,
+        "pow": 4106,
+        "skillTurn": 3,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が8回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-4d9586371e6c",
+            "em-f203cae3d671",
+            "em-4f0b20692fd7",
+            "em-a8f48fb9a527",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "鞭・打つ子さん",
+            "ペーチパイセン",
+            "コンドアーズ",
+            "タミちゃんの火祭り",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7825,
+          "synergyScore": 0.2166,
+          "expectedWinRate": 0.778,
+          "expectedWinLowerBound": 0.6873,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7361,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6873
+      },
+      {
+        "id": "em-7d756ba8373e",
+        "name": "謹賀新年のびゃこ",
+        "attributes": [
+          "fire",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 47,
+        "hp": 2300,
+        "pow": 6219,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "3ターンの間、水属性の敵に対する自身の攻撃力を999%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-7d756ba8373e",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "謹賀新年のびゃこ",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.8867,
+          "synergyScore": 0.3962,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6295,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6295
+      },
+      {
+        "id": "em-ffdcaffc4a41",
+        "name": "雑煮入り☆うるっしー",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 36,
+        "hp": 3443,
+        "pow": 3443,
+        "skillTurn": 4,
+        "skillType": "guard",
+        "skillName": "2ターンの間、攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-ffdcaffc4a41",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "雑煮入り☆うるっしー",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.8884,
+          "synergyScore": 0.3618,
+          "expectedWinRate": 0.7292,
+          "expectedWinLowerBound": 0.6363,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6363
+      },
+      {
+        "id": "em-2eebc4f8633d",
+        "name": "すわっ！かつより君",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 5350,
+        "pow": 4771,
+        "skillTurn": 5,
+        "skillType": "aoe_attack",
+        "skillName": "2ターンの間、味方全員の攻撃が全体攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-2eebc4f8633d",
+            "em-f203cae3d671",
+            "em-4f0b20692fd7",
+            "em-489782f8e31c",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "すわっ！かつより君",
+            "ペーチパイセン",
+            "コンドアーズ",
+            "愛のぴよ子",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.6682,
+          "synergyScore": 0.2389,
+          "expectedWinRate": 0.6458,
+          "expectedWinLowerBound": 0.5407,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.3056,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5407
+      },
+      {
+        "id": "em-2a20d82018a7",
+        "name": "強飯式太子君",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 43,
+        "hp": 4771,
+        "pow": 3408,
+        "skillTurn": 1,
+        "skillType": "heal",
+        "skillName": "火属性の味方全員のHPを40%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-2a20d82018a7",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-4f0b20692fd7",
+            "em-980bac842ec7"
+          ],
+          "names": [
+            "強飯式太子君",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "コンドアーズ",
+            "ウシュか☆丸か"
+          ],
+          "proxyScore": 0.7016,
+          "synergyScore": 0.1711,
+          "expectedWinRate": 0.75,
+          "expectedWinLowerBound": 0.6612,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1667,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6612
       }
     ],
     [

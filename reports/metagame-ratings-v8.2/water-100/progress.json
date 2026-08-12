@@ -1,6 +1,6 @@
 {
   "status": "in_progress",
-  "updatedAt": "2026-08-12T21:20:30.903Z",
+  "updatedAt": "2026-08-12T22:38:22.142Z",
   "context": {
     "version": "team-battle-v8.2",
     "inputId": "water:100",
@@ -31972,6 +31972,4490 @@
         },
         "exampleDeck": null,
         "v7Score": 0.3047
+      },
+      {
+        "id": "em-94a55ee81090",
+        "name": "瑠璃の君",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 27,
+        "hp": 3067,
+        "pow": 2453,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、水属性の味方全員に水属性の敵からのダメージを35%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-94a55ee81090",
+            "em-d1302899cad6",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "瑠璃の君",
+            "ナポレオーヌ一世",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.7483,
+          "synergyScore": 0.2165,
+          "expectedWinRate": 0.4167,
+          "expectedWinLowerBound": 0.3123,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3123
+      },
+      {
+        "id": "em-7688ea925e5e",
+        "name": "瑠璃ノ宮",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 27,
+        "hp": 3408,
+        "pow": 2726,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、水属性の味方全員に水属性の敵からのダメージを40%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-7688ea925e5e",
+            "em-d1302899cad6",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "瑠璃ノ宮",
+            "ナポレオーヌ一世",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.7537,
+          "synergyScore": 0.2165,
+          "expectedWinRate": 0.4444,
+          "expectedWinLowerBound": 0.3391,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3611,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3391
+      },
+      {
+        "id": "em-106b8d6fe4c5",
+        "name": "ドヤ顔の女帝瑠璃",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4430,
+        "pow": 4089,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、水属性の味方全員に水属性の敵からのダメージを50%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-106b8d6fe4c5",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "ドヤ顔の女帝瑠璃",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5061,
+          "synergyScore": 0.106,
+          "expectedWinRate": 0.4306,
+          "expectedWinLowerBound": 0.3238,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3611,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3238
+      },
+      {
+        "id": "em-b78d9042e361",
+        "name": "サルパちゃん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 28,
+        "hp": 4362,
+        "pow": 3748,
+        "skillTurn": 2,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が2回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-b78d9042e361",
+            "em-8b710fe84fda",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "サルパちゃん",
+            "モチノ・ウオ丸",
+            "試作型おこしん",
+            "?????",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.8015,
+          "synergyScore": 0.2051,
+          "expectedWinRate": 0.4653,
+          "expectedWinLowerBound": 0.3585,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.4583,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3585
+      },
+      {
+        "id": "em-30e2f325f3af",
+        "name": "尾索戦隊ｻﾙﾊﾟﾝｼﾞｬｰ",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 28,
+        "hp": 4907,
+        "pow": 1022,
+        "skillTurn": 2,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が10回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-30e2f325f3af",
+            "em-8b710fe84fda",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "尾索戦隊ｻﾙﾊﾟﾝｼﾞｬｰ",
+            "モチノ・ウオ丸",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.7295,
+          "synergyScore": 0.2445,
+          "expectedWinRate": 0.3958,
+          "expectedWinLowerBound": 0.2934,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3056,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2934
+      },
+      {
+        "id": "em-af9542637cdd",
+        "name": "群れを成すサルパ",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 28,
+        "hp": 5453,
+        "pow": 756,
+        "skillTurn": 2,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が16回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-af9542637cdd",
+            "em-8b710fe84fda",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "群れを成すサルパ",
+            "モチノ・ウオ丸",
+            "試作型おこしん",
+            "?????",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.7717,
+          "synergyScore": 0.2051,
+          "expectedWinRate": 0.3889,
+          "expectedWinLowerBound": 0.2878,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2878
+      },
+      {
+        "id": "em-dba7b79429bc",
+        "name": "サルパ王＆女王",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 5453,
+        "pow": 3748,
+        "skillTurn": 2,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が4回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-dba7b79429bc",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "サルパ王＆女王",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5209,
+          "synergyScore": 0.106,
+          "expectedWinRate": 0.4097,
+          "expectedWinLowerBound": 0.303,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.5278,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.303
+      },
+      {
+        "id": "em-942c8f8de44d",
+        "name": "エンゼルちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 22,
+        "hp": 1772,
+        "pow": 2590,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "水属性の味方全員のHPを90%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 84,
+          "remainingCost": 16,
+          "ids": [
+            "em-942c8f8de44d",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "エンゼルちゃん",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7804,
+          "synergyScore": 0.2308,
+          "expectedWinRate": 0.3819,
+          "expectedWinLowerBound": 0.2803,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.5278,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2803
+      },
+      {
+        "id": "em-05de078a2e7c",
+        "name": "幼妻！エンゼルちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 22,
+        "hp": 1993,
+        "pow": 2913,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "水属性の味方全員のHPを100%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 84,
+          "remainingCost": 16,
+          "ids": [
+            "em-05de078a2e7c",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "幼妻！エンゼルちゃん",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7852,
+          "synergyScore": 0.2308,
+          "expectedWinRate": 0.4375,
+          "expectedWinLowerBound": 0.3332,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3332
+      },
+      {
+        "id": "em-81078d011501",
+        "name": "年齢不詳！エンゼル様",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 22,
+        "hp": 2215,
+        "pow": 3237,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "水属性の味方全員のHPを111%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 84,
+          "remainingCost": 16,
+          "ids": [
+            "em-81078d011501",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "年齢不詳！エンゼル様",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ネムりん"
+          ],
+          "proxyScore": 0.79,
+          "synergyScore": 0.2308,
+          "expectedWinRate": 0.4375,
+          "expectedWinLowerBound": 0.3332,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3332
+      },
+      {
+        "id": "em-4805525cb8a4",
+        "name": "ｴﾝｾﾞﾘｯｸ☆エンゼル",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6816,
+        "pow": 4771,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "自身のHPを200%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-4805525cb8a4",
+            "em-a0159af9ab81",
+            "em-e3dab98c64af",
+            "em-999d33621829",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "ｴﾝｾﾞﾘｯｸ☆エンゼル",
+            "カネヒラくん",
+            "試作型おこしん",
+            "おたべ妖精",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.4535,
+          "synergyScore": 0.0356,
+          "expectedWinRate": 0.4375,
+          "expectedWinLowerBound": 0.335,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.4583,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.335
+      },
+      {
+        "id": "em-2080ae65b62a",
+        "name": "モヅルン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 37,
+        "hp": 3771,
+        "pow": 1908,
+        "skillTurn": 3,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、風属性の攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-2080ae65b62a",
+            "em-8b710fe84fda",
+            "em-ed68f4e03a58",
+            "em-bff3cff5162a",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "モヅルン",
+            "モチノ・ウオ丸",
+            "欣喜ぴよ子",
+            "トキシッくんｵｯｽｵｯｽ",
+            "ネムりん"
+          ],
+          "proxyScore": 0.6466,
+          "synergyScore": 0.1413,
+          "expectedWinRate": 0.3472,
+          "expectedWinLowerBound": 0.2472,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2639,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5694,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2472
+      },
+      {
+        "id": "em-b041a6f6cf00",
+        "name": "テヅルモヅルン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 37,
+        "hp": 5367,
+        "pow": 2147,
+        "skillTurn": 3,
+        "skillType": "attribute_guard",
+        "skillName": "2ターンの間、風属性の攻撃を自身に集中させる(82%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-b041a6f6cf00",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "テヅルモヅルン",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.8598,
+          "synergyScore": 0.3495,
+          "expectedWinRate": 0.3542,
+          "expectedWinLowerBound": 0.2508,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.5833,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2508
+      },
+      {
+        "id": "em-6c2ea8631e0d",
+        "name": "深海美少年モヅルン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 37,
+        "hp": 5964,
+        "pow": 2385,
+        "skillTurn": 3,
+        "skillType": "attribute_guard",
+        "skillName": "2ターンの間、風属性の攻撃を自身に集中させる(85%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-6c2ea8631e0d",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "深海美少年モヅルン",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.8699,
+          "synergyScore": 0.3534,
+          "expectedWinRate": 0.4236,
+          "expectedWinLowerBound": 0.318,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.318
+      },
+      {
+        "id": "em-54cb13a72721",
+        "name": "不思議の海のモヅルン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6475,
+        "pow": 4941,
+        "skillTurn": 3,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、風属性の攻撃を自身に集中させる(92%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-54cb13a72721",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "不思議の海のモヅルン",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5129,
+          "synergyScore": 0.106,
+          "expectedWinRate": 0.4375,
+          "expectedWinLowerBound": 0.3297,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.375,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3297
+      },
+      {
+        "id": "em-34853ed0f0f8",
+        "name": "ユーコちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 24,
+        "hp": 2556,
+        "pow": 1533,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している風属性の味方全員を15%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-34853ed0f0f8",
+            "em-8b710fe84fda",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "ユーコちゃん",
+            "モチノ・ウオ丸",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.744,
+          "synergyScore": 0.2291,
+          "expectedWinRate": 0.375,
+          "expectedWinLowerBound": 0.2711,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3056,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.5556,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2711
+      },
+      {
+        "id": "em-e6110f879f18",
+        "name": "ユーコ隊",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 24,
+        "hp": 3408,
+        "pow": 2044,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している風属性の味方全員を20%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-e6110f879f18",
+            "em-8b710fe84fda",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "ユーコ隊",
+            "モチノ・ウオ丸",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.7563,
+          "synergyScore": 0.2291,
+          "expectedWinRate": 0.4167,
+          "expectedWinLowerBound": 0.3123,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3123
+      },
+      {
+        "id": "em-d0639c20e6b1",
+        "name": "ユーコ☆宇宙",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 24,
+        "hp": 4260,
+        "pow": 2556,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している風属性の味方全員を25%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-d0639c20e6b1",
+            "em-8b710fe84fda",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "ユーコ☆宇宙",
+            "モチノ・ウオ丸",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.7684,
+          "synergyScore": 0.2291,
+          "expectedWinRate": 0.4097,
+          "expectedWinLowerBound": 0.3047,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3047
+      },
+      {
+        "id": "em-337e85c2cd90",
+        "name": "ユーコ☆スターダスト",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6053,
+        "pow": 4354,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している風属性の味方全員を40%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-337e85c2cd90",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "ユーコ☆スターダスト",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5123,
+          "synergyScore": 0.106,
+          "expectedWinRate": 0.3958,
+          "expectedWinLowerBound": 0.2916,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3194,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5278,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2916
+      },
+      {
+        "id": "em-4ae7fba92e2c",
+        "name": "アデヤッコちゃん",
+        "attributes": [
+          "wind",
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 27,
+        "hp": 2351,
+        "pow": 2556,
+        "skillTurn": 0,
+        "skillType": "attribute_change",
+        "skillName": "2ターンの間、自身の属性を水属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-4ae7fba92e2c",
+            "em-d1302899cad6",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "アデヤッコちゃん",
+            "ナポレオーヌ一世",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.8007,
+          "synergyScore": 0.2676,
+          "expectedWinRate": 0.4236,
+          "expectedWinLowerBound": 0.3163,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3611,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3163
+      },
+      {
+        "id": "em-7fe8d05d0c62",
+        "name": "艶やかヤッコ",
+        "attributes": [
+          "wind",
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 30,
+        "hp": 3135,
+        "pow": 3408,
+        "skillTurn": 0,
+        "skillType": "attribute_change",
+        "skillName": "2ターンの間、自身の属性を水属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-7fe8d05d0c62",
+            "em-ca249600bce3",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-24d2ab142253"
+          ],
+          "names": [
+            "艶やかヤッコ",
+            "アレス暮らし",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "アグスティンさん"
+          ],
+          "proxyScore": 0.7951,
+          "synergyScore": 0.281,
+          "expectedWinRate": 0.4861,
+          "expectedWinLowerBound": 0.38,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4028,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.4306,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.38
+      },
+      {
+        "id": "em-5d063141c6e0",
+        "name": "ブルーフェイス姐さん",
+        "attributes": [
+          "wind",
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 33,
+        "hp": 3919,
+        "pow": 4260,
+        "skillTurn": 0,
+        "skillType": "attribute_change",
+        "skillName": "2ターンの間、自身の属性を水属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-5d063141c6e0",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-c67e33bb61cf"
+          ],
+          "names": [
+            "ブルーフェイス姐さん",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "鎌倉式ＤＢ２涅槃型改"
+          ],
+          "proxyScore": 0.8292,
+          "synergyScore": 0.2408,
+          "expectedWinRate": 0.5139,
+          "expectedWinLowerBound": 0.4096,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4167,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.3889,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4096
+      },
+      {
+        "id": "em-4debcfcadf66",
+        "name": "艶奴太夫",
+        "attributes": [
+          "wind",
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 3919,
+        "pow": 5964,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "3ターンの間、自身の属性を水属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-4debcfcadf66",
+            "em-8dfd3b91ca8d",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "艶奴太夫",
+            "総統エビユルゲ",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ネムりん"
+          ],
+          "proxyScore": 0.5523,
+          "synergyScore": 0.104,
+          "expectedWinRate": 0.3889,
+          "expectedWinLowerBound": 0.2859,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3056,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5278,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2859
+      },
+      {
+        "id": "em-301c11f4a1d7",
+        "name": "ウサポワンちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 20,
+        "hp": 1363,
+        "pow": 2317,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(85%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-301c11f4a1d7",
+            "em-d1302899cad6",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "ウサポワンちゃん",
+            "ナポレオーヌ一世",
+            "?????",
+            "ɚすぃとあろま？",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.8178,
+          "synergyScore": 0.2439,
+          "expectedWinRate": 0.4097,
+          "expectedWinLowerBound": 0.3047,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3047
+      },
+      {
+        "id": "em-845e49247e45",
+        "name": "ウサポワン海人",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 20,
+        "hp": 1533,
+        "pow": 2607,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(88%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-845e49247e45",
+            "em-d1302899cad6",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "ウサポワン海人",
+            "ナポレオーヌ一世",
+            "?????",
+            "ɚすぃとあろま？",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.8226,
+          "synergyScore": 0.2439,
+          "expectedWinRate": 0.4097,
+          "expectedWinLowerBound": 0.3047,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3047
+      },
+      {
+        "id": "em-bbda291d459c",
+        "name": "漆黒及び純白のポワン",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 20,
+        "hp": 1704,
+        "pow": 2896,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(90%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-bbda291d459c",
+            "em-d1302899cad6",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "漆黒及び純白のポワン",
+            "ナポレオーヌ一世",
+            "?????",
+            "ɚすぃとあろま？",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.8263,
+          "synergyScore": 0.2439,
+          "expectedWinRate": 0.4653,
+          "expectedWinLowerBound": 0.3585,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.4583,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3585
+      },
+      {
+        "id": "em-f7f78d464e92",
+        "name": "ウミウサーヌ",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 3408,
+        "pow": 4601,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(92%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-f7f78d464e92",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "ウミウサーヌ",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.506,
+          "synergyScore": 0.106,
+          "expectedWinRate": 0.3681,
+          "expectedWinLowerBound": 0.2655,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5556,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2655
+      },
+      {
+        "id": "em-fc0926b017ef",
+        "name": "なまずのおじさん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 25,
+        "hp": 4260,
+        "pow": 1278,
+        "skillTurn": 5,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に風属性の敵からのダメージを90%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-fc0926b017ef",
+            "em-8b710fe84fda",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "なまずのおじさん",
+            "モチノ・ウオ丸",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.7463,
+          "synergyScore": 0.2291,
+          "expectedWinRate": 0.375,
+          "expectedWinLowerBound": 0.2729,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5417,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2729
+      },
+      {
+        "id": "em-3b878e796aba",
+        "name": "なまず仙人",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 35,
+        "hp": 4941,
+        "pow": 1618,
+        "skillTurn": 4,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に風属性の敵からのダメージを90%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-3b878e796aba",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "なまず仙人",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.7242,
+          "synergyScore": 0.1844,
+          "expectedWinRate": 0.4028,
+          "expectedWinLowerBound": 0.3027,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.2222,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3027
+      },
+      {
+        "id": "em-fd155a3410b2",
+        "name": "鯰坊主と子供たち",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 45,
+        "hp": 5793,
+        "pow": 2130,
+        "skillTurn": 3,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に風属性の敵からのダメージを90%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-fd155a3410b2",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "鯰坊主と子供たち",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.6245,
+          "synergyScore": 0.1707,
+          "expectedWinRate": 0.3542,
+          "expectedWinLowerBound": 0.2526,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2778,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5694,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2526
+      },
+      {
+        "id": "em-48fc0bb31337",
+        "name": "踊る☆なまずおじさん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 5793,
+        "pow": 2130,
+        "skillTurn": 3,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員に風属性の敵からのダメージを85%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 5,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-48fc0bb31337",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "踊る☆なまずおじさん",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.6057,
+          "synergyScore": 0.2552,
+          "expectedWinRate": 0.3333,
+          "expectedWinLowerBound": 0.2345,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.25,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5833,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2345
+      },
+      {
+        "id": "em-a0159af9ab81",
+        "name": "カネヒラくん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 14,
+        "hp": 2385,
+        "pow": 2556,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "3ターンの間、自身の属性を火属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-a0159af9ab81",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-c87499b64151",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "カネヒラくん",
+            "試作型おこしん",
+            "?????",
+            "ラパヌイ先生",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.8535,
+          "synergyScore": 0.2603,
+          "expectedWinRate": 0.375,
+          "expectedWinLowerBound": 0.2766,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2639,
+          "decisiveDrawRate": 0.2222,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2766
+      },
+      {
+        "id": "em-4c8a3408455b",
+        "name": "泳ぐカネヒラさん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 28,
+        "hp": 3748,
+        "pow": 3408,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "3ターンの間、自身の属性を火属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-4c8a3408455b",
+            "em-8b710fe84fda",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "泳ぐカネヒラさん",
+            "モチノ・ウオ丸",
+            "試作型おこしん",
+            "?????",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.8643,
+          "synergyScore": 0.2635,
+          "expectedWinRate": 0.4583,
+          "expectedWinLowerBound": 0.3508,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3508
+      },
+      {
+        "id": "em-4e77469f1fc4",
+        "name": "綺麗な金平さん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 42,
+        "hp": 5112,
+        "pow": 4260,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "3ターンの間、自身の属性を火属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-4e77469f1fc4",
+            "em-8b710fe84fda",
+            "em-e3dab98c64af",
+            "em-bff3cff5162a",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "綺麗な金平さん",
+            "モチノ・ウオ丸",
+            "試作型おこしん",
+            "トキシッくんｵｯｽｵｯｽ",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.726,
+          "synergyScore": 0.1927,
+          "expectedWinRate": 0.4931,
+          "expectedWinLowerBound": 0.3843,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4306,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3843
+      },
+      {
+        "id": "em-b16382731bd5",
+        "name": "華燭なカネヒラさん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 5793,
+        "pow": 4771,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "4ターンの間、自身の属性を火属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-b16382731bd5",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "華燭なカネヒラさん",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5858,
+          "synergyScore": 0.1577,
+          "expectedWinRate": 0.4028,
+          "expectedWinLowerBound": 0.2972,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.5278,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2972
+      },
+      {
+        "id": "em-d6cc97b363eb",
+        "name": "ユウレイイカさん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 10,
+        "hp": 1363,
+        "pow": 1704,
+        "skillTurn": 5,
+        "skillType": "revive",
+        "skillName": "死亡している水属性の味方全員を1%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-d6cc97b363eb",
+            "em-ca249600bce3",
+            "em-80894fcaa10c",
+            "em-bc2106c87bcd",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "ユウレイイカさん",
+            "アレス暮らし",
+            "とんこつ神！博多美子",
+            "?????",
+            "ネムりん"
+          ],
+          "proxyScore": 0.8256,
+          "synergyScore": 0.2545,
+          "expectedWinRate": 0.4028,
+          "expectedWinLowerBound": 0.3027,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.2222,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3027
+      },
+      {
+        "id": "em-9eb7fd81d237",
+        "name": "ユウ・レーカさん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 20,
+        "hp": 2044,
+        "pow": 2556,
+        "skillTurn": 4,
+        "skillType": "revive",
+        "skillName": "死亡している水属性の味方全員を1%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-9eb7fd81d237",
+            "em-d1302899cad6",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "ユウ・レーカさん",
+            "ナポレオーヌ一世",
+            "?????",
+            "ɚすぃとあろま？",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.8182,
+          "synergyScore": 0.2439,
+          "expectedWinRate": 0.3889,
+          "expectedWinLowerBound": 0.2859,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3056,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5278,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2859
+      },
+      {
+        "id": "em-5d34df1253d1",
+        "name": "氷点下のレーカさん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 40,
+        "hp": 2044,
+        "pow": 2556,
+        "skillTurn": 3,
+        "skillType": "revive",
+        "skillName": "死亡している水属性の味方全員を1%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-5d34df1253d1",
+            "em-d09d2f80d34e",
+            "em-78c90c30a11c",
+            "em-bc2106c87bcd",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "氷点下のレーカさん",
+            "トマティーナ少佐",
+            "夜光虫ほたるん",
+            "?????",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.63,
+          "synergyScore": 0.1096,
+          "expectedWinRate": 0.3403,
+          "expectedWinLowerBound": 0.2399,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2639,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5833,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2399
+      },
+      {
+        "id": "em-15545bc62fe7",
+        "name": "幽霊烏賊図",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 3408,
+        "pow": 4260,
+        "skillTurn": 3,
+        "skillType": "revive",
+        "skillName": "死亡している水属性の味方全員を1%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-15545bc62fe7",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "幽霊烏賊図",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.4913,
+          "synergyScore": 0.106,
+          "expectedWinRate": 0.4167,
+          "expectedWinLowerBound": 0.3105,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3105
+      },
+      {
+        "id": "em-c2219f10d4e0",
+        "name": "青コリくん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 16,
+        "hp": 1533,
+        "pow": 2556,
+        "skillTurn": 0,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に火属性の敵からのダメージを20%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-c2219f10d4e0",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-c87499b64151",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "青コリくん",
+            "試作型おこしん",
+            "?????",
+            "ラパヌイ先生",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.7771,
+          "synergyScore": 0.2002,
+          "expectedWinRate": 0.3819,
+          "expectedWinLowerBound": 0.2822,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2778,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2822
+      },
+      {
+        "id": "em-c4c6b3b17960",
+        "name": "青コリくんは怒らない",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 24,
+        "hp": 2350,
+        "pow": 3834,
+        "skillTurn": 0,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に火属性の敵からのダメージを20%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-c4c6b3b17960",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-f13588602944",
+            "em-2a26d74bb300"
+          ],
+          "names": [
+            "青コリくんは怒らない",
+            "アレス暮らし",
+            "?????",
+            "生イカのアーニー",
+            "鮫っ子！フカオちゃん"
+          ],
+          "proxyScore": 0.901,
+          "synergyScore": 0.3035,
+          "expectedWinRate": 0.4653,
+          "expectedWinLowerBound": 0.3585,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.4583,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3585
+      },
+      {
+        "id": "em-42b503c8643c",
+        "name": "姉上と青コリくん",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 48,
+        "hp": 3322,
+        "pow": 3322,
+        "skillTurn": 0,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に火属性の敵からのダメージを20%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-42b503c8643c",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "姉上と青コリくん",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.6167,
+          "synergyScore": 0.1707,
+          "expectedWinRate": 0.3611,
+          "expectedWinLowerBound": 0.2563,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3056,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.5833,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2563
+      },
+      {
+        "id": "em-f9fcb91b983d",
+        "name": "アエネウスと弟くん",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4175,
+        "pow": 4175,
+        "skillTurn": 0,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員に火属性の敵からのダメージを15%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-f9fcb91b983d",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "アエネウスと弟くん",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5519,
+          "synergyScore": 0.1819,
+          "expectedWinRate": 0.4097,
+          "expectedWinLowerBound": 0.303,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.5278,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.303
+      },
+      {
+        "id": "em-cf9464eec3b4",
+        "name": "ヒラメちゃん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 13,
+        "hp": 2370,
+        "pow": 2044,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を火属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-cf9464eec3b4",
+            "em-8b710fe84fda",
+            "em-bc2106c87bcd",
+            "em-f346c1f4c45d",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "ヒラメちゃん",
+            "モチノ・ウオ丸",
+            "?????",
+            "八狗神伏姫様",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.8451,
+          "synergyScore": 0.3069,
+          "expectedWinRate": 0.4236,
+          "expectedWinLowerBound": 0.318,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.318
+      },
+      {
+        "id": "em-9991a7ad9a04",
+        "name": "ヒラメさん進化中",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 22,
+        "hp": 4004,
+        "pow": 2556,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を水属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 84,
+          "remainingCost": 16,
+          "ids": [
+            "em-9991a7ad9a04",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "ヒラメさん進化中",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ネムりん"
+          ],
+          "proxyScore": 0.774,
+          "synergyScore": 0.2308,
+          "expectedWinRate": 0.4444,
+          "expectedWinLowerBound": 0.3427,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.2222,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3427
+      },
+      {
+        "id": "em-3767457f6cce",
+        "name": "ｷﾗﾒｷﾒﾗ☆ヒラメ様",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 40,
+        "hp": 5367,
+        "pow": 2215,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "2ターンの間、自身の属性を風属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-3767457f6cce",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "ｷﾗﾒｷﾒﾗ☆ヒラメ様",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7551,
+          "synergyScore": 0.2331,
+          "expectedWinRate": 0.4514,
+          "expectedWinLowerBound": 0.3432,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3432
+      },
+      {
+        "id": "em-83954a93a691",
+        "name": "閃きのヒラメちゃん",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6560,
+        "pow": 4430,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "4ターンの間、自身の属性を全属性(3色混合)に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-83954a93a691",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "閃きのヒラメちゃん",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5926,
+          "synergyScore": 0.1665,
+          "expectedWinRate": 0.4514,
+          "expectedWinLowerBound": 0.3432,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3432
+      },
+      {
+        "id": "em-14bbe92902df",
+        "name": "ネムりん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 11,
+        "hp": 2726,
+        "pow": 1633,
+        "skillTurn": 5,
+        "skillType": "attack_buff",
+        "skillName": "3ターンの間、自身の攻撃力を333%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-14bbe92902df",
+            "em-8b710fe84fda",
+            "em-bc2106c87bcd",
+            "em-f346c1f4c45d",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "ネムりん",
+            "モチノ・ウオ丸",
+            "?????",
+            "八狗神伏姫様",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 1.1115,
+          "synergyScore": 0.5575,
+          "expectedWinRate": 0.4236,
+          "expectedWinLowerBound": 0.3198,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3198
+      },
+      {
+        "id": "em-049ada05607b",
+        "name": "眠里　不可緒",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 16,
+        "hp": 3578,
+        "pow": 2315,
+        "skillTurn": 5,
+        "skillType": "attack_buff",
+        "skillName": "3ターンの間、自身の攻撃力を444%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-049ada05607b",
+            "em-8b710fe84fda",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-2a26d74bb300"
+          ],
+          "names": [
+            "眠里　不可緒",
+            "モチノ・ウオ丸",
+            "試作型おこしん",
+            "?????",
+            "鮫っ子！フカオちゃん"
+          ],
+          "proxyScore": 1.101,
+          "synergyScore": 0.4758,
+          "expectedWinRate": 0.3958,
+          "expectedWinLowerBound": 0.2934,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3056,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2934
+      },
+      {
+        "id": "em-2a26d74bb300",
+        "name": "鮫っ子！フカオちゃん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 21,
+        "hp": 4430,
+        "pow": 2996,
+        "skillTurn": 5,
+        "skillType": "attack_buff",
+        "skillName": "3ターンの間、自身の攻撃力を555%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-2a26d74bb300",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-7930454375ec",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "鮫っ子！フカオちゃん",
+            "アレス暮らし",
+            "?????",
+            "パラワン探検隊",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 1.1216,
+          "synergyScore": 0.503,
+          "expectedWinRate": 0.4236,
+          "expectedWinLowerBound": 0.3198,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3198
+      },
+      {
+        "id": "em-a5655f550318",
+        "name": "眠れる海のネムリん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 7327,
+        "pow": 5282,
+        "skillTurn": 5,
+        "skillType": "attack_buff",
+        "skillName": "3ターンの間、自身の攻撃力を666%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-a5655f550318",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "眠れる海のネムリん",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.8151,
+          "synergyScore": 0.352,
+          "expectedWinRate": 0.4931,
+          "expectedWinLowerBound": 0.3843,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4306,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3843
+      },
+      {
+        "id": "em-8bc827a54303",
+        "name": "勝斧・カンムーリ",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 15,
+        "hp": 2896,
+        "pow": 1704,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "4ターンの間、風属性の敵に対する自身の攻撃力を40%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-8bc827a54303",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-c87499b64151",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "勝斧・カンムーリ",
+            "試作型おこしん",
+            "?????",
+            "ラパヌイ先生",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.8662,
+          "synergyScore": 0.28,
+          "expectedWinRate": 0.4306,
+          "expectedWinLowerBound": 0.3274,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3274
+      },
+      {
+        "id": "em-1eee6f61a8bd",
+        "name": "キングな勝斧さん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 31,
+        "hp": 4601,
+        "pow": 2726,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "5ターンの間、風属性の敵に対する自身の攻撃力を50%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-1eee6f61a8bd",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-2a26d74bb300"
+          ],
+          "names": [
+            "キングな勝斧さん",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "鮫っ子！フカオちゃん"
+          ],
+          "proxyScore": 0.8902,
+          "synergyScore": 0.2792,
+          "expectedWinRate": 0.4514,
+          "expectedWinLowerBound": 0.3485,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3485
+      },
+      {
+        "id": "em-6b69fff3a46d",
+        "name": "怒るよ!!勝斧さん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 47,
+        "hp": 6164,
+        "pow": 3748,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "6ターンの間、風属性の敵に対する自身の攻撃力を60%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-6b69fff3a46d",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-46432847d531",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "怒るよ!!勝斧さん",
+            "アレス暮らし",
+            "試作型おこしん",
+            "ＢＥＷ雪玉",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.6912,
+          "synergyScore": 0.2301,
+          "expectedWinRate": 0.4444,
+          "expectedWinLowerBound": 0.3373,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.375,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3373
+      },
+      {
+        "id": "em-35db097208c5",
+        "name": "勝斧・冠",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 6816,
+        "pow": 4089,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "8ターンの間、風属性の敵に対する自身の攻撃力を60%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-35db097208c5",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "勝斧・冠",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.6379,
+          "synergyScore": 0.192,
+          "expectedWinRate": 0.5417,
+          "expectedWinLowerBound": 0.4307,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.4167,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4307
+      },
+      {
+        "id": "em-d9bd2d5de563",
+        "name": "コンクちゃん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 20,
+        "hp": 2556,
+        "pow": 1704,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを23%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-d9bd2d5de563",
+            "em-d1302899cad6",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "コンクちゃん",
+            "ナポレオーヌ一世",
+            "?????",
+            "ɚすぃとあろま？",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.8087,
+          "synergyScore": 0.2439,
+          "expectedWinRate": 0.4167,
+          "expectedWinLowerBound": 0.3141,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3194,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3141
+      },
+      {
+        "id": "em-1211d6248533",
+        "name": "ピンクなコンクさん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 32,
+        "hp": 3067,
+        "pow": 2044,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを27%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-1211d6248533",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-2a26d74bb300"
+          ],
+          "names": [
+            "ピンクなコンクさん",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "鮫っ子！フカオちゃん"
+          ],
+          "proxyScore": 0.7668,
+          "synergyScore": 0.1942,
+          "expectedWinRate": 0.3958,
+          "expectedWinLowerBound": 0.2916,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3194,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5278,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2916
+      },
+      {
+        "id": "em-cdd2ac5f0a12",
+        "name": "クイーンなコンク様",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 44,
+        "hp": 3578,
+        "pow": 2385,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを30%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-cdd2ac5f0a12",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "クイーンなコンク様",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.7108,
+          "synergyScore": 0.2271,
+          "expectedWinRate": 0.3889,
+          "expectedWinLowerBound": 0.2878,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2878
+      },
+      {
+        "id": "em-ab3947962bd3",
+        "name": "姫騎士なコンクさん",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 4856,
+        "pow": 3237,
+        "skillTurn": 1,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを30%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-ab3947962bd3",
+            "em-8dfd3b91ca8d",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "姫騎士なコンクさん",
+            "総統エビユルゲ",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ネムりん"
+          ],
+          "proxyScore": 0.4653,
+          "synergyScore": 0.0528,
+          "expectedWinRate": 0.375,
+          "expectedWinLowerBound": 0.2729,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5417,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2729
+      },
+      {
+        "id": "em-b9b869c15b9f",
+        "name": "ルリマダラー",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 15,
+        "hp": 3786,
+        "pow": 378,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-b9b869c15b9f",
+            "em-d1302899cad6",
+            "em-d09d2f80d34e",
+            "em-bc2106c87bcd",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "ルリマダラー",
+            "ナポレオーヌ一世",
+            "トマティーナ少佐",
+            "?????",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.7626,
+          "synergyScore": 0.2313,
+          "expectedWinRate": 0.2917,
+          "expectedWinLowerBound": 0.1933,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2361,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.6528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.1933
+      },
+      {
+        "id": "em-67086191a83f",
+        "name": "マダラなシオマネキ君",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 27,
+        "hp": 5490,
+        "pow": 1059,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 90,
+          "remainingCost": 10,
+          "ids": [
+            "em-67086191a83f",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "マダラなシオマネキ君",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.7189,
+          "synergyScore": 0.1844,
+          "expectedWinRate": 0.3681,
+          "expectedWinLowerBound": 0.2655,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.5556,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2655
+      },
+      {
+        "id": "em-cb9a138787d0",
+        "name": "摩陀羅　潮真",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 27,
+        "hp": 7194,
+        "pow": 1741,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-cb9a138787d0",
+            "em-d1302899cad6",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "摩陀羅　潮真",
+            "ナポレオーヌ一世",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.7463,
+          "synergyScore": 0.2165,
+          "expectedWinRate": 0.4236,
+          "expectedWinLowerBound": 0.3198,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3198
+      },
+      {
+        "id": "em-814e01d05463",
+        "name": "非伝説の潮真",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 7535,
+        "pow": 2423,
+        "skillTurn": 1,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(50%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-814e01d05463",
+            "em-8dfd3b91ca8d",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "非伝説の潮真",
+            "総統エビユルゲ",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ネムりん"
+          ],
+          "proxyScore": 0.4585,
+          "synergyScore": 0.0528,
+          "expectedWinRate": 0.4583,
+          "expectedWinLowerBound": 0.3508,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3508
+      },
+      {
+        "id": "em-3776e81d3ee0",
+        "name": "ヒポポタリーナ",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 23,
+        "hp": 3237,
+        "pow": 2862,
+        "skillTurn": 3,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、火属性の味方全員の攻撃が2回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 90,
+          "remainingCost": 10,
+          "ids": [
+            "em-3776e81d3ee0",
+            "em-ca249600bce3",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "ヒポポタリーナ",
+            "アレス暮らし",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.7827,
+          "synergyScore": 0.24,
+          "expectedWinRate": 0.4722,
+          "expectedWinLowerBound": 0.3662,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3662
+      },
+      {
+        "id": "em-825d090d7d15",
+        "name": "比保々田 真純",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 31,
+        "hp": 4601,
+        "pow": 3714,
+        "skillTurn": 2,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、火属性の味方全員の攻撃が2回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-825d090d7d15",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-2a26d74bb300"
+          ],
+          "names": [
+            "比保々田 真純",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "鮫っ子！フカオちゃん"
+          ],
+          "proxyScore": 0.7884,
+          "synergyScore": 0.1942,
+          "expectedWinRate": 0.5069,
+          "expectedWinLowerBound": 0.4035,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4028,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.3889,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4035
+      },
+      {
+        "id": "em-6ceef8f285a4",
+        "name": "可愛馬！真純ちゃん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 41,
+        "hp": 5964,
+        "pow": 4566,
+        "skillTurn": 2,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、火属性の味方全員の攻撃が2回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-6ceef8f285a4",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "可愛馬！真純ちゃん",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7127,
+          "synergyScore": 0.1745,
+          "expectedWinRate": 0.5,
+          "expectedWinLowerBound": 0.3903,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4444,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3903
+      },
+      {
+        "id": "em-ff5dd5331817",
+        "name": "デメ子ちゃん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "CR",
+        "cost": 18,
+        "hp": 1704,
+        "pow": 3067,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を全属性(3色混合)に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-ff5dd5331817",
+            "em-d1302899cad6",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "デメ子ちゃん",
+            "ナポレオーヌ一世",
+            "?????",
+            "ɚすぃとあろま？",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.822,
+          "synergyScore": 0.2439,
+          "expectedWinRate": 0.4653,
+          "expectedWinLowerBound": 0.3603,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.375,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3603
+      },
+      {
+        "id": "em-e4561d587562",
+        "name": "幼心のデメ子さん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 25,
+        "hp": 3178,
+        "pow": 4089,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を全属性(3色混合)に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-e4561d587562",
+            "em-8b710fe84fda",
+            "em-5f9efdc805e5",
+            "em-aae1801458f8",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "幼心のデメ子さん",
+            "モチノ・ウオ丸",
+            "呼んでますトムさん",
+            "ɚすぃとあろま？",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.7781,
+          "synergyScore": 0.2291,
+          "expectedWinRate": 0.4861,
+          "expectedWinLowerBound": 0.3765,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4306,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.4583,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3765
+      },
+      {
+        "id": "em-23b2ea75fccd",
+        "name": "金野デメ子さん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 39,
+        "hp": 4430,
+        "pow": 5112,
+        "skillTurn": 0,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を全属性(3色混合)に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-23b2ea75fccd",
+            "em-8b710fe84fda",
+            "em-ed68f4e03a58",
+            "em-bff3cff5162a",
+            "em-d7e5ef0e4b97"
+          ],
+          "names": [
+            "金野デメ子さん",
+            "モチノ・ウオ丸",
+            "欣喜ぴよ子",
+            "トキシッくんｵｯｽｵｯｽ",
+            "実はこんにゃくちゃん"
+          ],
+          "proxyScore": 0.6776,
+          "synergyScore": 0.1398,
+          "expectedWinRate": 0.4444,
+          "expectedWinLowerBound": 0.3356,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3889,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3356
+      },
+      {
+        "id": "em-0c70f71e4c1a",
+        "name": "ルナのたまご",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 100,
+        "hp": 1,
+        "pow": 1,
+        "skillTurn": 999,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、自身の攻撃力を64617%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 0,
+        "infeasible": true,
+        "bestDeck": {
+          "origin": "infeasible",
+          "totalCost": 101,
+          "remainingCost": 0,
+          "ids": [],
+          "names": [],
+          "proxyScore": 0,
+          "synergyScore": 0,
+          "expectedWinRate": 0,
+          "expectedWinLowerBound": 0,
+          "scenarioCount": 0,
+          "decisiveWinRate": 0,
+          "decisiveDrawRate": 0,
+          "decisiveLossRate": 0,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0
+      },
+      {
+        "id": "em-94f677409ee2",
+        "name": "月甲のルナタスピス",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "伝",
+        "cost": 75,
+        "hp": 10224,
+        "pow": 4543,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "3ターンの間、攻撃を自身に集中させる(33%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 4,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-94f677409ee2",
+            "em-8dfd3b91ca8d",
+            "em-e3dab98c64af",
+            "em-8d2b5bd68a94",
+            "em-a0762b5d76ab"
+          ],
+          "names": [
+            "月甲のルナタスピス",
+            "総統エビユルゲ",
+            "試作型おこしん",
+            "ズースさんとシーラさん",
+            "シーラちゃん"
+          ],
+          "proxyScore": 0.4211,
+          "synergyScore": 0.1239,
+          "expectedWinRate": 0.5764,
+          "expectedWinLowerBound": 0.4708,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.3472,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4708
+      },
+      {
+        "id": "em-4ee2ea427154",
+        "name": "タルタルなたまご",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 100,
+        "hp": 1,
+        "pow": 1,
+        "skillTurn": 12,
+        "skillType": "attribute_change",
+        "skillName": "6ターンの間、自身の属性を風属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 0,
+        "infeasible": true,
+        "bestDeck": {
+          "origin": "infeasible",
+          "totalCost": 101,
+          "remainingCost": 0,
+          "ids": [],
+          "names": [],
+          "proxyScore": 0,
+          "synergyScore": 0,
+          "expectedWinRate": 0,
+          "expectedWinLowerBound": 0,
+          "scenarioCount": 0,
+          "decisiveWinRate": 0,
+          "decisiveDrawRate": 0,
+          "decisiveLossRate": 0,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0
+      },
+      {
+        "id": "em-94dc3d86f691",
+        "name": "碧海のオフタルもん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "伝",
+        "cost": 75,
+        "hp": 10054,
+        "pow": 3919,
+        "skillTurn": 4,
+        "skillType": "multi_hit_attack",
+        "skillName": "5ターンの間、自身の攻撃が3回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 4,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-94dc3d86f691",
+            "em-8dfd3b91ca8d",
+            "em-e3dab98c64af",
+            "em-8d2b5bd68a94",
+            "em-a0762b5d76ab"
+          ],
+          "names": [
+            "碧海のオフタルもん",
+            "総統エビユルゲ",
+            "試作型おこしん",
+            "ズースさんとシーラさん",
+            "シーラちゃん"
+          ],
+          "proxyScore": 0.4997,
+          "synergyScore": 0.1391,
+          "expectedWinRate": 0.5486,
+          "expectedWinLowerBound": 0.4404,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4861,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.3889,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4404
+      },
+      {
+        "id": "em-0c2d5864e3da",
+        "name": "グルグルなたまご",
+        "attributes": [
+          "wind",
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 100,
+        "hp": 1,
+        "pow": 1,
+        "skillTurn": 100,
+        "skillType": "delay",
+        "skillName": "敵全員の攻撃カウントを90増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 0,
+        "infeasible": true,
+        "bestDeck": {
+          "origin": "infeasible",
+          "totalCost": 101,
+          "remainingCost": 0,
+          "ids": [],
+          "names": [],
+          "proxyScore": 0,
+          "synergyScore": 0,
+          "expectedWinRate": 0,
+          "expectedWinLowerBound": 0,
+          "scenarioCount": 0,
+          "decisiveWinRate": 0,
+          "decisiveDrawRate": 0,
+          "decisiveLossRate": 0,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0
+      },
+      {
+        "id": "em-744815bd68e5",
+        "name": "旋回のヘリコプリオン",
+        "attributes": [
+          "wind",
+          "water"
+        ],
+        "rarity": "伝",
+        "cost": 75,
+        "hp": 8997,
+        "pow": 2675,
+        "skillTurn": 2,
+        "skillType": "aoe_attack",
+        "skillName": "2ターンの間、自身の攻撃が全体攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 4,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-744815bd68e5",
+            "em-8dfd3b91ca8d",
+            "em-e3dab98c64af",
+            "em-8d2b5bd68a94",
+            "em-a0762b5d76ab"
+          ],
+          "names": [
+            "旋回のヘリコプリオン",
+            "総統エビユルゲ",
+            "試作型おこしん",
+            "ズースさんとシーラさん",
+            "シーラちゃん"
+          ],
+          "proxyScore": 0.4295,
+          "synergyScore": 0.1065,
+          "expectedWinRate": 0.4236,
+          "expectedWinLowerBound": 0.3217,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3194,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3217
+      },
+      {
+        "id": "em-53ece7a43871",
+        "name": "キステチスのたまご",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 100,
+        "hp": 1,
+        "pow": 1,
+        "skillTurn": 40,
+        "skillType": "guard",
+        "skillName": "5ターンの間、攻撃を自身に集中させる(100%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 0,
+        "infeasible": true,
+        "bestDeck": {
+          "origin": "infeasible",
+          "totalCost": 101,
+          "remainingCost": 0,
+          "ids": [],
+          "names": [],
+          "proxyScore": 0,
+          "synergyScore": 0,
+          "expectedWinRate": 0,
+          "expectedWinLowerBound": 0,
+          "scenarioCount": 0,
+          "decisiveWinRate": 0,
+          "decisiveDrawRate": 0,
+          "decisiveLossRate": 0,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0
+      },
+      {
+        "id": "em-ceda64319ca1",
+        "name": "蜜香のウミリンゴ",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "伝",
+        "cost": 75,
+        "hp": 8520,
+        "pow": 5453,
+        "skillTurn": 1,
+        "skillType": "attack_buff",
+        "skillName": "5ターンの間、風属性の敵に対する味方全員の攻撃力を25%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 4,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-ceda64319ca1",
+            "em-842f3d28d20e",
+            "em-46432847d531",
+            "em-ae6ea6bc1914",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "蜜香のウミリンゴ",
+            "のり男師匠",
+            "ＢＥＷ雪玉",
+            "ズースくん",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.517,
+          "synergyScore": 0.2199,
+          "expectedWinRate": 0.5694,
+          "expectedWinLowerBound": 0.4663,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4722,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.3333,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4663
+      },
+      {
+        "id": "em-048f5c5385db",
+        "name": "Mr.バトラー",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 34,
+        "hp": 4771,
+        "pow": 3067,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を風属性に変更する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-048f5c5385db",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-c67e33bb61cf"
+          ],
+          "names": [
+            "Mr.バトラー",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "鎌倉式ＤＢ２涅槃型改"
+          ],
+          "proxyScore": 0.7574,
+          "synergyScore": 0.1874,
+          "expectedWinRate": 0.4444,
+          "expectedWinLowerBound": 0.3391,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3611,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3391
+      },
+      {
+        "id": "em-cec2f0ad9373",
+        "name": "Dr.フォックス",
+        "attributes": [
+          "wind",
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 40,
+        "hp": 4089,
+        "pow": 4430,
+        "skillTurn": 4,
+        "skillType": "delay",
+        "skillName": "敵全員の攻撃カウントを1増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-cec2f0ad9373",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "Dr.フォックス",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7036,
+          "synergyScore": 0.1745,
+          "expectedWinRate": 0.4653,
+          "expectedWinLowerBound": 0.3534,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4306,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3534
+      },
+      {
+        "id": "em-eaadf81fc136",
+        "name": "サリー",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 55,
+        "hp": 4686,
+        "pow": 4004,
+        "skillTurn": 4,
+        "skillType": "aoe_attack",
+        "skillName": "3ターンの間、風属性の味方全員の攻撃が全体攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-eaadf81fc136",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-46432847d531",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "サリー",
+            "アレス暮らし",
+            "試作型おこしん",
+            "ＢＥＷ雪玉",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5826,
+          "synergyScore": 0.1596,
+          "expectedWinRate": 0.4028,
+          "expectedWinLowerBound": 0.2955,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.5417,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2955
+      },
+      {
+        "id": "em-fa3191833d67",
+        "name": "エヴァン",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 28,
+        "hp": 3381,
+        "pow": 2776,
+        "skillTurn": 2,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員にダメージを50%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-fa3191833d67",
+            "em-d1302899cad6",
+            "em-ed68f4e03a58",
+            "em-bc2106c87bcd",
+            "em-5e6cf1fe4c4c"
+          ],
+          "names": [
+            "エヴァン",
+            "ナポレオーヌ一世",
+            "欣喜ぴよ子",
+            "?????",
+            "まそお姉ちゃん"
+          ],
+          "proxyScore": 0.7536,
+          "synergyScore": 0.1877,
+          "expectedWinRate": 0.3611,
+          "expectedWinLowerBound": 0.2581,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.5694,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2581
+      },
+      {
+        "id": "em-59636157ae2e",
+        "name": "コーベンパイア天爵",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 45,
+        "hp": 5282,
+        "pow": 1757,
+        "skillTurn": 2,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員に火属性の敵からのダメージを33%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-59636157ae2e",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "コーベンパイア天爵",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.6986,
+          "synergyScore": 0.2757,
+          "expectedWinRate": 0.3333,
+          "expectedWinLowerBound": 0.2308,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2778,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.6111,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2308
+      },
+      {
+        "id": "em-ec5b8324ab06",
+        "name": "袴着！いつくしーみん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 36,
+        "hp": 3401,
+        "pow": 3401,
+        "skillTurn": 2,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、風属性の敵に対する自身の攻撃力を753%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-ec5b8324ab06",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "袴着！いつくしーみん",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.9625,
+          "synergyScore": 0.3986,
+          "expectedWinRate": 0.4792,
+          "expectedWinLowerBound": 0.3722,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4028,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.4444,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3722
+      },
+      {
+        "id": "em-5a047ed41d97",
+        "name": "KJの少女Hi児",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 48,
+        "hp": 4941,
+        "pow": 3919,
+        "skillTurn": 5,
+        "skillType": "multi_hit_attack",
+        "skillName": "2ターンの間、味方全員の攻撃が3回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-5a047ed41d97",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "KJの少女Hi児",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.7128,
+          "synergyScore": 0.234,
+          "expectedWinRate": 0.4306,
+          "expectedWinLowerBound": 0.3221,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.375,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3221
+      },
+      {
+        "id": "em-4d9586371e6c",
+        "name": "鞭・打つ子さん",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "ZR",
+        "cost": 38,
+        "hp": 4106,
+        "pow": 4106,
+        "skillTurn": 3,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が8回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-4d9586371e6c",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "鞭・打つ子さん",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7955,
+          "synergyScore": 0.2308,
+          "expectedWinRate": 0.5,
+          "expectedWinLowerBound": 0.3921,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4306,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.4306,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3921
+      },
+      {
+        "id": "em-ffdcaffc4a41",
+        "name": "雑煮入り☆うるっしー",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "ZR",
+        "cost": 36,
+        "hp": 3443,
+        "pow": 3443,
+        "skillTurn": 4,
+        "skillType": "guard",
+        "skillName": "2ターンの間、攻撃を自身に集中させる(80%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-ffdcaffc4a41",
+            "em-8b710fe84fda",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "雑煮入り☆うるっしー",
+            "モチノ・ウオ丸",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.9467,
+          "synergyScore": 0.4118,
+          "expectedWinRate": 0.4514,
+          "expectedWinLowerBound": 0.3449,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.375,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.4722,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3449
+      },
+      {
+        "id": "em-9a1b8b33af97",
+        "name": "バレチョコすわ子",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 46,
+        "hp": 3646,
+        "pow": 1874,
+        "skillTurn": 0,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が3回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-9a1b8b33af97",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "バレチョコすわ子",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.6157,
+          "synergyScore": 0.1707,
+          "expectedWinRate": 0.3681,
+          "expectedWinLowerBound": 0.2637,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3056,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.5694,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2637
+      },
+      {
+        "id": "em-96a3648b46e2",
+        "name": "チョコ染めの安井さん",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 32,
+        "hp": 3646,
+        "pow": 4089,
+        "skillTurn": 3,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃をリーダーに集中させる(85%カット)",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-96a3648b46e2",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-2a26d74bb300"
+          ],
+          "names": [
+            "チョコ染めの安井さん",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "鮫っ子！フカオちゃん"
+          ],
+          "proxyScore": 0.7932,
+          "synergyScore": 0.1942,
+          "expectedWinRate": 0.4653,
+          "expectedWinLowerBound": 0.3621,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3611,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.4306,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3621
+      },
+      {
+        "id": "em-2eebc4f8633d",
+        "name": "すわっ！かつより君",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 60,
+        "hp": 5350,
+        "pow": 4771,
+        "skillTurn": 5,
+        "skillType": "aoe_attack",
+        "skillName": "2ターンの間、味方全員の攻撃が全体攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 6,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-2eebc4f8633d",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "すわっ！かつより君",
+            "試作型おこしん",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.5976,
+          "synergyScore": 0.1694,
+          "expectedWinRate": 0.4167,
+          "expectedWinLowerBound": 0.3105,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3472,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.5139,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3105
+      },
+      {
+        "id": "em-80894fcaa10c",
+        "name": "とんこつ神！博多美子",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 40,
+        "hp": 4089,
+        "pow": 5350,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "3ターンの間、水属性の味方全員の攻撃力を50%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-80894fcaa10c",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "とんこつ神！博多美子",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "ネムりん"
+          ],
+          "proxyScore": 0.8558,
+          "synergyScore": 0.2941,
+          "expectedWinRate": 0.4306,
+          "expectedWinLowerBound": 0.3238,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3611,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3238
+      },
+      {
+        "id": "em-2a20d82018a7",
+        "name": "強飯式太子君",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 43,
+        "hp": 4771,
+        "pow": 3408,
+        "skillTurn": 1,
+        "skillType": "heal",
+        "skillName": "火属性の味方全員のHPを40%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-2a20d82018a7",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "強飯式太子君",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.721,
+          "synergyScore": 0.2271,
+          "expectedWinRate": 0.4167,
+          "expectedWinLowerBound": 0.3141,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3194,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.4861,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3141
+      },
+      {
+        "id": "em-b791d78202d5",
+        "name": "英国面の本気",
+        "attributes": [
+          "water",
+          "fire"
+        ],
+        "rarity": "MZR",
+        "cost": 38,
+        "hp": 6816,
+        "pow": 1363,
+        "skillTurn": 5,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、風属性の味方全員の攻撃が9回連続攻撃になる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-b791d78202d5",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "英国面の本気",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7594,
+          "synergyScore": 0.2308,
+          "expectedWinRate": 0.3958,
+          "expectedWinLowerBound": 0.301,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.25,
+          "decisiveDrawRate": 0.2917,
+          "decisiveLossRate": 0.4583,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.301
+      },
+      {
+        "id": "em-5d62afcf01d5",
+        "name": "転がる！けねず君",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 37,
+        "hp": 3408,
+        "pow": 2044,
+        "skillTurn": 4,
+        "skillType": "damage_reduction",
+        "skillName": "3ターンの間、味方全員に風属性の敵からのダメージを77%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-5d62afcf01d5",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "転がる！けねず君",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.8698,
+          "synergyScore": 0.3579,
+          "expectedWinRate": 0.3542,
+          "expectedWinLowerBound": 0.2508,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.5833,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2508
+      },
+      {
+        "id": "em-75c1af17d152",
+        "name": "浴衣美人な日女路嬢",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 38,
+        "hp": 5623,
+        "pow": 3748,
+        "skillTurn": 3,
+        "skillType": "heal",
+        "skillName": "風属性の味方全員のHPを180%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-75c1af17d152",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "浴衣美人な日女路嬢",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7937,
+          "synergyScore": 0.2308,
+          "expectedWinRate": 0.5,
+          "expectedWinLowerBound": 0.3956,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4028,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.4028,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3956
+      },
+      {
+        "id": "em-d76a5850c323",
+        "name": "牛追いガウガウ",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "MZR",
+        "cost": 40,
+        "hp": 5964,
+        "pow": 1704,
+        "skillTurn": 4,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に火属性の敵からのダメージを93%軽減するシールドを与える",
+        "position": 1,
+        "evaluatedDeckCount": 7,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-d76a5850c323",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-f13588602944",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "牛追いガウガウ",
+            "アレス暮らし",
+            "試作型おこしん",
+            "生イカのアーニー",
+            "ネムりん"
+          ],
+          "proxyScore": 0.68,
+          "synergyScore": 0.1745,
+          "expectedWinRate": 0.3958,
+          "expectedWinLowerBound": 0.2952,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.2917,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.2952
+      },
+      {
+        "id": "em-f3ce9865b46f",
+        "name": "BeasT5",
+        "attributes": [
+          "water"
+        ],
+        "rarity": "ZR",
+        "cost": 38,
+        "hp": 4116,
+        "pow": 4664,
+        "skillTurn": 7,
+        "skillType": "delay",
+        "skillName": "水属性の敵全員の攻撃カウントを5増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-f3ce9865b46f",
+            "em-ca249600bce3",
+            "em-bc2106c87bcd",
+            "em-aae1801458f8",
+            "em-14bbe92902df"
+          ],
+          "names": [
+            "BeasT5",
+            "アレス暮らし",
+            "?????",
+            "ɚすぃとあろま？",
+            "ネムりん"
+          ],
+          "proxyScore": 0.7862,
+          "synergyScore": 0.2308,
+          "expectedWinRate": 0.5069,
+          "expectedWinLowerBound": 0.4035,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.4028,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.3889,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4035
+      },
+      {
+        "id": "em-5861838d2e36",
+        "name": "ばうあー泥棒",
+        "attributes": [
+          "fire",
+          "water",
+          "wind"
+        ],
+        "rarity": "MZR",
+        "cost": 35,
+        "hp": 4771,
+        "pow": 3033,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、火属性の敵に対する自身の攻撃力を1780%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-5861838d2e36",
+            "em-ca249600bce3",
+            "em-e3dab98c64af",
+            "em-bc2106c87bcd",
+            "em-049ada05607b"
+          ],
+          "names": [
+            "ばうあー泥棒",
+            "アレス暮らし",
+            "試作型おこしん",
+            "?????",
+            "眠里　不可緒"
+          ],
+          "proxyScore": 0.9669,
+          "synergyScore": 0.3989,
+          "expectedWinRate": 0.4167,
+          "expectedWinLowerBound": 0.3123,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.3333,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.5,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.3123
       }
     ],
     [
