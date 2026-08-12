@@ -1,6 +1,6 @@
 {
   "status": "in_progress",
-  "updatedAt": "2026-08-12T12:43:35.520Z",
+  "updatedAt": "2026-08-12T12:53:33.125Z",
   "context": {
     "version": "team-battle-v8.1",
     "inputId": "fire:100",
@@ -2796,6 +2796,236 @@
         },
         "exampleDeck": null,
         "v7Score": 0.6275
+      },
+      {
+        "id": "em-455f884e0481",
+        "name": "迷菓ぴよ子先生",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 7,
+        "hp": 662,
+        "pow": 700,
+        "skillTurn": 5,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の味方全員の攻撃力を100%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-455f884e0481",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "迷菓ぴよ子先生",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.8612,
+          "synergyScore": 0.2787,
+          "expectedWinRate": 0.7431,
+          "expectedWinLowerBound": 0.6522,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6522
+      },
+      {
+        "id": "em-df95e8471300",
+        "name": "名家ぴよ子お嬢様",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 10,
+        "hp": 1331,
+        "pow": 1374,
+        "skillTurn": 5,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の味方全員の攻撃力を150%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-df95e8471300",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "名家ぴよ子お嬢様",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7921,
+          "synergyScore": 0.1913,
+          "expectedWinRate": 0.7778,
+          "expectedWinLowerBound": 0.6913,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7083,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.1528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6913
+      },
+      {
+        "id": "em-020eecb1db52",
+        "name": "草カロ四朗",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "N",
+        "cost": 4,
+        "hp": 296,
+        "pow": 316,
+        "skillTurn": 7,
+        "skillType": "heal",
+        "skillName": "味方全員のHPを30%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-020eecb1db52",
+            "em-13a4b4b54b04",
+            "em-712bee050113",
+            "em-93a9275d427c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "草カロ四朗",
+            "北間・クラリス嬢",
+            "ターヌムンゴネキ",
+            "肉食ドゥブロさん",
+            "にほりん"
+          ],
+          "proxyScore": 0.6762,
+          "synergyScore": 0.1457,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6149,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6149
+      },
+      {
+        "id": "em-b8d203bbae80",
+        "name": "草カロ三郎",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "N",
+        "cost": 5,
+        "hp": 400,
+        "pow": 400,
+        "skillTurn": 6,
+        "skillType": "heal",
+        "skillName": "味方全員のHPを40%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-b8d203bbae80",
+            "em-13a4b4b54b04",
+            "em-712bee050113",
+            "em-93a9275d427c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "草カロ三郎",
+            "北間・クラリス嬢",
+            "ターヌムンゴネキ",
+            "肉食ドゥブロさん",
+            "にほりん"
+          ],
+          "proxyScore": 0.6812,
+          "synergyScore": 0.1457,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6149,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6149
+      },
+      {
+        "id": "em-c8e560adbea9",
+        "name": "草カロ次郎",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "N",
+        "cost": 6,
+        "hp": 480,
+        "pow": 500,
+        "skillTurn": 5,
+        "skillType": "heal",
+        "skillName": "味方全員のHPを50%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-c8e560adbea9",
+            "em-344c7687cce5",
+            "em-712bee050113",
+            "em-93a9275d427c",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "草カロ次郎",
+            "アウス大先輩",
+            "ターヌムンゴネキ",
+            "肉食ドゥブロさん",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.7707,
+          "synergyScore": 0.2464,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6315,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6315
       }
     ],
     [
@@ -3258,6 +3488,466 @@
         },
         "exampleDeck": null,
         "v7Score": 0.5415
+      },
+      {
+        "id": "em-8e1d0fa65dc4",
+        "name": "厩戸之太子大先生",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 24,
+        "hp": 2866,
+        "pow": 2447,
+        "skillTurn": 1,
+        "skillType": "heal",
+        "skillName": "火属性の味方全員のHPを20%回復する",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-8e1d0fa65dc4",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "厩戸之太子大先生",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7123,
+          "synergyScore": 0.1399,
+          "expectedWinRate": 0.6946,
+          "expectedWinLowerBound": 0.5966,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5966
+      },
+      {
+        "id": "em-95a008b67c52",
+        "name": "権現くまのたん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 22,
+        "hp": 1030,
+        "pow": 4234,
+        "skillTurn": 2,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、自身の攻撃力を200%増加させる",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-95a008b67c52",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "権現くまのたん",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7109,
+          "synergyScore": 0.1399,
+          "expectedWinRate": 0.6875,
+          "expectedWinLowerBound": 0.5897,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5897
+      },
+      {
+        "id": "em-24679a7881f4",
+        "name": "三重子さん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 9,
+        "hp": 704,
+        "pow": 700,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、味方全員の属性を火属性に変更する",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-24679a7881f4",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "三重子さん",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.8587,
+          "synergyScore": 0.2966,
+          "expectedWinRate": 0.7162,
+          "expectedWinLowerBound": 0.6237,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6237
+      },
+      {
+        "id": "em-c47afb60b613",
+        "name": "三重子先輩",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 10,
+        "hp": 800,
+        "pow": 800,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、味方全員の属性を火属性に変更する",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-c47afb60b613",
+            "em-712bee050113",
+            "em-93a9275d427c",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "三重子先輩",
+            "ターヌムンゴネキ",
+            "肉食ドゥブロさん",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.6784,
+          "synergyScore": 0.1467,
+          "expectedWinRate": 0.6944,
+          "expectedWinLowerBound": 0.6004,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6004
+      },
+      {
+        "id": "em-c57874d99dcd",
+        "name": "三重子大先生",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 11,
+        "hp": 1699,
+        "pow": 1699,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、味方全員の属性を火属性に変更する",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-c57874d99dcd",
+            "em-712bee050113",
+            "em-93a9275d427c",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "三重子大先生",
+            "ターヌムンゴネキ",
+            "肉食ドゥブロさん",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.707,
+          "synergyScore": 0.1467,
+          "expectedWinRate": 0.7639,
+          "expectedWinLowerBound": 0.6773,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6773
+      },
+      {
+        "id": "em-e44c80aa58d3",
+        "name": "二条嬢",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 8,
+        "hp": 620,
+        "pow": 600,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(60%カット)",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-e44c80aa58d3",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "二条嬢",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "にほりん"
+          ],
+          "proxyScore": 0.8643,
+          "synergyScore": 0.2949,
+          "expectedWinRate": 0.7015,
+          "expectedWinLowerBound": 0.6053,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6053
+      },
+      {
+        "id": "em-786d95001098",
+        "name": "可憐な二条嬢",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 12,
+        "hp": 810,
+        "pow": 790,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(70%カット)",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-344c7687cce5",
+            "em-786d95001098",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "アウス大先輩",
+            "可憐な二条嬢",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.839,
+          "synergyScore": 0.2666,
+          "expectedWinRate": 0.6944,
+          "expectedWinLowerBound": 0.5984,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5984
+      },
+      {
+        "id": "em-64a5161e8307",
+        "name": "優美な二条嬢",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 15,
+        "hp": 1250,
+        "pow": 1150,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(80%カット)",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 89,
+          "remainingCost": 11,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-64a5161e8307",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "優美な二条嬢",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.6748,
+          "synergyScore": 0.1399,
+          "expectedWinRate": 0.639,
+          "expectedWinLowerBound": 0.5379,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5556,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.2778,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5379
+      },
+      {
+        "id": "em-99eb90e0260f",
+        "name": "傾国の二条嬢",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 17,
+        "hp": 2656,
+        "pow": 2495,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(90%カット)",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-99eb90e0260f",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "傾国の二条嬢",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.8374,
+          "synergyScore": 0.2525,
+          "expectedWinRate": 0.6806,
+          "expectedWinLowerBound": 0.5793,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5793
+      },
+      {
+        "id": "em-0fd17c65da62",
+        "name": "大患部！ぴよ子大佐",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 18,
+        "hp": 2415,
+        "pow": 2861,
+        "skillTurn": 2,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が3回連続攻撃になる",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-0fd17c65da62",
+            "em-93a9275d427c",
+            "em-489782f8e31c",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "大患部！ぴよ子大佐",
+            "肉食ドゥブロさん",
+            "愛のぴよ子",
+            "にほりん"
+          ],
+          "proxyScore": 0.8474,
+          "synergyScore": 0.2534,
+          "expectedWinRate": 0.6944,
+          "expectedWinLowerBound": 0.5946,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5946
       }
     ],
     [
@@ -3710,6 +4400,236 @@
           ],
           "proxyScore": 0.7487,
           "synergyScore": 0.1884,
+          "expectedWinRate": 0.7361,
+          "expectedWinLowerBound": 0.6452,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6452
+      },
+      {
+        "id": "em-e07aaef6bd6e",
+        "name": "三重子ちゃん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 8,
+        "hp": 603,
+        "pow": 602,
+        "skillTurn": 3,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、味方全員の属性を火属性に変更する",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-52b1a63b86dd",
+            "em-e07aaef6bd6e",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "ヤマさんヤミーさん",
+            "三重子ちゃん",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7059,
+          "synergyScore": 0.1872,
+          "expectedWinRate": 0.7292,
+          "expectedWinLowerBound": 0.6343,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6343
+      },
+      {
+        "id": "em-24679a7881f4",
+        "name": "三重子さん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 9,
+        "hp": 704,
+        "pow": 700,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、味方全員の属性を火属性に変更する",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-52b1a63b86dd",
+            "em-24679a7881f4",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "ヤマさんヤミーさん",
+            "三重子さん",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7103,
+          "synergyScore": 0.1875,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6275,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6275
+      },
+      {
+        "id": "em-c47afb60b613",
+        "name": "三重子先輩",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 10,
+        "hp": 800,
+        "pow": 800,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、味方全員の属性を火属性に変更する",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-52b1a63b86dd",
+            "em-c47afb60b613",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "ヤマさんヤミーさん",
+            "三重子先輩",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7145,
+          "synergyScore": 0.1878,
+          "expectedWinRate": 0.7292,
+          "expectedWinLowerBound": 0.6343,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6343
+      },
+      {
+        "id": "em-e44c80aa58d3",
+        "name": "二条嬢",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 8,
+        "hp": 620,
+        "pow": 600,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(60%カット)",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-52b1a63b86dd",
+            "em-e44c80aa58d3",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "ヤマさんヤミーさん",
+            "二条嬢",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7278,
+          "synergyScore": 0.1872,
+          "expectedWinRate": 0.75,
+          "expectedWinLowerBound": 0.6612,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.1667,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6612
+      },
+      {
+        "id": "em-786d95001098",
+        "name": "可憐な二条嬢",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 12,
+        "hp": 810,
+        "pow": 790,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、水属性の攻撃を自身に集中させる(70%カット)",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-52b1a63b86dd",
+            "em-786d95001098",
+            "em-93a9275d427c",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "ヤマさんヤミーさん",
+            "可憐な二条嬢",
+            "肉食ドゥブロさん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7364,
+          "synergyScore": 0.1878,
           "expectedWinRate": 0.7361,
           "expectedWinLowerBound": 0.6452,
           "scenarioCount": 72,
@@ -4182,6 +5102,696 @@
         },
         "exampleDeck": null,
         "v7Score": 0.5878
+      },
+      {
+        "id": "em-ebd6f9bf2bee",
+        "name": "中野華蓮(日本人)",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 17,
+        "hp": 1516,
+        "pow": 3638,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、自身の攻撃力を200%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-344c7687cce5",
+            "em-13a4b4b54b04",
+            "em-93a9275d427c",
+            "em-ebd6f9bf2bee",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "アウス大先輩",
+            "北間・クラリス嬢",
+            "肉食ドゥブロさん",
+            "中野華蓮(日本人)",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.8116,
+          "synergyScore": 0.2345,
+          "expectedWinRate": 0.6947,
+          "expectedWinLowerBound": 0.5967,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0.0278
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5967
+      },
+      {
+        "id": "em-3307021ed6b3",
+        "name": "なっとくん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "N",
+        "cost": 4,
+        "hp": 286,
+        "pow": 311,
+        "skillTurn": 3,
+        "skillType": "skill_reduction",
+        "skillName": "リーダーのスキルカウントを1減少させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-3307021ed6b3",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "なっとくん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9051,
+          "synergyScore": 0.3496,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6275,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6275
+      },
+      {
+        "id": "em-2f8589eed296",
+        "name": "畳リーゼント",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 7,
+        "hp": 300,
+        "pow": 700,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を50%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-2f8589eed296",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "畳リーゼント",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.9175,
+          "synergyScore": 0.3514,
+          "expectedWinRate": 0.6667,
+          "expectedWinLowerBound": 0.5678,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5833,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5678
+      },
+      {
+        "id": "em-38a5d43fe466",
+        "name": "畳リーゼント先輩",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 8,
+        "hp": 393,
+        "pow": 812,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を100%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-38a5d43fe466",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "畳リーゼント先輩",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7565,
+          "synergyScore": 0.2239,
+          "expectedWinRate": 0.6736,
+          "expectedWinLowerBound": 0.5726,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5726
+      },
+      {
+        "id": "em-0a74c35caba2",
+        "name": "畳リーゼント総長",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 10,
+        "hp": 512,
+        "pow": 912,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を200%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-0a74c35caba2",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "畳リーゼント総長",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9114,
+          "synergyScore": 0.3458,
+          "expectedWinRate": 0.6875,
+          "expectedWinLowerBound": 0.5897,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5897
+      },
+      {
+        "id": "em-0ccc51b405ca",
+        "name": "初代畳リーゼント",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 13,
+        "hp": 1045,
+        "pow": 2258,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を300%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-f203cae3d671",
+            "em-712bee050113",
+            "em-0ccc51b405ca",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "ペーチパイセン",
+            "ターヌムンゴネキ",
+            "初代畳リーゼント",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.9446,
+          "synergyScore": 0.3568,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6315,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6315
+      },
+      {
+        "id": "em-6fe67318189a",
+        "name": "劇場版ＪＡＸＡイル",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 18,
+        "hp": 1304,
+        "pow": 3526,
+        "skillTurn": 4,
+        "skillType": "multi_hit_attack",
+        "skillName": "2ターンの間、自身の攻撃が3回連続攻撃になる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-6fe67318189a",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "劇場版ＪＡＸＡイル",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9796,
+          "synergyScore": 0.3709,
+          "expectedWinRate": 0.7155,
+          "expectedWinLowerBound": 0.6209,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6209
+      },
+      {
+        "id": "em-739aae6480ff",
+        "name": "男前やできっしん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 14,
+        "hp": 755,
+        "pow": 2605,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、自身の攻撃力を300%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-f203cae3d671",
+            "em-712bee050113",
+            "em-739aae6480ff",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "ペーチパイセン",
+            "ターヌムンゴネキ",
+            "男前やできっしん",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 1.0267,
+          "synergyScore": 0.4228,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6227,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6227
+      },
+      {
+        "id": "em-b90efc9e636b",
+        "name": "婆娑羅でどーよ",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 18,
+        "hp": 1046,
+        "pow": 4105,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、風属性の敵に対する自身の攻撃力を500%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-4f0b20692fd7",
+            "em-b90efc9e636b",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "コンドアーズ",
+            "婆娑羅でどーよ",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 1.0098,
+          "synergyScore": 0.4065,
+          "expectedWinRate": 0.7433,
+          "expectedWinLowerBound": 0.6524,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6524
+      },
+      {
+        "id": "em-41ff91d7d090",
+        "name": "有馬スター",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "N",
+        "cost": 9,
+        "hp": 1159,
+        "pow": 1244,
+        "skillTurn": 4,
+        "skillType": "heal",
+        "skillName": "火属性の味方全員のHPを80%回復する",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-41ff91d7d090",
+            "em-7499fb228620"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "有馬スター",
+            "にほりん"
+          ],
+          "proxyScore": 0.9511,
+          "synergyScore": 0.3553,
+          "expectedWinRate": 0.7431,
+          "expectedWinLowerBound": 0.6481,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6944,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6481
+      },
+      {
+        "id": "em-fb54694c6adc",
+        "name": "サイガーイエロー",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 9,
+        "hp": 357,
+        "pow": 1057,
+        "skillTurn": 4,
+        "skillType": "multi_hit_attack",
+        "skillName": "1ターンの間、自身の攻撃が3回連続攻撃になる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-fb54694c6adc",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "サイガーイエロー",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.9364,
+          "synergyScore": 0.3542,
+          "expectedWinRate": 0.6806,
+          "expectedWinLowerBound": 0.583,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.583
+      },
+      {
+        "id": "em-132feeb6206a",
+        "name": "傭兵戦隊サイガー３",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "R",
+        "cost": 12,
+        "hp": 756,
+        "pow": 2284,
+        "skillTurn": 4,
+        "skillType": "multi_hit_attack",
+        "skillName": "2ターンの間、自身の攻撃が3回連続攻撃になる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-132feeb6206a",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "傭兵戦隊サイガー３",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9895,
+          "synergyScore": 0.3812,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6236,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6236
+      },
+      {
+        "id": "em-fd76872dafaf",
+        "name": "くまのたん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 8,
+        "hp": 300,
+        "pow": 920,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、自身の攻撃力を200%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-fd76872dafaf",
+            "em-a03649b8e724"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "くまのたん",
+            "巨大カンテツ"
+          ],
+          "proxyScore": 0.9328,
+          "synergyScore": 0.353,
+          "expectedWinRate": 0.6806,
+          "expectedWinLowerBound": 0.583,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1667,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.583
+      },
+      {
+        "id": "em-900d96f0b1d7",
+        "name": "修験くまのたん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 12,
+        "hp": 400,
+        "pow": 1200,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、自身の攻撃力を200%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-52b1a63b86dd",
+            "em-f203cae3d671",
+            "em-93a9275d427c",
+            "em-900d96f0b1d7",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "ヤマさんヤミーさん",
+            "ペーチパイセン",
+            "肉食ドゥブロさん",
+            "修験くまのたん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.9237,
+          "synergyScore": 0.3481,
+          "expectedWinRate": 0.6944,
+          "expectedWinLowerBound": 0.5946,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5946
+      },
+      {
+        "id": "em-d6397e37a32d",
+        "name": "三山くまのたん",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 17,
+        "hp": 500,
+        "pow": 1900,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、自身の攻撃力を200%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-344c7687cce5",
+            "em-13a4b4b54b04",
+            "em-93a9275d427c",
+            "em-d6397e37a32d",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "アウス大先輩",
+            "北間・クラリス嬢",
+            "肉食ドゥブロさん",
+            "三山くまのたん",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 0.7786,
+          "synergyScore": 0.2248,
+          "expectedWinRate": 0.7155,
+          "expectedWinLowerBound": 0.6209,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0.0278
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6209
       }
     ],
     [
@@ -4644,6 +6254,236 @@
         },
         "exampleDeck": null,
         "v7Score": 0.587
+      },
+      {
+        "id": "em-c8e560adbea9",
+        "name": "草カロ次郎",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "N",
+        "cost": 6,
+        "hp": 480,
+        "pow": 500,
+        "skillTurn": 5,
+        "skillType": "heal",
+        "skillName": "味方全員のHPを50%回復する",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-c8e560adbea9"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "草カロ次郎"
+          ],
+          "proxyScore": 0.9355,
+          "synergyScore": 0.3751,
+          "expectedWinRate": 0.6875,
+          "expectedWinLowerBound": 0.5937,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5833,
+          "decisiveDrawRate": 0.2083,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5937
+      },
+      {
+        "id": "em-d9f30734dd50",
+        "name": "草カロ花子",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "N",
+        "cost": 7,
+        "hp": 1159,
+        "pow": 1244,
+        "skillTurn": 5,
+        "skillType": "heal",
+        "skillName": "味方全員のHPを60%回復する",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-d9f30734dd50"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "草カロ花子"
+          ],
+          "proxyScore": 0.9765,
+          "synergyScore": 0.3841,
+          "expectedWinRate": 0.7222,
+          "expectedWinLowerBound": 0.6315,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6315
+      },
+      {
+        "id": "em-89b0c363f296",
+        "name": "川越マン",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 8,
+        "hp": 415,
+        "pow": 798,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、風属性の敵に対する味方全員の攻撃力を50%増加させる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-344c7687cce5",
+            "em-712bee050113",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-89b0c363f296"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ターヌムンゴネキ",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "川越マン"
+          ],
+          "proxyScore": 0.8431,
+          "synergyScore": 0.2931,
+          "expectedWinRate": 0.6944,
+          "expectedWinLowerBound": 0.6004,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1944,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6004
+      },
+      {
+        "id": "em-cf865abec5e5",
+        "name": "川越マン２世",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 12,
+        "hp": 516,
+        "pow": 1000,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、風属性の敵に対する味方全員の攻撃力を100%増加させる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-52b1a63b86dd",
+            "em-93a9275d427c",
+            "em-4f0b20692fd7",
+            "em-cf865abec5e5"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "ヤマさんヤミーさん",
+            "肉食ドゥブロさん",
+            "コンドアーズ",
+            "川越マン２世"
+          ],
+          "proxyScore": 0.7718,
+          "synergyScore": 0.259,
+          "expectedWinRate": 0.6667,
+          "expectedWinLowerBound": 0.5659,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5659
+      },
+      {
+        "id": "em-53084d488de2",
+        "name": "川越ザ・サード",
+        "attributes": [
+          "fire"
+        ],
+        "rarity": "CR",
+        "cost": 15,
+        "hp": 666,
+        "pow": 1607,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、風属性の敵に対する味方全員の攻撃力を200%増加させる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-344c7687cce5",
+            "em-52b1a63b86dd",
+            "em-489782f8e31c",
+            "em-93a9275d427c",
+            "em-53084d488de2"
+          ],
+          "names": [
+            "アウス大先輩",
+            "ヤマさんヤミーさん",
+            "愛のぴよ子",
+            "肉食ドゥブロさん",
+            "川越ザ・サード"
+          ],
+          "proxyScore": 0.8737,
+          "synergyScore": 0.3066,
+          "expectedWinRate": 0.6945,
+          "expectedWinLowerBound": 0.6004,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1806,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0.0139
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6004
       }
     ]
   ]

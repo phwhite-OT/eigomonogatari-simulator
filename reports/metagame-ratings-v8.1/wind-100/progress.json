@@ -1,6 +1,6 @@
 {
   "status": "in_progress",
-  "updatedAt": "2026-08-12T12:43:37.067Z",
+  "updatedAt": "2026-08-12T12:53:35.571Z",
   "context": {
     "version": "team-battle-v8.1",
     "inputId": "wind:100",
@@ -2936,6 +2936,466 @@
         },
         "exampleDeck": null,
         "v7Score": 0.7365
+      },
+      {
+        "id": "em-19637fe0d04e",
+        "name": "カという真実に驚愕",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 9,
+        "hp": 2205,
+        "pow": 763,
+        "skillTurn": 4,
+        "skillType": "heal",
+        "skillName": "味方全員のHPを40%回復する",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-19637fe0d04e",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "カという真実に驚愕",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.8861,
+          "synergyScore": 0.3072,
+          "expectedWinRate": 0.8264,
+          "expectedWinLowerBound": 0.7438,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7917,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7438
+      },
+      {
+        "id": "em-837d909d76bf",
+        "name": "ぼこたそ",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 4,
+        "hp": 287,
+        "pow": 312,
+        "skillTurn": 4,
+        "skillType": "delay",
+        "skillName": "火属性の敵全員の攻撃カウントを1増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 90,
+          "remainingCost": 10,
+          "ids": [
+            "em-837d909d76bf",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "ぼこたそ",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.8512,
+          "synergyScore": 0.3072,
+          "expectedWinRate": 0.8333,
+          "expectedWinLowerBound": 0.7534,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7917,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7534
+      },
+      {
+        "id": "em-08e0b2a57e58",
+        "name": "高級のぼこたそ",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 6,
+        "hp": 400,
+        "pow": 400,
+        "skillTurn": 4,
+        "skillType": "delay",
+        "skillName": "火属性の敵全員の攻撃カウントを2増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-08e0b2a57e58",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "高級のぼこたそ",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.8567,
+          "synergyScore": 0.3072,
+          "expectedWinRate": 0.8194,
+          "expectedWinLowerBound": 0.7365,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7778,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7365
+      },
+      {
+        "id": "em-3ee1b9058802",
+        "name": "老舗のぼこたそ",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 7,
+        "hp": 490,
+        "pow": 500,
+        "skillTurn": 4,
+        "skillType": "delay",
+        "skillName": "火属性の敵全員の攻撃カウントを1増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-3ee1b9058802",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "老舗のぼこたそ",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.8624,
+          "synergyScore": 0.3072,
+          "expectedWinRate": 0.8264,
+          "expectedWinLowerBound": 0.7438,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7917,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7438
+      },
+      {
+        "id": "em-2544eb31d996",
+        "name": "伝説のぼこたそ",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 8,
+        "hp": 1187,
+        "pow": 1215,
+        "skillTurn": 3,
+        "skillType": "delay",
+        "skillName": "火属性の敵全員の攻撃カウントを1増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-2544eb31d996",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "伝説のぼこたそ",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.8839,
+          "synergyScore": 0.3072,
+          "expectedWinRate": 0.8472,
+          "expectedWinLowerBound": 0.7682,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8194,
+          "decisiveDrawRate": 0.0556,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7682
+      },
+      {
+        "id": "em-e4ef5c29ddf5",
+        "name": "春の落花妖精",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 8,
+        "hp": 613,
+        "pow": 597,
+        "skillTurn": 8,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を10%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-e4ef5c29ddf5",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "春の落花妖精",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.8745,
+          "synergyScore": 0.3072,
+          "expectedWinRate": 0.8264,
+          "expectedWinLowerBound": 0.7438,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7917,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7438
+      },
+      {
+        "id": "em-836feb0d56f9",
+        "name": "夏の落花妖精",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 12,
+        "hp": 815,
+        "pow": 807,
+        "skillTurn": 8,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を20%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-836feb0d56f9",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "夏の落花妖精",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.8829,
+          "synergyScore": 0.3072,
+          "expectedWinRate": 0.8264,
+          "expectedWinLowerBound": 0.7438,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7917,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7438
+      },
+      {
+        "id": "em-4f4f96fc9b98",
+        "name": "秋の落花妖精",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 15,
+        "hp": 1377,
+        "pow": 1209,
+        "skillTurn": 8,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を30%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-4f4f96fc9b98",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "秋の落花妖精",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.8797,
+          "synergyScore": 0.3052,
+          "expectedWinRate": 0.875,
+          "expectedWinLowerBound": 0.8006,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8611,
+          "decisiveDrawRate": 0.0278,
+          "decisiveLossRate": 0.1111,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.8006
+      },
+      {
+        "id": "em-b9c45079812c",
+        "name": "冬籠りだヨ！落花妖精",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 22,
+        "hp": 2530,
+        "pow": 2624,
+        "skillTurn": 8,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を50%のHPで蘇らせる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-b9c45079812c",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-0e72749fac67",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "冬籠りだヨ！落花妖精",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "たこ焼きーナ師匠",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.8908,
+          "synergyScore": 0.2754,
+          "expectedWinRate": 0.8611,
+          "expectedWinLowerBound": 0.7855,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8333,
+          "decisiveDrawRate": 0.0556,
+          "decisiveLossRate": 0.1111,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7855
+      },
+      {
+        "id": "em-14f9b771848b",
+        "name": "ハイウェイスター",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 7,
+        "hp": 500,
+        "pow": 500,
+        "skillTurn": 6,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を100%増加させる",
+        "position": 1,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-14f9b771848b",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "ハイウェイスター",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.8716,
+          "synergyScore": 0.3072,
+          "expectedWinRate": 0.8056,
+          "expectedWinLowerBound": 0.7198,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7639,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.1528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7198
       }
     ],
     [
@@ -3858,6 +4318,466 @@
         },
         "exampleDeck": null,
         "v7Score": 0.7034
+      },
+      {
+        "id": "em-2dbc1045b160",
+        "name": "うすきま先生",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 15,
+        "hp": 1400,
+        "pow": 1000,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、味方全員の属性を風属性に変更する",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-2dbc1045b160",
+            "em-344c7687cce5",
+            "em-0e72749fac67",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "うすきま先生",
+            "アウス大先輩",
+            "たこ焼きーナ師匠",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.9255,
+          "synergyScore": 0.3431,
+          "expectedWinRate": 0.75,
+          "expectedWinLowerBound": 0.655,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7083,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.655
+      },
+      {
+        "id": "em-4bbbb9984d5e",
+        "name": "うすきま大師匠",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 17,
+        "hp": 3059,
+        "pow": 2093,
+        "skillTurn": 1,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、味方全員の属性を風属性に変更する",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 92,
+          "remainingCost": 8,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-4bbbb9984d5e",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "うすきま大師匠",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.7196,
+          "synergyScore": 0.1803,
+          "expectedWinRate": 0.7778,
+          "expectedWinLowerBound": 0.685,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.75,
+          "decisiveDrawRate": 0.0556,
+          "decisiveLossRate": 0.1944,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.685
+      },
+      {
+        "id": "em-3f14ae2f39e9",
+        "name": "名人！角成馬之助",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 7,
+        "hp": 600,
+        "pow": 1000,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を火属性に変更する",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-3f14ae2f39e9",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-2c5d06641a28"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "名人！角成馬之助",
+            "アウス大先輩",
+            "玉藻先生",
+            "ジャックレムリン"
+          ],
+          "proxyScore": 0.7063,
+          "synergyScore": 0.1942,
+          "expectedWinRate": 0.7639,
+          "expectedWinLowerBound": 0.667,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.75,
+          "decisiveDrawRate": 0.0278,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.667
+      },
+      {
+        "id": "em-961b8b31de55",
+        "name": "竜王！角成馬之助",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 8,
+        "hp": 989,
+        "pow": 2191,
+        "skillTurn": 2,
+        "skillType": "attribute_change",
+        "skillName": "1ターンの間、自身の属性を火属性に変更する",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-961b8b31de55",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-2c5d06641a28"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "竜王！角成馬之助",
+            "アウス大先輩",
+            "玉藻先生",
+            "ジャックレムリン"
+          ],
+          "proxyScore": 0.733,
+          "synergyScore": 0.1942,
+          "expectedWinRate": 0.7778,
+          "expectedWinLowerBound": 0.683,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7639,
+          "decisiveDrawRate": 0.0278,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.683
+      },
+      {
+        "id": "em-88d646d3b1b4",
+        "name": "みるるん",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 7,
+        "hp": 500,
+        "pow": 600,
+        "skillTurn": 2,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する自身の攻撃力を100%増加させる",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-88d646d3b1b4",
+            "em-344c7687cce5",
+            "em-c87499b64151",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "みるるん",
+            "アウス大先輩",
+            "ラパヌイ先生",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.8162,
+          "synergyScore": 0.3326,
+          "expectedWinRate": 0.7778,
+          "expectedWinLowerBound": 0.6892,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7222,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.1667,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6892
+      },
+      {
+        "id": "em-ba3d7a48680e",
+        "name": "駆けよ！みるるん",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 10,
+        "hp": 600,
+        "pow": 700,
+        "skillTurn": 2,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する自身の攻撃力を100%増加させる",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-ba3d7a48680e",
+            "em-344c7687cce5",
+            "em-c87499b64151",
+            "em-5514b5658aa3"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "駆けよ！みるるん",
+            "アウス大先輩",
+            "ラパヌイ先生",
+            "ハリウッドナナコ師匠"
+          ],
+          "proxyScore": 0.8216,
+          "synergyScore": 0.3329,
+          "expectedWinRate": 0.7708,
+          "expectedWinLowerBound": 0.68,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7222,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.68
+      },
+      {
+        "id": "em-684042304ec3",
+        "name": "毬れ！みるるん",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 12,
+        "hp": 700,
+        "pow": 800,
+        "skillTurn": 2,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する自身の攻撃力を150%増加させる",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-684042304ec3",
+            "em-344c7687cce5",
+            "em-aae1801458f8",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "毬れ！みるるん",
+            "アウス大先輩",
+            "ɚすぃとあろま？",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.8188,
+          "synergyScore": 0.2911,
+          "expectedWinRate": 0.8194,
+          "expectedWinLowerBound": 0.7365,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7778,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.1389,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7365
+      },
+      {
+        "id": "em-8b935bf6321f",
+        "name": "打毬神！みるるん",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 15,
+        "hp": 1208,
+        "pow": 1963,
+        "skillTurn": 2,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する自身の攻撃力を200%増加させる",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 90,
+          "remainingCost": 10,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-8b935bf6321f",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "打毬神！みるるん",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.7182,
+          "synergyScore": 0.1803,
+          "expectedWinRate": 0.7778,
+          "expectedWinLowerBound": 0.6871,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7361,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.1806,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6871
+      },
+      {
+        "id": "em-f85f36730ace",
+        "name": "だーらくん十四世",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 17,
+        "hp": 2820,
+        "pow": 141,
+        "skillTurn": 2,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(70%カット)",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-f85f36730ace",
+            "em-344c7687cce5",
+            "em-0e72749fac67",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "だーらくん十四世",
+            "アウス大先輩",
+            "たこ焼きーナ師匠",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.9029,
+          "synergyScore": 0.34,
+          "expectedWinRate": 0.8403,
+          "expectedWinLowerBound": 0.7656,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7778,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.0972,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7656
+      },
+      {
+        "id": "em-ffd239fbc2e4",
+        "name": "わさび宇宙大王",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 22,
+        "hp": 4025,
+        "pow": 1610,
+        "skillTurn": 2,
+        "skillType": "guard",
+        "skillName": "1ターンの間、攻撃を自身に集中させる(50%カット)",
+        "position": 2,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-1abf600d3612",
+            "em-ffd239fbc2e4",
+            "em-344c7687cce5",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "祝宴！さくらぴよ子",
+            "わさび宇宙大王",
+            "アウス大先輩",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9622,
+          "synergyScore": 0.3674,
+          "expectedWinRate": 0.7847,
+          "expectedWinLowerBound": 0.6901,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7778,
+          "decisiveDrawRate": 0.0139,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6901
       }
     ],
     [
@@ -4550,6 +5470,466 @@
         },
         "exampleDeck": null,
         "v7Score": 0.5539
+      },
+      {
+        "id": "em-11d99e0659cb",
+        "name": "明日香さん",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 5,
+        "hp": 380,
+        "pow": 420,
+        "skillTurn": 2,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に水属性の敵からのダメージを60%軽減するシールドを与える",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-11d99e0659cb",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "明日香さん",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9486,
+          "synergyScore": 0.4053,
+          "expectedWinRate": 0.6597,
+          "expectedWinLowerBound": 0.5539,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.3056,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5539
+      },
+      {
+        "id": "em-49eaf567821a",
+        "name": "明日香先生",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 7,
+        "hp": 470,
+        "pow": 530,
+        "skillTurn": 2,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に水属性の敵からのダメージを70%軽減するシールドを与える",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-49eaf567821a",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "明日香先生",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9538,
+          "synergyScore": 0.406,
+          "expectedWinRate": 0.6597,
+          "expectedWinLowerBound": 0.5539,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.3056,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5539
+      },
+      {
+        "id": "em-347ffee895b9",
+        "name": "明日香大明神",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 8,
+        "hp": 989,
+        "pow": 1343,
+        "skillTurn": 3,
+        "skillType": "damage_reduction",
+        "skillName": "2ターンの間、味方全員に水属性の敵からのダメージを90%軽減するシールドを与える",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-1abf600d3612",
+            "em-4a6f3bc3bbfb",
+            "em-347ffee895b9",
+            "em-c87499b64151",
+            "em-b9e75bc0b1f9"
+          ],
+          "names": [
+            "祝宴！さくらぴよ子",
+            "けるるんぱさらん",
+            "明日香大明神",
+            "ラパヌイ先生",
+            "わっしょいミカ先生"
+          ],
+          "proxyScore": 1.0899,
+          "synergyScore": 0.5154,
+          "expectedWinRate": 0.6042,
+          "expectedWinLowerBound": 0.4999,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5278,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.3194,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.4999
+      },
+      {
+        "id": "em-afb87379337d",
+        "name": "地味に変な大仏",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 8,
+        "hp": 600,
+        "pow": 600,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する味方全員の攻撃力を150%増加させる",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 97,
+          "remainingCost": 3,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-afb87379337d",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "地味に変な大仏",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9604,
+          "synergyScore": 0.4065,
+          "expectedWinRate": 0.7083,
+          "expectedWinLowerBound": 0.61,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6528,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.61
+      },
+      {
+        "id": "em-cb1a83a105ac",
+        "name": "大仏の可能性が微レ存",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 11,
+        "hp": 707,
+        "pow": 707,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する味方全員の攻撃力を200%増加させる",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-cb1a83a105ac",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "大仏の可能性が微レ存",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9658,
+          "synergyScore": 0.4072,
+          "expectedWinRate": 0.7014,
+          "expectedWinLowerBound": 0.6032,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6032
+      },
+      {
+        "id": "em-ada22420f568",
+        "name": "奈良ヘンドリックス",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 13,
+        "hp": 1596,
+        "pow": 1596,
+        "skillTurn": 2,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する味方全員の攻撃力を230%増加させる",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-ada22420f568",
+            "em-8c8530042873",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "奈良ヘンドリックス",
+            "玉藻先生",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.9923,
+          "synergyScore": 0.4155,
+          "expectedWinRate": 0.75,
+          "expectedWinLowerBound": 0.655,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7083,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.655
+      },
+      {
+        "id": "em-3dc20cd01b22",
+        "name": "みかん大王",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 4,
+        "hp": 515,
+        "pow": 187,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、火属性の攻撃を自身に集中させる(60%カット)",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-3dc20cd01b22",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "みかん大王",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9396,
+          "synergyScore": 0.4037,
+          "expectedWinRate": 0.6736,
+          "expectedWinLowerBound": 0.5726,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6111,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5726
+      },
+      {
+        "id": "em-9365e8cd4780",
+        "name": "はっさくキング",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 5,
+        "hp": 610,
+        "pow": 270,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、火属性の攻撃を自身に集中させる(65%カット)",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-9365e8cd4780",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "はっさくキング",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9448,
+          "synergyScore": 0.4042,
+          "expectedWinRate": 0.6806,
+          "expectedWinLowerBound": 0.5793,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.625,
+          "decisiveDrawRate": 0.1111,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5793
+      },
+      {
+        "id": "em-e9680391b2b7",
+        "name": "梅ビースト",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 6,
+        "hp": 710,
+        "pow": 370,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、火属性の攻撃を自身に集中させる(70%カット)",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-e9680391b2b7",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "梅ビースト",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9499,
+          "synergyScore": 0.4049,
+          "expectedWinRate": 0.6875,
+          "expectedWinLowerBound": 0.586,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.2639,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.586
+      },
+      {
+        "id": "em-3d15cccd7b04",
+        "name": "ジャバラ帝王",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 10,
+        "hp": 2375,
+        "pow": 593,
+        "skillTurn": 2,
+        "skillType": "attribute_guard",
+        "skillName": "1ターンの間、火属性の攻撃を自身に集中させる(90%カット)",
+        "position": 3,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 99,
+          "remainingCost": 1,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-3d15cccd7b04",
+            "em-8c8530042873",
+            "em-66075c4def49"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "ジャバラ帝王",
+            "玉藻先生",
+            "K・Y・イマガワ"
+          ],
+          "proxyScore": 0.9663,
+          "synergyScore": 0.4064,
+          "expectedWinRate": 0.8056,
+          "expectedWinLowerBound": 0.7198,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7639,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.1528,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7198
       }
     ],
     [
@@ -5242,6 +6622,466 @@
         },
         "exampleDeck": null,
         "v7Score": 0.7388
+      },
+      {
+        "id": "em-39de42aa1107",
+        "name": "今宵のさだわん",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 10,
+        "hp": 1209,
+        "pow": 1195,
+        "skillTurn": 3,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に火属性の敵からのダメージを85%軽減するシールドを与える",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 100,
+          "remainingCost": 0,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-39de42aa1107",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "今宵のさだわん",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 1.0215,
+          "synergyScore": 0.4238,
+          "expectedWinRate": 0.9028,
+          "expectedWinLowerBound": 0.8366,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8889,
+          "decisiveDrawRate": 0.0278,
+          "decisiveLossRate": 0.0833,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.8366
+      },
+      {
+        "id": "em-2118276c6dc5",
+        "name": "からっ風太郎",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 8,
+        "hp": 613,
+        "pow": 614,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、風属性の味方全員の攻撃力を50%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-2118276c6dc5",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "からっ風太郎",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 1.003,
+          "synergyScore": 0.4174,
+          "expectedWinRate": 0.8472,
+          "expectedWinLowerBound": 0.7706,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8056,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.1111,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7706
+      },
+      {
+        "id": "em-3699794fb820",
+        "name": "新・からっ風太郎",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 13,
+        "hp": 815,
+        "pow": 815,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、風属性の味方全員の攻撃力を50%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 88,
+          "remainingCost": 12,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-3699794fb820",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "新・からっ風太郎",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.7432,
+          "synergyScore": 0.2189,
+          "expectedWinRate": 0.8472,
+          "expectedWinLowerBound": 0.7682,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8194,
+          "decisiveDrawRate": 0.0556,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7682
+      },
+      {
+        "id": "em-6e34e2ee96ae",
+        "name": "元祖・からっ風太郎",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 18,
+        "hp": 1188,
+        "pow": 1197,
+        "skillTurn": 3,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、風属性の味方全員の攻撃力を50%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 93,
+          "remainingCost": 7,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-6e34e2ee96ae",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "元祖・からっ風太郎",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.7573,
+          "synergyScore": 0.2216,
+          "expectedWinRate": 0.8542,
+          "expectedWinLowerBound": 0.7756,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8333,
+          "decisiveDrawRate": 0.0417,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7756
+      },
+      {
+        "id": "em-2e5ec7f48778",
+        "name": "たこ焼きーナ",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 4,
+        "hp": 136,
+        "pow": 566,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、自身の攻撃力を50%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-2e5ec7f48778",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "たこ焼きーナ",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.993,
+          "synergyScore": 0.4156,
+          "expectedWinRate": 0.8264,
+          "expectedWinLowerBound": 0.7461,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7778,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7461
+      },
+      {
+        "id": "em-8d1bebbead3e",
+        "name": "たこ焼きーナ先輩",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 5,
+        "hp": 192,
+        "pow": 840,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "2ターンの間、自身の攻撃力を60%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 95,
+          "remainingCost": 5,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-8d1bebbead3e",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "たこ焼きーナ先輩",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 1.0444,
+          "synergyScore": 0.4475,
+          "expectedWinRate": 0.8333,
+          "expectedWinLowerBound": 0.7534,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7917,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7534
+      },
+      {
+        "id": "em-79a4cfaf943a",
+        "name": "たこ焼きーナ先生",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 6,
+        "hp": 252,
+        "pow": 1210,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "3ターンの間、自身の攻撃力を80%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 96,
+          "remainingCost": 4,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-79a4cfaf943a",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "たこ焼きーナ先生",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 1.0766,
+          "synergyScore": 0.4599,
+          "expectedWinRate": 0.8472,
+          "expectedWinLowerBound": 0.7706,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8056,
+          "decisiveDrawRate": 0.0833,
+          "decisiveLossRate": 0.1111,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7706
+      },
+      {
+        "id": "em-0e72749fac67",
+        "name": "たこ焼きーナ師匠",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 8,
+        "hp": 561,
+        "pow": 2446,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "4ターンの間、自身の攻撃力を100%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 98,
+          "remainingCost": 2,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-0e72749fac67",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "たこ焼きーナ師匠",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 1.1341,
+          "synergyScore": 0.482,
+          "expectedWinRate": 0.8542,
+          "expectedWinLowerBound": 0.7805,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8056,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.0972,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7805
+      },
+      {
+        "id": "em-19c6989d69ca",
+        "name": "世界師匠",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 8,
+        "hp": 620,
+        "pow": 600,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する味方全員の攻撃力を100%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 83,
+          "remainingCost": 17,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-19c6989d69ca",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "世界師匠",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.7243,
+          "synergyScore": 0.2173,
+          "expectedWinRate": 0.8542,
+          "expectedWinLowerBound": 0.7756,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8333,
+          "decisiveDrawRate": 0.0417,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7756
+      },
+      {
+        "id": "em-978390ca9213",
+        "name": "あかんで世界師匠",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 12,
+        "hp": 810,
+        "pow": 795,
+        "skillTurn": 4,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、火属性の敵に対する味方全員の攻撃力を150%増加させる",
+        "position": 4,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 87,
+          "remainingCost": 13,
+          "ids": [
+            "em-5514b5658aa3",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-978390ca9213",
+            "em-3151d77efe3f"
+          ],
+          "names": [
+            "ハリウッドナナコ師匠",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "あかんで世界師匠",
+            "チンチョーロさん"
+          ],
+          "proxyScore": 0.7337,
+          "synergyScore": 0.2188,
+          "expectedWinRate": 0.8403,
+          "expectedWinLowerBound": 0.7608,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.8056,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.125,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7608
       }
     ],
     [
@@ -5934,6 +7774,466 @@
         },
         "exampleDeck": null,
         "v7Score": 0.5976
+      },
+      {
+        "id": "em-e4ef5c29ddf5",
+        "name": "春の落花妖精",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 8,
+        "hp": 613,
+        "pow": 597,
+        "skillTurn": 8,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を10%のHPで蘇らせる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 80,
+          "remainingCost": 20,
+          "ids": [
+            "em-4a6f3bc3bbfb",
+            "em-f203cae3d671",
+            "em-344c7687cce5",
+            "em-1c5a28eee21d",
+            "em-e4ef5c29ddf5"
+          ],
+          "names": [
+            "けるるんぱさらん",
+            "ペーチパイセン",
+            "アウス大先輩",
+            "首領子襲来!!",
+            "春の落花妖精"
+          ],
+          "proxyScore": 0.8663,
+          "synergyScore": 0.333,
+          "expectedWinRate": 0.7292,
+          "expectedWinLowerBound": 0.6324,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.2222,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6324
+      },
+      {
+        "id": "em-836feb0d56f9",
+        "name": "夏の落花妖精",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 12,
+        "hp": 815,
+        "pow": 807,
+        "skillTurn": 8,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を20%のHPで蘇らせる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 86,
+          "remainingCost": 14,
+          "ids": [
+            "em-1abf600d3612",
+            "em-f203cae3d671",
+            "em-344c7687cce5",
+            "em-45aaafc4cae5",
+            "em-836feb0d56f9"
+          ],
+          "names": [
+            "祝宴！さくらぴよ子",
+            "ペーチパイセン",
+            "アウス大先輩",
+            "首領・刑部たぬた",
+            "夏の落花妖精"
+          ],
+          "proxyScore": 0.9263,
+          "synergyScore": 0.3863,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6168,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6667,
+          "decisiveDrawRate": 0.0972,
+          "decisiveLossRate": 0.2361,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6168
+      },
+      {
+        "id": "em-4f4f96fc9b98",
+        "name": "秋の落花妖精",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 15,
+        "hp": 1377,
+        "pow": 1209,
+        "skillTurn": 8,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を30%のHPで蘇らせる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 79,
+          "remainingCost": 21,
+          "ids": [
+            "em-7b1e3e0a5bfe",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-d61fdde3a8d0",
+            "em-4f4f96fc9b98"
+          ],
+          "names": [
+            "花びらの精霊",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "キジーたん",
+            "秋の落花妖精"
+          ],
+          "proxyScore": 0.9187,
+          "synergyScore": 0.3433,
+          "expectedWinRate": 0.7708,
+          "expectedWinLowerBound": 0.6821,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.7083,
+          "decisiveDrawRate": 0.125,
+          "decisiveLossRate": 0.1667,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6821
+      },
+      {
+        "id": "em-b9c45079812c",
+        "name": "冬籠りだヨ！落花妖精",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "CR",
+        "cost": 22,
+        "hp": 2530,
+        "pow": 2624,
+        "skillTurn": 8,
+        "skillType": "revive",
+        "skillName": "死亡している味方全員を50%のHPで蘇らせる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 83,
+          "remainingCost": 17,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-344c7687cce5",
+            "em-0e72749fac67",
+            "em-b9c45079812c"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "アウス大先輩",
+            "たこ焼きーナ師匠",
+            "冬籠りだヨ！落花妖精"
+          ],
+          "proxyScore": 1.0634,
+          "synergyScore": 0.4502,
+          "expectedWinRate": 0.8194,
+          "expectedWinLowerBound": 0.7412,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.75,
+          "decisiveDrawRate": 0.1389,
+          "decisiveLossRate": 0.1111,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.7412
+      },
+      {
+        "id": "em-14f9b771848b",
+        "name": "ハイウェイスター",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 7,
+        "hp": 500,
+        "pow": 500,
+        "skillTurn": 6,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を100%増加させる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 79,
+          "remainingCost": 21,
+          "ids": [
+            "em-4a6f3bc3bbfb",
+            "em-f203cae3d671",
+            "em-344c7687cce5",
+            "em-1c5a28eee21d",
+            "em-14f9b771848b"
+          ],
+          "names": [
+            "けるるんぱさらん",
+            "ペーチパイセン",
+            "アウス大先輩",
+            "首領子襲来!!",
+            "ハイウェイスター"
+          ],
+          "proxyScore": 0.8627,
+          "synergyScore": 0.3321,
+          "expectedWinRate": 0.7014,
+          "expectedWinLowerBound": 0.5976,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0417,
+          "decisiveLossRate": 0.2778,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5976
+      },
+      {
+        "id": "em-093a94ca0f33",
+        "name": "スピードキング",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 8,
+        "hp": 607,
+        "pow": 612,
+        "skillTurn": 6,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を200%増加させる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 80,
+          "remainingCost": 20,
+          "ids": [
+            "em-4a6f3bc3bbfb",
+            "em-f203cae3d671",
+            "em-344c7687cce5",
+            "em-1c5a28eee21d",
+            "em-093a94ca0f33"
+          ],
+          "names": [
+            "けるるんぱさらん",
+            "ペーチパイセン",
+            "アウス大先輩",
+            "首領子襲来!!",
+            "スピードキング"
+          ],
+          "proxyScore": 0.8709,
+          "synergyScore": 0.3331,
+          "expectedWinRate": 0.7014,
+          "expectedWinLowerBound": 0.5976,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0417,
+          "decisiveLossRate": 0.2778,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5976
+      },
+      {
+        "id": "em-0933d818ee52",
+        "name": "ブラックナイト",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 10,
+        "hp": 703,
+        "pow": 698,
+        "skillTurn": 6,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を300%増加させる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-b9e75bc0b1f9",
+            "em-4a6f3bc3bbfb",
+            "em-361f82120d03",
+            "em-0e72749fac67",
+            "em-0933d818ee52"
+          ],
+          "names": [
+            "わっしょいミカ先生",
+            "けるるんぱさらん",
+            "オイボくん",
+            "たこ焼きーナ師匠",
+            "ブラックナイト"
+          ],
+          "proxyScore": 1.0057,
+          "synergyScore": 0.4403,
+          "expectedWinRate": 0.6736,
+          "expectedWinLowerBound": 0.5745,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.5972,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.5745
+      },
+      {
+        "id": "em-35431f09cee7",
+        "name": "ほたるン・トラッキン",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "R",
+        "cost": 12,
+        "hp": 1673,
+        "pow": 1654,
+        "skillTurn": 5,
+        "skillType": "attack_buff",
+        "skillName": "1ターンの間、リーダーの攻撃力を400%増加させる",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "anchor",
+          "totalCost": 94,
+          "remainingCost": 6,
+          "ids": [
+            "em-8c8530042873",
+            "em-361f82120d03",
+            "em-344c7687cce5",
+            "em-aae1801458f8",
+            "em-35431f09cee7"
+          ],
+          "names": [
+            "玉藻先生",
+            "オイボくん",
+            "アウス大先輩",
+            "ɚすぃとあろま？",
+            "ほたるン・トラッキン"
+          ],
+          "proxyScore": 0.9558,
+          "synergyScore": 0.4308,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6207,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6389,
+          "decisiveDrawRate": 0.1528,
+          "decisiveLossRate": 0.2083,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6207
+      },
+      {
+        "id": "em-8b1d35b683d6",
+        "name": "さだわん",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 4,
+        "hp": 287,
+        "pow": 307,
+        "skillTurn": 5,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に火属性の敵からのダメージを70%軽減するシールドを与える",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 76,
+          "remainingCost": 24,
+          "ids": [
+            "em-4a6f3bc3bbfb",
+            "em-f203cae3d671",
+            "em-344c7687cce5",
+            "em-1c5a28eee21d",
+            "em-8b1d35b683d6"
+          ],
+          "names": [
+            "けるるんぱさらん",
+            "ペーチパイセン",
+            "アウス大先輩",
+            "首領子襲来!!",
+            "さだわん"
+          ],
+          "proxyScore": 0.8482,
+          "synergyScore": 0.3301,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6149,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6149
+      },
+      {
+        "id": "em-580e56007ca7",
+        "name": "今日のさだわん",
+        "attributes": [
+          "wind"
+        ],
+        "rarity": "N",
+        "cost": 5,
+        "hp": 400,
+        "pow": 400,
+        "skillTurn": 4,
+        "skillType": "damage_reduction",
+        "skillName": "1ターンの間、味方全員に火属性の敵からのダメージを70%軽減するシールドを与える",
+        "position": 5,
+        "evaluatedDeckCount": 8,
+        "bestDeck": {
+          "origin": "automatic",
+          "totalCost": 77,
+          "remainingCost": 23,
+          "ids": [
+            "em-4a6f3bc3bbfb",
+            "em-f203cae3d671",
+            "em-344c7687cce5",
+            "em-1c5a28eee21d",
+            "em-580e56007ca7"
+          ],
+          "names": [
+            "けるるんぱさらん",
+            "ペーチパイセン",
+            "アウス大先輩",
+            "首領子襲来!!",
+            "今日のさだわん"
+          ],
+          "proxyScore": 0.8537,
+          "synergyScore": 0.3311,
+          "expectedWinRate": 0.7153,
+          "expectedWinLowerBound": 0.6149,
+          "scenarioCount": 72,
+          "decisiveWinRate": 0.6806,
+          "decisiveDrawRate": 0.0694,
+          "decisiveLossRate": 0.25,
+          "ongoingRate": 0
+        },
+        "exampleDeck": null,
+        "v7Score": 0.6149
       }
     ]
   ]
