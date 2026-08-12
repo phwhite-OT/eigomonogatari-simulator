@@ -18,14 +18,14 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V8_MODEL_VERSION = "team-battle-v8.0";
+const METAGAME_V8_MODEL_VERSION = "team-battle-v8.1";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V7_INPUTS.map((input) => Object.freeze({
     type: "v8",
     inputId: input.id,
-    statusPath: `reports/metagame-ratings-v8/${input.id.replaceAll(":", "-")}/progress.json`,
-    reportPath: `reports/metagame-ratings-v8/${input.id.replaceAll(":", "-")}/report.json`,
-    reportRoot: "reports/metagame-ratings-v8",
+    statusPath: `reports/metagame-ratings-v8.1/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v8.1/${input.id.replaceAll(":", "-")}/report.json`,
+    reportRoot: "reports/metagame-ratings-v8.1",
     requiredModelVersion: METAGAME_V8_MODEL_VERSION,
     legacy: false,
   })),
@@ -83,7 +83,7 @@ function v8CompletedRunCount(progress) {
 function hasCompletedV8BrowserData(data) {
   return data?.sourceStatus === "complete"
     && data?.sourceModelCompatible === true
-    && String(data.sourceModelVersion ?? "") === METAGAME_V8_MODEL_VERSION
+    && String(data.sourceModelVersion ?? "").startsWith("team-battle-v8.")
     && Array.isArray(data.constraints)
     && data.constraints.length > 0;
 }
@@ -318,7 +318,7 @@ function compactPublishedV8Data(data) {
   return {
     ...data,
     constraints: data.constraints.map((constraint) => (
-      String(constraint.modelVersion ?? "") === METAGAME_V8_MODEL_VERSION
+      String(constraint.modelVersion ?? "").startsWith("team-battle-v8.")
         ? compactPublishedV8Constraint(constraint)
         : constraint
     )),

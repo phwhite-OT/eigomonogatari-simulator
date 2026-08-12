@@ -16,7 +16,7 @@ test("埋め込み済みの環境データは完全な5枠と30盤面を持つ",
   assert.equal(typeof METAGAME_SIMULATOR_DATA.sourcePasses, "number");
 
   const isCompletedV8 = METAGAME_SIMULATOR_DATA.sourceStatus === "complete"
-    && String(METAGAME_SIMULATOR_DATA.sourceModelVersion) === "team-battle-v8.0";
+    && String(METAGAME_SIMULATOR_DATA.sourceModelVersion).startsWith("team-battle-v8.");
   if (isCompletedV8) {
     assert.equal(METAGAME_SIMULATOR_DATA.sourceModelCompatible, true);
     assert.ok(METAGAME_SIMULATOR_DATA.constraints.length > 0);
@@ -28,11 +28,31 @@ test("埋め込み済みの環境データは完全な5枠と30盤面を持つ",
   }
   for (const constraint of METAGAME_SIMULATOR_DATA.constraints) {
     assert.equal(constraint.slots.length, 5);
-    const isV8 = String(constraint.modelVersion ?? "") === "team-battle-v8.0";
+    const isV8 = String(constraint.modelVersion ?? "").startsWith("team-battle-v8.");
     const expectedScenarioGroups = isV8
       ? Math.ceil(constraint.scenarioCount / 9)
       : constraint.scenarioCount;
-    assert.equal(constraint.environmentScenarios.length, expectedScenarioGroups);
+      if (isV8) {
+        // V8 keeps a wider reusable pool of legal environment decks than the
+        // number of sampled team scenarios. Scenarios are compacted in groups
+        // of at most nine complete five-card player decks; the final group can
+        // naturally contain fewer than nine decks.
+        assert.ok(
+          constraint.environmentScenarios.length >= expectedScenarioGroups,
+          "V8 should retain enough complete 5v5 environment scenarios",
+        );
+        assert.ok(
+          constraint.environmentScenarios.every(
+            (scenario) =>
+              scenario.length > 0
+              && scenario.length <= 9
+              && scenario.every((deck) => deck.length === 5),
+          ),
+          "every V8 environment scenario should contain one to nine full player decks",
+        );
+      } else {
+        assert.equal(constraint.environmentScenarios.length, expectedScenarioGroups);
+      }
     assert.deepEqual(constraint.slots.map((slot) => slot.position), [1, 2, 3, 4, 5]);
     assert.ok(constraint.slots.every((slot) => slot.environment.length > 0));
     if (isV8) {
@@ -50,10 +70,10 @@ test("公開ビルドは結果ブランチ不在でも完了済みV7データを
 
   const { data } = await buildMetagameSimulatorData({ outputPath });
 
-  assert.equal(data.sourceModelVersion, "team-battle-v8.0");
+  assert.match(String(data.sourceModelVersion), /^team-battle-v8\./);
   assert.equal(data.sourceModelCompatible, true);
-  assert.equal(data.sourceStatus, "in_progress");
-  assert.equal(data.constraints.length, 0);
+  assert.equal(data.sourceStatus, "complete");
+  assert.ok(data.constraints.length > 0);
   assert.match(await fs.readFile(outputPath, "utf8"), /"constraints":\[/);
 });
 

@@ -15,7 +15,7 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // input sheet still describes the five positions within one player's deck,
 // but a match is always simulated as five player decks versus five player
 // decks (25 characters per team including reserves).
-export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.0";
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.1";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
 // decide whether a report is compatible.
@@ -326,26 +326,35 @@ function buildStrongEnvironmentDeck(pools, fixedByPosition, input, strengths, va
   function visit(index, currentCost, legendCount) {
     if (index === positions.length) return deck;
     const position = positions[index];
-    const ordered = pools[position]
+    const orderedByStrength = pools[position]
       .map((character, poolIndex) => ({
         character,
         strength: strengths.get(String(character.id)) ?? 0,
-        variantTie: (poolIndex + variant * (position + 3)) % Math.max(1, pools[position].length),
+        poolIndex,
       }))
       .sort((left, right) => (
         right.strength - left.strength ||
-        left.variantTie - right.variantTie ||
         left.character.cost - right.character.cost ||
         String(left.character.id).localeCompare(String(right.character.id))
-      ))
-      .map(({ character }) => character);
+      ));
+    // Do not assume an attack/defense archetype or an adoption rate.  Each
+    // supplied pivot gets several legal partner combinations by rotating the
+    // strongest feasible portion of every other supplied slot.  This keeps
+    // every listed character equally represented while avoiding one fixed
+    // set of high-proxy fillers in every environment deck.
+    const rotation = orderedByStrength.length
+      ? (variant * (position + 3)) % orderedByStrength.length
+      : 0;
+    const ordered = rotation
+      ? [...orderedByStrength.slice(rotation), ...orderedByStrength.slice(0, rotation)]
+      : orderedByStrength;
     for (const character of ordered) {
-      const id = String(character.id);
-      const nextLegendCount = legendCount + (character.rarity === "LEGEND" ? 1 : 0);
-      const nextCost = currentCost + (Number(character.cost) || 0);
+      const id = String(character.character.id);
+      const nextLegendCount = legendCount + (character.character.rarity === "LEGEND" ? 1 : 0);
+      const nextCost = currentCost + (Number(character.character.cost) || 0);
       if (usedIds.has(id) || nextLegendCount > 1 || nextCost > input.totalCost) continue;
       usedIds.add(id);
-      deck[position] = character;
+      deck[position] = character.character;
       if (nextCost + minimumRemainingCost(index + 1, nextLegendCount) <= input.totalCost) {
         const completed = visit(index + 1, nextCost, nextLegendCount);
         if (completed) return completed;
@@ -370,24 +379,28 @@ export function createMetagameV7EnvironmentDecks(resolvedInput, options = {}) {
   const requiredPivots = pools.flatMap((pool, position) => (
     pool.map((character) => ({ position, character }))
   ));
-  const count = Math.max(5, Number(options.count) || 72, requiredPivots.length);
+  const variants = Math.max(1, Math.floor(Number(options.environmentVariants) || 1));
+  const count = Math.max(5, Number(options.count) || 72, requiredPivots.length * variants);
   const exampleFixedSlots = resolvedInput.examplePatterns.map((pattern) => (
     new Map(pattern.map((character, position) => character ? [position, character] : null).filter(Boolean))
   ));
   const fixedScenarios = [
-    ...exampleFixedSlots,
+    ...exampleFixedSlots.map((fixedByPosition) => ({ fixedByPosition, variant: 0 })),
     ...Array.from({ length: count }, (_, scenarioIndex) => {
       const pivot = requiredPivots[scenarioIndex % requiredPivots.length];
-      return new Map([[pivot.position, pivot.character]]);
+      return {
+        fixedByPosition: new Map([[pivot.position, pivot.character]]),
+        variant: Math.floor(scenarioIndex / requiredPivots.length),
+      };
     }),
   ];
   const decks = [];
   for (let scenarioIndex = 0; scenarioIndex < fixedScenarios.length; scenarioIndex += 1) {
-    const fixedByPosition = fixedScenarios[scenarioIndex];
-    const scheduledPivot = requiredPivots[scenarioIndex % requiredPivots.length];
+    const { fixedByPosition, variant } = fixedScenarios[scenarioIndex];
+    const scheduledPivot = requiredPivots[(Math.max(0, scenarioIndex - exampleFixedSlots.length)) % requiredPivots.length];
     const pivotPosition = scheduledPivot.position;
     const pivot = fixedByPosition.get(pivotPosition) ?? scheduledPivot.character;
-    const deck = buildStrongEnvironmentDeck(pools, fixedByPosition, resolvedInput, strengths, scenarioIndex);
+    const deck = buildStrongEnvironmentDeck(pools, fixedByPosition, resolvedInput, strengths, variant);
     if (!deck) {
       // A partial example may itself be under the cap but still leave too
       // little cost to complete its unspecified slots. It is not an
@@ -614,6 +627,29 @@ function v7DeckKey(deck) {
   return deck.map((character) => String(character.id)).join("|");
 }
 
+function selectDiverseAutomaticDecks(entries, limit) {
+  const maximum = Math.max(1, Number(limit) || 1);
+  if (entries.length <= maximum) return entries;
+  const selected = [entries[0]];
+  const remaining = entries.slice(1);
+  while (selected.length < maximum && remaining.length) {
+    const bestIndex = remaining.reduce((best, entry, index) => {
+      const distinction = Math.min(...selected.map((chosen) => (
+        entry.deck.reduce((count, character, position) => (
+          count + Number(String(character.id) !== String(chosen.deck[position]?.id))
+        ), 0)
+      )));
+      const costDistance = Math.min(...selected.map((chosen) => (
+        Math.abs((entry.totalCost ?? 0) - (chosen.totalCost ?? 0)) / 10
+      )));
+      const score = distinction * 10 + Math.min(1, costDistance) + (entry.proxyScore ?? 0) * 0.001;
+      return score > best.score ? { index, score } : best;
+    }, { index: 0, score: -Infinity });
+    selected.push(remaining.splice(bestIndex.index, 1)[0]);
+  }
+  return selected;
+}
+
 function isV7DeckInfeasibility(error) {
   return error instanceof Error && error.message.includes("総コスト内の5体を構成できませんでした");
 }
@@ -727,8 +763,10 @@ export function buildMetagameV7DeckCandidates(character, position, resolvedInput
       candidates: index + 1 === position ? [targetRating] : ratings,
     })),
   };
-  const automatic = buildV7AutomaticDecks(constraint, character, position, candidatePools, options)
-    .slice(0, Math.max(1, Number(options.autoDeckLimit) || 10)).map((entry) => ({
+  const automatic = selectDiverseAutomaticDecks(
+    buildV7AutomaticDecks(constraint, character, position, candidatePools, options),
+    Math.max(1, Number(options.autoDeckLimit) || 10),
+  ).map((entry) => ({
     deck: entry.deck,
     origin: "automatic",
     proxyScore: entry.proxyScore,

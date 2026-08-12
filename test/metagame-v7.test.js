@@ -108,6 +108,35 @@ test("v7 completes each environment pivot with strong feasible partners instead 
   }
 });
 
+test("v8.1 broad environment gives each supplied pivot multiple legal partner completions", () => {
+  const characters = [1, 2, 3, 4, 5].flatMap((position) => [
+    v7TestCharacter(`pivot-${position}`, `pivot-${position}`, position, { cost: 20, hp: 2_000, pow: 2_000 }),
+    v7TestCharacter(`alternate-${position}`, `alternate-${position}`, position, { cost: 20, hp: 1_700, pow: 1_700 }),
+  ]);
+  const input = {
+    id: "fire:100-broad-environment-test",
+    label: "broad environment test",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: [1, 2, 3, 4, 5].map((position) => [
+      `pivot-${position}`,
+      `alternate-${position}`,
+    ]),
+    exampleDeckNames: [],
+  };
+  const resolved = resolveMetagameV7Input(input, characters);
+  const decks = createMetagameV7EnvironmentDecks(resolved, {
+    count: 10,
+    environmentVariants: 2,
+  });
+  const pivotDecks = decks.filter((deck) => deck[0].id === "pivot-1");
+  const partnerKeys = new Set(pivotDecks.map((deck) => deck.slice(1).map((character) => character.id).join("|")));
+
+  assert.ok(decks.length >= 20);
+  assert.ok(partnerKeys.size >= 2);
+  assert.ok(decks.every((deck) => deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
+});
+
 test("v8 evaluates a candidate deck within a 5v5 team scenario", () => {
   const teams = [0, 1, 2, 3, 4].map((team) => [1, 2, 3, 4, 5].map((position) => (
     v7TestCharacter(`team-${team}-slot-${position}`, `team-${team}-slot-${position}`, position, {

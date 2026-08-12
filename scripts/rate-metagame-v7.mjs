@@ -89,9 +89,10 @@ const inputId = readArgument("input", "fire:100");
 const input = METAGAME_V7_INPUTS.find((entry) => entry.id === inputId);
 if (!input) throw new Error(`v7入力 ${inputId} が見つかりません。`);
 
-const environmentCount = positiveInteger(readArgument("environment-count", "24"), 24, 5);
-const partnerLimit = positiveInteger(readArgument("partner-limit", "32"), 32, 32);
-const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "2"), 2, 1);
+const environmentCount = positiveInteger(readArgument("environment-count", "72"), 72, 9);
+const environmentVariants = positiveInteger(readArgument("environment-variants", "3"), 3, 1);
+const partnerLimit = positiveInteger(readArgument("partner-limit", "48"), 48, 32);
+const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "4"), 4, 1);
 const anchorDeckLimit = Math.max(0, Math.floor(Number(readArgument("anchor-deck-limit", "0")) || 0));
 const beamWidth = positiveInteger(readArgument("beam-width", "500"), 500, 50);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
@@ -100,7 +101,7 @@ const requestedPosition = readArgument("position", "all").toLowerCase();
 if (!/^(all|next|[1-5])$/.test(requestedPosition)) {
   throw new Error(`Invalid --position value: ${requestedPosition}`);
 }
-const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8");
+const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8.1");
 const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds", "0")) || 0);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
@@ -127,7 +128,10 @@ if (resolvedInput.invalidExamples.length) {
   console.warn(`スキルターンまたはコスト制限を満たさないデッキ例: ${resolvedInput.invalidExamples.join(", ")}（評価用デッキ候補には使いません）`);
 }
 
-const environmentDecks = createMetagameV7EnvironmentDecks(resolvedInput, { count: environmentCount });
+const environmentDecks = createMetagameV7EnvironmentDecks(resolvedInput, {
+  count: environmentCount,
+  environmentVariants,
+});
 const teamScenarios = createMetagameV8TeamScenarios(resolvedInput, {
   environmentDecks,
   count: environmentCount,
@@ -141,6 +145,7 @@ const checkpointContext = {
   version: METAGAME_V7_MODEL_VERSION,
   inputId,
   environmentCount,
+  environmentVariants,
   teamScenarioCount: teamScenarios.length,
   partnerLimit,
   autoDeckLimit,
@@ -264,9 +269,10 @@ const report = {
     allowedAttributes: resolvedInput.allowedAttributes,
     totalCost: resolvedInput.totalCost,
     turns,
-    requestedEnvironmentCount: environmentCount,
-    environmentCount: environmentDecks.length,
-    teamScenarioCount: teamScenarios.length,
+  requestedEnvironmentCount: environmentCount,
+  environmentCount: environmentDecks.length,
+  environmentVariants,
+  teamScenarioCount: teamScenarios.length,
     partnerLimit,
     autoDeckLimit,
     anchorDeckLimit,
