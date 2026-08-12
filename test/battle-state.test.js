@@ -191,6 +191,16 @@ test("回復後HPは最大HPの200パーセントまで増える", () => {
   assert.equal(healed.allies[0].currentHp, 200);
 });
 
+test("over-heal uses half value above maximum HP and caps at double maximum HP", () => {
+  const belowMaximum = createBattleState([[character("target", { hp: 100 })]], [[character("enemy")]]);
+  belowMaximum.allies[0].currentHp = 80;
+  assert.equal(applyHealingToCombatant(belowMaximum, "allies", 0, 60).allies[0].currentHp, 120);
+
+  const alreadyOverhealed = createBattleState([[character("target", { hp: 100 })]], [[character("enemy")]]);
+  alreadyOverhealed.allies[0].currentHp = 140;
+  assert.equal(applyHealingToCombatant(alreadyOverhealed, "allies", 0, 60).allies[0].currentHp, 170);
+});
+
 
 test("継続中の効果は次枠へ継承し、属性変更も維持する", () => {
   const state = createBattleState(

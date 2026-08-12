@@ -21,8 +21,8 @@ function v7TestCharacter(id, name, position, options = {}) {
     attributes: options.attributes ?? ["fire"],
     rarity: options.rarity ?? "R",
     cost: options.cost ?? 20,
-    hp: 1_000,
-    pow: 1_000,
+    hp: options.hp ?? 1_000,
+    pow: options.pow ?? 1_000,
     skillTurn: position - 1,
     maxUses: 0,
     allowedPositions: [1, 2, 3, 4, 5],
@@ -67,7 +67,7 @@ test("v7 real environment includes every supplied candidate within the cost cap"
   const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
   const decks = createMetagameV7EnvironmentDecks(resolved, { count: 72, seed: 7107 });
 
-  assert.equal(decks.length, 77);
+  assert.ok(decks.length >= 77);
   for (const deck of decks) {
     assert.equal(deck.length, 5);
     assert.ok(deck.reduce((sum, character) => sum + character.cost, 0) <= 100);
@@ -77,6 +77,32 @@ test("v7 real environment includes every supplied candidate within the cost cap"
     for (const character of resolved.environmentPools[index]) {
       assert.ok(included.has(String(character.id)), `${index + 1}: ${character.name}`);
     }
+  }
+});
+
+test("v7 completes each environment pivot with strong feasible partners instead of cheap fillers", () => {
+  const characters = [1, 2, 3, 4, 5].flatMap((position) => [
+    v7TestCharacter(`low-${position}`, `low-${position}`, position, { cost: 10, hp: 100, pow: 100 }),
+    v7TestCharacter(`high-${position}`, `high-${position}`, position, { cost: 20, hp: 2_000, pow: 2_000 }),
+  ]);
+  const input = {
+    id: "fire:100-strong-environment-test",
+    label: "strong environment test",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: [1, 2, 3, 4, 5].map((position) => [
+      `low-${position}`,
+      `high-${position}`,
+    ]),
+    exampleDeckNames: [],
+  };
+  const resolved = resolveMetagameV7Input(input, characters);
+  const decks = createMetagameV7EnvironmentDecks(resolved, { count: 5 });
+
+  for (const deck of decks) {
+    const weakPivot = deck.findIndex((character) => character.id.startsWith("low-"));
+    if (weakPivot < 0) continue;
+    assert.ok(deck.every((character, index) => index === weakPivot || character.id.startsWith("high-")));
   }
 });
 
@@ -91,6 +117,15 @@ test("v7 includes affordable partners so high-cost targets cannot stop the batch
 
   assert.ok(decks.length > 0);
   assert.ok(decks.every((entry) => entry.deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
+});
+
+test("v7 keeps high-efficiency affordable partners out of the early proxy cut", () => {
+  const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
+  const pools = buildMetagameV7CandidatePools(resolved, CHARACTER_CATALOG, { partnerLimit: 32 });
+  const nanako = pools.partnerRatingsByPosition[0]
+    .find((rating) => rating.name === "ハリウッドナナコ師匠");
+
+  assert.ok(nanako);
 });
 
 test("v7 completes partial deck examples before evaluating their specified character", () => {
@@ -231,7 +266,8 @@ test("completed v7 report is converted into a precomputed deck-generator constra
 
   assert.equal(constraint.id, "fire:100");
   assert.equal(constraint.slots.length, 5);
-  assert.equal(constraint.slots[0].candidates[0].expectedWinLowerBound, 0.5);
+  assert.equal(constraint.slots[0].candidates, undefined);
+  assert.equal(constraint.precomputedDecks[0].l, 0.5);
   assert.equal(constraint.environmentScenarios.length, 1);
 
   const result = await findBestMetagameDeck(

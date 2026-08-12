@@ -18,7 +18,7 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.4";
+const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.5";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V7_INPUTS.map((input) => Object.freeze({
     type: "v7",
@@ -264,6 +264,67 @@ function compactMetagameV7Candidate(entry, character) {
   };
 }
 
+function compactMetagameV7Deck(entry) {
+  const ids = entry?.i ?? entry?.ids;
+  if (!Array.isArray(ids) || ids.length !== 5) return null;
+  return {
+    // Short field names keep the browser payload small. They are expanded by
+    // metagame-deck.js when a result is displayed.
+    i: ids.map(String),
+    c: Number(entry.c ?? entry.totalCost) || 0,
+    p: Number(entry.p ?? entry.proxyScore) || 0,
+    y: Number(entry.y ?? entry.synergyScore) || 0,
+    w: Number(entry.w ?? entry.expectedWinRate) || 0,
+    l: Number(entry.l ?? entry.expectedWinLowerBound) || 0,
+    s: Number(entry.s ?? entry.scenarioCount) || 0,
+    a: Number(entry.a ?? entry.decisiveWinRate) || 0,
+    d: Number(entry.d ?? entry.decisiveDrawRate) || 0,
+    e: Number(entry.e ?? entry.decisiveLossRate) || 0,
+    o: Number(entry.o ?? entry.ongoingRate) || 0,
+    x: entry.x ?? (entry.origin === "example" ? "example" : "automatic"),
+  };
+}
+
+function compactMetagameV7Decks(entries) {
+  const unique = new Map();
+  for (const entry of entries) {
+    const deck = compactMetagameV7Deck(entry?.v7BestDeck ?? entry?.bestDeck ?? entry);
+    if (!deck) continue;
+    const key = deck.i.join("|");
+    const current = unique.get(key);
+    if (!current || deck.l > current.l || (deck.l === current.l && deck.w > current.w)) {
+      unique.set(key, deck);
+    }
+  }
+  return [...unique.values()].sort((left, right) => (
+    right.l - left.l || right.w - left.w || left.c - right.c
+  ));
+}
+
+function compactPublishedV7Constraint(constraint) {
+  const existingDecks = constraint.precomputedDecks ?? [];
+  const rankedCandidates = (constraint.slots ?? []).flatMap((slot) => slot.candidates ?? []);
+  return {
+    ...constraint,
+    slots: (constraint.slots ?? []).map((slot) => ({
+      position: slot.position,
+      environment: slot.environment ?? [],
+    })),
+    precomputedDecks: compactMetagameV7Decks([...existingDecks, ...rankedCandidates]),
+  };
+}
+
+function compactPublishedV7Data(data) {
+  return {
+    ...data,
+    constraints: data.constraints.map((constraint) => (
+      String(constraint.modelVersion ?? "").startsWith("fixed-environment-v7")
+        ? compactPublishedV7Constraint(constraint)
+        : constraint
+    )),
+  };
+}
+
 function v7EnvironmentPools(report) {
   if (report.environmentPools?.length === 5) return report.environmentPools;
   return [0, 1, 2, 3, 4].map((index) => {
@@ -282,6 +343,9 @@ function v7EnvironmentPools(report) {
 export function buildMetagameV7Constraint(report, charactersById) {
   const rankings = new Map((report.rankingsByPosition ?? []).map((slot) => [Number(slot.position), slot]));
   const pools = v7EnvironmentPools(report);
+  const precomputedDecks = compactMetagameV7Decks(
+    [...rankings.values()].flatMap((slot) => slot.characters ?? []),
+  );
   return {
     id: report.context?.inputId ?? "fire:100",
     attributeKey: (report.context?.allowedAttributes ?? []).join("-"),
@@ -294,9 +358,6 @@ export function buildMetagameV7Constraint(report, charactersById) {
     reportGeneratedAt: report.generatedAt ?? null,
     slots: [1, 2, 3, 4, 5].map((position) => ({
       position,
-      candidates: (rankings.get(position)?.characters ?? []).map((entry) => (
-        compactMetagameV7Candidate(entry, charactersById.get(String(entry.id)))
-      )),
       environment: (pools[position - 1] ?? []).map((entry) => {
         const character = charactersById.get(String(entry.id));
         return {
@@ -311,6 +372,7 @@ export function buildMetagameV7Constraint(report, charactersById) {
         };
       }),
     })),
+    precomputedDecks,
     environmentScenarios: metagameEnvironmentScenarios(report.environmentDecks ?? []),
   };
 }
@@ -377,13 +439,14 @@ export async function buildMetagameSimulatorData(options = {}) {
   // not replace its already-published completed V7 data with an empty source
   // merely because the reports live on the dedicated results branch.
   if (usesDefaultSources && !completedV7Sources.length && hasCompletedV7BrowserData(EXISTING_METAGAME_SIMULATOR_DATA)) {
+    const data = compactPublishedV7Data(EXISTING_METAGAME_SIMULATOR_DATA);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(
       outputPath,
-      `export const METAGAME_SIMULATOR_DATA = Object.freeze(${JSON.stringify(EXISTING_METAGAME_SIMULATOR_DATA)});\n`,
+      `export const METAGAME_SIMULATOR_DATA = Object.freeze(${JSON.stringify(data)});\n`,
       "utf8",
     );
-    return { outputPath, data: EXISTING_METAGAME_SIMULATOR_DATA };
+    return { outputPath, data };
   }
   const source = completedV7Sources[0]
     ?? availableSources.find((candidate) => candidate.completedConstraints.length)

@@ -56,7 +56,7 @@ jobs:
             local progress_path="$1"
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
-            jq -e '.status == "complete" and .context.version == "fixed-environment-v7.4"' \
+            jq -e '.status == "complete" and .context.version == "fixed-environment-v7.5"' \
               <<< "$progress" >/dev/null
           }
 
@@ -241,7 +241,7 @@ jobs:
           is_complete_file() {
             local progress_path="$1"
             [ -f "$progress_path" ] && jq -e \
-              '.status == "complete" and .context.version == "fixed-environment-v7.4"' \
+              '.status == "complete" and .context.version == "fixed-environment-v7.5"' \
               "$progress_path" >/dev/null
           }
 
@@ -388,7 +388,7 @@ jobs:
           git switch --detach origin/master
           git checkout "$results_ref" -- reports/metagame-ratings-v7
           npm run build:metagame-data
-          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; if (data.sourceModelVersion !== "fixed-environment-v7.4" || !data.constraints.length) throw new Error("Completed V7.4 reports did not produce browser constraints."); console.log(`Built ${data.constraints.length} V7.4 browser constraints.`);'
+          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; if (data.sourceModelVersion !== "fixed-environment-v7.5" || !data.constraints.length) throw new Error("Completed V7.5 reports did not produce browser constraints."); console.log(`Built ${data.constraints.length} V7.5 browser constraints.`);'
           if git diff --quiet -- "$data_path"; then
             echo "The public app already has the latest browser data."
             exit 0

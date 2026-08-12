@@ -414,6 +414,18 @@ test("回復は自身・リーダー・味方属性の対象範囲を区別す�
   assert.deepEqual(waterResult.allies.map(({ currentHp }) => currentHp), [100, 600, 100]);
 });
 
+test("スキル回復の最大HP超過分は半分だけ回復する", () => {
+  const heal = { type: "heal", multiplier: 0.5, target: "self", duration: 1, conditions: [] };
+  const state = createBattleState(
+    [character("healer", { skill: heal })],
+    [character("enemy")],
+  );
+  state.allies[0].currentHp = 800;
+
+  const result = applySkill(state, "allies", 0, simpleRules);
+  assert.equal(result.allies[0].currentHp, 1_150);
+});
+
 test("蘇生はリーダー指定と味方属性条件を区別し、該当者全員を復帰させる", () => {
   const defeat = (combatant) => {
     combatant.alive = false;

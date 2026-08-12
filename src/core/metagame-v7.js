@@ -11,7 +11,7 @@ import {
 import { createBattleState } from "./battleState.js";
 import { DEFAULT_RULES } from "../data/rules.js";
 
-export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.4";
+export const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.5";
 
 const V7_BATTLE_PROFILES = Object.freeze([
   Object.freeze({
@@ -253,29 +253,32 @@ export function resolveMetagameV7Input(input, characters) {
   };
 }
 
-function seededRandom(seed = 1) {
-  let state = Number(seed) >>> 0;
-  return () => {
-    state += 0x6D2B79F5;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
+function environmentStrengths(pools, rules) {
+  const all = pools.flat();
+  const maxHp = Math.max(1, ...all.map((character) => Number(character.hp) || 0));
+  const maxPow = Math.max(1, ...all.map((character) => Number(character.pow) || 0));
+  return new Map(pools.flatMap((pool, index) => pool.map((character) => {
+    const skill = clampUnit(estimateSkillPotency(character, all, index + 1, rules) / 4);
+    const value = clampUnit(
+      Number(character.pow) / maxPow * 0.44 +
+      Number(character.hp) / maxHp * 0.36 +
+      skill * 0.20,
+    );
+    return [String(character.id), value];
+  })));
 }
 
-function sampled(values, random) {
-  return values[Math.floor(random() * values.length)];
-}
-
-function buildAffordableEnvironmentDeck(pools, pivotPosition, pivot, input, random) {
+function buildStrongEnvironmentDeck(pools, fixedByPosition, input, strengths, variant = 0) {
   const deck = Array(5).fill(null);
-  deck[pivotPosition] = pivot;
+  for (const [position, character] of fixedByPosition.entries()) deck[position] = character;
   const positions = [0, 1, 2, 3, 4]
-    .filter((position) => position !== pivotPosition)
+    .filter((position) => !deck[position])
     .sort((left, right) => pools[left].length - pools[right].length);
-  const usedIds = new Set([String(pivot.id)]);
-  const initialLegends = pivot.rarity === "LEGEND" ? 1 : 0;
+  const fixedCharacters = deck.filter(Boolean);
+  const usedIds = new Set(fixedCharacters.map((character) => String(character.id)));
+  const initialCost = fixedCharacters.reduce((sum, character) => sum + (Number(character.cost) || 0), 0);
+  const initialLegends = fixedCharacters.filter((character) => character.rarity === "LEGEND").length;
+  if (initialCost > input.totalCost || initialLegends > 1 || usedIds.size !== fixedCharacters.length) return null;
 
   function minimumRemainingCost(startIndex, legendCount) {
     return positions.slice(startIndex).reduce((sum, position) => {
@@ -291,8 +294,17 @@ function buildAffordableEnvironmentDeck(pools, pivotPosition, pivot, input, rand
     if (index === positions.length) return deck;
     const position = positions[index];
     const ordered = pools[position]
-      .map((character) => ({ character, priority: (Number(character.cost) || 0) + random() * 14 }))
-      .sort((left, right) => left.priority - right.priority)
+      .map((character, poolIndex) => ({
+        character,
+        strength: strengths.get(String(character.id)) ?? 0,
+        variantTie: (poolIndex + variant * (position + 3)) % Math.max(1, pools[position].length),
+      }))
+      .sort((left, right) => (
+        right.strength - left.strength ||
+        left.variantTie - right.variantTie ||
+        left.character.cost - right.character.cost ||
+        String(left.character.id).localeCompare(String(right.character.id))
+      ))
       .map(({ character }) => character);
     for (const character of ordered) {
       const id = String(character.id);
@@ -311,7 +323,7 @@ function buildAffordableEnvironmentDeck(pools, pivotPosition, pivot, input, rand
     return null;
   }
 
-  return visit(0, Number(pivot.cost) || 0, initialLegends);
+  return visit(0, initialCost, initialLegends);
 }
 
 /**
@@ -320,28 +332,35 @@ function buildAffordableEnvironmentDeck(pools, pivotPosition, pivot, input, rand
  */
 export function createMetagameV7EnvironmentDecks(resolvedInput, options = {}) {
   const pools = resolvedInput.environmentPools;
+  const rules = options.rules ?? DEFAULT_RULES;
+  const strengths = environmentStrengths(pools, rules);
   const requiredPivots = pools.flatMap((pool, position) => (
     pool.map((character) => ({ position, character }))
   ));
   const count = Math.max(5, Number(options.count) || 72, requiredPivots.length);
-  const random = seededRandom(options.seed ?? 7107);
+  const exampleFixedSlots = resolvedInput.examplePatterns.map((pattern) => (
+    new Map(pattern.map((character, position) => character ? [position, character] : null).filter(Boolean))
+  ));
+  const fixedScenarios = [
+    ...exampleFixedSlots,
+    ...Array.from({ length: count }, (_, scenarioIndex) => {
+      const pivot = requiredPivots[scenarioIndex % requiredPivots.length];
+      return new Map([[pivot.position, pivot.character]]);
+    }),
+  ];
   const decks = [];
-  for (let scenarioIndex = 0; scenarioIndex < count; scenarioIndex += 1) {
-    const scheduledPivot = requiredPivots[scenarioIndex];
-    const pivotPosition = scheduledPivot?.position ?? scenarioIndex % 5;
-    const pivotPool = pools[pivotPosition];
-    const pivot = scheduledPivot?.character ?? pivotPool[Math.floor(scenarioIndex / 5) % pivotPool.length];
-    let deck = null;
-    for (let attempt = 0; attempt < 1_000 && !deck; attempt += 1) {
-      const trial = pools.map((pool, position) => (
-        position === pivotPosition ? pivot : sampled(pool, random)
-      ));
-      if (isDeckWithinRules(trial, resolvedInput)) deck = trial;
-    }
+  for (let scenarioIndex = 0; scenarioIndex < fixedScenarios.length; scenarioIndex += 1) {
+    const fixedByPosition = fixedScenarios[scenarioIndex];
+    const scheduledPivot = requiredPivots[scenarioIndex % requiredPivots.length];
+    const pivotPosition = scheduledPivot.position;
+    const pivot = fixedByPosition.get(pivotPosition) ?? scheduledPivot.character;
+    const deck = buildStrongEnvironmentDeck(pools, fixedByPosition, resolvedInput, strengths, scenarioIndex);
     if (!deck) {
-      deck = buildAffordableEnvironmentDeck(pools, pivotPosition, pivot, resolvedInput, random);
-    }
-    if (!deck) {
+      // A partial example may itself be under the cap but still leave too
+      // little cost to complete its unspecified slots. It is not an
+      // environment deck in that case; supplied environment pivots remain
+      // mandatory and still fail loudly if they cannot be composed.
+      if (scenarioIndex < exampleFixedSlots.length) continue;
       throw new Error(`${pivotPosition + 1}枠目の環境キャラ ${pivot.name} を含むコスト内デッキを作れません。`);
     }
     decks.push(deck);
@@ -357,7 +376,29 @@ function characterEligibleAtV7Position(character, input, position) {
     isSkillTurnAllowedAtPosition(character, position);
 }
 
-function characterProxyRating(character, position, environmentPool, maxima, rules) {
+function attributeConditionCoverage(conditions, type, characters) {
+  const relevant = (conditions ?? []).filter((condition) => condition.type === type);
+  if (!relevant.length) return 1;
+  if (!characters.length) return 0;
+  return characters.filter((candidate) => (
+    relevant.every((condition) => candidate.attributes?.includes(condition.attribute))
+  )).length / characters.length;
+}
+
+function allyConditionCoverage(character, skill, allyCandidates) {
+  const relevant = (skill?.conditions ?? []).filter((condition) => condition.type === "ally_attribute");
+  if (!relevant.length) return 1;
+  if (skill?.target === "self") {
+    return relevant.every((condition) => character.attributes?.includes(condition.attribute)) ? 1 : 0;
+  }
+  return attributeConditionCoverage(relevant, "ally_attribute", allyCandidates);
+}
+
+function v7CostEfficiency(rating) {
+  return (Number(rating.hp) + Number(rating.pow) * 0.75) / Math.max(1, Number(rating.cost));
+}
+
+function characterProxyRating(character, position, environmentPool, maxima, rules, allyCandidates = []) {
   const directScores = environmentPool.map((enemy) => {
     const dealt = calculateMinimumDamage({ attacker: character, defender: enemy, rules }).value;
     const taken = calculateMinimumDamage({ attacker: enemy, defender: character, rules }).value;
@@ -370,7 +411,9 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
   const defense = average(directScores.map((score) => score.defense));
   const statPower = clampUnit(Number(character.pow) / maxima.pow);
   const statHp = clampUnit(Number(character.hp) / maxima.hp);
-  const skillRaw = estimateSkillPotency(character, environmentPool, position, rules);
+  const allyCoverage = allyConditionCoverage(character, character.skill, allyCandidates);
+  const enemyCoverage = attributeConditionCoverage(character.skill?.conditions, "enemy_attribute", environmentPool);
+  const skillRaw = estimateSkillPotency(character, environmentPool, position, rules) * allyCoverage * enemyCoverage;
   const skill = clampUnit(skillRaw / 4);
   const duration = Math.max(1, Number(character.skill?.duration) || 1);
   const continuation = duration > 1 ? clampUnit((duration - 1) / 4) : 0;
@@ -383,6 +426,8 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
     attributes: character.attributes,
     rarity: character.rarity,
     cost: character.cost,
+    hp: character.hp,
+    pow: character.pow,
     skillTurn: character.skillTurn,
     skillType: character.skill?.type ?? "none",
     skillName: character.skillName ?? "",
@@ -390,7 +435,7 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
     expectedWinLowerBound: practicalValue,
     balancedContribution: clampUnit((offense + defense) / 2),
     practicalValue,
-    practicalSkillReliability: skill > 0 ? 1 : 0,
+    practicalSkillReliability: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? 1 : 0,
     powerPreference: statPower,
     enemyPressureRate: offense,
     combinationPotential: continuation,
@@ -404,8 +449,8 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
       ? skill : 0,
     counteraction: ["single_attack", "aoe_attack", "attack_buff", "multi_hit_attack"].includes(character.skill?.type)
       ? skill : 0,
-    skillActivationRate: skill > 0 ? 1 : 0,
-    v7Proxy: { offense, defense, skill, continuation, practicalValue },
+    skillActivationRate: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? 1 : 0,
+    v7Proxy: { offense, defense, skill, continuation, allyCoverage, enemyCoverage, practicalValue },
   };
 }
 
@@ -415,7 +460,10 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
  */
 export function buildMetagameV7CandidatePools(resolvedInput, characters, options = {}) {
   const rules = options.rules ?? DEFAULT_RULES;
-  const partnerLimit = Math.max(8, Number(options.partnerLimit) || 24);
+  // A narrow partner pool made the advertised "highest win-rate" deck depend
+  // on an early proxy cut. Keep a deliberately diverse pool, while retaining
+  // a bounded search size for the batch job.
+  const partnerLimit = Math.max(32, Number(options.partnerLimit) || 32);
   const allByPosition = [1, 2, 3, 4, 5].map((position) => (
     characters.filter((character) => characterEligibleAtV7Position(character, resolvedInput, position))
   ));
@@ -423,9 +471,10 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
     hp: Math.max(1, ...allByPosition.flat().map((character) => Number(character.hp) || 0)),
     pow: Math.max(1, ...allByPosition.flat().map((character) => Number(character.pow) || 0)),
   };
+  const allyCandidates = allByPosition.flat();
   const ratingsByPosition = allByPosition.map((pool, index) => new Map(pool.map((character) => [
     String(character.id),
-    characterProxyRating(character, index + 1, resolvedInput.environmentPools[index], maxima, rules),
+    characterProxyRating(character, index + 1, resolvedInput.environmentPools[index], maxima, rules, allyCandidates),
   ])));
   const exampleIdsByPosition = [0, 1, 2, 3, 4].map((index) => new Set(
     resolvedInput.examplePatterns.map((deck) => deck[index]).filter(Boolean).map((character) => String(character.id)),
@@ -438,9 +487,10 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
     ));
     const exampleRatings = [...exampleIdsByPosition[index]].map((id) => ratings.get(id)).filter(Boolean);
     const remainingLimit = Math.max(1, partnerLimit - exampleRatings.length);
-    const strengthLimit = Math.max(1, Math.ceil(remainingLimit * 0.6));
-    const costLimit = Math.max(1, remainingLimit - strengthLimit);
-    const affordableLimit = Math.max(8, Math.ceil(partnerLimit * 0.5));
+    const strengthLimit = Math.max(1, Math.ceil(remainingLimit * 0.35));
+    const costLimit = Math.max(1, Math.ceil(remainingLimit * 0.20));
+    const efficiencyLimit = Math.max(6, Math.ceil(remainingLimit * 0.25));
+    const utilityLimit = Math.max(6, remainingLimit - strengthLimit - costLimit - efficiencyLimit);
     const selected = new Map();
     listed.slice(0, strengthLimit).forEach((rating) => selected.set(rating.id, rating));
     listed.sort((left, right) => (
@@ -449,17 +499,37 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
       left.cost - right.cost
     )).slice(0, costLimit).forEach((rating) => selected.set(rating.id, rating));
     listed.sort((left, right) => (
-      left.cost - right.cost ||
+      v7CostEfficiency(right) - v7CostEfficiency(left) ||
       right.practicalValue - left.practicalValue ||
       left.id.localeCompare(right.id)
-    )).slice(0, affordableLimit).forEach((rating) => selected.set(rating.id, rating));
+    )).slice(0, efficiencyLimit).forEach((rating) => selected.set(rating.id, rating));
+    listed.filter((rating) => rating.skillType !== "none").sort((left, right) => (
+      (Number(right.tacticalUpside) + Number(right.combinationPotential) + Number(right.advantageCreation)) -
+        (Number(left.tacticalUpside) + Number(left.combinationPotential) + Number(left.advantageCreation)) ||
+      right.practicalValue - left.practicalValue ||
+      left.cost - right.cost
+    )).slice(0, utilityLimit).forEach((rating) => selected.set(rating.id, rating));
     exampleRatings.forEach((rating) => selected.set(rating.id, rating));
+    return [...selected.values()];
+  });
+  const anchorRatingsByPosition = partnerRatingsByPosition.map((ratings) => {
+    const selected = new Map();
+    [...ratings].sort((left, right) => (
+      v7CostEfficiency(right) - v7CostEfficiency(left) ||
+      right.practicalValue - left.practicalValue
+    )).slice(0, 1).forEach((rating) => selected.set(rating.id, rating));
+    [...ratings].filter((rating) => rating.skillType !== "none").sort((left, right) => (
+      (Number(right.tacticalUpside) + Number(right.combinationPotential) + Number(right.advantageCreation)) -
+        (Number(left.tacticalUpside) + Number(left.combinationPotential) + Number(left.advantageCreation)) ||
+      right.practicalValue - left.practicalValue
+    )).slice(0, 1).forEach((rating) => selected.set(rating.id, rating));
     return [...selected.values()];
   });
   return {
     allByPosition,
     ratingsByPosition,
     partnerRatingsByPosition,
+    anchorRatingsByPosition,
     charactersById: new Map(characters.map((character) => [String(character.id), character])),
   };
 }
@@ -538,6 +608,38 @@ function v7ExampleDecksFor(character, position, resolvedInput, candidatePools, o
     });
 }
 
+function v7AnchorDecksFor(character, position, resolvedInput, candidatePools, options) {
+  const targetRating = candidatePools.ratingsByPosition[position - 1].get(String(character.id));
+  const anchorDeckLimit = Math.max(0, Number(options.anchorDeckLimit) || 1);
+  if (!targetRating || !anchorDeckLimit) return [];
+
+  return candidatePools.anchorRatingsByPosition.flatMap((anchors, index) => {
+    if (index + 1 === position) return [];
+    return anchors.slice(0, anchorDeckLimit).flatMap((anchor) => {
+      const constraint = {
+        totalCost: resolvedInput.totalCost,
+        allowedAttributes: resolvedInput.allowedAttributes,
+        slots: candidatePools.partnerRatingsByPosition.map((ratings, slotIndex) => ({
+          position: slotIndex + 1,
+          candidates: slotIndex + 1 === position
+            ? [targetRating]
+            : slotIndex === index
+              ? [anchor]
+              : ratings,
+        })),
+      };
+      return buildV7AutomaticDecks(constraint, character, position, candidatePools, options)
+        .slice(0, 1)
+        .map((entry) => ({
+          deck: entry.deck,
+          origin: "anchor",
+          proxyScore: entry.proxyScore,
+          synergyScore: entry.synergyScore,
+        }));
+    });
+  });
+}
+
 export function buildMetagameV7DeckCandidates(character, position, resolvedInput, candidatePools, options = {}) {
   const targetRating = candidatePools.ratingsByPosition[position - 1].get(String(character.id));
   if (!targetRating) return [];
@@ -556,9 +658,10 @@ export function buildMetagameV7DeckCandidates(character, position, resolvedInput
     proxyScore: entry.proxyScore,
     synergyScore: entry.synergyScore,
   }));
+  const anchors = v7AnchorDecksFor(character, position, resolvedInput, candidatePools, options);
   const examples = v7ExampleDecksFor(character, position, resolvedInput, candidatePools, options);
   const unique = new Map();
-  for (const entry of [...automatic, ...examples]) {
+  for (const entry of [...automatic, ...anchors, ...examples]) {
     const key = v7DeckKey(entry.deck);
     const current = unique.get(key);
     if (!current || entry.origin === "example") unique.set(key, entry);
