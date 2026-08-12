@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-12T03:59:47.169Z",
+  "generatedAt": "2026-08-12T04:48:37.912Z",
   "model": {
     "version": "fixed-environment-v7.5",
     "objective": "ユーザー提示の固定環境に対し、コスト100内で完成するデッキの下限勝率をキャラ評価へ使う。",
