@@ -1,23 +1,9 @@
 name: Metagame v8.2 broad 5v5 team-battle evaluation
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - .github/workflows/metagame-v7-cloud.yml
-      - scripts/rate-metagame-v7.mjs
-      - scripts/build-metagame-work-matrix.mjs
-      - scripts/build-metagame-simulator-data.mjs
-      - src/core/metagame-v7.js
-      - src/core/metagame-work-shards.js
-      - src/core/battleState.js
-      - src/core/metagame-deck.js
-      - src/core/simulate.js
-      - src/core/skills.js
-      - src/data/metagame-v7-inputs.js
-      - src/data/character-catalog.js
-      - src/data/workbook-characters.js
+  # Browser fixes must deploy immediately; they must not occupy every hosted
+  # runner by automatically starting a long evaluation. Start or resume this
+  # workflow explicitly from Actions after the display is confirmed.
   workflow_dispatch:
 
 permissions:
@@ -344,7 +330,9 @@ jobs:
             --data "$payload"
 
       - name: Start the next evaluation segment
-        if: always() && steps.recovery.outputs.should_continue == 'true'
+        # A user cancellation is an intentional pause.  Do not turn it into
+        # another full 20-runner segment from this cleanup job.
+        if: always() && !cancelled() && needs.evaluate.result != 'cancelled' && steps.recovery.outputs.should_continue == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
