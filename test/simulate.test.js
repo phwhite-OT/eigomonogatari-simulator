@@ -174,6 +174,32 @@ test("連撃スキルの発動ターンは指定ヒット数だけ攻撃する",
   assert.deepEqual(attacks.map(({ hits }) => hits.length), [6, 6]);
 });
 
+test("同じシナリオ種なら連撃のランダムな余剰ヒット先を再現する", () => {
+  const multiHit = {
+    type: "multi_hit_attack",
+    multiplier: 1,
+    hits: 3,
+    target: "self",
+    duration: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [character("multi", { pow: 100, skillTurn: 0, skill: multiHit })],
+    [
+      character("primary", { hp: 50, pow: 0 }),
+      character("second", { hp: 1_000, pow: 0 }),
+      character("third", { hp: 1_000, pow: 0 }),
+    ],
+  );
+  const first = simulateBattle(state, simpleRules, { turns: 1, randomSeed: "team-7" });
+  const second = simulateBattle(state, simpleRules, { turns: 1, randomSeed: "team-7" });
+  const hitIndexes = (result) => result.history[0].actions.find(({ actorName }) => actorName === "multi").hits.map(({ targetIndex }) => targetIndex);
+
+  assert.deepEqual(hitIndexes(first), hitIndexes(second));
+  assert.equal(hitIndexes(first)[0], 0);
+  assert.equal(first.history[0].actions.find(({ actorName }) => actorName === "multi").hits[1].targetMode, "random_after_defeat");
+});
+
 test("蘇生は攻撃後・交代前に解決し、同じキャラへ一度だけ適用する", () => {
   const revive = {
     type: "revive",
@@ -202,7 +228,7 @@ test("蘇生は攻撃後・交代前に解決し、同じキャラへ一度だ�
 
 
 
-test("残数平準化方針は倒しやすさより残り枚数の多い相手を優先する", () => {
+test("全方針で倒しやすさより残り枚数の多い相手を優先する", () => {
   const state = createBattleState(
     [character("attacker", { pow: 100 })],
     [
@@ -220,7 +246,7 @@ test("残数平準化方針は倒しやすさより残り枚数の多い相手�
     actorIndex: 0,
     rules: simpleRules,
     targetPolicy: TARGET_POLICIES.KILL_CONFIRM,
-  }), 1);
+  }), 0);
 });
 
 test("スキル脅威方針は残数が同じなら発動の近い相手を優先する", () => {

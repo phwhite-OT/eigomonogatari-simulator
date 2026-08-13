@@ -1,7 +1,7 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { advanceTurn, createBattleState } from "../src/core/battleState.js";
-import { applySkill } from "../src/core/skills.js";
+import { applySkill, resolveAttackAction } from "../src/core/skills.js";
 import { simulateBattle } from "../src/core/simulate.js";
 import { DEFAULT_RULES, mergeRules } from "../src/data/rules.js";
 
@@ -80,6 +80,29 @@ test("連続攻撃は指定回数だけ同じ計算を適用する", () => {
   const next = applySkill(state, "allies", 0, simpleRules);
 
   assert.equal(next.enemies[0].currentHp, 700);
+});
+
+test("連撃で主対象を倒した後の余剰ヒットは生存敵へランダムに飛ぶ", () => {
+  const state = createBattleState(
+    [character("multi", { pow: 100 })],
+    [
+      character("primary", { hp: 50 }),
+      character("second", { hp: 1_000 }),
+      character("third", { hp: 1_000 }),
+    ],
+  );
+  const rolls = [0.9, 0.0];
+  const result = resolveAttackAction(
+    state,
+    "allies",
+    0,
+    simpleRules,
+    { type: "multi_hit_attack", multiplier: 1, hits: 3 },
+    { targetIndex: 0, deferReplacement: true, random: () => rolls.shift() },
+  );
+
+  assert.deepEqual(result.hits.map((hit) => hit.targetIndex), [0, 2, 1]);
+  assert.deepEqual(result.hits.map((hit) => hit.targetMode), ["priority", "random_after_defeat", "random_after_defeat"]);
 });
 test("自身・リーダー・味方全員の対象範囲を区別する", () => {
   const selfSkill = { type: "attack_buff", multiplier: 2, duration: 1, target: "self", conditions: [] };

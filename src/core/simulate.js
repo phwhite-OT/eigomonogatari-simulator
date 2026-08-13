@@ -49,6 +49,19 @@ function opponentSide(side) {
   return side === "allies" ? "enemies" : "allies";
 }
 
+function seededRandom(seed) {
+  let state = 2_166_136_261;
+  for (const character of String(seed ?? 0)) {
+    state = Math.imul(state ^ character.charCodeAt(0), 16_777_619);
+  }
+  return () => {
+    state = (state + 0x6D2B79F5) | 0;
+    let value = Math.imul(state ^ (state >>> 15), 1 | state);
+    value ^= value + Math.imul(value ^ (value >>> 7), 61 | value);
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
 function targetableIndexes(combatants) {
   return combatants.flatMap((combatant, index) => (
     combatant.alive && !combatant.isGhost ? [index] : []
@@ -124,8 +137,8 @@ function compareTargetCandidates(left, right, policy, killablePool) {
     );
   }
   return (
-    Number(right.killable) - Number(left.killable) ||
     right.remaining - left.remaining ||
+    Number(right.killable) - Number(left.killable) ||
     compareDamageEfficiency(left, right, killablePool) ||
     left.skillTurnsRemaining - right.skillTurnsRemaining ||
     right.survivalTurns - left.survivalTurns ||
@@ -138,7 +151,7 @@ export function targetPolicyReason(policy = TARGET_POLICIES.KILL_CONFIRM) {
   if (policy === TARGET_POLICIES.EXPERT) return "残数平準化を最優先に、撃破効率・発動間近のスキル・長期生存を統合して判断";
   if (policy === TARGET_POLICIES.BALANCE) return "敵の残りキャラ数の平準化を最優先";
   if (policy === TARGET_POLICIES.SKILL_THREAT) return "残数平準化後、発動が近い敵を優先";
-  return "撃破可能な敵を確実に倒すことを優先し、その中で敵の残数を平準化";
+  return "敵の残りキャラ数を最優先し、同数なら確実に倒せる敵を優先";
 }
 
 export function selectPriorityTarget(state, actorSide, options = {}) {
@@ -538,6 +551,7 @@ function resolveAttacks(state, intents, rules, options) {
         targetIndex,
         deferReplacement: true,
         consumeSkill: false,
+        random: options.random,
       },
     );
     next = result.state;
@@ -661,6 +675,7 @@ export function simulateBattle(initialState, rules, options = {}) {
   };
   let state = structuredClone(initialState);
   const history = [];
+  const random = typeof options.random === "function" ? options.random : seededRandom(options.randomSeed);
 
   for (let turnIndex = 0; turnIndex < totalTurns; turnIndex += 1) {
     options.onTurnStart?.({ turn: state.turn, state: structuredClone(state) });
@@ -686,7 +701,7 @@ export function simulateBattle(initialState, rules, options = {}) {
     phases.push(phase("defense", defense.events));
 
     const scheduledAttacks = attackIntents(state, selection.intents, rules, options);
-    const attack = resolveAttacks(state, scheduledAttacks, rules, options);
+    const attack = resolveAttacks(state, scheduledAttacks, rules, { ...options, random });
     state = attack.state;
     phases.push(phase("attack", attack.actions));
 

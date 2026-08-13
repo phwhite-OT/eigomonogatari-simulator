@@ -659,6 +659,7 @@ export async function inspectMetagameDeckEvidence(deck, constraint, characters, 
         targetPolicy: profile.targetPolicy,
         attackOrderPolicy: profile.attackOrderPolicy,
         playStyle: profile.playStyle,
+        randomSeed: scenarioIndex,
       },
     );
     const value = metagameProjectedWinValue(result);
@@ -716,6 +717,7 @@ async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, opt
         targetPolicy: profile.targetPolicy,
         attackOrderPolicy: profile.attackOrderPolicy,
         playStyle: profile.playStyle,
+        randomSeed: scenarioIndex,
       },
     );
     winValues.push(metagameProjectedWinValue(result));

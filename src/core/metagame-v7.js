@@ -824,6 +824,7 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
       targetPolicy: profile.targetPolicy,
       attackOrderPolicy: profile.attackOrderPolicy,
       playStyle: profile.playStyle,
+      randomSeed: index,
     });
     values.push(projectedWinValue(result));
     outcomes[result.outcome] += 1;

@@ -130,11 +130,20 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
   }
 
   const livingTargets = () => targetableIndexes(next[targetSide]);
+  const initialTargetIndex = preferredTargetIndex ?? livingTargets()[0];
+  const random = typeof options.random === "function" ? options.random : Math.random;
+  const randomLivingTargetIndex = () => {
+    const targets = livingTargets();
+    if (!targets.length) return undefined;
+    const roll = Number(random());
+    const normalized = Number.isFinite(roll) ? Math.min(0.999999999, Math.max(0, roll)) : 0;
+    return targets[Math.floor(normalized * targets.length)];
+  };
   const nextTargetIndex = () => {
     const targets = livingTargets();
-    return targets.includes(preferredTargetIndex) ? preferredTargetIndex : targets[0];
+    return targets.includes(initialTargetIndex) ? initialTargetIndex : targets[0];
   };
-  const attackTarget = (targetIndex, redirected = false) => {
+  const attackTarget = (targetIndex, redirected = false, targetMode = "priority") => {
     const defender = next[targetSide][targetIndex];
     if (!defender?.alive || defender.isGhost) return;
     const attackEffects = actor.isGhost ? [] : actor.buffs.filter(
@@ -178,6 +187,7 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
       hpAfter,
       defeated,
       redirected,
+      targetMode,
       factors: damage.factors,
       continuation: {
         attackSources: continuationEffectSources(
@@ -202,11 +212,16 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
     }
   } else if (skill.type === "multi_hit_attack") {
     for (let hit = 0; hit < Math.max(1, skill.hits); hit += 1) {
-      const fallbackIndex = nextTargetIndex();
+      const primaryAlive = livingTargets().includes(initialTargetIndex);
+      const fallbackIndex = primaryAlive ? initialTargetIndex : randomLivingTargetIndex();
       const redirectIndex = resolveRedirectIndex(next[targetSide], actor);
       const targetIndex = redirectIndex ?? fallbackIndex;
       if (targetIndex === undefined) break;
-      attackTarget(targetIndex, redirectIndex !== undefined);
+      attackTarget(
+        targetIndex,
+        redirectIndex !== undefined,
+        redirectIndex !== undefined ? "guard" : primaryAlive ? "priority" : "random_after_defeat",
+      );
     }
   } else {
     const fallbackIndex = nextTargetIndex();

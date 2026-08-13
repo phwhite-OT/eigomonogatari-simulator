@@ -214,8 +214,14 @@ function renderDamageFormula(hit, hitIndex) {
     : `${equation} = ${formatDamageFactor(raw)} → ${rounding} = ${formatDamageFactor(hit.damage)}`;
   const breakdown = element("p", "damage-formula-breakdown", factors.join(" ／ "));
   const attributeDetail = attributeFormulaText(hit.attribute);
-  if (attributeDetail) details.append(formula, breakdown, element("p", "damage-formula-breakdown", attributeDetail));
-  else details.append(formula, breakdown);
+  const targetDetail = hit.targetMode === "random_after_defeat"
+    ? "連撃の主対象を撃破したため、このヒットは生存中の敵からランダムに選択"
+    : hit.targetMode === "guard"
+      ? "かばう効果により、このヒットの対象を変更"
+      : "主対象へのヒット";
+  const targetLine = element("p", "damage-formula-breakdown", targetDetail);
+  if (attributeDetail) details.append(formula, breakdown, element("p", "damage-formula-breakdown", attributeDetail), targetLine);
+  else details.append(formula, breakdown, targetLine);
   return details;
 }
 
