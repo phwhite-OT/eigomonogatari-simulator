@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
-import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
+import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
 import {
   METAGAME_V7_MODEL_VERSION,
   buildMetagameV7CandidatePools,
@@ -86,7 +86,7 @@ async function writeCheckpoint(checkpointPath, checkpoint) {
 }
 
 const inputId = readArgument("input", "fire:100");
-const input = METAGAME_V7_INPUTS.find((entry) => entry.id === inputId);
+const input = METAGAME_V8_INPUTS.find((entry) => entry.id === inputId);
 if (!input) throw new Error(`v7入力 ${inputId} が見つかりません。`);
 
 const environmentCount = positiveInteger(readArgument("environment-count", "72"), 72, 9);

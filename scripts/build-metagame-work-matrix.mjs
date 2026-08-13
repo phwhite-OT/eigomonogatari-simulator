@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
-import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
+import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
 import { buildMetagameV7CandidatePools, resolveMetagameV7Input } from "../src/core/metagame-v7.js";
 import { buildMetagameCandidateShardPlan } from "../src/core/metagame-work-shards.js";
 
@@ -29,7 +29,7 @@ async function readProgress(checkpointPath) {
 }
 
 const inputId = readArgument("input", "fire:100");
-const input = METAGAME_V7_INPUTS.find((entry) => entry.id === inputId);
+const input = METAGAME_V8_INPUTS.find((entry) => entry.id === inputId);
 if (!input) throw new Error(`Unknown metagame input: ${inputId}`);
 
 const partnerLimit = positiveInteger(readArgument("partner-limit", "48"), 48, 32);

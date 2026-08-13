@@ -58,7 +58,10 @@ jobs:
           targets='[]'
           # Finish one constraint before starting another.  Its remaining
           # candidate ratings are then split across all available workers.
-          input_ids=("fire:100" "water:100" "wind:100" "fire-water:100" "fire-wind:100" "water-wind:100" "all:100")
+          input_ids=(
+            "fire:100" "water:100" "wind:100" "fire-water:100" "fire-wind:100" "water-wind:100" "all:100"
+            "fire:200" "water:200" "wind:200" "fire-water:200" "fire-wind:200" "water-wind:200" "all:200"
+          )
           for input_id in "${input_ids[@]}"; do
             output_directory="${input_id//:/-}"
             progress_path="reports/metagame-ratings-v8.5-role-balance/$output_directory/progress.json"
@@ -254,7 +257,9 @@ jobs:
           done < <(jq -c '.[]' <<< "$TARGETS")
 
           all_completed=true
-          for output_directory in fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100 all-100; do
+          for output_directory in \
+            fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100 all-100 \
+            fire-200 water-200 wind-200 fire-water-200 fire-wind-200 water-wind-200 all-200; do
             if ! is_complete_file "reports/metagame-ratings-v8.5-role-balance/${output_directory}/progress.json"; then
               all_completed=false
               break

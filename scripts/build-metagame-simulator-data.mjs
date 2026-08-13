@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { METAGAME_SIMULATOR_DATA as EXISTING_METAGAME_SIMULATOR_DATA } from "../src/data/metagame-simulator-data.js";
-import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
+import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
 import {
   buildEnvironmentPositionPool,
   DEFAULT_STRATEGIC_DECK_PROFILES,
@@ -20,7 +20,7 @@ const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
 const METAGAME_V8_MODEL_VERSION = "team-battle-v8.5-role-balance";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
-  ...METAGAME_V7_INPUTS.map((input) => Object.freeze({
+  ...METAGAME_V8_INPUTS.map((input) => Object.freeze({
     type: "v8",
     inputId: input.id,
     statusPath: `reports/metagame-ratings-v8.5-role-balance/${input.id.replaceAll(":", "-")}/progress.json`,
