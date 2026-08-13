@@ -342,3 +342,71 @@ test("継続ガードの直後には、単体評価より受け先耐久を優�
   assert.equal(candidates[0].deck[1].id, durable.id);
   assert.ok(fragileCandidate.handoffRisk > durableCandidate.handoffRisk);
 });
+
+test("a carried area attack values a durable successor", () => {
+  const openingSweep = metagameTestCharacter("opening-sweep", 15, "R", 2_400);
+  openingSweep.hp = 1;
+  openingSweep.skill = {
+    ...openingSweep.skill,
+    type: "aoe_attack",
+    target: "enemy_all",
+    duration: 3,
+  };
+  const durableGuard = metagameTestCharacter("durable-guard", 45, "R", 3_700);
+  durableGuard.hp = 6_300;
+  durableGuard.skill = {
+    ...durableGuard.skill,
+    type: "guard",
+    target: "self",
+    multiplier: 0.12,
+  };
+  const fragileSuccessor = metagameTestCharacter("fragile-successor", 15, "R", 800);
+  fragileSuccessor.hp = 300;
+  const sourceRating = { practicalSkillReliability: 1, allyRetentionRate: 0.02 };
+  const durableRating = {
+    powerPreference: 0.8,
+    enemyPressureRate: 0.75,
+    allyRetentionRate: 0.95,
+  };
+  const fragileRating = {
+    powerPreference: 0.25,
+    enemyPressureRate: 0.2,
+    allyRetentionRate: 0.05,
+  };
+
+  const durableScore = calculateMetagameDeckSynergy(
+    [openingSweep, durableGuard],
+    [sourceRating, durableRating],
+  );
+  const fragileScore = calculateMetagameDeckSynergy(
+    [openingSweep, fragileSuccessor],
+    [sourceRating, fragileRating],
+  );
+
+  assert.ok(durableScore > fragileScore);
+  assert.ok(durableScore > 0);
+});
+
+test("a self-targeted continuous buff uses handoff likelihood", () => {
+  const buff = metagameTestCharacter("self-buff", 20, "R", 1_500);
+  buff.skill = {
+    ...buff.skill,
+    type: "attack_buff",
+    target: "self",
+    multiplier: 2,
+    duration: 4,
+  };
+  const successor = metagameTestCharacter("successor", 20, "R", 2_500);
+  const targetRating = { powerPreference: 0.8, enemyPressureRate: 0.7, allyRetentionRate: 0.8 };
+  const fragileSourceScore = calculateMetagameDeckSynergy(
+    [buff, successor],
+    [{ practicalSkillReliability: 1, allyRetentionRate: 0.1 }, targetRating],
+  );
+  const durableSourceScore = calculateMetagameDeckSynergy(
+    [buff, successor],
+    [{ practicalSkillReliability: 1, allyRetentionRate: 0.95 }, targetRating],
+  );
+
+  assert.ok(fragileSourceScore > durableSourceScore);
+  assert.ok(durableSourceScore > 0);
+});

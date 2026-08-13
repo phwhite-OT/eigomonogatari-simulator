@@ -18,14 +18,14 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V8_MODEL_VERSION = "team-battle-v8.4-skill-reliability";
+const METAGAME_V8_MODEL_VERSION = "team-battle-v8.5-role-balance";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V7_INPUTS.map((input) => Object.freeze({
     type: "v8",
     inputId: input.id,
-    statusPath: `reports/metagame-ratings-v8.4-skill-reliability/${input.id.replaceAll(":", "-")}/progress.json`,
-    reportPath: `reports/metagame-ratings-v8.4-skill-reliability/${input.id.replaceAll(":", "-")}/report.json`,
-    reportRoot: "reports/metagame-ratings-v8.4-skill-reliability",
+    statusPath: `reports/metagame-ratings-v8.5-role-balance/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v8.5-role-balance/${input.id.replaceAll(":", "-")}/report.json`,
+    reportRoot: "reports/metagame-ratings-v8.5-role-balance",
     requiredModelVersion: METAGAME_V8_MODEL_VERSION,
     legacy: false,
   })),
@@ -241,6 +241,7 @@ function compactMetagameV8Candidate(entry, character) {
     cost: entry.cost,
     skillTurn: entry.skillTurn,
     skillType: entry.skillType,
+    skillTarget: entry.skillTarget ?? skill.target ?? "self",
     skillName: entry.skillName,
     overallRank: entry.rank ?? null,
     scenarioCount: entry.bestDeck?.scenarioCount ?? 0,

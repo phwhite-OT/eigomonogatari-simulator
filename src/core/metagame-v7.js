@@ -15,7 +15,7 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // input sheet still describes the five positions within one player's deck,
 // but a match is always simulated as five player decks versus five player
 // decks (25 characters per team including reserves).
-export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.4-skill-reliability";
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.5-role-balance";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
 // decide whether a report is compatible.
@@ -595,10 +595,23 @@ function v8DamageRatio(character, enemy, rules, skillMultiplier = 1) {
 }
 
 function v8HighDurabilityEnemies(environmentPool) {
-  const count = Math.max(1, Math.ceil(environmentPool.length * 0.35));
+  // A single-target finisher is a counter for the genuinely durable part of
+  // the field, not a replacement for clearing the whole board.  Restricting
+  // this sample to the upper fifth prevents ordinary enemies from making a
+  // precision skill look like universal board control.
+  const count = Math.max(1, Math.ceil(environmentPool.length * 0.2));
   return [...environmentPool]
     .sort((left, right) => (Number(right.hp) || 0) - (Number(left.hp) || 0))
     .slice(0, count);
+}
+
+function v8HardTargetDemand(environmentPool, highDurability) {
+  const allAverageHp = average(environmentPool.map((enemy) => Math.max(1, Number(enemy.hp) || 1)));
+  const highAverageHp = average(highDurability.map((enemy) => Math.max(1, Number(enemy.hp) || 1)));
+  // The demand grows only when the upper HP band is materially harder than
+  // the rest of the supplied environment.  This keeps a precision attacker
+  // valuable against real walls without granting it a blanket advantage.
+  return clampUnit((highAverageHp / Math.max(1, allAverageHp) - 1) / 1.25);
 }
 
 function v8RoleFitness(character, environmentPool, rules, { offense, defense, skill, allyCoverage, enemyCoverage }) {
@@ -606,6 +619,7 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
   const skillData = character.skill ?? {};
   const skillMultiplier = Math.max(0, Number(skillData.multiplier) || 0);
   const highDurability = v8HighDurabilityEnemies(environmentPool);
+  const hardTargetDemand = v8HardTargetDemand(environmentPool, highDurability);
   const attackShare = average(environmentPool.map((enemy) => (
     v8RoleIsAttack(v8RoleForCharacter(enemy)) ? 1 : 0
   )));
@@ -624,13 +638,19 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
   const concentratedMultiHitCoverage = average(highDurability.map((enemy) => (
     v8DamageRatio(character, enemy, rules, skillMultiplier * hitCount)
   )));
+  const boardElimination = average(environmentPool.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier) >= 1 ? 1 : 0
+  )));
 
   if (role === "precision_attack") {
+    const precisionValue = concentratedCoverage * (0.2 + hardTargetDemand * 0.8);
     return {
       role,
-      roleFit: concentratedCoverage * attackConditionCoverage,
+      roleFit: precisionValue * attackConditionCoverage,
       highDurabilityCoverage: concentratedCoverage,
       boardCoverage: perHitCoverage,
+      boardElimination,
+      hardTargetDemand,
       defenseMatchup: 0,
       reviveMatchup: 0,
     };
@@ -642,22 +662,39 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
     const boardCoverage = skillData.type === "multi_hit_attack"
       ? perHitCoverage * 0.7 + multiHitCoverage * 0.3
       : perHitCoverage;
+    // Board attacks gain value from removing several ordinary enemies.  Their
+    // value is intentionally capped by actual per-target damage: surplus
+    // damage beyond a kill does not become extra score.
+    const boardControl = clampUnit(boardCoverage * 0.65 + boardElimination * 0.35);
     return {
       role,
-      roleFit: boardCoverage * attackConditionCoverage,
+      roleFit: boardControl * attackConditionCoverage,
       highDurabilityCoverage: skillData.type === "multi_hit_attack" ? concentratedMultiHitCoverage : concentratedCoverage,
       boardCoverage,
+      boardElimination,
+      hardTargetDemand,
       defenseMatchup: 0,
       reviveMatchup: 0,
     };
   }
   if (role === "defense") {
-    const defenseMatchup = defense * (0.25 + nonAttackShare * 0.75);
+    const reduction = clampUnit(1 - (Number(skillData.multiplier) || 1));
+    // Defense normally wins against non-attack roles.  A high-reduction guard
+    // is the exception: it can also absorb an attack-heavy turn, which is the
+    // H.F. Woman style of stabilising after a board-clear handoff.
+    const exceptionalGuard = skillData.type === "guard" && skillData.target === "self"
+      ? reduction * reduction
+      : 0;
+    const defenseMatchup = clampUnit(
+      defense * (0.25 + nonAttackShare * 0.75) + exceptionalGuard * attackShare * 0.4,
+    );
     return {
       role,
       roleFit: defenseMatchup * 0.45 + skill * 0.55,
       highDurabilityCoverage: 0,
       boardCoverage: 0,
+      boardElimination: 0,
+      hardTargetDemand,
       defenseMatchup,
       reviveMatchup: 0,
     };
@@ -669,16 +706,23 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
       roleFit: reviveMatchup,
       highDurabilityCoverage: 0,
       boardCoverage: 0,
+      boardElimination: 0,
+      hardTargetDemand,
       defenseMatchup: 0,
       reviveMatchup,
     };
   }
   if (role === "support") {
+    // A buff is not a completed win condition on its own.  Its full value is
+    // added later only when a reachable successor can actually use it.
+    const standaloneSupport = skillData.target === "ally_all" ? 0.55 : 0.4;
     return {
       role,
-      roleFit: skill,
+      roleFit: skill * standaloneSupport,
       highDurabilityCoverage: 0,
       boardCoverage: 0,
+      boardElimination: 0,
+      hardTargetDemand,
       defenseMatchup: 0,
       reviveMatchup: 0,
     };
@@ -688,6 +732,8 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
     roleFit: (offense + defense) / 2,
     highDurabilityCoverage: 0,
     boardCoverage: 0,
+    boardElimination: 0,
+    hardTargetDemand,
     defenseMatchup: 0,
     reviveMatchup: 0,
   };
@@ -743,6 +789,7 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
     pow: character.pow,
     skillTurn: character.skillTurn,
     skillType: character.skill?.type ?? "none",
+    skillTarget: character.skill?.target ?? "self",
     skillName: character.skillName ?? "",
     role: roleProfile.role,
     individualScore: practicalValue,
@@ -751,6 +798,8 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
       frontline,
       highDurabilityCoverage: roleProfile.highDurabilityCoverage,
       boardCoverage: roleProfile.boardCoverage,
+      boardElimination: roleProfile.boardElimination,
+      hardTargetDemand: roleProfile.hardTargetDemand,
       defenseMatchup: roleProfile.defenseMatchup,
       reviveMatchup: roleProfile.reviveMatchup,
       costEfficiency,
@@ -765,15 +814,15 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
     powerPreference: statPower,
     enemyPressureRate: offense,
     combinationPotential: continuation,
-    continuationWinGain: continuation * skill,
-    carriedContinuationWinGain: continuation * skill,
-    tacticalUpside: skill,
+    continuationWinGain: continuation * skill * (roleProfile.role === "support" ? 0.55 : 1),
+    carriedContinuationWinGain: continuation * skill * (roleProfile.role === "support" ? 0.55 : 1),
+    tacticalUpside: skill * (roleProfile.role === "support" ? 0.65 : 1),
     tacticalRisk: 1 - skillReadiness,
     allyRetentionRate: defense,
     carriedDefenseRate: continuation * defense,
     advantageCreation: ["damage_reduction", "guard", "attribute_guard", "heal", "revive"].includes(character.skill?.type)
       ? skill : 0,
-    counteraction: ["single_attack", "aoe_attack", "attack_buff", "multi_hit_attack"].includes(character.skill?.type)
+    counteraction: ["single_attack", "aoe_attack", "multi_hit_attack"].includes(character.skill?.type)
       ? skill : 0,
     skillActivationRate: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? skillReadiness : 1,
     v7Proxy: {
@@ -1133,6 +1182,7 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
       pow: character.pow,
       skillTurn: character.skillTurn,
       skillType: character.skill?.type ?? "none",
+      skillTarget: character.skill?.target ?? "self",
       skillName: character.skillName ?? "",
       role: individual.role ?? v8RoleForCharacter(character),
       individualScore,
@@ -1175,6 +1225,7 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     pow: character.pow,
     skillTurn: character.skillTurn,
     skillType: character.skill?.type ?? "none",
+    skillTarget: character.skill?.target ?? "self",
     skillName: character.skillName ?? "",
     role: individual.role ?? v8RoleForCharacter(character),
     individualScore,

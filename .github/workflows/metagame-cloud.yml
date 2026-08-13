@@ -1,7 +1,7 @@
 name: Metagame environment evaluation
 
 on:
-  # V6 is superseded by V8.4 skill-reliability. Keep it available for an intentional manual
+  # V6 is superseded by V8.5 role-balance. Keep it available for an intentional manual
   # audit only, so its scheduled runs cannot delay Pages deployments.
   workflow_dispatch:
     inputs:

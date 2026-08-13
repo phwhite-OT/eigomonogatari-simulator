@@ -111,7 +111,7 @@ const candidateIndices = candidateIndicesArgument
 if (candidateIndices && !/^[1-5]$/.test(requestedPosition)) {
   throw new Error("--candidate-indices requires one explicit --position from 1 through 5");
 }
-const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8.4-skill-reliability");
+const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8.5-role-balance");
 const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds", "0")) || 0);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");

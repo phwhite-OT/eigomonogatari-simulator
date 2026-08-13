@@ -110,7 +110,7 @@ function renderMetagameCalculationStatus(container, data) {
   const methodology = metagameUiElement(
     "p",
     "metagame-calculation-methodology",
-    "実戦補正: 初手の被ターゲット、早すぎるスキルターン、火力、コスト圧迫、属性・継続攻撃の相乗効果を評価に反映。",
+    "実戦補正: 初手の被ターゲット、早すぎるスキルターン、コスト圧迫、火力過多の減衰、盤面制圧と高耐久対策の役割差、防御・蘇生による有利維持、継続効果の受け先を評価に反映。",
   );
   container.append(heading, metrics, note, methodology);
 }
