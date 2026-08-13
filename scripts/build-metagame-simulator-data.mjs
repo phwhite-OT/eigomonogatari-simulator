@@ -221,6 +221,13 @@ function metagameEnvironmentScenarios(decks) {
   return scenarios;
 }
 
+function compactMetagameV8TeamScenarios(report) {
+  return (report.teamScenarios ?? []).map((scenario) => ({
+    a: (scenario.allyDecks ?? []).map((deck) => deck.map((entry) => String(entry.id))),
+    e: (scenario.enemyDecks ?? []).map((deck) => deck.map((entry) => String(entry.id))),
+  })).filter((scenario) => scenario.a.length === 4 && scenario.e.length === 5);
+}
+
 function compactMetagameV8Candidate(entry, character) {
   const skill = character?.skill ?? {};
   const duration = Math.max(1, Number(skill.duration) || 1);
@@ -376,6 +383,10 @@ export function buildMetagameV8Constraint(report, charactersById) {
       }),
     })),
     precomputedDecks,
+    // Preserve the exact 4+5 team split used by the cloud evaluator.  The
+    // previous flat nine-deck representation is useful for legacy reports,
+    // but cannot reproduce V8's deterministic deck permutation for an audit.
+    teamScenarios: compactMetagameV8TeamScenarios(report),
     environmentScenarios: metagameEnvironmentScenarios(report.environmentDecks ?? []),
   };
 }

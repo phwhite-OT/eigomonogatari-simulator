@@ -114,13 +114,13 @@ function traceEventText(event) {
   return event.type;
 }
 
-function renderSimulationTrace(trace) {
+export function renderSimulationTrace(trace) {
   const section = element("section", "insight-panel simulation-trace");
   section.append(element("h4", "", `対戦処理ログ：${trace.profileName}`));
   section.append(element(
     "p",
     "trace-note",
-    "推薦デッキを味方P2として配置し、他の味方4人と敵5人は代表値で再現しています。実デッキ同士の勝率ではありません。",
+    trace.note ?? "推薦デッキを味方P2として配置し、他の味方4人と敵5人は代表値で再現しています。実デッキ同士の勝率ではありません。",
   ));
   const assumptions = element("details", "trace-assumptions");
   assumptions.append(element("summary", "", "シミュレーションの仮定を見る"));

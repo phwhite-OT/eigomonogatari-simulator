@@ -549,6 +549,155 @@ function metagameHydrateEnvironment(constraint, charactersById) {
   })));
 }
 
+function metagameHydrateDeck(ids, charactersById) {
+  if (!Array.isArray(ids) || ids.length !== 5) throw new Error("環境プレイヤーデッキが5体ではありません。");
+  return ids.map((id) => {
+    const character = charactersById.get(String(id));
+    if (!character) throw new Error(`環境キャラID ${id} がキャラクターデータにありません。`);
+    return character;
+  });
+}
+
+function metagameV8ReconstructedScenarioCount(constraint) {
+  const deckCount = (constraint.environmentScenarios ?? []).reduce((total, scenario) => (
+    total + (Array.isArray(scenario) ? scenario.length : 0)
+  ), 0);
+  if (deckCount < 9) return 0;
+  return Math.max(Math.ceil(deckCount / 9), Number(constraint.scenarioCount) || 0);
+}
+
+function metagameV8ReconstructScenario(constraint, scenarioIndex) {
+  const environmentDecks = (constraint.environmentScenarios ?? []).flat();
+  const deckCount = environmentDecks.length;
+  const scenarioCount = metagameV8ReconstructedScenarioCount(constraint);
+  if (deckCount < 9 || scenarioIndex >= scenarioCount) return null;
+
+  let stride = 17;
+  const greatestCommonDivisor = (left, right) => {
+    let a = Math.abs(left);
+    let b = Math.abs(right);
+    while (b) [a, b] = [b, a % b];
+    return a;
+  };
+  while (greatestCommonDivisor(stride, deckCount) !== 1) stride += 2;
+  const decks = Array.from({ length: 9 }, (_, offset) => (
+    environmentDecks[(scenarioIndex * 9 * stride + offset * stride) % deckCount]
+  ));
+  return {
+    source: "reconstructed-v8-team-scenario",
+    allyIds: decks.slice(0, 4),
+    enemyIds: decks.slice(4),
+  };
+}
+
+function metagameEvidenceScenario(constraint, charactersById, scenarioIndex) {
+  const exactScenario = constraint.teamScenarios?.[scenarioIndex];
+  if (exactScenario) {
+    const allyIds = exactScenario.a ?? exactScenario.allyDecks;
+    const enemyIds = exactScenario.e ?? exactScenario.enemyDecks;
+    if (!Array.isArray(allyIds) || allyIds.length !== 4 || !Array.isArray(enemyIds) || enemyIds.length !== 5) {
+      throw new Error("V8の対戦根拠データが壊れています。");
+    }
+    return {
+      source: "cloud-v8-team-scenario",
+      allyDecks: allyIds.map((deck) => metagameHydrateDeck(deck, charactersById)),
+      enemyDecks: enemyIds.map((deck) => metagameHydrateDeck(deck, charactersById)),
+    };
+  }
+  if (String(constraint.modelVersion ?? "").startsWith("team-battle-v8.")) {
+    const reconstructed = metagameV8ReconstructScenario(constraint, scenarioIndex);
+    if (reconstructed) {
+      return {
+        source: reconstructed.source,
+        allyDecks: reconstructed.allyIds.map((deck) => metagameHydrateDeck(deck, charactersById)),
+        enemyDecks: reconstructed.enemyIds.map((deck) => metagameHydrateDeck(deck, charactersById)),
+      };
+    }
+  }
+  const legacyScenario = constraint.environmentScenarios?.[scenarioIndex];
+  if (!Array.isArray(legacyScenario) || legacyScenario.length < 9) {
+    throw new Error("この評価には再生可能な環境対戦データがありません。");
+  }
+  const decks = legacyScenario.map((deck) => metagameHydrateDeck(deck, charactersById));
+  return {
+    source: "legacy-nine-deck-scenario",
+    allyDecks: decks.slice(0, 4),
+    enemyDecks: decks.slice(4, 9),
+  };
+}
+
+/**
+ * Replays the same team configurations and play profiles used by the rating.
+ * Only three representative full logs are returned, while the summary is
+ * calculated across every available scenario.
+ */
+export async function inspectMetagameDeckEvidence(deck, constraint, characters, options = {}) {
+  if (!Array.isArray(deck) || deck.length !== 5) throw new Error("再生する候補デッキは5体必要です。");
+  const charactersById = new Map(characters.map((character) => [String(character.id), character]));
+  const scenarioCount = Array.isArray(constraint.teamScenarios) && constraint.teamScenarios.length
+    ? constraint.teamScenarios.length
+    : String(constraint.modelVersion ?? "").startsWith("team-battle-v8.")
+      ? metagameV8ReconstructedScenarioCount(constraint)
+      : constraint.environmentScenarios?.length ?? 0;
+  if (!scenarioCount) throw new Error("この評価には再生可能な環境対戦データがありません。");
+
+  const values = [];
+  const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
+  const entries = [];
+  for (let scenarioIndex = 0; scenarioIndex < scenarioCount; scenarioIndex += 1) {
+    if (options.signal?.aborted) throw metagameAbortError();
+    const scenario = metagameEvidenceScenario(constraint, charactersById, scenarioIndex);
+    const actorIndex = scenarioIndex % 5;
+    const allyDecks = [...scenario.allyDecks];
+    allyDecks.splice(actorIndex, 0, deck);
+    const profile = METAGAME_DECK_PROFILES[scenarioIndex % METAGAME_DECK_PROFILES.length];
+    const result = simulateBattle(
+      createBattleState(allyDecks, scenario.enemyDecks),
+      options.rules ?? DEFAULT_RULES,
+      {
+        turns: constraint.turns,
+        targetPolicy: profile.targetPolicy,
+        attackOrderPolicy: profile.attackOrderPolicy,
+        playStyle: profile.playStyle,
+      },
+    );
+    const value = metagameProjectedWinValue(result);
+    values.push(value);
+    outcomes[result.outcome] += 1;
+    entries.push({
+      scenarioIndex,
+      source: scenario.source,
+      actorIndex,
+      profile,
+      value,
+      result,
+      allyDecks,
+      enemyDecks: scenario.enemyDecks,
+    });
+    options.onScenarioCompleted?.({ completed: scenarioIndex + 1, total: scenarioCount });
+    if ((scenarioIndex + 1) % 2 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  const ordered = [...entries].sort((left, right) => left.value - right.value || left.scenarioIndex - right.scenarioIndex);
+  const representativeIndexes = [...new Set([0, Math.floor((ordered.length - 1) / 2), ordered.length - 1])];
+  const labels = ["厳しい対戦例", "中央値の対戦例", "有利な対戦例"];
+  const total = Math.max(1, entries.length);
+  return {
+    source: entries[0]?.source ?? "unknown",
+    scenarioCount: entries.length,
+    expectedWinRate: values.reduce((sum, value) => sum + value, 0) / total,
+    expectedWinLowerBound: metagameMeanLowerBound(values),
+    decisiveWinRate: outcomes.allies / total,
+    decisiveDrawRate: outcomes.draw / total,
+    decisiveLossRate: outcomes.enemies / total,
+    ongoingRate: outcomes.ongoing / total,
+    samples: representativeIndexes.map((index, labelIndex) => ({
+      ...ordered[index],
+      label: labels[labelIndex] ?? "対戦例",
+    })),
+  };
+}
+
 async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, options) {
   const winValues = [];
   const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };

@@ -430,6 +430,25 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-slot-copy small { display: block; color: #697671; font-size: 8px; line-height: 1.55; }
 .metagame-slot-rating { margin-top: 7px; color: #5c7120 !important; font-weight: 700; }
 .metagame-result-note { margin: 2px 2px 0; color: var(--ink-soft); font-size: 10px; line-height: 1.7; }
+.metagame-evidence { margin: 0 14px 14px; border: 1px solid #d7e2bf; border-radius: 13px; background: #f8fbee; }
+.metagame-evidence > summary { padding: 12px 14px; color: #526a24; cursor: pointer; font-size: 10px; font-weight: 900; }
+.metagame-evidence-note, .metagame-evidence-overlap, .metagame-evidence-summary, .metagame-evidence-error { margin: 0; padding: 0 14px 11px; color: #65716d; font-size: 9px; line-height: 1.7; }
+.metagame-evidence-overlap { color: #536721; font-weight: 800; }
+.metagame-evidence-error { color: #953b2a; }
+.metagame-evidence-button { margin: 0 14px 13px; padding: 8px 11px; border: 0; border-radius: 8px; background: #637a2d; color: white; font: inherit; font-size: 9px; font-weight: 900; cursor: pointer; }
+.metagame-evidence-button:disabled { cursor: wait; opacity: .65; }
+.metagame-evidence-output { display: grid; gap: 10px; }
+.metagame-evidence-output > .metagame-evidence-note { padding-bottom: 13px; }
+.metagame-evidence-summary { padding: 11px 14px; border-top: 1px solid #dce5cc; border-bottom: 1px solid #dce5cc; background: rgba(255,255,255,.68); color: #3d5142; font-size: 10px; font-weight: 900; }
+.metagame-evidence-sample { padding: 0 14px 14px; }
+.metagame-evidence-sample h5 { margin: 0 0 4px; color: #435a1f; font-size: 11px; }
+.metagame-evidence-outcome { margin: 0 0 9px; color: #697771; font-size: 8px; }
+.metagame-evidence-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metagame-evidence-team { min-width: 0; padding: 9px; border: 1px solid #dce4d1; border-radius: 9px; background: white; }
+.metagame-evidence-team strong { display: block; margin-bottom: 5px; color: #516328; font-size: 9px; }
+.metagame-evidence-team ol { display: grid; gap: 4px; margin: 0; padding-left: 18px; }
+.metagame-evidence-team li { overflow: hidden; color: #64706c; font-size: 7px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-evidence .simulation-trace { margin-top: 10px; }
 
 @media (max-width: 1120px) {
   .metagame-slot-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -445,6 +464,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .metagame-fixed-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metagame-fixed-picker-results { grid-template-columns: 1fr; }
   .metagame-slot-list { grid-template-columns: 1fr 1fr; }
+  .metagame-evidence-teams { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {

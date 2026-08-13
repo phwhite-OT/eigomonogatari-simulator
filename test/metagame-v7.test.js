@@ -11,7 +11,7 @@ import {
   resolveMetagameV7Input,
   resolveMetagameV7Name,
 } from "../src/core/metagame-v7.js";
-import { findBestMetagameDeck } from "../src/core/metagame-deck.js";
+import { findBestMetagameDeck, inspectMetagameDeckEvidence } from "../src/core/metagame-deck.js";
 import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { buildMetagameV8Constraint } from "../scripts/build-metagame-simulator-data.mjs";
@@ -137,7 +137,7 @@ test("v8.2 broad environment gives each supplied pivot multiple legal partner co
   assert.ok(decks.every((deck) => deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
 });
 
-test("v8 evaluates a candidate deck within a 5v5 team scenario", () => {
+test("v8 evaluates a candidate deck within a 5v5 team scenario", async () => {
   const teams = [0, 1, 2, 3, 4].map((team) => [1, 2, 3, 4, 5].map((position) => (
     v7TestCharacter(`team-${team}-slot-${position}`, `team-${team}-slot-${position}`, position, {
       cost: 20,
@@ -156,6 +156,28 @@ test("v8 evaluates a candidate deck within a 5v5 team scenario", () => {
   assert.ok(scenarios.every((scenario) => scenario.enemyDecks.length === 5));
   assert.equal(result.scenarioCount, 2);
   assert.ok(Number.isFinite(result.expectedWinRate));
+
+  const evidence = await inspectMetagameDeckEvidence(teams[0], {
+    turns: 1,
+    teamScenarios: scenarios.map((scenario) => ({
+      a: scenario.allyDecks.map((entry) => entry.map((character) => String(character.id))),
+      e: scenario.enemyDecks.map((entry) => entry.map((character) => String(character.id))),
+    })),
+  }, teams.flat());
+  assert.equal(evidence.source, "cloud-v8-team-scenario");
+  assert.equal(evidence.scenarioCount, 2);
+  assert.equal(evidence.samples.length, 2);
+  assert.ok(Math.abs(evidence.expectedWinRate - result.expectedWinRate) < 1e-12);
+
+  const reconstructedEvidence = await inspectMetagameDeckEvidence(teams[0], {
+    modelVersion: "team-battle-v8.0",
+    turns: 1,
+    scenarioCount: 2,
+    environmentScenarios: [teams.concat(teams).map((entry) => entry.map((character) => String(character.id)))],
+  }, teams.flat());
+  assert.equal(reconstructedEvidence.source, "reconstructed-v8-team-scenario");
+  assert.equal(reconstructedEvidence.scenarioCount, 2);
+  assert.ok(Math.abs(reconstructedEvidence.expectedWinRate - result.expectedWinRate) < 1e-12);
 });
 
 test("v8 team scenarios cover every supplied environment deck", () => {
@@ -321,6 +343,14 @@ test("completed v7 report is converted into a precomputed deck-generator constra
     environmentDecks: [characters.map((character) => ({
       id: String(character.id), name: character.name, cost: character.cost,
     }))],
+    teamScenarios: [{
+      allyDecks: Array.from({ length: 4 }, () => characters.map((character) => ({
+        id: String(character.id), name: character.name, cost: character.cost,
+      }))),
+      enemyDecks: Array.from({ length: 5 }, () => characters.map((character) => ({
+        id: String(character.id), name: character.name, cost: character.cost,
+      }))),
+    }],
     rankingsByPosition: characters.map((character, index) => ({
       position: index + 1,
       characters: [{
@@ -354,6 +384,9 @@ test("completed v7 report is converted into a precomputed deck-generator constra
   assert.equal(constraint.slots[0].candidates, undefined);
   assert.equal(constraint.precomputedDecks[0].l, 0.5);
   assert.equal(constraint.environmentScenarios.length, 1);
+  assert.equal(constraint.teamScenarios.length, 1);
+  assert.equal(constraint.teamScenarios[0].a.length, 4);
+  assert.equal(constraint.teamScenarios[0].e.length, 5);
 
   const result = await findBestMetagameDeck(
     { generatedAt: report.generatedAt, constraints: [constraint] },

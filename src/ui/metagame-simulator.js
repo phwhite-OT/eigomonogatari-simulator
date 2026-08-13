@@ -1,6 +1,11 @@
 import { attributeClassLabel } from "../data/rules.js";
-import { findBestMetagameDeck, matchesMetagameFixedConstraint } from "../core/metagame-deck.js";
+import {
+  findBestMetagameDeck,
+  inspectMetagameDeckEvidence,
+  matchesMetagameFixedConstraint,
+} from "../core/metagame-deck.js";
 import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
+import { renderSimulationTrace } from "./result.js";
 
 function metagameUiElement(tag, className, text) {
   const node = document.createElement(tag);
@@ -78,7 +83,7 @@ function renderMetagameCalculationStatus(container, data) {
     "p",
     "metagame-calculation-note",
     metagameUiUsesInvalidPreV8Data(data)
-      ? "旧V7.5の1対1結果は無効です。5対5・継続ありのV8評価を再計算中のため、完了まで最高勝率デッキは表示しません。"
+      ? "旧V7.5の1対1結果は無効です。5対5・継続ありのV8評価を再計算中のため、完了まで候補デッキは表示しません。"
       : data.constraints.length
       ? `${availableLabels}は${passLabel}の全5枠が完了済みです。未完了の条件は表示・デッキ計算に含めません。`
       : "完了済みの5枠セットがまだないため、環境データは表示できません。",
@@ -93,8 +98,8 @@ function renderMetagameCalculationStatus(container, data) {
 
 function metagameUiImpactReasons(character, rating, environment, deck) {
   const reasons = [
-    `このキャラを${rating.scenarioCount}盤面で固定評価: 予測勝率 ${metagameUiPercent(rating.expectedWinRate)} / 信頼下限 ${metagameUiPercent(rating.expectedWinLowerBound)}`,
-    `スキル有効時と無効時の勝率差 ${metagameUiSigned((Number(rating.skillWinGain) || 0) * 100)}pt / 実発動率 ${metagameUiPercent(rating.skillActivationRate)}`,
+    `このキャラを${rating.scenarioCount}盤面で固定評価: 12ターン評価値 ${metagameUiPercent(rating.expectedWinRate)} / 信頼下限 ${metagameUiPercent(rating.expectedWinLowerBound)}`,
+    `スキル有効時と無効時の評価値差 ${metagameUiSigned((Number(rating.skillWinGain) || 0) * 100)}pt / 実発動率 ${metagameUiPercent(rating.skillActivationRate)}`,
     `1盤面あたりの差分: 味方交代抑制 ${metagameUiSigned(rating.allyPreservationNet)} / 敵交代増加 ${metagameUiSigned(rating.enemyRemovalNet)}`,
     `味方維持率 ${metagameUiPercent(rating.allyRetentionRate)} / 敵への進行率 ${metagameUiPercent(rating.enemyPressureRate)}`,
   ];
@@ -137,7 +142,7 @@ function metagameUiSlot(character, rating, position, environment, deck) {
   const ratingLine = metagameUiElement(
     "small",
     "metagame-slot-rating",
-    `枠単体の詳細評価 ${metagameUiPercent(rating.expectedWinRate)}・総合${rating.overallRank}位`,
+    `枠単体の12ターン評価値 ${metagameUiPercent(rating.expectedWinRate)}・総合${rating.overallRank}位`,
   );
   const impact = metagameUiElement("details", "metagame-impact");
   impact.append(metagameUiElement("summary", "", "この枠での採用根拠を見る"));
@@ -180,18 +185,129 @@ function metagameUiEnvironmentAudit(constraint) {
   return section;
 }
 
-function metagameUiResultCard(result, rank, constraint) {
+function metagameUiDeckEnvironmentOverlap(deck, constraint) {
+  const environmentById = new Map((constraint.slots ?? []).flatMap((slot) => slot.environment ?? []).map((entry) => [
+    String(entry.id), entry,
+  ]));
+  return deck.map((character) => environmentById.get(String(character.id))).filter(Boolean);
+}
+
+function metagameUiTeamList(title, decks) {
+  const section = metagameUiElement("section", "metagame-evidence-team");
+  section.append(metagameUiElement("strong", "", title));
+  const list = metagameUiElement("ol", "");
+  decks.forEach((deck, index) => {
+    list.append(metagameUiElement(
+      "li",
+      "",
+      `P${index + 1}: ${deck.map((character) => character.name).join(" → ")}`,
+    ));
+  });
+  section.append(list);
+  return section;
+}
+
+function metagameUiEvidenceSample(sample) {
+  const section = metagameUiElement("section", "metagame-evidence-sample");
+  section.append(metagameUiElement(
+    "h5",
+    "",
+    `${sample.label} #${sample.scenarioIndex + 1} — 12ターン評価値 ${metagameUiPercent(sample.value)}`,
+  ));
+  section.append(metagameUiElement(
+    "p",
+    "metagame-evidence-outcome",
+    `決着: ${sample.result.outcome} / 操作方針: ${sample.profile.id} / 推薦デッキは味方P${sample.actorIndex + 1}`,
+  ));
+  const teams = metagameUiElement("div", "metagame-evidence-teams");
+  teams.append(
+    metagameUiTeamList("味方5人のデッキ", sample.allyDecks),
+    metagameUiTeamList("敵5人のデッキ", sample.enemyDecks),
+  );
+  section.append(teams, renderSimulationTrace({
+    profileName: sample.profile.id,
+    assumptions: sample.result.assumptions,
+    history: sample.result.history,
+    note: `この記録はクラウド評価で使った5対5の対戦組です。推薦デッキを味方P${sample.actorIndex + 1}へ入れ、表示した味方4人・敵5人の完成デッキをそのまま再生しています。`,
+  }));
+  return section;
+}
+
+function metagameUiEvidence(result, constraint, characters) {
+  const details = metagameUiElement("details", "metagame-evidence");
+  details.append(metagameUiElement("summary", "", "この評価の対戦根拠を再生する"));
+
+  const description = metagameUiElement(
+    "p",
+    "metagame-evidence-note",
+    "全対戦を再生して、厳しい例・中央値・有利な例のターン別ログを表示します。12ターンで決着しない対戦は、残り人数と残HPから評価値を算出します。",
+  );
+  const overlap = metagameUiDeckEnvironmentOverlap(result.deck, constraint);
+  const overlapLine = metagameUiElement(
+    "p",
+    "metagame-evidence-overlap",
+    overlap.length
+      ? `環境提示キャラの採用: ${overlap.length}/5（${overlap.map((character) => character.name).join(" / ")}）`
+      : "環境提示キャラの採用: 0/5。現行の候補生成は環境キャラを必須にしていないため、この結果は別途検証が必要です。",
+  );
+  const button = metagameUiElement("button", "metagame-evidence-button", "全対戦を再生して根拠を表示");
+  button.type = "button";
+  const output = metagameUiElement("div", "metagame-evidence-output");
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    output.replaceChildren(metagameUiElement("p", "metagame-evidence-note", "対戦記録を再生しています…"));
+    try {
+      const evidence = await inspectMetagameDeckEvidence(result.deck, constraint, characters, {
+        onScenarioCompleted: ({ completed, total }) => {
+          output.replaceChildren(metagameUiElement(
+            "p",
+            "metagame-evidence-note",
+            `対戦記録を再生しています… ${completed}/${total}`,
+          ));
+        },
+      });
+      const summary = metagameUiElement("p", "metagame-evidence-summary");
+      const sourceLabel = evidence.source === "cloud-v8-team-scenario"
+        ? "クラウド保存済みの5対5組合せ"
+        : evidence.source === "reconstructed-v8-team-scenario"
+          ? "保存済みの環境デッキ順から復元したV8の5対5組合せ"
+          : "旧形式の9デッキ組合せ";
+      const replayGap = evidence.expectedWinRate - Number(result.expectedWinRate || 0);
+      summary.textContent =
+        `再生結果（${evidence.scenarioCount}戦 / ${sourceLabel}）: 保存値 ${metagameUiPercent(result.expectedWinRate)} ` +
+        `/ 再生値 ${metagameUiPercent(evidence.expectedWinRate)}（差 ${metagameUiSigned(replayGap * 100)}pt）` +
+        `/ 信頼下限 ${metagameUiPercent(evidence.expectedWinLowerBound)} ` +
+        `/ 勝 ${metagameUiPercent(evidence.decisiveWinRate)} ` +
+        `/ 分 ${metagameUiPercent(evidence.decisiveDrawRate)} ` +
+        `/ 負 ${metagameUiPercent(evidence.decisiveLossRate)} ` +
+        `/ 未決着 ${metagameUiPercent(evidence.ongoingRate)}`;
+      output.replaceChildren(summary, ...evidence.samples.map(metagameUiEvidenceSample));
+    } catch (error) {
+      output.replaceChildren(metagameUiElement(
+        "p",
+        "metagame-evidence-error",
+        error.message ?? String(error),
+      ));
+    } finally {
+      button.disabled = false;
+    }
+  });
+  details.append(description, overlapLine, button, output);
+  return details;
+}
+
+function metagameUiResultCard(result, rank, constraint, characters) {
   const card = metagameUiElement("article", `metagame-deck-result${rank === 1 ? " is-best" : ""}`);
   const header = metagameUiElement("header", "metagame-result-header");
   const title = metagameUiElement("div", "");
   title.append(
     metagameUiElement("span", "metagame-result-rank", rank === 1 ? "BEST DECK" : `NEXT ${rank}`),
-    metagameUiElement("h3", "", rank === 1 ? "最高予測勝率デッキ" : "次点デッキ"),
+    metagameUiElement("h3", "", rank === 1 ? "最高12ターン評価値デッキ" : "次点デッキ"),
   );
   const winRate = metagameUiElement("div", "metagame-win-rate");
   winRate.append(
     metagameUiElement("strong", "", metagameUiPercent(result.expectedWinRate)),
-    metagameUiElement("span", "", `信頼下限 ${metagameUiPercent(result.expectedWinLowerBound)}`),
+    metagameUiElement("span", "", `12ターン評価値・下限 ${metagameUiPercent(result.expectedWinLowerBound)}`),
   );
   header.append(title, winRate);
   const summary = metagameUiElement("div", "metagame-result-summary");
@@ -212,11 +328,11 @@ function metagameUiResultCard(result, rank, constraint) {
       result.deck,
     ),
   ));
-  card.append(header, summary, slots);
+  card.append(header, summary, slots, metagameUiEvidence(result, constraint, characters));
   return card;
 }
 
-function renderMetagameSimulatorResult(container, searchResult) {
+function renderMetagameSimulatorResult(container, searchResult, characters) {
   container.replaceChildren();
   const overview = metagameUiElement("section", "metagame-result-overview");
   overview.append(
@@ -230,10 +346,10 @@ function renderMetagameSimulatorResult(container, searchResult) {
   );
   container.append(overview, metagameUiEnvironmentAudit(searchResult.constraint));
   searchResult.results.forEach((result, index) => container.append(
-    metagameUiResultCard(result, index + 1, searchResult.constraint),
+    metagameUiResultCard(result, index + 1, searchResult.constraint, characters),
   ));
   const note = metagameUiElement("p", "metagame-result-note");
-  note.textContent = "採用根拠は、そのキャラを対象枠へ固定した30盤面での差分です。完成デッキの予測勝率は、別途30環境へ再投入して比較しています。引き分けは0.5、12ターンで未決着の場合は残数と残HPから勝利見込みを算出します。";
+  note.textContent = "採用根拠は、そのキャラを対象枠へ固定した30盤面での差分です。完成デッキは別途環境へ再投入して比較しています。引き分けは0.5、12ターンで未決着の場合は残数と残HPから盤面評価値を算出します。";
   container.append(note);
 }
 
@@ -344,7 +460,7 @@ export function initializeMetagameSimulator(root, data, characters) {
       // A prior selection must not overwrite the current selection or a
       // user-initiated calculation if it completes afterwards.
       if (displayedPrecomputedConstraintId !== constraintId || abortController) return;
-      renderMetagameSimulatorResult(resultRoot, searchResult);
+      renderMetagameSimulatorResult(resultRoot, searchResult, characters);
     }).catch((error) => {
       if (displayedPrecomputedConstraintId !== constraintId || abortController) return;
       renderMetagameSimulatorMessage(resultRoot, error.message ?? String(error), true);
@@ -557,7 +673,7 @@ export function initializeMetagameSimulator(root, data, characters) {
           progressBar.style.width = `${Math.round(ratio * 100)}%`;
         },
       });
-      renderMetagameSimulatorResult(resultRoot, searchResult);
+      renderMetagameSimulatorResult(resultRoot, searchResult, characters);
     } catch (error) {
       renderMetagameSimulatorMessage(
         resultRoot,

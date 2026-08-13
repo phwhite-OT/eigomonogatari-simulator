@@ -58,8 +58,8 @@
       <div class="metagame-simulator-heading">
         <div>
           <span class="eyebrow">SURVEYED METAGAME SIMULATOR</span>
-          <h2>調査済み環境から、最高勝率の5体を探す</h2>
-          <p>枠ごとの詳細評価で候補を絞り、完成デッキを実際の予測環境へ投入して勝率を比較します。</p>
+          <h2>調査済み環境から、12ターン評価値の高い5体を探す</h2>
+          <p>完成デッキを5対5の予測環境へ投入して比較します。決着しない対戦は12ターン時点の盤面優勢を評価値に含め、対戦根拠から実際の記録を再生できます。</p>
         </div>
         <span class="metagame-data-status" data-metagame-data-status></span>
       </div>
@@ -69,7 +69,7 @@
           <span>調査済みの属性・コスト縛り</span>
           <select name="metagameConstraint" aria-label="調査済み縛り"></select>
         </label>
-        <button class="button button-search" type="button" data-metagame-submit><span>最高勝率デッキを計算</span><b>→</b></button>
+        <button class="button button-search" type="button" data-metagame-submit><span>候補デッキを評価</span><b>→</b></button>
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
         <section class="metagame-fixed-slots" data-metagame-fixed-slots>
           <div class="metagame-fixed-slots-heading">
