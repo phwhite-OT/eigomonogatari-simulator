@@ -1940,20 +1940,38 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return Number(rules.damage.attributeMultipliers?.[`${attackAttribute}:${defenseAttribute}`] ?? 1);  
   }  
     
-  function resolveAttributeMultiplier(attackerAttributes, defenderAttributes, rules) {  
-    const attacks = attackerAttributes?.length ? attackerAttributes : ["neutral"];  
-    const defenses = defenderAttributes?.length ? defenderAttributes : ["neutral"];  
-    const multipliers = attacks.flatMap((attack) =>  
-      defenses.map((defense) => resolvePairMultiplier(attack, defense, rules)),  
-    );  
-    
-    if (rules.damage.attributeResolution === "best") return Math.max(...multipliers);  
-    if (rules.damage.attributeResolution === "worst") return Math.min(...multipliers);  
-    if (rules.damage.attributeResolution === "average") {  
-      return multipliers.reduce((sum, multiplier) => sum + multiplier, 0) / multipliers.length;  
-    }  
-    return multipliers[0] ?? 1;  
-  }  
+  function resolveAttributeMultiplier(attackerAttributes, defenderAttributes, rules) {
+    return resolveAttributeMultiplierDetails(attackerAttributes, defenderAttributes, rules).multiplier;
+  }
+  
+  function resolveAttributeMultiplierDetails(attackerAttributes, defenderAttributes, rules) {
+    const attacks = attackerAttributes?.length ? attackerAttributes : ["neutral"];
+    const defenses = defenderAttributes?.length ? defenderAttributes : ["neutral"];
+    const pairs = attacks.flatMap((attack) =>
+      defenses.map((defense) => ({
+        attack,
+        defense,
+        multiplier: resolvePairMultiplier(attack, defense, rules),
+      })),
+    );
+    const multipliers = pairs.map((pair) => pair.multiplier);
+  
+    let multiplier;
+    if (rules.damage.attributeResolution === "best") multiplier = Math.max(...multipliers);
+    else if (rules.damage.attributeResolution === "worst") multiplier = Math.min(...multipliers);
+    else if (rules.damage.attributeResolution === "average") {
+      multiplier = multipliers.reduce((sum, entry) => sum + entry, 0) / multipliers.length;
+    } else {
+      multiplier = multipliers[0] ?? 1;
+    }
+    return {
+      attacks: [...attacks],
+      defenses: [...defenses],
+      pairs,
+      resolution: rules.damage.attributeResolution,
+      multiplier,
+    };
+  }
     
   function normalizeMultiplier(value, fallback = 1) {  
     const multiplier = Number(value);  
@@ -2001,11 +2019,12 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     defenseMultiplier = 1,  
     rules,  
   }) {  
-    const attributeMultiplier = resolveAttributeMultiplier(  
-      attacker.attributes,  
-      defender.attributes,  
-      rules,  
-    );  
+    const attribute = resolveAttributeMultiplierDetails(
+      attacker.attributes,
+      defender.attributes,
+      rules,
+    );
+    const attributeMultiplier = attribute.multiplier;
     const factors = {  
       pow: Number(attacker.pow) || 0,  
       skill: Number(skillMultiplier) || 0,  
@@ -2023,11 +2042,12 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     };  
     const raw = Object.values(factors).reduce((product, factor) => product * factor, 1);  
     return {  
-      value: applyRounding(raw, rules.damage.rounding),  
-      raw,  
-      factors,  
-    };  
-  }  
+      value: applyRounding(raw, rules.damage.rounding),
+      raw,
+      factors,
+      attribute,
+    };
+  }
     
   function resolveAttack(params) {  
     const damage = calculateMinimumDamage(params);  
@@ -2586,6 +2606,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         damage: damage.value,
         damageRaw: damage.raw,
         rounding: rules.damage.rounding,
+        survivalTurns: actor.isGhost ? 0 : actor.survivalTurns,
+        survivalBaseMultiplier: rules.damage.survivalBaseMultiplier,
+        attribute: damage.attribute,
         hpBefore,
         hpAfter,
         defeated,  
@@ -9485,6 +9508,13 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     ["defense", "防御補正"],
   ]);
   
+  const ATTRIBUTE_LABELS = Object.freeze({
+    fire: "火",
+    water: "水",
+    wind: "風",
+    neutral: "無",
+  });
+  
   function formatDamageFactor(value) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric)) return "?";
@@ -9500,6 +9530,43 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       : undefined;
   }
   
+  function formatAttributeMultiplier(value) {
+    const numeric = Number(value);
+    const fractions = [
+      [1 / 3, "1/3"],
+      [1 / 2, "1/2"],
+      [2 / 3, "2/3"],
+      [3 / 4, "3/4"],
+      [5 / 6, "5/6"],
+      [1, "1"],
+    ];
+    const fraction = fractions.find(([expected]) => Math.abs(numeric - expected) < 1e-9);
+    return fraction ? `${fraction[1]}（${formatDamageFactor(numeric)}）` : formatDamageFactor(numeric);
+  }
+  
+  function attributeFormulaText(attribute) {
+    if (!attribute?.pairs?.length) return "";
+    const attributes = (values) => values.map((value) => ATTRIBUTE_LABELS[value] ?? value).join("・");
+    const pairTerms = attribute.pairs.map((pair) => (
+      `${ATTRIBUTE_LABELS[pair.attack] ?? pair.attack}→${ATTRIBUTE_LABELS[pair.defense] ?? pair.defense} ${formatAttributeMultiplier(pair.multiplier)}`
+    ));
+    const operator = attribute.resolution === "average"
+      ? `）÷${attribute.pairs.length}`
+      : "）";
+    return `属性：攻撃 ${attributes(attribute.attacks)} ／ 防御 ${attributes(attribute.defenses)}。` +
+      `（${pairTerms.join(" ＋ ")}${operator} = ${formatAttributeMultiplier(attribute.multiplier)}`;
+  }
+  
+  function factorBreakdownText(key, label, value, hit) {
+    if (key === "survival") {
+      const turns = Math.max(0, Number(hit.survivalTurns) || 0);
+      const base = Number(hit.survivalBaseMultiplier) || 1.3;
+      return `${label} ${formatDamageFactor(value)}（${formatDamageFactor(base)}^${turns}、${turns}ターン生存）`;
+    }
+    if (key === "attribute") return `${label} ${formatAttributeMultiplier(value)}`;
+    return `${label} ${formatDamageFactor(value)}`;
+  }
+  
   function renderDamageFormula(hit, hitIndex) {
     if (!hit.factors || !Object.keys(hit.factors).length) return null;
     const details = element("details", "damage-formula");
@@ -9507,7 +9574,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   
     const factors = DAMAGE_FACTOR_LABELS
       .filter(([key]) => Object.hasOwn(hit.factors, key))
-      .map(([key, label]) => `${label} ${formatDamageFactor(hit.factors[key])}`);
+      .map(([key, label]) => factorBreakdownText(key, label, hit.factors[key], hit));
     const equation = DAMAGE_FACTOR_LABELS
       .filter(([key]) => Object.hasOwn(hit.factors, key))
       .map(([key]) => formatDamageFactor(hit.factors[key]))
@@ -9524,7 +9591,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       ? `${equation} → ${rounding} = ${formatDamageFactor(hit.damage)}`
       : `${equation} = ${formatDamageFactor(raw)} → ${rounding} = ${formatDamageFactor(hit.damage)}`;
     const breakdown = element("p", "damage-formula-breakdown", factors.join(" ／ "));
-    details.append(formula, breakdown);
+    const attributeDetail = attributeFormulaText(hit.attribute);
+    if (attributeDetail) details.append(formula, breakdown, element("p", "damage-formula-breakdown", attributeDetail));
+    else details.append(formula, breakdown);
     return details;
   }
   

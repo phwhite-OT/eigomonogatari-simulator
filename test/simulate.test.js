@@ -83,6 +83,8 @@ test("支援スキルを攻撃前に発動し、選択理由と攻撃を別々�
   assert.equal(hit.rounding, "floor");
   assert.equal(hit.factors.pow, 100);
   assert.equal(hit.factors.attack, 2);
+  assert.equal(hit.survivalTurns, 0);
+  assert.equal(hit.attribute.multiplier, 1);
 });
 
 test("ターン開始後に交代した控えキャラは同じターンに行動しない", () => {

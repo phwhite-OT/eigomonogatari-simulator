@@ -6,6 +6,7 @@ import {
   resolveAttack,
   resolveAttackBuffMultiplier,
   resolveAttributeMultiplier,
+  resolveAttributeMultiplierDetails,
   resolveDefenseMultiplier,
 } from "../src/core/damage.js";
 
@@ -45,6 +46,52 @@ test("複属性は攻撃側と防御側の全組み合わせを平均する", ()
     DEFAULT_RULES,
   );
   assertClose(multiplier, 3 / 4);
+});
+
+test("火風から水への属性倍率は等倍でなく2/3で、内訳を保持する", () => {
+  const details = resolveAttributeMultiplierDetails(["fire", "wind"], ["water"], DEFAULT_RULES);
+  assertClose(details.multiplier, 2 / 3);
+  assert.deepEqual(details.pairs, [
+    { attack: "fire", defense: "water", multiplier: 1 / 3 },
+    { attack: "wind", defense: "water", multiplier: 1 },
+  ]);
+  const damage = calculateMinimumDamage({
+    attacker: { pow: 1000, attributes: ["fire", "wind"], survivalTurns: 0 },
+    defender: { hp: 9999, attributes: ["water"] },
+    rules: DEFAULT_RULES,
+  });
+  assert.equal(damage.factors.survival, 1);
+  assert.equal(damage.attribute.multiplier, 2 / 3);
+});
+
+test("単色・複属性・全属性の全組合せを公式の平均ルールで検証する", () => {
+  const classes = {
+    fire: ["fire"],
+    water: ["water"],
+    wind: ["wind"],
+    fire_water: ["fire", "water"],
+    water_wind: ["water", "wind"],
+    fire_wind: ["fire", "wind"],
+    all: ["fire", "water", "wind"],
+  };
+  const expected = {
+    fire: [2 / 3, 1 / 3, 1, 1 / 2, 2 / 3, 5 / 6, 2 / 3],
+    water: [1, 2 / 3, 1 / 3, 5 / 6, 1 / 2, 2 / 3, 2 / 3],
+    wind: [1 / 3, 1, 2 / 3, 2 / 3, 5 / 6, 1 / 2, 2 / 3],
+    fire_water: [5 / 6, 1 / 2, 2 / 3, 2 / 3, 7 / 12, 3 / 4, 2 / 3],
+    water_wind: [2 / 3, 5 / 6, 1 / 2, 3 / 4, 2 / 3, 7 / 12, 2 / 3],
+    fire_wind: [1 / 2, 2 / 3, 5 / 6, 7 / 12, 3 / 4, 2 / 3, 2 / 3],
+    all: [2 / 3, 2 / 3, 2 / 3, 2 / 3, 2 / 3, 2 / 3, 2 / 3],
+  };
+  const keys = Object.keys(classes);
+  for (const [attackerClass, row] of Object.entries(expected)) {
+    row.forEach((multiplier, defenderIndex) => {
+      assertClose(
+        resolveAttributeMultiplier(classes[attackerClass], classes[keys[defenderIndex]], DEFAULT_RULES),
+        multiplier,
+      );
+    });
+  }
 });
 
 test("白属性は三属性の平均により相手を問わず2/3になる", () => {

@@ -130,6 +130,13 @@ const DAMAGE_FACTOR_LABELS = Object.freeze([
   ["defense", "防御補正"],
 ]);
 
+const ATTRIBUTE_LABELS = Object.freeze({
+  fire: "火",
+  water: "水",
+  wind: "風",
+  neutral: "無",
+});
+
 function formatDamageFactor(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "?";
@@ -145,6 +152,43 @@ function resolveDamageRaw(hit) {
     : undefined;
 }
 
+function formatAttributeMultiplier(value) {
+  const numeric = Number(value);
+  const fractions = [
+    [1 / 3, "1/3"],
+    [1 / 2, "1/2"],
+    [2 / 3, "2/3"],
+    [3 / 4, "3/4"],
+    [5 / 6, "5/6"],
+    [1, "1"],
+  ];
+  const fraction = fractions.find(([expected]) => Math.abs(numeric - expected) < 1e-9);
+  return fraction ? `${fraction[1]}（${formatDamageFactor(numeric)}）` : formatDamageFactor(numeric);
+}
+
+function attributeFormulaText(attribute) {
+  if (!attribute?.pairs?.length) return "";
+  const attributes = (values) => values.map((value) => ATTRIBUTE_LABELS[value] ?? value).join("・");
+  const pairTerms = attribute.pairs.map((pair) => (
+    `${ATTRIBUTE_LABELS[pair.attack] ?? pair.attack}→${ATTRIBUTE_LABELS[pair.defense] ?? pair.defense} ${formatAttributeMultiplier(pair.multiplier)}`
+  ));
+  const operator = attribute.resolution === "average"
+    ? `）÷${attribute.pairs.length}`
+    : "）";
+  return `属性：攻撃 ${attributes(attribute.attacks)} ／ 防御 ${attributes(attribute.defenses)}。` +
+    `（${pairTerms.join(" ＋ ")}${operator} = ${formatAttributeMultiplier(attribute.multiplier)}`;
+}
+
+function factorBreakdownText(key, label, value, hit) {
+  if (key === "survival") {
+    const turns = Math.max(0, Number(hit.survivalTurns) || 0);
+    const base = Number(hit.survivalBaseMultiplier) || 1.3;
+    return `${label} ${formatDamageFactor(value)}（${formatDamageFactor(base)}^${turns}、${turns}ターン生存）`;
+  }
+  if (key === "attribute") return `${label} ${formatAttributeMultiplier(value)}`;
+  return `${label} ${formatDamageFactor(value)}`;
+}
+
 function renderDamageFormula(hit, hitIndex) {
   if (!hit.factors || !Object.keys(hit.factors).length) return null;
   const details = element("details", "damage-formula");
@@ -152,7 +196,7 @@ function renderDamageFormula(hit, hitIndex) {
 
   const factors = DAMAGE_FACTOR_LABELS
     .filter(([key]) => Object.hasOwn(hit.factors, key))
-    .map(([key, label]) => `${label} ${formatDamageFactor(hit.factors[key])}`);
+    .map(([key, label]) => factorBreakdownText(key, label, hit.factors[key], hit));
   const equation = DAMAGE_FACTOR_LABELS
     .filter(([key]) => Object.hasOwn(hit.factors, key))
     .map(([key]) => formatDamageFactor(hit.factors[key]))
@@ -169,7 +213,9 @@ function renderDamageFormula(hit, hitIndex) {
     ? `${equation} → ${rounding} = ${formatDamageFactor(hit.damage)}`
     : `${equation} = ${formatDamageFactor(raw)} → ${rounding} = ${formatDamageFactor(hit.damage)}`;
   const breakdown = element("p", "damage-formula-breakdown", factors.join(" ／ "));
-  details.append(formula, breakdown);
+  const attributeDetail = attributeFormulaText(hit.attribute);
+  if (attributeDetail) details.append(formula, breakdown, element("p", "damage-formula-breakdown", attributeDetail));
+  else details.append(formula, breakdown);
   return details;
 }
 
