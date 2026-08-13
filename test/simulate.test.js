@@ -78,6 +78,11 @@ test("支援スキルを攻撃前に発動し、選択理由と攻撃を別々�
   assert.equal(result.history[0].actions[0].action, "basic_attack");
   assert.equal(result.history[0].phases[0].events[0].type, "skill_use");
   assert.equal(result.history[0].phases[3].events[0].skillType, "attack_buff");
+  const hit = result.history[0].actions[0].hits[0];
+  assert.equal(hit.damageRaw, 200);
+  assert.equal(hit.rounding, "floor");
+  assert.equal(hit.factors.pow, 100);
+  assert.equal(hit.factors.attack, 2);
 });
 
 test("ターン開始後に交代した控えキャラは同じターンに行動しない", () => {

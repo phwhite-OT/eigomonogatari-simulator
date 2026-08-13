@@ -333,6 +333,11 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .phase-block { display: grid; gap: 4px; }
 .phase-label { color: #5a7467; font-size: 9px; letter-spacing: .04em; }
 .trace-event-list { margin: 0; padding-left: 17px; color: #495952; font-size: 9px; line-height: 1.65; }
+.damage-formula { margin: 4px 0 2px; border: 1px solid #dbe6d2; border-radius: 6px; background: #fbfdf8; color: #40554a; }
+.damage-formula summary { padding: 3px 6px; cursor: pointer; color: #4e672c; font-size: 8px; font-weight: 800; }
+.damage-formula-equation, .damage-formula-breakdown { margin: 0; padding: 4px 6px; border-top: 1px solid #e7eee1; overflow-wrap: anywhere; font-size: 8px; line-height: 1.55; }
+.damage-formula-equation { color: #243d30; font-weight: 800; }
+.damage-formula-breakdown { color: #64736c; }
 
 .metagame-simulator {
   margin: 0 0 22px;

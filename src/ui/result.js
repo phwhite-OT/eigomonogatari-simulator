@@ -114,6 +114,76 @@ function traceEventText(event) {
   return event.type;
 }
 
+const DAMAGE_FACTOR_LABELS = Object.freeze([
+  ["pow", "POW"],
+  ["skill", "スキル倍率"],
+  ["attack", "攻撃バフ"],
+  ["self", "自分補正"],
+  ["excellent", "Excellent"],
+  ["questionLevel", "問題レベル"],
+  ["attribute", "属性相性"],
+  ["event", "イベント"],
+  ["special", "特殊補正"],
+  ["random", "乱数設定"],
+  ["pvp", "対戦補正"],
+  ["survival", "生存補正"],
+  ["defense", "防御補正"],
+]);
+
+function formatDamageFactor(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "?";
+  return numeric.toLocaleString("ja-JP", { maximumFractionDigits: 6 });
+}
+
+function resolveDamageRaw(hit) {
+  const explicitRaw = Number(hit.damageRaw);
+  if (Number.isFinite(explicitRaw)) return explicitRaw;
+  const values = Object.values(hit.factors ?? {}).map(Number);
+  return values.length && values.every(Number.isFinite)
+    ? values.reduce((product, value) => product * value, 1)
+    : undefined;
+}
+
+function renderDamageFormula(hit, hitIndex) {
+  if (!hit.factors || !Object.keys(hit.factors).length) return null;
+  const details = element("details", "damage-formula");
+  details.append(element("summary", "", `ヒット${hitIndex + 1}のダメージ式を見る`));
+
+  const factors = DAMAGE_FACTOR_LABELS
+    .filter(([key]) => Object.hasOwn(hit.factors, key))
+    .map(([key, label]) => `${label} ${formatDamageFactor(hit.factors[key])}`);
+  const equation = DAMAGE_FACTOR_LABELS
+    .filter(([key]) => Object.hasOwn(hit.factors, key))
+    .map(([key]) => formatDamageFactor(hit.factors[key]))
+    .join(" × ");
+  const raw = resolveDamageRaw(hit);
+  const rounding = hit.rounding === "ceil"
+    ? "切り上げ"
+    : hit.rounding === "round"
+      ? "四捨五入"
+      : "切り捨て";
+
+  const formula = element("p", "damage-formula-equation");
+  formula.textContent = raw === undefined
+    ? `${equation} → ${rounding} = ${formatDamageFactor(hit.damage)}`
+    : `${equation} = ${formatDamageFactor(raw)} → ${rounding} = ${formatDamageFactor(hit.damage)}`;
+  const breakdown = element("p", "damage-formula-breakdown", factors.join(" ／ "));
+  details.append(formula, breakdown);
+  return details;
+}
+
+function renderTraceEvent(event) {
+  const item = element("li", "", traceEventText(event));
+  if (event.type === "attack") {
+    event.hits.forEach((hit, index) => {
+      const formula = renderDamageFormula(hit, index);
+      if (formula) item.append(formula);
+    });
+  }
+  return item;
+}
+
 export function renderSimulationTrace(trace) {
   const section = element("section", "insight-panel simulation-trace");
   section.append(element("h4", "", `対戦処理ログ：${trace.profileName}`));
@@ -140,7 +210,7 @@ export function renderSimulationTrace(trace) {
       const phaseBlock = element("section", "phase-block");
       phaseBlock.append(element("strong", "phase-label", phase.label));
       const eventList = element("ul", "trace-event-list");
-      phase.events.forEach((event) => eventList.append(element("li", "", traceEventText(event))));
+      phase.events.forEach((event) => eventList.append(renderTraceEvent(event)));
       phaseBlock.append(eventList);
       phaseList.append(phaseBlock);
     });
