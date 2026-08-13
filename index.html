@@ -5569,12 +5569,14 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const combinationPotential = metagameDeckClampUnit(rating.combinationPotential);  
     const continuationWinGain = metagameDeckClampUnit(rating.continuationWinGain);  
     const carriedContinuationWinGain = metagameDeckClampUnit(rating.carriedContinuationWinGain);  
-    const tacticalUpside = metagameDeckClampUnit(rating.tacticalUpside ?? rating.tactical?.tacticalUpside);  
-    const tacticalRisk = metagameDeckClampUnit(rating.tacticalRisk ?? rating.tactical?.tacticalRisk);  
+    const tacticalUpside = metagameDeckClampUnit(rating.tacticalUpside ?? rating.tactical?.tacticalUpside);
+    const tacticalRisk = metagameDeckClampUnit(rating.tacticalRisk ?? rating.tactical?.tacticalRisk);
+    const roleFit = metagameDeckClampUnit(rating.roleFit ?? rating.individualScore);
     return (  
       metagameDeckClampUnit(rating.expectedWinLowerBound) * 0.36 +  
       metagameDeckClampUnit(rating.expectedWinRate) * 0.22 +  
-      practicalValue * 0.13 +  
+      practicalValue * 0.13 +
+      roleFit * 0.12 +
       metagameDeckClampUnit(rating.balancedContribution) * 0.05 +  
       enemyPressure * 0.12 +  
       powerPreference * 0.07 +  
@@ -5667,7 +5669,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return 0;  
   }  
     
-  function calculateMetagameDeckSynergy(deck, ratings) {  
+  function calculateMetagameDeckSynergy(deck, ratings) {
     return deck.reduce((total, character, targetIndex) => (  
       total + deck.slice(0, targetIndex).reduce((pairTotal, sourceCharacter, sourceIndex) => (  
         pairTotal + metagameDeckPairSynergy(  
@@ -5675,12 +5677,50 @@ footer span { font-weight: 800; letter-spacing: .1em; }
           { character, rating: ratings[targetIndex] ?? {} },  
         )  
       ), 0)  
-    ), 0);  
-  }  
-    
-  function metagameDeckStateScore(state, totalCost) {  
-    const averageScore = state.proxyTotal / Math.max(1, state.deck.length);  
-    const roleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.012 : 0;  
+    ), 0);
+  }
+  
+  function metagameDeckRole(rating) {
+    if (rating?.role) return rating.role;
+    switch (rating?.skillType) {
+      case "single_attack": return "precision_attack";
+      case "aoe_attack":
+      case "multi_hit_attack": return "sweep_attack";
+      case "damage_reduction":
+      case "guard":
+      case "attribute_guard": return "defense";
+      case "revive": return "revive";
+      case "heal": return "recovery";
+      case "attack_buff":
+      case "attribute_change": return "support";
+      default: return "neutral";
+    }
+  }
+  
+  function metagameDeckRoleCountsAdd(roleCounts, rating) {
+    const role = metagameDeckRole(rating);
+    return { ...roleCounts, [role]: (roleCounts[role] ?? 0) + 1 };
+  }
+  
+  function metagameDeckRoleBalance(roleCounts, deckLength) {
+    if (deckLength < 2) return 0;
+    const precision = roleCounts.precision_attack ?? 0;
+    const sweep = roleCounts.sweep_attack ?? 0;
+    const attack = precision + sweep;
+    const protection = (roleCounts.defense ?? 0) + (roleCounts.revive ?? 0) + (roleCounts.recovery ?? 0);
+    let bonus = attack > 0 && protection > 0 ? 0.02 : 0;
+    if (precision > 0 && sweep > 0) bonus += 0.008;
+    if ((roleCounts.defense ?? 0) > 0 && (roleCounts.revive ?? 0) > 0) bonus += 0.006;
+    const repeatedRolePenalty = Object.values(roleCounts).reduce((total, count) => (
+      total + Math.max(0, Number(count) - 2) * 0.006
+    ), 0);
+    return bonus - repeatedRolePenalty;
+  }
+  
+  function metagameDeckStateScore(state, totalCost) {
+    const averageScore = state.proxyTotal / Math.max(1, state.deck.length);
+    const legacyRoleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.008 : 0;
+    const roleBonus = legacyRoleBonus + metagameDeckRoleBalance(state.roleCounts ?? {}, state.deck.length);
     const deckProgress = state.deck.length / 5;  
     const budgetShare = state.totalCost / Math.max(1, totalCost);  
     const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));  
@@ -5757,7 +5797,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return Math.max(0, Number(character.cost) || 0) <= Math.max(0, Number(constraint?.totalCost) || 0);  
   }  
     
-  function metagameFixedFallbackRating(character) {  
+  function metagameFixedFallbackRating(character) {
     return {  
       id: String(character.id),  
       name: character.name,  
@@ -5783,8 +5823,29 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       advantageCreation: 0,  
       counteraction: 0,  
       skillActivationRate: 0,  
-    };  
-  }  
+    };
+  }
+  
+  function metagamePrecomputedRoleRating(character, compactRating, deckMetrics) {
+    const breakdown = compactRating?.b ?? compactRating?.roleBreakdown ?? {};
+    const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : undefined;
+    return {
+      ...metagameFixedFallbackRating(character),
+      role: compactRating?.k ?? compactRating?.role,
+      individualScore: finite(compactRating?.i ?? compactRating?.individualScore),
+      roleFit: finite(compactRating?.f ?? compactRating?.roleFit),
+      roleBreakdown: {
+        frontline: finite(breakdown.f ?? breakdown.frontline),
+        highDurabilityCoverage: finite(breakdown.h ?? breakdown.highDurabilityCoverage),
+        boardCoverage: finite(breakdown.a ?? breakdown.boardCoverage),
+        defenseMatchup: finite(breakdown.d ?? breakdown.defenseMatchup),
+        reviveMatchup: finite(breakdown.v ?? breakdown.reviveMatchup),
+        costEfficiency: finite(breakdown.c ?? breakdown.costEfficiency),
+      },
+      ...deckMetrics,
+      overallRank: "-",
+    };
+  }
     
   function metagameConstraintWithFixedSlots(constraint, characters, options = {}) {  
     const fixedByPosition = metagameFixedSlots(options.fixedSlots);  
@@ -5847,9 +5908,10 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       proxyTotal: 0,  
       synergyScore: 0,  
       handoffRisk: 0,  
-      budgetStrain: 0,  
-      advantageCount: 0,  
-      counterCount: 0,  
+      budgetStrain: 0,
+      advantageCount: 0,
+      counterCount: 0,
+      roleCounts: {},
     }];  
     for (const pool of pools) {  
       const expanded = [];  
@@ -5879,9 +5941,10 @@ footer span { font-weight: 800; letter-spacing: .1em; }
               Math.max(0, costShare - 0.28) ** 2 * (  
                 0.2 + (1 - metagameDeckClampUnit(entry.rating.practicalValue ?? entry.rating.expectedWinLowerBound)) * 0.8  
               )  
-            ),  
-            advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),  
-            counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),  
+            ),
+            advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
+            counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
+            roleCounts: metagameDeckRoleCountsAdd(state.roleCounts, entry.rating),
           });  
         }  
       }  
@@ -5928,9 +5991,10 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       proxyTotal: 0,  
       synergyScore: 0,  
       handoffRisk: 0,  
-      budgetStrain: 0,  
-      advantageCount: 0,  
-      counterCount: 0,  
+      budgetStrain: 0,
+      advantageCount: 0,
+      counterCount: 0,
+      roleCounts: {},
     }];  
     for (let poolIndex = 0; poolIndex < pools.length; poolIndex += 1) {  
       const pool = pools[poolIndex];  
@@ -5975,9 +6039,10 @@ footer span { font-weight: 800; letter-spacing: .1em; }
                 Math.max(0, costShare - 0.28) ** 2 * (  
                   0.2 + (1 - metagameDeckClampUnit(entry.rating.practicalValue ?? entry.rating.expectedWinLowerBound)) * 0.8  
                 )  
-              ),  
-              advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),  
-              counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),  
+              ),
+              advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
+              counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
+              roleCounts: metagameDeckRoleCountsAdd(state.roleCounts, entry.rating),
             });  
           }  
           checked += 1;  
@@ -6306,20 +6371,18 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         const deck = ids.map((id) => charactersById.get(String(id)));  
         if (deck.some((character) => !character)) continue;  
         const key = ids.map(String).join("|");  
-        const expectedWinRate = Number(rawPrecomputed.w ?? rawPrecomputed.expectedWinRate) || 0;  
-        const expectedWinLowerBound = Number(rawPrecomputed.l ?? rawPrecomputed.expectedWinLowerBound) || 0;  
-        const scenarioCount = Number(rawPrecomputed.s ?? rawPrecomputed.scenarioCount) || 0;  
-        const candidate = {  
-          deck,  
-          ratings: deck.map((character, index) => (  
-            ratingsByPosition[index].get(String(character.id)) ?? {  
-              ...metagameFixedFallbackRating(character),  
-              expectedWinRate,  
-              expectedWinLowerBound,  
-              scenarioCount,  
-              overallRank: "-",  
-            }  
-          )),  
+        const expectedWinRate = Number(rawPrecomputed.w ?? rawPrecomputed.expectedWinRate) || 0;
+        const expectedWinLowerBound = Number(rawPrecomputed.l ?? rawPrecomputed.expectedWinLowerBound) || 0;
+        const scenarioCount = Number(rawPrecomputed.s ?? rawPrecomputed.scenarioCount) || 0;
+        const compactRatings = rawPrecomputed.r ?? rawPrecomputed.ratings ?? [];
+        const deckMetrics = { expectedWinRate, expectedWinLowerBound, scenarioCount };
+        const candidate = {
+          deck,
+          ratings: deck.map((character, index) => (
+            ratingsByPosition[index].get(String(character.id)) ?? {
+              ...metagamePrecomputedRoleRating(character, compactRatings[index], deckMetrics),
+            }
+          )),
           totalCost: Number(rawPrecomputed.c ?? rawPrecomputed.totalCost) || deck.reduce((sum, character) => sum + (Number(character.cost) || 0), 0),  
           proxyScore: Number(rawPrecomputed.p ?? rawPrecomputed.proxyScore) || 0,  
           synergyScore: Number(rawPrecomputed.y ?? rawPrecomputed.synergyScore) || 0,  
@@ -9863,10 +9926,29 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return `${(Number(value) * 100).toFixed(1)}%`;  
   }  
     
-  function metagameUiSigned(value) {  
-    const number = Number(value) || 0;  
-    return `${number >= 0 ? "+" : ""}${number.toFixed(2)}`;  
-  }  
+  function metagameUiSigned(value) {
+    const number = Number(value) || 0;
+    return `${number >= 0 ? "+" : ""}${number.toFixed(2)}`;
+  }
+  
+  const METAGAME_ROLE_LABELS = Object.freeze({
+    precision_attack: "単体高耐久対策",
+    sweep_attack: "盤面制圧攻撃",
+    defense: "防御",
+    revive: "蘇生",
+    recovery: "回復",
+    support: "支援",
+    neutral: "基礎性能",
+  });
+  
+  function metagameUiRoleLabel(rating) {
+    if (rating?.role) return METAGAME_ROLE_LABELS[rating.role] ?? rating.role;
+    if (rating?.skillType === "single_attack") return METAGAME_ROLE_LABELS.precision_attack;
+    if (["aoe_attack", "multi_hit_attack"].includes(rating?.skillType)) return METAGAME_ROLE_LABELS.sweep_attack;
+    if (["damage_reduction", "guard", "attribute_guard"].includes(rating?.skillType)) return METAGAME_ROLE_LABELS.defense;
+    if (rating?.skillType === "revive") return METAGAME_ROLE_LABELS.revive;
+    return METAGAME_ROLE_LABELS.neutral;
+  }
     
   function metagameUiModelLabel(data) {  
     const version = String(data.sourceModelVersion ?? "").match(/v\d+/i)?.[0]?.toUpperCase();  
@@ -9941,13 +10023,28 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     container.append(heading, metrics, note, methodology);  
   }  
     
-  function metagameUiImpactReasons(character, rating, environment, deck) {  
-    const reasons = [  
+  function metagameUiImpactReasons(character, rating, environment, deck) {
+    const reasons = [
       `このキャラを${rating.scenarioCount}盤面で固定評価: 12ターン評価値 ${metagameUiPercent(rating.expectedWinRate)} / 信頼下限 ${metagameUiPercent(rating.expectedWinLowerBound)}`,  
       `スキル有効時と無効時の評価値差 ${metagameUiSigned((Number(rating.skillWinGain) || 0) * 100)}pt / 実発動率 ${metagameUiPercent(rating.skillActivationRate)}`,  
       `1盤面あたりの差分: 味方交代抑制 ${metagameUiSigned(rating.allyPreservationNet)} / 敵交代増加 ${metagameUiSigned(rating.enemyRemovalNet)}`,  
-      `味方維持率 ${metagameUiPercent(rating.allyRetentionRate)} / 敵への進行率 ${metagameUiPercent(rating.enemyPressureRate)}`,  
-    ];  
+      `味方維持率 ${metagameUiPercent(rating.allyRetentionRate)} / 敵への進行率 ${metagameUiPercent(rating.enemyPressureRate)}`,
+    ];
+    const individualScore = Number(rating.individualScore);
+    const roleFit = Number(rating.roleFit);
+    if (Number.isFinite(individualScore) || Number.isFinite(roleFit)) {
+      const individualText = Number.isFinite(individualScore) ? metagameUiPercent(individualScore) : "未計測";
+      const roleFitText = Number.isFinite(roleFit) ? metagameUiPercent(roleFit) : "未計測";
+      reasons.unshift(
+        `単体役割: ${metagameUiRoleLabel(rating)} / 単体環境適性 ${individualText} / 役割遂行 ${roleFitText}`,
+      );
+    }
+    const roleBreakdown = rating.roleBreakdown ?? {};
+    if (Number(roleBreakdown.highDurabilityCoverage) > 0 || Number(roleBreakdown.boardCoverage) > 0) {
+      reasons.push(
+        `攻撃適性: 高耐久への到達 ${metagameUiPercent(roleBreakdown.highDurabilityCoverage)} / 盤面制圧 ${metagameUiPercent(roleBreakdown.boardCoverage)}`,
+      );
+    }
     if (["delay", "skill_reduction"].includes(character.skill?.type)) {  
       reasons.push("短縮・遅延効果は今回の評価対象外です。採用された場合は、通常攻撃・耐久・他枠との組み合わせが主因です。");  
     }  

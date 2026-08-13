@@ -23,10 +23,12 @@ function metagameCandidateScore(rating) {
   const carriedContinuationWinGain = metagameDeckClampUnit(rating.carriedContinuationWinGain);
   const tacticalUpside = metagameDeckClampUnit(rating.tacticalUpside ?? rating.tactical?.tacticalUpside);
   const tacticalRisk = metagameDeckClampUnit(rating.tacticalRisk ?? rating.tactical?.tacticalRisk);
+  const roleFit = metagameDeckClampUnit(rating.roleFit ?? rating.individualScore);
   return (
     metagameDeckClampUnit(rating.expectedWinLowerBound) * 0.36 +
     metagameDeckClampUnit(rating.expectedWinRate) * 0.22 +
     practicalValue * 0.13 +
+    roleFit * 0.12 +
     metagameDeckClampUnit(rating.balancedContribution) * 0.05 +
     enemyPressure * 0.12 +
     powerPreference * 0.07 +
@@ -130,9 +132,47 @@ export function calculateMetagameDeckSynergy(deck, ratings) {
   ), 0);
 }
 
+function metagameDeckRole(rating) {
+  if (rating?.role) return rating.role;
+  switch (rating?.skillType) {
+    case "single_attack": return "precision_attack";
+    case "aoe_attack":
+    case "multi_hit_attack": return "sweep_attack";
+    case "damage_reduction":
+    case "guard":
+    case "attribute_guard": return "defense";
+    case "revive": return "revive";
+    case "heal": return "recovery";
+    case "attack_buff":
+    case "attribute_change": return "support";
+    default: return "neutral";
+  }
+}
+
+function metagameDeckRoleCountsAdd(roleCounts, rating) {
+  const role = metagameDeckRole(rating);
+  return { ...roleCounts, [role]: (roleCounts[role] ?? 0) + 1 };
+}
+
+function metagameDeckRoleBalance(roleCounts, deckLength) {
+  if (deckLength < 2) return 0;
+  const precision = roleCounts.precision_attack ?? 0;
+  const sweep = roleCounts.sweep_attack ?? 0;
+  const attack = precision + sweep;
+  const protection = (roleCounts.defense ?? 0) + (roleCounts.revive ?? 0) + (roleCounts.recovery ?? 0);
+  let bonus = attack > 0 && protection > 0 ? 0.02 : 0;
+  if (precision > 0 && sweep > 0) bonus += 0.008;
+  if ((roleCounts.defense ?? 0) > 0 && (roleCounts.revive ?? 0) > 0) bonus += 0.006;
+  const repeatedRolePenalty = Object.values(roleCounts).reduce((total, count) => (
+    total + Math.max(0, Number(count) - 2) * 0.006
+  ), 0);
+  return bonus - repeatedRolePenalty;
+}
+
 function metagameDeckStateScore(state, totalCost) {
   const averageScore = state.proxyTotal / Math.max(1, state.deck.length);
-  const roleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.012 : 0;
+  const legacyRoleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.008 : 0;
+  const roleBonus = legacyRoleBonus + metagameDeckRoleBalance(state.roleCounts ?? {}, state.deck.length);
   const deckProgress = state.deck.length / 5;
   const budgetShare = state.totalCost / Math.max(1, totalCost);
   const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
@@ -238,6 +278,27 @@ function metagameFixedFallbackRating(character) {
   };
 }
 
+function metagamePrecomputedRoleRating(character, compactRating, deckMetrics) {
+  const breakdown = compactRating?.b ?? compactRating?.roleBreakdown ?? {};
+  const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : undefined;
+  return {
+    ...metagameFixedFallbackRating(character),
+    role: compactRating?.k ?? compactRating?.role,
+    individualScore: finite(compactRating?.i ?? compactRating?.individualScore),
+    roleFit: finite(compactRating?.f ?? compactRating?.roleFit),
+    roleBreakdown: {
+      frontline: finite(breakdown.f ?? breakdown.frontline),
+      highDurabilityCoverage: finite(breakdown.h ?? breakdown.highDurabilityCoverage),
+      boardCoverage: finite(breakdown.a ?? breakdown.boardCoverage),
+      defenseMatchup: finite(breakdown.d ?? breakdown.defenseMatchup),
+      reviveMatchup: finite(breakdown.v ?? breakdown.reviveMatchup),
+      costEfficiency: finite(breakdown.c ?? breakdown.costEfficiency),
+    },
+    ...deckMetrics,
+    overallRank: "-",
+  };
+}
+
 function metagameConstraintWithFixedSlots(constraint, characters, options = {}) {
   const fixedByPosition = metagameFixedSlots(options.fixedSlots);
   if (!fixedByPosition.size) return constraint;
@@ -302,6 +363,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     budgetStrain: 0,
     advantageCount: 0,
     counterCount: 0,
+    roleCounts: {},
   }];
   for (const pool of pools) {
     const expanded = [];
@@ -334,6 +396,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           ),
           advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
           counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
+          roleCounts: metagameDeckRoleCountsAdd(state.roleCounts, entry.rating),
         });
       }
     }
@@ -383,6 +446,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
     budgetStrain: 0,
     advantageCount: 0,
     counterCount: 0,
+    roleCounts: {},
   }];
   for (let poolIndex = 0; poolIndex < pools.length; poolIndex += 1) {
     const pool = pools[poolIndex];
@@ -430,6 +494,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             ),
             advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
             counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
+            roleCounts: metagameDeckRoleCountsAdd(state.roleCounts, entry.rating),
           });
         }
         checked += 1;
@@ -761,15 +826,13 @@ function metagameV8PrecomputedResults(constraint, characters, fixedSlots) {
       const expectedWinRate = Number(rawPrecomputed.w ?? rawPrecomputed.expectedWinRate) || 0;
       const expectedWinLowerBound = Number(rawPrecomputed.l ?? rawPrecomputed.expectedWinLowerBound) || 0;
       const scenarioCount = Number(rawPrecomputed.s ?? rawPrecomputed.scenarioCount) || 0;
+      const compactRatings = rawPrecomputed.r ?? rawPrecomputed.ratings ?? [];
+      const deckMetrics = { expectedWinRate, expectedWinLowerBound, scenarioCount };
       const candidate = {
         deck,
         ratings: deck.map((character, index) => (
           ratingsByPosition[index].get(String(character.id)) ?? {
-            ...metagameFixedFallbackRating(character),
-            expectedWinRate,
-            expectedWinLowerBound,
-            scenarioCount,
-            overallRank: "-",
+            ...metagamePrecomputedRoleRating(character, compactRatings[index], deckMetrics),
           }
         )),
         totalCost: Number(rawPrecomputed.c ?? rawPrecomputed.totalCost) || deck.reduce((sum, character) => sum + (Number(character.cost) || 0), 0),

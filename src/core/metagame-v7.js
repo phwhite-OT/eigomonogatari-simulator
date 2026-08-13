@@ -15,7 +15,7 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // input sheet still describes the five positions within one player's deck,
 // but a match is always simulated as five player decks versus five player
 // decks (25 characters per team including reserves).
-export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.2";
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.3-role-fit";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
 // decide whether a report is compatible.
@@ -301,7 +301,7 @@ function environmentStrengths(pools, rules) {
   })));
 }
 
-function buildStrongEnvironmentDeck(pools, fixedByPosition, input, strengths, variant = 0) {
+function buildStrongEnvironmentDeck(pools, fixedByPosition, input, strengths, variant = 0, usageCounts = new Map()) {
   const deck = Array(5).fill(null);
   for (const [position, character] of fixedByPosition.entries()) deck[position] = character;
   const positions = [0, 1, 2, 3, 4]
@@ -330,10 +330,12 @@ function buildStrongEnvironmentDeck(pools, fixedByPosition, input, strengths, va
       .map((character, poolIndex) => ({
         character,
         strength: strengths.get(String(character.id)) ?? 0,
+        priorUses: usageCounts.get(String(character.id)) ?? 0,
         poolIndex,
       }))
       .sort((left, right) => (
-        right.strength - left.strength ||
+        (right.strength - Math.min(0.3, right.priorUses * 0.025)) -
+          (left.strength - Math.min(0.3, left.priorUses * 0.025)) ||
         left.character.cost - right.character.cost ||
         String(left.character.id).localeCompare(String(right.character.id))
       ));
@@ -395,12 +397,13 @@ export function createMetagameV7EnvironmentDecks(resolvedInput, options = {}) {
     }),
   ];
   const decks = [];
+  const usageCounts = new Map();
   for (let scenarioIndex = 0; scenarioIndex < fixedScenarios.length; scenarioIndex += 1) {
     const { fixedByPosition, variant } = fixedScenarios[scenarioIndex];
     const scheduledPivot = requiredPivots[(Math.max(0, scenarioIndex - exampleFixedSlots.length)) % requiredPivots.length];
     const pivotPosition = scheduledPivot.position;
     const pivot = fixedByPosition.get(pivotPosition) ?? scheduledPivot.character;
-    const deck = buildStrongEnvironmentDeck(pools, fixedByPosition, resolvedInput, strengths, variant);
+    const deck = buildStrongEnvironmentDeck(pools, fixedByPosition, resolvedInput, strengths, variant, usageCounts);
     if (!deck) {
       // A partial example may itself be under the cap but still leave too
       // little cost to complete its unspecified slots. It is not an
@@ -410,8 +413,52 @@ export function createMetagameV7EnvironmentDecks(resolvedInput, options = {}) {
       throw new Error(`${pivotPosition + 1}枠目の環境キャラ ${pivot.name} を含むコスト内デッキを作れません。`);
     }
     decks.push(deck);
+    deck.forEach((character) => {
+      const id = String(character.id);
+      usageCounts.set(id, (usageCounts.get(id) ?? 0) + 1);
+    });
   }
   return decks;
+}
+
+function v8SelectLowOverlapDecks(environmentDecks, orderedIndexes, count = 9) {
+  const remaining = [...orderedIndexes];
+  const selected = [];
+  const characterUses = new Map();
+  const take = (choiceIndex) => {
+    const [chosenIndex] = remaining.splice(choiceIndex, 1);
+    const deck = environmentDecks[chosenIndex];
+    selected.push(deck);
+    deck.forEach((character) => {
+      const id = String(character.id);
+      characterUses.set(id, (characterUses.get(id) ?? 0) + 1);
+    });
+  };
+  // The first entry is the scheduled coverage anchor. The remaining eight
+  // decks are selected for diversity around it.
+  if (remaining.length) take(0);
+  while (selected.length < count && remaining.length) {
+    const choiceIndex = remaining.reduce((bestIndex, candidateIndex, index) => {
+      const overlap = environmentDecks[candidateIndex].reduce((total, character) => (
+        total + (characterUses.has(String(character.id)) ? 1 : 0)
+      ), 0);
+      const repeatedUses = environmentDecks[candidateIndex].reduce((total, character) => (
+        total + (characterUses.get(String(character.id)) ?? 0)
+      ), 0);
+      const best = environmentDecks[remaining[bestIndex]];
+      const bestOverlap = best.reduce((total, character) => (
+        total + (characterUses.has(String(character.id)) ? 1 : 0)
+      ), 0);
+      const bestRepeatedUses = best.reduce((total, character) => (
+        total + (characterUses.get(String(character.id)) ?? 0)
+      ), 0);
+      if (overlap !== bestOverlap) return overlap < bestOverlap ? index : bestIndex;
+      if (repeatedUses !== bestRepeatedUses) return repeatedUses < bestRepeatedUses ? index : bestIndex;
+      return index < bestIndex ? index : bestIndex;
+    }, 0);
+    take(choiceIndex);
+  }
+  return selected;
 }
 
 /**
@@ -445,9 +492,22 @@ export function createMetagameV8TeamScenarios(resolvedInput, options = {}) {
   ));
   const scenarios = [];
   for (let scenarioIndex = 0; scenarioIndex < requestedCount; scenarioIndex += 1) {
-    const decks = Array.from({ length: 9 }, (_, offset) => (
-      environmentDecks[deckOrder[(scenarioIndex * 9 + offset) % deckCount]]
+    const coverageAnchor = scenarioIndex % deckCount;
+    const coverageIndexes = Array.from({ length: 9 }, (_, offset) => (
+      deckOrder[(scenarioIndex * 9 + offset) % deckCount]
     ));
+    const orderedIndexes = [
+      coverageAnchor,
+      ...Array.from({ length: deckCount - 1 }, (_, offset) => (
+        deckOrder[(scenarioIndex * 9 + offset) % deckCount]
+      )).filter((index) => index !== coverageAnchor),
+    ];
+    // The minimum coverage pass preserves every supplied deck. Subsequent
+    // scenarios deliberately choose the least-overlapping nine decks so one
+    // popular partner does not occupy most players on the same battlefield.
+    const decks = requestedCount <= minimumCoverageCount
+      ? coverageIndexes.map((index) => environmentDecks[index])
+      : v8SelectLowOverlapDecks(environmentDecks, orderedIndexes, 9);
     scenarios.push({
       id: `team-${scenarioIndex + 1}`,
       allyDecks: decks.slice(0, 4),
@@ -487,6 +547,130 @@ function v7CostEfficiency(rating) {
   return (Number(rating.hp) + Number(rating.pow) * 0.75) / Math.max(1, Number(rating.cost));
 }
 
+function v8RoleForCharacter(character) {
+  switch (character?.skill?.type) {
+    case "single_attack": return "precision_attack";
+    case "aoe_attack":
+    case "multi_hit_attack": return "sweep_attack";
+    case "damage_reduction":
+    case "guard":
+    case "attribute_guard": return "defense";
+    case "revive": return "revive";
+    case "heal": return "recovery";
+    case "attack_buff":
+    case "attribute_change": return "support";
+    default: return "neutral";
+  }
+}
+
+function v8RoleIsAttack(role) {
+  return role === "precision_attack" || role === "sweep_attack";
+}
+
+function v8DamageRatio(character, enemy, rules, skillMultiplier = 1) {
+  const damage = calculateMinimumDamage({ attacker: character, defender: enemy, skillMultiplier, rules }).value;
+  return clampUnit(damage / Math.max(1, Number(enemy.hp) || 1));
+}
+
+function v8HighDurabilityEnemies(environmentPool) {
+  const count = Math.max(1, Math.ceil(environmentPool.length * 0.35));
+  return [...environmentPool]
+    .sort((left, right) => (Number(right.hp) || 0) - (Number(left.hp) || 0))
+    .slice(0, count);
+}
+
+function v8RoleFitness(character, environmentPool, rules, { offense, defense, skill, allyCoverage, enemyCoverage }) {
+  const role = v8RoleForCharacter(character);
+  const skillData = character.skill ?? {};
+  const skillMultiplier = Math.max(0, Number(skillData.multiplier) || 0);
+  const highDurability = v8HighDurabilityEnemies(environmentPool);
+  const attackShare = average(environmentPool.map((enemy) => (
+    v8RoleIsAttack(v8RoleForCharacter(enemy)) ? 1 : 0
+  )));
+  const nonAttackShare = 1 - attackShare;
+  const attackConditionCoverage = clampUnit(allyCoverage * enemyCoverage);
+  const perHitCoverage = average(environmentPool.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier)
+  )));
+  const concentratedCoverage = average(highDurability.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier)
+  )));
+  const hitCount = Math.max(1, Number(skillData.hits) || 1);
+  const multiHitCoverage = average(environmentPool.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier * hitCount)
+  )));
+  const concentratedMultiHitCoverage = average(highDurability.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier * hitCount)
+  )));
+
+  if (role === "precision_attack") {
+    return {
+      role,
+      roleFit: concentratedCoverage * attackConditionCoverage,
+      highDurabilityCoverage: concentratedCoverage,
+      boardCoverage: perHitCoverage,
+      defenseMatchup: 0,
+      reviveMatchup: 0,
+    };
+  }
+  if (role === "sweep_attack") {
+    // AoE evaluates its damage on every target. Multi-hit keeps a lower
+    // single-hit score for broad-board flexibility, while retaining a
+    // separate concentrated score for the cases where all hits stay put.
+    const boardCoverage = skillData.type === "multi_hit_attack"
+      ? perHitCoverage * 0.7 + multiHitCoverage * 0.3
+      : perHitCoverage;
+    return {
+      role,
+      roleFit: boardCoverage * attackConditionCoverage,
+      highDurabilityCoverage: skillData.type === "multi_hit_attack" ? concentratedMultiHitCoverage : concentratedCoverage,
+      boardCoverage,
+      defenseMatchup: 0,
+      reviveMatchup: 0,
+    };
+  }
+  if (role === "defense") {
+    const defenseMatchup = defense * (0.25 + nonAttackShare * 0.75);
+    return {
+      role,
+      roleFit: defenseMatchup * 0.45 + skill * 0.55,
+      highDurabilityCoverage: 0,
+      boardCoverage: 0,
+      defenseMatchup,
+      reviveMatchup: 0,
+    };
+  }
+  if (role === "revive" || role === "recovery") {
+    const reviveMatchup = skill * (0.35 + attackShare * 0.65);
+    return {
+      role,
+      roleFit: reviveMatchup,
+      highDurabilityCoverage: 0,
+      boardCoverage: 0,
+      defenseMatchup: 0,
+      reviveMatchup,
+    };
+  }
+  if (role === "support") {
+    return {
+      role,
+      roleFit: skill,
+      highDurabilityCoverage: 0,
+      boardCoverage: 0,
+      defenseMatchup: 0,
+      reviveMatchup: 0,
+    };
+  }
+  return {
+    role,
+    roleFit: (offense + defense) / 2,
+    highDurabilityCoverage: 0,
+    boardCoverage: 0,
+    defenseMatchup: 0,
+    reviveMatchup: 0,
+  };
+}
+
 function characterProxyRating(character, position, environmentPool, maxima, rules, allyCandidates = []) {
   const directScores = environmentPool.map((enemy) => {
     const dealt = calculateMinimumDamage({ attacker: character, defender: enemy, rules }).value;
@@ -506,9 +690,23 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
   const skill = clampUnit(skillRaw / 4);
   const duration = Math.max(1, Number(character.skill?.duration) || 1);
   const continuation = duration > 1 ? clampUnit((duration - 1) / 4) : 0;
-  const practicalValue = clampUnit(
-    offense * 0.32 + defense * 0.2 + statPower * 0.18 + statHp * 0.12 + skill * 0.14 + continuation * 0.04,
+  const costEfficiency = clampUnit(v7CostEfficiency(character) / Math.max(1, maxima.costEfficiency));
+  const roleProfile = v8RoleFitness(character, environmentPool, rules, {
+    offense,
+    defense,
+    skill,
+    allyCoverage,
+    enemyCoverage,
+  });
+  const frontline = clampUnit(
+    statPower * 0.3 + statHp * 0.3 + offense * 0.2 + defense * 0.14 + costEfficiency * 0.06,
   );
+  const practicalValue = position === 1
+    ? frontline
+    : clampUnit(
+      roleProfile.roleFit * 0.46 + skill * 0.14 + costEfficiency * 0.16 +
+      ((offense + defense) / 2) * 0.14 + continuation * 0.05 + (statPower + statHp) / 2 * 0.05,
+    );
   return {
     id: String(character.id),
     name: character.name,
@@ -520,6 +718,17 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
     skillTurn: character.skillTurn,
     skillType: character.skill?.type ?? "none",
     skillName: character.skillName ?? "",
+    role: roleProfile.role,
+    individualScore: practicalValue,
+    roleFit: roleProfile.roleFit,
+    roleBreakdown: {
+      frontline,
+      highDurabilityCoverage: roleProfile.highDurabilityCoverage,
+      boardCoverage: roleProfile.boardCoverage,
+      defenseMatchup: roleProfile.defenseMatchup,
+      reviveMatchup: roleProfile.reviveMatchup,
+      costEfficiency,
+    },
     expectedWinRate: practicalValue,
     expectedWinLowerBound: practicalValue,
     balancedContribution: clampUnit((offense + defense) / 2),
@@ -539,7 +748,18 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
     counteraction: ["single_attack", "aoe_attack", "attack_buff", "multi_hit_attack"].includes(character.skill?.type)
       ? skill : 0,
     skillActivationRate: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? 1 : 0,
-    v7Proxy: { offense, defense, skill, continuation, allyCoverage, enemyCoverage, practicalValue },
+    v7Proxy: {
+      offense,
+      defense,
+      skill,
+      continuation,
+      allyCoverage,
+      enemyCoverage,
+      frontline,
+      role: roleProfile.role,
+      roleFit: roleProfile.roleFit,
+      practicalValue,
+    },
   };
 }
 
@@ -559,11 +779,13 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
   const maxima = {
     hp: Math.max(1, ...allByPosition.flat().map((character) => Number(character.hp) || 0)),
     pow: Math.max(1, ...allByPosition.flat().map((character) => Number(character.pow) || 0)),
+    costEfficiency: Math.max(1, ...allByPosition.flat().map((character) => v7CostEfficiency(character))),
   };
   const allyCandidates = allByPosition.flat();
+  const broadEnvironment = resolvedInput.environmentPools.flat();
   const ratingsByPosition = allByPosition.map((pool, index) => new Map(pool.map((character) => [
     String(character.id),
-    characterProxyRating(character, index + 1, resolvedInput.environmentPools[index], maxima, rules, allyCandidates),
+    characterProxyRating(character, index + 1, broadEnvironment, maxima, rules, allyCandidates),
   ])));
   const exampleIdsByPosition = [0, 1, 2, 3, 4].map((index) => new Set(
     resolvedInput.examplePatterns.map((deck) => deck[index]).filter(Boolean).map((character) => String(character.id)),
@@ -598,6 +820,17 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
       right.practicalValue - left.practicalValue ||
       left.cost - right.cost
     )).slice(0, utilityLimit).forEach((rating) => selected.set(rating.id, rating));
+    // Keep at least one strong representative of every practical role. This
+    // prevents a broad high-stat proxy cut from erasing revivers, defenders,
+    // precision attackers, or board-clear attackers before deck generation.
+    ["precision_attack", "sweep_attack", "defense", "revive", "recovery", "support"].forEach((role) => {
+      const representative = listed.filter((rating) => rating.role === role).sort((left, right) => (
+        Number(right.roleFit) - Number(left.roleFit) ||
+        right.practicalValue - left.practicalValue ||
+        left.cost - right.cost
+      ))[0];
+      if (representative) selected.set(representative.id, representative);
+    });
     exampleRatings.forEach((rating) => selected.set(rating.id, rating));
     return [...selected.values()];
   });
@@ -842,6 +1075,12 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
 }
 
 export function rateMetagameV7Character(character, position, resolvedInput, candidatePools, teamScenarios, options = {}) {
+  const individual = candidatePools.ratingsByPosition[position - 1]?.get(String(character.id)) ?? {};
+  const individualScore = rounded(individual.individualScore ?? individual.practicalValue ?? 0);
+  const roleFit = rounded(individual.roleFit ?? 0);
+  const roleBreakdown = Object.fromEntries(Object.entries(individual.roleBreakdown ?? {}).map(([key, value]) => (
+    [key, rounded(value)]
+  )));
   const deckCandidates = buildMetagameV7DeckCandidates(character, position, resolvedInput, candidatePools, options);
   const evaluatedDecks = deckCandidates.map((candidate) => ({
     ...candidate,
@@ -866,6 +1105,10 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
       skillTurn: character.skillTurn,
       skillType: character.skill?.type ?? "none",
       skillName: character.skillName ?? "",
+      role: individual.role ?? v8RoleForCharacter(character),
+      individualScore,
+      roleFit,
+      roleBreakdown,
       position,
       evaluatedDeckCount: 0,
       infeasible: true,
@@ -886,10 +1129,13 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
         ongoingRate: 0,
       },
       exampleDeck: null,
+      deckScore: 0,
       v7Score: 0,
     };
   }
   const example = evaluatedDecks.find((entry) => entry.origin === "example");
+  const deckScore = rounded(best.result.expectedWinLowerBound);
+  const individualWeight = position === 1 ? 0.3 : 0.4;
   return {
     id: String(character.id),
     name: character.name,
@@ -901,6 +1147,10 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     skillTurn: character.skillTurn,
     skillType: character.skill?.type ?? "none",
     skillName: character.skillName ?? "",
+    role: individual.role ?? v8RoleForCharacter(character),
+    individualScore,
+    roleFit,
+    roleBreakdown,
     position,
     evaluatedDeckCount: evaluatedDecks.length,
     bestDeck: {
@@ -920,7 +1170,11 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
       ...Object.fromEntries(Object.entries(example.result).map(([key, value]) => [key, typeof value === "number" ? rounded(value) : value])),
     } : null,
     // コストは単体で割らず、残り4枠を含む完成デッキの下限勝率で評価する。
-    v7Score: rounded(best.result.expectedWinLowerBound),
+    deckScore,
+    // First position keeps a larger stat component. From the second position
+    // onward, a character's own role fit remains 40% of its ranking rather
+    // than disappearing behind the single best supporting deck.
+    v7Score: rounded(deckScore * (1 - individualWeight) + individualScore * individualWeight),
   };
 }
 

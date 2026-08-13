@@ -23,6 +23,25 @@ function metagameUiSigned(value) {
   return `${number >= 0 ? "+" : ""}${number.toFixed(2)}`;
 }
 
+const METAGAME_ROLE_LABELS = Object.freeze({
+  precision_attack: "単体高耐久対策",
+  sweep_attack: "盤面制圧攻撃",
+  defense: "防御",
+  revive: "蘇生",
+  recovery: "回復",
+  support: "支援",
+  neutral: "基礎性能",
+});
+
+function metagameUiRoleLabel(rating) {
+  if (rating?.role) return METAGAME_ROLE_LABELS[rating.role] ?? rating.role;
+  if (rating?.skillType === "single_attack") return METAGAME_ROLE_LABELS.precision_attack;
+  if (["aoe_attack", "multi_hit_attack"].includes(rating?.skillType)) return METAGAME_ROLE_LABELS.sweep_attack;
+  if (["damage_reduction", "guard", "attribute_guard"].includes(rating?.skillType)) return METAGAME_ROLE_LABELS.defense;
+  if (rating?.skillType === "revive") return METAGAME_ROLE_LABELS.revive;
+  return METAGAME_ROLE_LABELS.neutral;
+}
+
 function metagameUiModelLabel(data) {
   const version = String(data.sourceModelVersion ?? "").match(/v\d+/i)?.[0]?.toUpperCase();
   return version ? `GitHub環境${version}` : data.sourceIsLegacy ? "旧評価" : "環境評価";
@@ -103,6 +122,21 @@ function metagameUiImpactReasons(character, rating, environment, deck) {
     `1盤面あたりの差分: 味方交代抑制 ${metagameUiSigned(rating.allyPreservationNet)} / 敵交代増加 ${metagameUiSigned(rating.enemyRemovalNet)}`,
     `味方維持率 ${metagameUiPercent(rating.allyRetentionRate)} / 敵への進行率 ${metagameUiPercent(rating.enemyPressureRate)}`,
   ];
+  const individualScore = Number(rating.individualScore);
+  const roleFit = Number(rating.roleFit);
+  if (Number.isFinite(individualScore) || Number.isFinite(roleFit)) {
+    const individualText = Number.isFinite(individualScore) ? metagameUiPercent(individualScore) : "未計測";
+    const roleFitText = Number.isFinite(roleFit) ? metagameUiPercent(roleFit) : "未計測";
+    reasons.unshift(
+      `単体役割: ${metagameUiRoleLabel(rating)} / 単体環境適性 ${individualText} / 役割遂行 ${roleFitText}`,
+    );
+  }
+  const roleBreakdown = rating.roleBreakdown ?? {};
+  if (Number(roleBreakdown.highDurabilityCoverage) > 0 || Number(roleBreakdown.boardCoverage) > 0) {
+    reasons.push(
+      `攻撃適性: 高耐久への到達 ${metagameUiPercent(roleBreakdown.highDurabilityCoverage)} / 盤面制圧 ${metagameUiPercent(roleBreakdown.boardCoverage)}`,
+    );
+  }
   if (["delay", "skill_reduction"].includes(character.skill?.type)) {
     reasons.push("短縮・遅延効果は今回の評価対象外です。採用された場合は、通常攻撃・耐久・他枠との組み合わせが主因です。");
   }

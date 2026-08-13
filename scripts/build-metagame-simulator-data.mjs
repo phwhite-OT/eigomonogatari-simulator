@@ -18,14 +18,14 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V8_MODEL_VERSION = "team-battle-v8.2";
+const METAGAME_V8_MODEL_VERSION = "team-battle-v8.3-role-fit";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V7_INPUTS.map((input) => Object.freeze({
     type: "v8",
     inputId: input.id,
-    statusPath: `reports/metagame-ratings-v8.2/${input.id.replaceAll(":", "-")}/progress.json`,
-    reportPath: `reports/metagame-ratings-v8.2/${input.id.replaceAll(":", "-")}/report.json`,
-    reportRoot: "reports/metagame-ratings-v8.2",
+    statusPath: `reports/metagame-ratings-v8.3-role-fit/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v8.3-role-fit/${input.id.replaceAll(":", "-")}/report.json`,
+    reportRoot: "reports/metagame-ratings-v8.3-role-fit",
     requiredModelVersion: METAGAME_V8_MODEL_VERSION,
     legacy: false,
   })),
@@ -271,31 +271,60 @@ function compactMetagameV8Candidate(entry, character) {
   };
 }
 
-function compactMetagameV8Deck(entry) {
-  const ids = entry?.i ?? entry?.ids;
+function compactMetagameV8Rating(entry) {
+  if (!entry) return null;
+  const breakdown = entry.b ?? entry.roleBreakdown ?? {};
+  const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : undefined;
+  const rating = {
+    // This is deliberately only the role evidence needed by the deck card;
+    // full per-character reports remain in the cloud artifacts.
+    k: entry.k ?? entry.role,
+    i: finite(entry.i ?? entry.individualScore),
+    f: finite(entry.f ?? entry.roleFit),
+    b: {
+      f: finite(breakdown.f ?? breakdown.frontline),
+      h: finite(breakdown.h ?? breakdown.highDurabilityCoverage),
+      a: finite(breakdown.a ?? breakdown.boardCoverage),
+      d: finite(breakdown.d ?? breakdown.defenseMatchup),
+      v: finite(breakdown.v ?? breakdown.reviveMatchup),
+      c: finite(breakdown.c ?? breakdown.costEfficiency),
+    },
+  };
+  const hasEvidence = [rating.i, rating.f, ...Object.values(rating.b)].some(Number.isFinite);
+  return hasEvidence ? rating : null;
+}
+
+function compactMetagameV8Deck(entry, ratingsByPosition) {
+  const source = entry?.v8BestDeck ?? entry?.v7BestDeck ?? entry?.bestDeck ?? entry;
+  const ids = source?.i ?? source?.ids;
   if (!Array.isArray(ids) || ids.length !== 5) return null;
-  return {
+  const compactRatings = source.r ?? source.ratings ?? ids.map((id, index) => (
+    compactMetagameV8Rating(ratingsByPosition?.[index]?.get(String(id)))
+  ));
+  const deck = {
     // Short field names keep the browser payload small. They are expanded by
     // metagame-deck.js when a result is displayed.
     i: ids.map(String),
-    c: Number(entry.c ?? entry.totalCost) || 0,
-    p: Number(entry.p ?? entry.proxyScore) || 0,
-    y: Number(entry.y ?? entry.synergyScore) || 0,
-    w: Number(entry.w ?? entry.expectedWinRate) || 0,
-    l: Number(entry.l ?? entry.expectedWinLowerBound) || 0,
-    s: Number(entry.s ?? entry.scenarioCount) || 0,
-    a: Number(entry.a ?? entry.decisiveWinRate) || 0,
-    d: Number(entry.d ?? entry.decisiveDrawRate) || 0,
-    e: Number(entry.e ?? entry.decisiveLossRate) || 0,
-    o: Number(entry.o ?? entry.ongoingRate) || 0,
-    x: entry.x ?? (entry.origin === "example" ? "example" : "automatic"),
+    c: Number(source.c ?? source.totalCost) || 0,
+    p: Number(source.p ?? source.proxyScore) || 0,
+    y: Number(source.y ?? source.synergyScore) || 0,
+    w: Number(source.w ?? source.expectedWinRate) || 0,
+    l: Number(source.l ?? source.expectedWinLowerBound) || 0,
+    s: Number(source.s ?? source.scenarioCount) || 0,
+    a: Number(source.a ?? source.decisiveWinRate) || 0,
+    d: Number(source.d ?? source.decisiveDrawRate) || 0,
+    e: Number(source.e ?? source.decisiveLossRate) || 0,
+    o: Number(source.o ?? source.ongoingRate) || 0,
+    x: source.x ?? (source.origin === "example" ? "example" : "automatic"),
   };
+  if (compactRatings.some(Boolean)) deck.r = compactRatings;
+  return deck;
 }
 
-function compactMetagameV8Decks(entries) {
+function compactMetagameV8Decks(entries, ratingsByPosition) {
   const unique = new Map();
   for (const entry of entries) {
-    const deck = compactMetagameV8Deck(entry?.v8BestDeck ?? entry?.v7BestDeck ?? entry?.bestDeck ?? entry);
+    const deck = compactMetagameV8Deck(entry, ratingsByPosition);
     if (!deck) continue;
     const key = deck.i.join("|");
     const current = unique.get(key);
@@ -350,8 +379,12 @@ function v8EnvironmentPools(report) {
 export function buildMetagameV8Constraint(report, charactersById) {
   const rankings = new Map((report.rankingsByPosition ?? []).map((slot) => [Number(slot.position), slot]));
   const pools = v8EnvironmentPools(report);
+  const ratingsByPosition = [1, 2, 3, 4, 5].map((position) => (
+    new Map((rankings.get(position)?.characters ?? []).map((entry) => [String(entry.id), entry]))
+  ));
   const precomputedDecks = compactMetagameV8Decks(
     [...rankings.values()].flatMap((slot) => slot.characters ?? []),
+    ratingsByPosition,
   );
   return {
     id: report.context?.inputId ?? "fire:100",
