@@ -108,7 +108,7 @@ test("v7 completes each environment pivot with strong feasible partners instead 
   }
 });
 
-test("v8.3 broad environment gives each supplied pivot multiple legal partner completions", () => {
+test("v8.4 broad environment gives each supplied pivot multiple legal partner completions", () => {
   const characters = [1, 2, 3, 4, 5].flatMap((position) => [
     v7TestCharacter(`pivot-${position}`, `pivot-${position}`, position, { cost: 20, hp: 2_000, pow: 2_000 }),
     v7TestCharacter(`alternate-${position}`, `alternate-${position}`, position, { cost: 20, hp: 1_700, pow: 1_700 }),
@@ -186,6 +186,65 @@ test("later slots retain role-specific individual fit against the full supplied 
   assert.ok(singleRating.roleBreakdown.highDurabilityCoverage > multiRating.roleBreakdown.highDurabilityCoverage);
   assert.ok(singleRating.individualScore > 0);
   assert.ok(multiRating.individualScore > 0);
+});
+
+test("2枠目と3枠目は追加の待機ターンをスキル再現率へ反映する", () => {
+  const environment = [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`timing-env-${position}`, `timing-env-${position}`, position, {
+      hp: 2_000,
+      pow: 200,
+      cost: 15,
+    })
+  ));
+  const fastSecond = {
+    ...v7TestCharacter("fast-second", "fast-second", 2, {
+      skillTurn: 1,
+      pow: 1_000,
+      skill: { type: "single_attack", multiplier: 4, target: "enemy_one", duration: 1, conditions: [] },
+    }),
+    allowedPositions: [2],
+  };
+  const slowSecond = {
+    ...fastSecond,
+    id: "slow-second",
+    name: "slow-second",
+    skillTurn: 2,
+  };
+  const fastThird = {
+    ...v7TestCharacter("fast-third", "fast-third", 3, {
+      skillTurn: 2,
+      pow: 1_000,
+      skill: { type: "single_attack", multiplier: 4, target: "enemy_one", duration: 1, conditions: [] },
+    }),
+    allowedPositions: [3],
+  };
+  const slowThird = {
+    ...fastThird,
+    id: "slow-third",
+    name: "slow-third",
+    skillTurn: 3,
+  };
+  const input = {
+    id: "skill-reliability-test",
+    label: "skill reliability test",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: environment.map((character) => [character.name]),
+    exampleDeckNames: [],
+  };
+  const characters = [...environment, fastSecond, slowSecond, fastThird, slowThird];
+  const pools = buildMetagameV7CandidatePools(resolveMetagameV7Input(input, characters), characters);
+  const fastSecondRating = pools.ratingsByPosition[1].get(fastSecond.id);
+  const slowSecondRating = pools.ratingsByPosition[1].get(slowSecond.id);
+  const fastThirdRating = pools.ratingsByPosition[2].get(fastThird.id);
+  const slowThirdRating = pools.ratingsByPosition[2].get(slowThird.id);
+
+  assert.equal(fastSecondRating.roleBreakdown.skillReadiness, 1);
+  assert.equal(slowSecondRating.roleBreakdown.skillReadiness, 0.42);
+  assert.equal(fastThirdRating.roleBreakdown.skillReadiness, 1);
+  assert.equal(slowThirdRating.roleBreakdown.skillReadiness, 0.64);
+  assert.ok(fastSecondRating.individualScore > slowSecondRating.individualScore);
+  assert.ok(fastThirdRating.individualScore > slowThirdRating.individualScore);
 });
 
 test("extended team scenarios minimize duplicate characters across the ten players", () => {

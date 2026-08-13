@@ -244,6 +244,7 @@ function skillDecision(state, side, actorIndex, rules, options) {
   if (options.playStyle === PLAY_STYLES.EXPERT) {
     return expertSkillDecision(state, side, actorIndex, rules);
   }
+  if (skill.type === "heal") return healDecision(state, side, actorIndex, skill, rules);
   const environmentPosition = actor.environmentPosition ?? actor.deckIndex + 1;
   if (environmentPosition >= 2 && skill.type !== "revive") {
     return { use: true, reason: "2枠目以降は使用可能なスキルを原則すぐ使用" };
@@ -320,7 +321,33 @@ function expertSupportBenefit(state, side, actorIndex, skill, rules) {
   const outgoingGain = crossTeamDamage(after, side, rules) - crossTeamDamage(state, side, rules);
   const preventedDamage = crossTeamDamage(state, opponentSide(side), rules) - crossTeamDamage(after, opponentSide(side), rules);
   const healingGain = totalCurrentHp(after, side) - totalCurrentHp(state, side);
-  return { outgoingGain, preventedDamage, healingGain };
+  return { after, outgoingGain, preventedDamage, healingGain };
+}
+
+function healDecision(state, side, actorIndex, skill, rules) {
+  const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
+  if (benefit.healingGain <= 0) return { use: false, reason: "回復対象に実際の回復がないため温存" };
+
+  // A heal that cannot move its target out of lethal range is normally held:
+  // that target is a revive target this turn, and recovery remains useful on
+  // the post-revive board. Revive itself keeps its immediate-threat policy.
+  const revivalTargetBeforeHeal = reviveMayApply(state, side, actorIndex, skill, rules);
+  const revivalTargetAfterHeal = reviveMayApply(benefit.after, side, actorIndex, skill, rules);
+  if (revivalTargetBeforeHeal) {
+    return revivalTargetAfterHeal
+      ? { use: false, reason: "回復後も蘇生対象となるため、回復を温存" }
+      : { use: true, reason: "回復で蘇生対象を生存圏へ戻せるため使用" };
+  }
+
+  const targets = state[side].filter((target, targetIndex) => (
+    target.alive && !target.isGhost && skillScopeMatches(skill, target, actorIndex, targetIndex)
+  ));
+  const targetMaxHp = targets.reduce((sum, target) => sum + Math.max(1, Number(target.maxHp) || 1), 0);
+  const belowHalf = targets.some((target) => target.currentHp / Math.max(1, target.maxHp) < 0.5);
+  const substantialRecovery = benefit.healingGain >= targetMaxHp * 0.35;
+  return belowHalf || substantialRecovery
+    ? { use: true, reason: "回復量が十分で、直後の盤面維持に寄与するため使用" }
+    : { use: false, reason: "緊急回復・蘇生回避には足りないため、回復を温存" };
 }
 
 function expertSkillDecision(state, side, actorIndex, rules) {
@@ -331,6 +358,7 @@ function expertSkillDecision(state, side, actorIndex, rules) {
       ? { use: true, reason: "このターンの撃破を蘇生で覆せるため使用" }
       : { use: false, reason: "このターンに蘇生対象が発生しないため温存" };
   }
+  if (skill.type === "heal") return healDecision(state, side, actorIndex, skill, rules);
   if (isAttackSkill(skill)) {
     const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
     return benefit.outgoingGain > 0

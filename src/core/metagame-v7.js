@@ -15,7 +15,7 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // input sheet still describes the five positions within one player's deck,
 // but a match is always simulated as five player decks versus five player
 // decks (25 characters per team including reserves).
-export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.3-role-fit";
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.4-skill-reliability";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
 // decide whether a report is compatible.
@@ -547,6 +547,28 @@ function v7CostEfficiency(rating) {
   return (Number(rating.hp) + Number(rating.pow) * 0.75) / Math.max(1, Number(rating.cost));
 }
 
+function v8SkillReadiness(character, position) {
+  const skillType = character?.skill?.type ?? "none";
+  if (["none", "delay", "skill_reduction"].includes(skillType)) return 1;
+  const skillTurn = Math.max(0, Number(character?.skillTurn) || 0);
+  const expectedTurn = Math.max(0, Number(position) - 1);
+  const excessTurns = Math.max(0, skillTurn - expectedTurn);
+  if (!excessTurns) return 1;
+  // A 2nd-slot 2T skill must survive an additional turn after appearing.
+  // The same delay is less severe further back, where charging opportunities
+  // are more plentiful. Fifth-slot delays remain legal but decay gradually.
+  const perExtraTurn = position <= 1
+    ? 0.65
+    : position === 2
+      ? 0.42
+      : position === 3
+        ? 0.64
+        : position === 4
+          ? 0.8
+          : 0.9;
+  return perExtraTurn ** excessTurns;
+}
+
 function v8RoleForCharacter(character) {
   switch (character?.skill?.type) {
     case "single_attack": return "precision_attack";
@@ -686,7 +708,8 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
   const statHp = clampUnit(Number(character.hp) / maxima.hp);
   const allyCoverage = allyConditionCoverage(character, character.skill, allyCandidates);
   const enemyCoverage = attributeConditionCoverage(character.skill?.conditions, "enemy_attribute", environmentPool);
-  const skillRaw = estimateSkillPotency(character, environmentPool, position, rules) * allyCoverage * enemyCoverage;
+  const skillReadiness = v8SkillReadiness(character, position);
+  const skillRaw = estimateSkillPotency(character, environmentPool, position, rules) * allyCoverage * enemyCoverage * skillReadiness;
   const skill = clampUnit(skillRaw / 4);
   const duration = Math.max(1, Number(character.skill?.duration) || 1);
   const continuation = duration > 1 ? clampUnit((duration - 1) / 4) : 0;
@@ -701,12 +724,15 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
   const frontline = clampUnit(
     statPower * 0.3 + statHp * 0.3 + offense * 0.2 + defense * 0.14 + costEfficiency * 0.06,
   );
-  const practicalValue = position === 1
+  const rawPracticalValue = position === 1
     ? frontline
     : clampUnit(
       roleProfile.roleFit * 0.46 + skill * 0.14 + costEfficiency * 0.16 +
       ((offense + defense) / 2) * 0.14 + continuation * 0.05 + (statPower + statHp) / 2 * 0.05,
     );
+  // This is applied before beam pruning. A strong but delayed 2nd/3rd-slot
+  // skill must not eliminate a reproducible earlier skill from consideration.
+  const practicalValue = clampUnit(rawPracticalValue * (0.65 + skillReadiness * 0.35));
   return {
     id: String(character.id),
     name: character.name,
@@ -728,26 +754,28 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
       defenseMatchup: roleProfile.defenseMatchup,
       reviveMatchup: roleProfile.reviveMatchup,
       costEfficiency,
+      skillReadiness,
+      lateSkillRisk: 1 - skillReadiness,
     },
     expectedWinRate: practicalValue,
     expectedWinLowerBound: practicalValue,
     balancedContribution: clampUnit((offense + defense) / 2),
     practicalValue,
-    practicalSkillReliability: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? 1 : 0,
+    practicalSkillReliability: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? skillReadiness : 1,
     powerPreference: statPower,
     enemyPressureRate: offense,
     combinationPotential: continuation,
     continuationWinGain: continuation * skill,
     carriedContinuationWinGain: continuation * skill,
     tacticalUpside: skill,
-    tacticalRisk: 0,
+    tacticalRisk: 1 - skillReadiness,
     allyRetentionRate: defense,
     carriedDefenseRate: continuation * defense,
     advantageCreation: ["damage_reduction", "guard", "attribute_guard", "heal", "revive"].includes(character.skill?.type)
       ? skill : 0,
     counteraction: ["single_attack", "aoe_attack", "attack_buff", "multi_hit_attack"].includes(character.skill?.type)
       ? skill : 0,
-    skillActivationRate: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? 1 : 0,
+    skillActivationRate: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? skillReadiness : 1,
     v7Proxy: {
       offense,
       defense,
@@ -755,6 +783,7 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
       continuation,
       allyCoverage,
       enemyCoverage,
+      skillReadiness,
       frontline,
       role: roleProfile.role,
       roleFit: roleProfile.roleFit,

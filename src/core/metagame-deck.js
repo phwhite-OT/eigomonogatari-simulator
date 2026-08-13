@@ -23,6 +23,7 @@ function metagameCandidateScore(rating) {
   const carriedContinuationWinGain = metagameDeckClampUnit(rating.carriedContinuationWinGain);
   const tacticalUpside = metagameDeckClampUnit(rating.tacticalUpside ?? rating.tactical?.tacticalUpside);
   const tacticalRisk = metagameDeckClampUnit(rating.tacticalRisk ?? rating.tactical?.tacticalRisk);
+  const lateSkillRisk = metagameDeckClampUnit(rating.roleBreakdown?.lateSkillRisk ?? rating.lateSkillRisk);
   const roleFit = metagameDeckClampUnit(rating.roleFit ?? rating.individualScore);
   return (
     metagameDeckClampUnit(rating.expectedWinLowerBound) * 0.36 +
@@ -39,7 +40,8 @@ function metagameCandidateScore(rating) {
     continuationWinGain * 0.035 +
     carriedContinuationWinGain * 0.045 +
     tacticalUpside * 0.04 -
-    tacticalRisk * 0.04
+    tacticalRisk * 0.04 -
+    lateSkillRisk * 0.08
   );
 }
 
@@ -293,6 +295,8 @@ function metagamePrecomputedRoleRating(character, compactRating, deckMetrics) {
       defenseMatchup: finite(breakdown.d ?? breakdown.defenseMatchup),
       reviveMatchup: finite(breakdown.v ?? breakdown.reviveMatchup),
       costEfficiency: finite(breakdown.c ?? breakdown.costEfficiency),
+      skillReadiness: finite(breakdown.r ?? breakdown.skillReadiness),
+      lateSkillRisk: finite(breakdown.l ?? breakdown.lateSkillRisk),
     },
     ...deckMetrics,
     overallRank: "-",

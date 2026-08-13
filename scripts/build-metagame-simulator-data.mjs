@@ -18,14 +18,14 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V8_MODEL_VERSION = "team-battle-v8.3-role-fit";
+const METAGAME_V8_MODEL_VERSION = "team-battle-v8.4-skill-reliability";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V7_INPUTS.map((input) => Object.freeze({
     type: "v8",
     inputId: input.id,
-    statusPath: `reports/metagame-ratings-v8.3-role-fit/${input.id.replaceAll(":", "-")}/progress.json`,
-    reportPath: `reports/metagame-ratings-v8.3-role-fit/${input.id.replaceAll(":", "-")}/report.json`,
-    reportRoot: "reports/metagame-ratings-v8.3-role-fit",
+    statusPath: `reports/metagame-ratings-v8.4-skill-reliability/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v8.4-skill-reliability/${input.id.replaceAll(":", "-")}/report.json`,
+    reportRoot: "reports/metagame-ratings-v8.4-skill-reliability",
     requiredModelVersion: METAGAME_V8_MODEL_VERSION,
     legacy: false,
   })),
@@ -288,6 +288,8 @@ function compactMetagameV8Rating(entry) {
       d: finite(breakdown.d ?? breakdown.defenseMatchup),
       v: finite(breakdown.v ?? breakdown.reviveMatchup),
       c: finite(breakdown.c ?? breakdown.costEfficiency),
+      r: finite(breakdown.r ?? breakdown.skillReadiness),
+      l: finite(breakdown.l ?? breakdown.lateSkillRisk),
     },
   };
   const hasEvidence = [rating.i, rating.f, ...Object.values(rating.b)].some(Number.isFinite);

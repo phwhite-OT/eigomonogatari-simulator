@@ -226,6 +226,55 @@ test("蘇生は攻撃後・交代前に解決し、同じキャラへ一度だ�
   assert.equal(result.history[0].phases.at(-1).events.length, 0);
 });
 
+test("回復は蘇生対象を救えない場合に温存する", () => {
+  const heal = {
+    type: "heal",
+    multiplier: 0.5,
+    target: "leader",
+    duration: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [
+      character("revive-target", { hp: 500, pow: 0 }),
+      character("healer", { hp: 1_000, pow: 0, skillTurn: 0, skill: heal }),
+    ],
+    [character("lethal-enemy", { hp: 10_000, pow: 1_000 })],
+  );
+  const result = simulateBattle(state, simpleRules, { turns: 1, playStyle: "expert" });
+  const selection = result.history[0].phases.find(({ id }) => id === "skill_selection");
+  const event = selection.events.find(({ actorName }) => actorName === "healer");
+
+  assert.equal(event.type, "skill_hold");
+  assert.equal(event.reason, "回復後も蘇生対象となるため、回復を温存");
+  assert.equal(result.state.allies[1].skillUses, 0);
+});
+
+test("回復が蘇生対象を生存圏へ戻せる場合は使用する", () => {
+  const heal = {
+    type: "heal",
+    multiplier: 0.8,
+    target: "leader",
+    duration: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [
+      character("saved-target", { hp: 1_000, pow: 0 }),
+      character("healer", { hp: 1_000, pow: 0, skillTurn: 0, skill: heal }),
+    ],
+    [character("enemy", { hp: 10_000, pow: 900 })],
+  );
+  state.allies[0].currentHp = 200;
+  const result = simulateBattle(state, simpleRules, { turns: 1, playStyle: "expert" });
+  const selection = result.history[0].phases.find(({ id }) => id === "skill_selection");
+  const event = selection.events.find(({ actorName }) => actorName === "healer");
+
+  assert.equal(event.type, "skill_use");
+  assert.equal(event.reason, "回復で蘇生対象を生存圏へ戻せるため使用");
+  assert.equal(result.state.allies[1].skillUses, 1);
+});
+
 
 
 test("全方針で倒しやすさより残り枚数の多い相手を優先する", () => {

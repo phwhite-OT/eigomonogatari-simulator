@@ -132,6 +132,11 @@ function metagameUiImpactReasons(character, rating, environment, deck) {
     );
   }
   const roleBreakdown = rating.roleBreakdown ?? {};
+  if (Number.isFinite(Number(roleBreakdown.skillReadiness))) {
+    reasons.push(
+      `スキル再現率 ${metagameUiPercent(roleBreakdown.skillReadiness)} / 発動待ちリスク ${metagameUiPercent(roleBreakdown.lateSkillRisk)}`,
+    );
+  }
   if (Number(roleBreakdown.highDurabilityCoverage) > 0 || Number(roleBreakdown.boardCoverage) > 0) {
     reasons.push(
       `攻撃適性: 高耐久への到達 ${metagameUiPercent(roleBreakdown.highDurabilityCoverage)} / 盤面制圧 ${metagameUiPercent(roleBreakdown.boardCoverage)}`,
