@@ -2215,8 +2215,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       environmentPosition: overrides.environmentPosition ?? deckIndex + 1,  
       skillCounter: overrides.skillCounter ?? naturalSkillCharge,  
       naturalSkillCharge,  
-      skillUses: overrides.skillUses ?? 0,  
-      survivalTurns: overrides.survivalTurns ?? 0,  
+      skillUses: overrides.skillUses ?? 0,
+      survivalTurns: overrides.survivalTurns ?? 0,
+      appearedThisTurn: overrides.appearedThisTurn ?? false,
       buffs: overrides.buffs ?? [],  
       debuffs: overrides.debuffs ?? [],  
       attributes: overrides.attributes ?? [...(character?.attributes ?? [])],  
@@ -2282,8 +2283,11 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       deckIndex,  
       environmentPosition: (combatant.environmentPosition ?? combatant.deckIndex + 1) + 1,  
       skillCounter: combatant.naturalSkillCharge,  
-      naturalSkillCharge: combatant.naturalSkillCharge,  
-      survivalTurns: 0,  
+      naturalSkillCharge: combatant.naturalSkillCharge,
+      survivalTurns: 0,
+      // A reserve appears after this turn's attacks. It has not survived a
+      // complete turn yet, so advanceTurn must not award its first 1.3x bonus.
+      appearedThisTurn: true,
       buffs,  
       debuffs,  
       attributes: attributesAfterContinuation(character, buffs),  
@@ -2414,10 +2418,14 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     next.turn += 1;  
     for (const side of ["allies", "enemies"]) {  
       for (const combatant of next[side]) {  
-        if (combatant.alive && !combatant.isGhost) {  
-          combatant.naturalSkillCharge += 1;  
-          combatant.skillCounter += 1;  
-          combatant.survivalTurns += 1;  
+        if (combatant.alive && !combatant.isGhost) {
+          combatant.naturalSkillCharge += 1;
+          combatant.skillCounter += 1;
+          if (combatant.appearedThisTurn) {
+            combatant.appearedThisTurn = false;
+          } else {
+            combatant.survivalTurns += 1;
+          }
         }  
         combatant.buffs = combatant.buffs  
           .map((effect) => ({ ...effect, remainingTurns: effect.remainingTurns - 1 }))  
@@ -2520,12 +2528,15 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return selected?.index;  
   }  
     
-  function addEffect(combatant, type, skill, activationOrder, sourceCharacterId) {  
-    return {  
-      ...combatant,  
-      buffs: [  
-        ...combatant.buffs,  
-        {  
+  function addEffect(combatant, type, skill, activationOrder, sourceCharacterId) {
+    const refreshAttackMode = ["aoe_attack", "multi_hit_attack"].includes(type);
+    return {
+      ...combatant,
+      buffs: [
+        ...combatant.buffs.filter((effect) => (
+          !refreshAttackMode || effect.type !== type || String(effect.sourceCharacterId) !== String(sourceCharacterId)
+        )),
+        {
           type,  
           multiplier: skill.multiplier,  
           amount: skill.amount,  
@@ -3042,8 +3053,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     };  
   }  
     
-  function projectedSkillDamage(state, side, actor, skill, rules) {  
-    const effectiveSkill = attackSkillWithEffects(actor, skill);  
+  function projectedSkillDamage(state, side, actor, skill, rules, options = {}) {
+    const effectiveSkill = options.effective ? skill : attackSkillWithEffects(actor, skill);
     const targets = state[opponentSide(side)].filter((combatant) => combatant.alive && !combatant.isGhost);  
     const damages = targets.map((target) => estimateDamage(actor, target, effectiveSkill, rules));  
     if (effectiveSkill.type === "aoe_attack") {  
@@ -3199,8 +3210,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return { state: next, events };  
   }  
     
-  function projectedAttackDamage(intent, state, rules) {  
-    return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules);  
+  function projectedAttackDamage(intent, state, rules) {
+    return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules, { effective: true });
   }  
     
   function tacticalAttackIntentScore(intent, state, rules, options) {  
@@ -3263,7 +3274,15 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       // A selected attack skill changes this turn's attack.  Support skills have
       // already been applied in their own phases, so their owner still makes a
       // normal attack (possibly modified by the resulting continuous effects).
-      const skill = attackSkillWithEffects(token.actor, isAttackSkill(selectedSkill) ? selectedSkill : BASIC_ATTACK);
+      // A multi-hit skill is already added as a continuous attack-mode effect in
+      // the support phase. Start it from one hit here so the new effect changes
+      // 1 -> N, rather than adding its N hits a second time (N -> 2N - 1).
+      const baseSkill = selectedSkill?.type === "multi_hit_attack"
+        ? { ...selectedSkill, hits: 1 }
+        : isAttackSkill(selectedSkill)
+          ? selectedSkill
+          : BASIC_ATTACK;
+      const skill = attackSkillWithEffects(token.actor, baseSkill);
       return {  
         ...token,  
         skill,  

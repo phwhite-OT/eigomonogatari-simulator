@@ -89,6 +89,20 @@ test("生存ターンごとに攻撃力を1.3倍し、交代時にリセット�
   assert.equal(replaced.allies[0].survivalTurns, 0);
 });
 
+test("控えは登場直後の次ターンに生存補正を得ず、1ターン耐えた後から得る", () => {
+  let state = createBattleState(
+    [[character("front", { hp: 50 }), character("reserve")]],
+    [[character("enemy")]],
+  );
+  state = applyDamageToCombatant(state, "allies", 0, 50);
+  assert.equal(state.allies[0].appearedThisTurn, true);
+  state = advanceTurn(state);
+  assert.equal(state.allies[0].survivalTurns, 0);
+  assert.equal(state.allies[0].appearedThisTurn, false);
+  state = advanceTurn(state);
+  assert.equal(state.allies[0].survivalTurns, 1);
+});
+
 test("味方全員スキルは別プレイヤーの現在キャラにだけ作用する", () => {
   const teamBuff = {
     type: "attack_buff",

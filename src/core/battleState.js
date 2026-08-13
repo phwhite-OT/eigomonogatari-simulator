@@ -30,6 +30,7 @@ export function createCombatant(character, overrides = {}) {
     naturalSkillCharge,
     skillUses: overrides.skillUses ?? 0,
     survivalTurns: overrides.survivalTurns ?? 0,
+    appearedThisTurn: overrides.appearedThisTurn ?? false,
     buffs: overrides.buffs ?? [],
     debuffs: overrides.debuffs ?? [],
     attributes: overrides.attributes ?? [...(character?.attributes ?? [])],
@@ -97,6 +98,9 @@ export function activateNextCharacter(combatant) {
     skillCounter: combatant.naturalSkillCharge,
     naturalSkillCharge: combatant.naturalSkillCharge,
     survivalTurns: 0,
+    // A reserve appears after this turn's attacks. It has not survived a
+    // complete turn yet, so advanceTurn must not award its first 1.3x bonus.
+    appearedThisTurn: true,
     buffs,
     debuffs,
     attributes: attributesAfterContinuation(character, buffs),
@@ -230,7 +234,11 @@ export function advanceTurn(state) {
       if (combatant.alive && !combatant.isGhost) {
         combatant.naturalSkillCharge += 1;
         combatant.skillCounter += 1;
-        combatant.survivalTurns += 1;
+        if (combatant.appearedThisTurn) {
+          combatant.appearedThisTurn = false;
+        } else {
+          combatant.survivalTurns += 1;
+        }
       }
       combatant.buffs = combatant.buffs
         .map((effect) => ({ ...effect, remainingTurns: effect.remainingTurns - 1 }))

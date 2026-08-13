@@ -140,6 +140,40 @@ test("後ろの味方が使う全員バフも全員の攻撃前に適用する",
   assert.equal(result.state.enemies[0].currentHp, 800);
 });
 
+test("控えは登場した直後の攻撃で生存補正を受けない", () => {
+  const state = createBattleState(
+    [[
+      character("front", { hp: 50, pow: 0 }),
+      character("reserve", { hp: 1_000, pow: 100 }),
+    ]],
+    [character("enemy", { hp: 10_000, pow: 100 })],
+  );
+  const result = simulateBattle(state, simpleRules, { turns: 2 });
+  const reserveAttack = result.history[1].actions.find(({ actorName }) => actorName === "reserve");
+
+  assert.equal(reserveAttack.hits[0].factors.survival, 1);
+  assert.equal(reserveAttack.hits[0].survivalTurns, 0);
+});
+
+test("連撃スキルの発動ターンは指定ヒット数だけ攻撃する", () => {
+  const multiHit = {
+    type: "multi_hit_attack",
+    multiplier: 1,
+    hits: 6,
+    target: "self",
+    duration: 2,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [character("six-hit", { pow: 100, skillTurn: 0, maxUses: 2, skill: multiHit })],
+    [character("target", { hp: 10_000, pow: 0 })],
+  );
+  const result = simulateBattle(state, simpleRules, { turns: 2 });
+  const attacks = result.history.flatMap(({ actions }) => actions).filter(({ actorName }) => actorName === "six-hit");
+
+  assert.deepEqual(attacks.map(({ hits }) => hits.length), [6, 6]);
+});
+
 test("蘇生は攻撃後・交代前に解決し、同じキャラへ一度だけ適用する", () => {
   const revive = {
     type: "revive",
@@ -293,7 +327,8 @@ test("環境対戦は継続バフを次枠へ渡して次ターンの攻撃へ�
   ));
 
   assert.equal(result.history[0].phases.at(-1).events[0].type, "replacement");
-  assert.equal(reserveAction.hits[0].damage, 260);
+  assert.equal(reserveAction.hits[0].damage, 200);
+  assert.equal(reserveAction.hits[0].survivalTurns, 0);
   assert.deepEqual(result.metrics.continuation.bySource["front-buffer"], {
     attackHits: 1,
     carriedAttackHits: 1,

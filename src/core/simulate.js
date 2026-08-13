@@ -276,8 +276,8 @@ function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK) {
   };
 }
 
-function projectedSkillDamage(state, side, actor, skill, rules) {
-  const effectiveSkill = attackSkillWithEffects(actor, skill);
+function projectedSkillDamage(state, side, actor, skill, rules, options = {}) {
+  const effectiveSkill = options.effective ? skill : attackSkillWithEffects(actor, skill);
   const targets = state[opponentSide(side)].filter((combatant) => combatant.alive && !combatant.isGhost);
   const damages = targets.map((target) => estimateDamage(actor, target, effectiveSkill, rules));
   if (effectiveSkill.type === "aoe_attack") {
@@ -434,7 +434,7 @@ function applySupportPhase(state, intents, skillTypes) {
 }
 
 function projectedAttackDamage(intent, state, rules) {
-  return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules);
+  return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules, { effective: true });
 }
 
 function tacticalAttackIntentScore(intent, state, rules, options) {
@@ -497,7 +497,15 @@ function attackIntents(state, selectedSkills, rules, options) {
     // A selected attack skill changes this turn's attack.  Support skills have
     // already been applied in their own phases, so their owner still makes a
     // normal attack (possibly modified by the resulting continuous effects).
-    const skill = attackSkillWithEffects(token.actor, isAttackSkill(selectedSkill) ? selectedSkill : BASIC_ATTACK);
+    // A multi-hit skill is already added as a continuous attack-mode effect in
+    // the support phase. Start it from one hit here so the new effect changes
+    // 1 -> N, rather than adding its N hits a second time (N -> 2N - 1).
+    const baseSkill = selectedSkill?.type === "multi_hit_attack"
+      ? { ...selectedSkill, hits: 1 }
+      : isAttackSkill(selectedSkill)
+        ? selectedSkill
+        : BASIC_ATTACK;
+    const skill = attackSkillWithEffects(token.actor, baseSkill);
     return {
       ...token,
       skill,

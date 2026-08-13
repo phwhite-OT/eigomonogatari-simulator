@@ -83,10 +83,13 @@ function resolveRedirectIndex(combatants, attacker) {
 }
 
 function addEffect(combatant, type, skill, activationOrder, sourceCharacterId) {
+  const refreshAttackMode = ["aoe_attack", "multi_hit_attack"].includes(type);
   return {
     ...combatant,
     buffs: [
-      ...combatant.buffs,
+      ...combatant.buffs.filter((effect) => (
+        !refreshAttackMode || effect.type !== type || String(effect.sourceCharacterId) !== String(sourceCharacterId)
+      )),
       {
         type,
         multiplier: skill.multiplier,
