@@ -175,21 +175,30 @@ jobs:
         with:
           node-version: 22
 
-      - name: Restore the v8.5-role-balance result branch
+      - id: restore
+        name: Restore the v8.5-role-balance report snapshot
+        continue-on-error: true
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          remote_result="$(git ls-remote --heads origin metagame-v8.5-role-balance-results)"
+          results_branch="metagame-v8.5-role-balance-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          remote_result="$(git ls-remote --heads origin "$results_branch")"
           if [ -n "$remote_result" ]; then
-            git fetch --no-tags origin "+refs/heads/metagame-v8.5-role-balance-results:refs/remotes/origin/metagame-v8.5-role-balance-results"
+            git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
           fi
-          if git show-ref --verify --quiet refs/remotes/origin/metagame-v8.5-role-balance-results; then
-            git switch --create metagame-v8.5-role-balance-results --track origin/metagame-v8.5-role-balance-results
-          else
-            git switch --create metagame-v8.5-role-balance-results
+
+          # The result branch is a checkpoint store, not a source branch.  A
+          # rebase of its old source files onto a newly published master can
+          # conflict before the checkpoints are merged, which then used to
+          # stall the entire queue.  Start from this run's source revision and
+          # overlay only the persisted reports instead.
+          git switch --detach "${{ github.sha }}"
+          if git cat-file -e "$results_ref:reports/metagame-ratings-v8.5-role-balance" 2>/dev/null; then
+            git checkout "$results_ref" -- reports/metagame-ratings-v8.5-role-balance
           fi
-          git rebase ${{ github.sha }}
+          git switch --create "$results_branch"
 
       - id: download
         name: Download independent candidate-shard checkpoints
@@ -276,56 +285,54 @@ jobs:
           state_path="reports/metagame-ratings-v8.5-role-balance/recovery.json"
           mkdir -p "$(dirname "$state_path")"
           outcome="${{ steps.finalize.outcome }}"
-          if [ "${{ steps.download.outcome }}" != "success" ] || [ "${{ needs.evaluate.result }}" != "success" ]; then
+          if [ "${{ steps.restore.outcome }}" != "success" ] || [ "${{ steps.download.outcome }}" != "success" ] || [ "${{ needs.evaluate.result }}" != "success" ]; then
             outcome="failure"
           fi
           previous=0
+          issue_reported=false
           if [ -f "$state_path" ]; then
             previous="$(jq -r '.consecutiveFailures // 0' "$state_path" 2>/dev/null || echo 0)"
+            issue_reported="$(jq -r '.issueReported // false' "$state_path" 2>/dev/null || echo false)"
           fi
           if [ "$outcome" = "failure" ]; then
             failures=$((previous + 1))
           else
             failures=0
+            issue_reported=false
           fi
-          printf '{\n  "consecutiveFailures": %s,\n  "lastOutcome": "%s",\n  "updatedAt": "%s"\n}\n' \
-            "$failures" "$outcome" "$(date --iso-8601=seconds)" > "$state_path"
+          needs_attention=false
+          if [ "$outcome" = "failure" ] && [ "$failures" -ge 3 ] && [ "$issue_reported" != "true" ]; then
+            needs_attention=true
+            issue_reported=true
+          fi
+          printf '{\n  "consecutiveFailures": %s,\n  "lastOutcome": "%s",\n  "issueReported": %s,\n  "updatedAt": "%s"\n}\n' \
+            "$failures" "$outcome" "$issue_reported" "$(date --iso-8601=seconds)" > "$state_path"
           if [ "${{ steps.status.outputs.all_completed }}" = "true" ]; then
             echo "should_continue=false" >> "$GITHUB_OUTPUT"
-            echo "retry_exhausted=false" >> "$GITHUB_OUTPUT"
-          elif [ "$outcome" = "failure" ] && [ "$failures" -ge 3 ]; then
-            echo "should_continue=false" >> "$GITHUB_OUTPUT"
-            echo "retry_exhausted=true" >> "$GITHUB_OUTPUT"
           else
             echo "should_continue=true" >> "$GITHUB_OUTPUT"
-            echo "retry_exhausted=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Build browser data from completed v8.5-role-balance reports
-        if: steps.status.outputs.completed_any == 'true' && steps.finalize.outcome == 'success' && steps.download.outcome == 'success' && needs.evaluate.result == 'success'
-        run: npm run build
+          echo "needs_attention=$needs_attention" >> "$GITHUB_OUTPUT"
 
       - name: Save v8.5-role-balance progress to the result branch
-        if: always()
+        if: always() && steps.restore.outcome == 'success'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f reports/metagame-ratings-v8.5-role-balance
-          if [ -f src/data/metagame-simulator-data.js ]; then git add src/data/metagame-simulator-data.js; fi
-          if [ -f index.html ]; then git add index.html; fi
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "chore: save metagame v8.5-role-balance evaluation progress"
           git push --force-with-lease=refs/heads/metagame-v8.5-role-balance-results origin HEAD:metagame-v8.5-role-balance-results
 
-      - name: Create an issue after automatic retries are exhausted
-        if: always() && steps.recovery.outputs.retry_exhausted == 'true'
+      - name: Create an issue after repeated recoverable failures
+        if: always() && steps.recovery.outputs.needs_attention == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          body="The V8.5 role-balance broad 5v5 metagame evaluator stopped after three consecutive failures. Progress and recovery state are saved on the metagame-v8.5-role-balance-results branch. Review the latest Actions run for the error log."
-          payload="$(jq -n --arg title "V8.5 role-balance evaluation stopped after automatic retries" --arg body "$body" '{title: $title, body: $body}')"
+          body="The V8.5 role-balance broad 5v5 metagame evaluator has failed three consecutive segments. Progress and recovery state are saved on the metagame-v8.5-role-balance-results branch, and the workflow will keep retrying automatically. Review the latest Actions run for the error log."
+          payload="$(jq -n --arg title "V8.5 role-balance evaluation needs attention" --arg body "$body" '{title: $title, body: $body}')"
           curl --fail-with-body --silent --show-error \
             --request POST \
             --url "${{ github.api_url }}/repos/${{ github.repository }}/issues" \
@@ -336,7 +343,9 @@ jobs:
 
       - name: Start the next evaluation segment
         # A user cancellation is an intentional pause.  Do not turn it into
-        # another full 20-runner segment from this cleanup job.
+        # another full 20-runner segment from this cleanup job.  Recoverable
+        # failures deliberately continue: selection resumes the same
+        # incomplete constraint from the saved report snapshot.
         if: always() && !cancelled() && needs.evaluate.result != 'cancelled' && steps.recovery.outputs.should_continue == 'true'
         shell: bash
         env:
@@ -349,10 +358,6 @@ jobs:
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --data '{"ref":"${{ github.ref_name }}"}'
-
-      - name: Mark unrecoverable evaluation failure
-        if: always() && steps.recovery.outputs.retry_exhausted == 'true'
-        run: exit 1
 
   publish-browser-data:
     # Publish when this segment saved data, or when a source change finds an
