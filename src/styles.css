@@ -384,6 +384,28 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-fixed-picker-result strong { font-size: 10px; }
 .metagame-fixed-picker-result small { color: #788174; font-size: 8px; }
 .metagame-fixed-picker-result button { padding: 6px; border: 0; border-radius: 7px; background: #64772f; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-boosted-characters { grid-column: 1 / -1; padding: 14px; border: 1px solid #ead9a7; border-radius: 15px; background: linear-gradient(135deg, rgba(255,251,234,.9), rgba(252,253,247,.82)); }
+.metagame-boosted-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.metagame-boosted-heading strong, .metagame-boosted-heading small { display: block; }
+.metagame-boosted-heading strong { color: #786023; font-size: 12px; }
+.metagame-boosted-heading small { margin-top: 3px; color: #82765c; font-size: 9px; line-height: 1.5; }
+.metagame-boosted-heading button { padding: 6px 9px; border: 1px solid #d9c37d; border-radius: 8px; background: #fffdf5; color: #6c561f; font: inherit; font-size: 9px; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.metagame-boosted-heading button:disabled, .metagame-boosted-controls button:disabled, .metagame-boosted-results button:disabled { cursor: wait; opacity: .6; }
+.metagame-boosted-controls { display: flex; gap: 8px; margin-top: 12px; }
+.metagame-boosted-controls input { min-width: 0; flex: 1; padding: 8px 10px; border: 1px solid #ded2a8; border-radius: 8px; background: #fff; font: inherit; font-size: 10px; }
+.metagame-boosted-controls button { padding: 8px 11px; border: 0; border-radius: 8px; background: #756029; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-boosted-selected { display: flex; flex-wrap: wrap; gap: 6px; min-height: 22px; margin-top: 10px; }
+.metagame-boosted-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 7px; border: 1px solid #dfc66f; border-radius: 999px; background: #fff7d7; color: #65511e; font-size: 9px; }
+.metagame-boosted-chip strong { overflow: hidden; max-width: 260px; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-boosted-chip button { width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: #dfc66f; color: #5a4512; cursor: pointer; font: inherit; line-height: 1; }
+.metagame-boosted-empty, .metagame-boosted-message { margin: 0; color: #82765c; font-size: 9px; line-height: 1.6; }
+.metagame-boosted-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.metagame-boosted-result { display: grid; gap: 5px; min-width: 0; padding: 9px; border: 1px solid #e5dbbd; border-radius: 9px; background: #fff; }
+.metagame-boosted-result strong, .metagame-boosted-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-boosted-result strong { font-size: 10px; }
+.metagame-boosted-result small { color: #82765c; font-size: 8px; }
+.metagame-boosted-result button { padding: 6px; border: 0; border-radius: 7px; background: #8a6d25; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-boost-badge { color: #81631b; font-weight: 900; }
 .metagame-surveyed-constraints { margin-top: 16px; padding: 14px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
 .metagame-surveyed-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
 .metagame-surveyed-heading strong { color: #526128; font-size: 12px; }
@@ -468,6 +490,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .metagame-simulator-form .button { width: 100%; }
   .metagame-fixed-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metagame-fixed-picker-results { grid-template-columns: 1fr; }
+  .metagame-boosted-results { grid-template-columns: 1fr; }
   .metagame-slot-list { grid-template-columns: 1fr 1fr; }
   .metagame-evidence-teams { grid-template-columns: 1fr; }
 }

@@ -4,6 +4,7 @@ import {
   inspectMetagameDeckEvidence,
   matchesMetagameFixedConstraint,
 } from "../core/metagame-deck.js";
+import { isSkillTurnAllowedAtPosition } from "../core/filter.js";
 import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
 import { renderSimulationTrace } from "./result.js";
 
@@ -176,7 +177,10 @@ function metagameUiSlot(character, rating, position, environment, deck) {
     metagameUiElement("h4", "", character.name),
     metagameUiElement("span", "", `${attributeClassLabel(character.attributes)}・${character.rarity}`),
   );
-  const details = metagameUiElement("p", "", `コスト ${character.cost} / スキル ${character.skillTurn}ターン`);
+  const boostLabel = character.metagameStatBoost
+    ? ` / 補正 HP・攻撃×${character.metagameStatBoost.multiplier}`
+    : "";
+  const details = metagameUiElement("p", "", `コスト ${character.cost} / スキル ${character.skillTurn}ターン${boostLabel}`);
   const skill = metagameUiElement("small", "", character.skillName || "スキルなし");
   const ratingLine = metagameUiElement(
     "small",
@@ -297,6 +301,8 @@ function metagameUiEvidence(result, constraint, characters) {
     output.replaceChildren(metagameUiElement("p", "metagame-evidence-note", "対戦記録を再生しています…"));
     try {
       const evidence = await inspectMetagameDeckEvidence(result.deck, constraint, characters, {
+        boostedCharacterIds: result.boostedCharacterIds,
+        boostedScenarioCount: result.boostedScenarioCount,
         onScenarioCompleted: ({ completed, total }) => {
           output.replaceChildren(metagameUiElement(
             "p",
@@ -383,6 +389,22 @@ function renderMetagameSimulatorResult(container, searchResult, characters) {
     ),
     metagameUiElement("span", "", `評価モデル ${searchResult.constraint.modelVersion ?? "unknown"}`),
   );
+  const boostedIds = new Set((searchResult.boostedCharacterIds ?? []).map(String));
+  if (boostedIds.size) {
+    const names = characters
+      .filter((character) => boostedIds.has(String(character.id)))
+      .map((character) => character.name);
+    overview.append(metagameUiElement(
+      "span",
+      "metagame-boost-badge",
+      `補正反映: ${names.join(" / ")}（HP・攻撃×1.5）`,
+    ));
+    overview.append(metagameUiElement(
+      "span",
+      "",
+      `補正時の対戦は提示環境から均等抽出した${searchResult.boostedScenarioCount ?? searchResult.scenarioCount}盤面${searchResult.scenarioCount > (searchResult.boostedScenarioCount ?? searchResult.scenarioCount) ? "と追加環境" : ""}で再評価`,
+    ));
+  }
   container.append(overview, metagameUiEnvironmentAudit(searchResult.constraint));
   searchResult.results.forEach((result, index) => container.append(
     metagameUiResultCard(result, index + 1, searchResult.constraint, characters),
@@ -460,10 +482,18 @@ export function initializeMetagameSimulator(root, data, characters) {
   const fixedPickerQuery = form.querySelector("[data-metagame-fixed-picker-query]");
   const fixedPickerSearchButton = form.querySelector("[data-metagame-fixed-picker-search]");
   const fixedPickerResults = form.querySelector("[data-metagame-fixed-picker-results]");
+  const boostedList = form.querySelector("[data-metagame-boosted-list]");
+  const boostedClearButton = form.querySelector("[data-metagame-boosted-clear]");
+  const boostedQuery = form.querySelector("[data-metagame-boosted-query]");
+  const boostedSearchButton = form.querySelector("[data-metagame-boosted-search]");
+  const boostedResults = form.querySelector("[data-metagame-boosted-results]");
   let fixedSlots = new Map();
+  let boostedCharacters = new Map();
   let fixedPickerPosition = null;
   let fixedPickerIndex = createCharacterSearchIndex([]);
   let fixedPickerSearchTimer = null;
+  let boostedPickerIndex = createCharacterSearchIndex([]);
+  let boostedSearchTimer = null;
   let abortController = null;
 
   select.replaceChildren();
@@ -485,12 +515,13 @@ export function initializeMetagameSimulator(root, data, characters) {
   const fixedSlotValues = () => Object.fromEntries(
     [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
   );
+  const boostedCharacterIds = () => [...boostedCharacters.keys()];
   const selectedConstraint = () => data.constraints.find((entry) => entry.id === select.value);
   let displayedPrecomputedConstraintId = null;
   const renderAvailablePrecomputedDeck = () => {
     const constraint = selectedConstraint();
     const hasV8Decks = String(constraint?.modelVersion ?? "").startsWith("team-battle-v8");
-    if (!hasV8Decks || fixedSlots.size) return false;
+    if (!hasV8Decks || fixedSlots.size || boostedCharacters.size) return false;
 
     const constraintId = constraint.id;
     displayedPrecomputedConstraintId = constraintId;
@@ -509,6 +540,87 @@ export function initializeMetagameSimulator(root, data, characters) {
   const fixedSlotCandidates = (constraint) => characters.filter((character) => (
     matchesMetagameFixedConstraint(character, constraint)
   ));
+  const boostedCharacterCandidates = (constraint) => characters.filter((character) => {
+    if (!matchesMetagameFixedConstraint(character, constraint)) return false;
+    const positions = Array.isArray(character.allowedPositions) && character.allowedPositions.length
+      ? character.allowedPositions
+      : [1, 2, 3, 4, 5];
+    return positions.some((position) => isSkillTurnAllowedAtPosition(character, position));
+  });
+  const renderBoostedPickerMessage = (message) => {
+    boostedResults.replaceChildren(metagameUiElement("p", "metagame-boosted-message", message));
+  };
+  const renderBoostedCharacters = (constraint) => {
+    const allowedIds = new Set(boostedCharacterCandidates(constraint).map((character) => String(character.id)));
+    for (const id of boostedCharacters.keys()) {
+      if (!allowedIds.has(String(id))) boostedCharacters.delete(id);
+    }
+    boostedList.replaceChildren();
+    if (!boostedCharacters.size) {
+      boostedList.append(metagameUiElement("span", "metagame-boosted-empty", "補正キャラは未指定です。通常の事前評価済みデッキを表示します。"));
+      return;
+    }
+    for (const character of boostedCharacters.values()) {
+      const chip = metagameUiElement("span", "metagame-boosted-chip");
+      chip.append(
+        metagameUiElement("strong", "", character.name),
+        metagameUiElement("span", "", "HP・攻撃×1.5"),
+      );
+      const remove = metagameUiElement("button", "", "×");
+      remove.type = "button";
+      remove.setAttribute("aria-label", `${character.name}の補正を解除`);
+      remove.disabled = Boolean(abortController);
+      remove.addEventListener("click", () => {
+        boostedCharacters.delete(String(character.id));
+        renderBoostedCharacters(selectedConstraint());
+        renderBoostedPickerResults();
+        displayedPrecomputedConstraintId = null;
+        if (!renderAvailablePrecomputedDeck()) {
+          renderMetagameSimulatorMessage(resultRoot, "補正キャラを変更しました。候補デッキを評価すると、HP・攻撃×1.5を反映して再対戦します。");
+        }
+      });
+      chip.append(remove);
+      boostedList.append(chip);
+    }
+  };
+  const renderBoostedPickerResults = () => {
+    const constraint = selectedConstraint();
+    const candidates = boostedCharacterCandidates(constraint);
+    boostedPickerIndex = createCharacterSearchIndex(candidates);
+    const query = boostedQuery.value.trim();
+    if (!query) {
+      renderBoostedPickerMessage(`${candidates.length.toLocaleString("ja-JP")}体から、補正するキャラを検索できます。`);
+      return;
+    }
+    const response = searchCharacters(boostedPickerIndex, query, { limit: 24 });
+    if (!response.total) {
+      renderBoostedPickerMessage("選択中の属性・コスト縛りとスキルターン条件に一致するキャラがありません。");
+      return;
+    }
+    const list = metagameUiElement("div", "metagame-boosted-results");
+    for (const result of response.results) {
+      const character = result.character;
+      const card = metagameUiElement("article", "metagame-boosted-result");
+      card.append(
+        metagameUiElement("strong", "", character.name),
+        metagameUiElement("small", "", `${attributeClassLabel(character.attributes)}・${character.rarity}・cost ${character.cost}・HP ${character.hp}→${Number(character.hp) * 1.5}・攻撃 ${character.pow}→${Number(character.pow) * 1.5}`),
+      );
+      const selected = boostedCharacters.has(String(character.id));
+      const choose = metagameUiElement("button", "", selected ? "補正指定済み" : "補正に追加");
+      choose.type = "button";
+      choose.disabled = selected || Boolean(abortController);
+      choose.addEventListener("click", () => {
+        boostedCharacters.set(String(character.id), character);
+        renderBoostedCharacters(selectedConstraint());
+        renderBoostedPickerResults();
+        displayedPrecomputedConstraintId = null;
+        renderMetagameSimulatorMessage(resultRoot, "補正キャラを追加しました。候補デッキを評価すると、HP・攻撃×1.5を反映して5対5対戦を再計算します。");
+      });
+      card.append(choose);
+      list.append(card);
+    }
+    boostedResults.replaceChildren(list);
+  };
   const renderFixedPickerMessage = (message) => {
     fixedPickerResults.replaceChildren(metagameUiElement("p", "metagame-fixed-picker-message", message));
   };
@@ -603,11 +715,13 @@ export function initializeMetagameSimulator(root, data, characters) {
   const updateEnvironmentPreview = () => {
     const constraint = data.constraints.find((entry) => entry.id === select.value);
     previewStatus.textContent = constraint
-      ? `${constraint.scenarioCount}盤面・各枠の予測使用率 上位10体`
+      ? `${constraint.scenarioCount}盤面・各枠の予測使用率 上位10体${boostedCharacters.size ? `・補正 ${boostedCharacters.size}体を再評価` : ""}`
       : "調査済み環境なし";
     renderMetagameEnvironmentPreview(previewContent, constraint);
     renderSurveyedMetagameConstraints(surveyedConstraints, data.constraints, constraint?.id);
     renderFixedSlots(constraint);
+    renderBoostedCharacters(constraint);
+    renderBoostedPickerResults();
     if (!renderAvailablePrecomputedDeck()) displayedPrecomputedConstraintId = null;
   };
   updateEnvironmentPreview();
@@ -628,6 +742,26 @@ export function initializeMetagameSimulator(root, data, characters) {
     clearTimeout(fixedPickerSearchTimer);
     fixedPickerSearchTimer = setTimeout(renderFixedPickerResults, 120);
   });
+  boostedClearButton.addEventListener("click", () => {
+    boostedCharacters.clear();
+    boostedQuery.value = "";
+    renderBoostedCharacters(selectedConstraint());
+    renderBoostedPickerResults();
+    displayedPrecomputedConstraintId = null;
+    if (!renderAvailablePrecomputedDeck()) {
+      renderMetagameSimulatorMessage(resultRoot, "補正キャラを解除しました。");
+    }
+  });
+  boostedSearchButton.addEventListener("click", renderBoostedPickerResults);
+  boostedQuery.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    renderBoostedPickerResults();
+  });
+  boostedQuery.addEventListener("input", () => {
+    clearTimeout(boostedSearchTimer);
+    boostedSearchTimer = setTimeout(renderBoostedPickerResults, 120);
+  });
   surveyedConstraints.addEventListener("click", (event) => {
     const button = event.target.closest("[data-metagame-surveyed-constraint]");
     if (!button || button.disabled) return;
@@ -646,6 +780,11 @@ export function initializeMetagameSimulator(root, data, characters) {
     fixedPickerCloseButton.disabled = busy;
     fixedPickerSearchButton.disabled = busy;
     fixedPickerQuery.disabled = busy;
+    boostedClearButton.disabled = busy;
+    boostedSearchButton.disabled = busy;
+    boostedQuery.disabled = busy;
+    boostedList.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
+    boostedResults.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
     if (busy) closeFixedPicker();
     surveyedConstraints.querySelectorAll("[data-metagame-surveyed-constraint]").forEach((button) => {
       button.disabled = busy;
@@ -656,6 +795,9 @@ export function initializeMetagameSimulator(root, data, characters) {
       progressLabel.textContent = "候補デッキを探索中";
       progressValue.textContent = "準備中";
       progressBar.style.width = "0%";
+    } else {
+      renderBoostedCharacters(selectedConstraint());
+      renderBoostedPickerResults();
     }
   };
 
@@ -671,6 +813,7 @@ export function initializeMetagameSimulator(root, data, characters) {
       const searchResult = await findBestMetagameDeck(data, select.value, characters, {
         signal: abortController.signal,
         fixedSlots: fixedSlotValues(),
+        boostedCharacterIds: boostedCharacterIds(),
         onProgress: ({
           phase,
           completed,

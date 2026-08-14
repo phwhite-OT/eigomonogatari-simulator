@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  applyMetagameStatBoost,
   buildMetagameDeckCandidates,
   calculateMetagameDeckSynergy,
   findBestMetagameDeck,
@@ -185,6 +186,64 @@ test("metagame simulator reports candidate and battle progress", async () => {
   assert.ok(candidateProgress.some((update) => update.slot === 5 && update.valid > 0));
   assert.ok(simulationProgress.some((update) => update.deck === 1 && update.decks > 0));
   assert.equal(simulationProgress.at(-1).completed, simulationProgress.at(-1).total);
+});
+
+test("補正キャラは元データを変えずHP・攻撃力を1.5倍にする", () => {
+  const character = metagameTestCharacter("boost-target", 10, "R", 200);
+  const boosted = applyMetagameStatBoost(character, [character.id]);
+
+  assert.equal(character.hp, 1000);
+  assert.equal(character.pow, 200);
+  assert.equal(boosted.hp, 1500);
+  assert.equal(boosted.pow, 300);
+  assert.equal(boosted.metagameStatBoost.multiplier, 1.5);
+});
+
+test("V8では補正キャラを候補と追加環境の両方へ入れて再対戦する", async () => {
+  const character = (id, position, power) => ({
+    ...metagameTestCharacter(id, 10, "R", power),
+    hp: 100,
+    allowedPositions: [position],
+    skillTurn: position - 1,
+  });
+  const baseDeck = [1, 2, 3, 4, 5].map((position) => character(`base-${position}`, position, 20));
+  const boosted = character("boosted-3", 3, 500);
+  const enemyDeck = baseDeck.map((entry) => entry.id);
+  const constraint = {
+    id: "fire:100",
+    label: "火・コスト100",
+    modelVersion: "team-battle-v8.5-role-balance",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    turns: 1,
+    scenarioCount: 1,
+    slots: [1, 2, 3, 4, 5].map((position) => ({ position, candidates: [] })),
+    precomputedDecks: [{
+      i: enemyDeck,
+      c: 50,
+      p: 0.6,
+      w: 0.5,
+      l: 0.45,
+      s: 1,
+      r: baseDeck.map(() => ({ k: "neutral", i: 0.5, f: 0.5, b: {} })),
+    }],
+    teamScenarios: [{
+      a: Array.from({ length: 4 }, () => enemyDeck),
+      e: Array.from({ length: 5 }, () => enemyDeck),
+    }],
+    environmentScenarios: [],
+  };
+  const data = { generatedAt: "2026-01-01T00:00:00.000Z", constraints: [constraint] };
+  const result = await findBestMetagameDeck(data, constraint.id, [...baseDeck, boosted], {
+    boostedCharacterIds: [boosted.id],
+    finalistCount: 4,
+  });
+
+  assert.equal(result.scenarioCount, 2, "元の環境に加えて補正キャラ入り環境を評価する");
+  assert.ok(result.simulatedDeckCount > 0);
+  assert.ok(result.results.some((candidate) => (
+    candidate.deck.some((entry) => entry.id === boosted.id && entry.hp === 150 && entry.pow === 750)
+  )));
 });
 
 test("継続する全体バフは条件を満たす後続アタッカーとの相性を得る", () => {

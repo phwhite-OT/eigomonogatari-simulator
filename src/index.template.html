@@ -83,6 +83,15 @@
             <div data-metagame-fixed-picker-results></div>
           </section>
         </section>
+        <section class="metagame-boosted-characters" data-metagame-boosted-characters>
+          <div class="metagame-boosted-heading">
+            <div><strong>補正キャラ（任意・複数可）</strong><small>指定したキャラはHP・攻撃力を各1.5倍にして候補デッキと5対5環境対戦を再計算します。環境に未登場の指定キャラも、代表的な対戦相手として追加します。</small></div>
+            <button type="button" data-metagame-boosted-clear>すべて解除</button>
+          </div>
+          <div class="metagame-boosted-controls"><input type="search" name="metagameBoostedQuery" data-metagame-boosted-query placeholder="補正するキャラを名前・属性・スキルで検索"><button type="button" data-metagame-boosted-search>検索</button></div>
+          <div class="metagame-boosted-selected" data-metagame-boosted-list></div>
+          <div class="metagame-boosted-results" data-metagame-boosted-results></div>
+        </section>
       </form>
       <section class="metagame-surveyed-constraints" data-metagame-surveyed-constraints aria-label="実装済みの環境"></section>
       <details class="metagame-environment-preview" data-metagame-environment-preview open>
