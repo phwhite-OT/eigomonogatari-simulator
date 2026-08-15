@@ -15,7 +15,7 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
   wind: "\u98a8",
 });
 const METAGAME_SCENARIO_COUNT = 60;
-const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
+const METAGAME_MODEL_VERSION = "iterative-metagame-v7-attribute-tactics";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   Object.freeze({
     statusPath: "reports/metagame-v6-batch-status.json",

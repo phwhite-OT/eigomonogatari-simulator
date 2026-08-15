@@ -134,6 +134,32 @@ function compareTargetCandidates(left, right, policy, killablePool) {
   );
 }
 
+function activeGuardAgainst(state, actorSide, actor) {
+  const targets = state[opponentSide(actorSide)] ?? [];
+  let selected;
+  for (let index = 0; index < targets.length; index += 1) {
+    const target = targets[index];
+    if (!target.alive || target.isGhost) continue;
+    for (const effect of target.buffs ?? []) {
+      if (!["guard", "attribute_guard"].includes(effect.type)) continue;
+      const activationOrder = Number(effect.activationOrder) || 0;
+      if (!selected || activationOrder >= selected.activationOrder) {
+        selected = {
+          index,
+          target,
+          effect,
+          activationOrder,
+          redirectsActor: effectApplies(effect, target.attributes, actor?.attributes ?? []),
+          attributeSpecific: effect.type === "attribute_guard" || (effect.conditions ?? []).some(
+            (condition) => condition.type === "enemy_attribute",
+          ),
+        };
+      }
+    }
+  }
+  return selected;
+}
+
 export function targetPolicyReason(policy = TARGET_POLICIES.KILL_CONFIRM) {
   if (policy === TARGET_POLICIES.EXPERT) return "残数平準化を最優先に、撃破効率・発動間近のスキル・長期生存を統合して判断";
   if (policy === TARGET_POLICIES.BALANCE) return "敵の残りキャラ数の平準化を最優先";
@@ -170,6 +196,8 @@ export function selectPriorityTarget(state, actorSide, options = {}) {
   const policy = Object.values(TARGET_POLICIES).includes(options.targetPolicy)
     ? options.targetPolicy
     : TARGET_POLICIES.KILL_CONFIRM;
+  const guard = actor ? activeGuardAgainst(state, actorSide, actor) : undefined;
+  if (guard) return guard.index;
   const killable = candidates.filter((candidate) => candidate.killable);
   candidates.sort((left, right) => compareTargetCandidates(
     left,
@@ -194,21 +222,36 @@ function activeTokens(state, side) {
   ));
 }
 
-function skillScopeMatches(skill, combatant, actorIndex, targetIndex) {
+function skillScopeMatches(skill, combatant, actorIndex, targetIndex, attributes = combatant.attributes) {
   if (combatant.isGhost || combatant.reviveUsed) return false;
   if (skill.target === "self" && actorIndex !== targetIndex) return false;
   if (skill.target === "leader" && targetIndex !== 0) return false;
   return (skill.conditions ?? []).every((condition) => (
     condition.type !== "ally_attribute" ||
-    (combatant.character?.attributes ?? []).includes(condition.attribute)
+    (attributes ?? []).includes(condition.attribute)
   ));
+}
+
+function projectedAttributesBeforeRevive(state, side, targetIndex) {
+  const target = state[side][targetIndex];
+  let attributes = [...(target.attributes?.length ? target.attributes : target.character?.attributes ?? [])];
+  for (let actorIndex = 0; actorIndex < state[side].length; actorIndex += 1) {
+    const actor = state[side][actorIndex];
+    const skill = actor.character?.skill;
+    if (skill?.type !== "attribute_change" || !canUseSkill(state, side, actorIndex)) continue;
+    if (!skillScopeMatches(skill, target, actorIndex, targetIndex, attributes)) continue;
+    const changed = (skill.effects ?? []).flatMap((effect) => effect.attribute ? [effect.attribute] : []);
+    if (changed.length) attributes = changed;
+  }
+  return attributes;
 }
 
 function reviveMayApply(state, side, actorIndex, skill, rules) {
   const allies = state[side];
   const enemies = state[opponentSide(side)].filter((combatant) => combatant.alive);
   return allies.some((target, targetIndex) => {
-    if (!target.alive || !skillScopeMatches(skill, target, actorIndex, targetIndex)) return false;
+    const projectedAttributes = projectedAttributesBeforeRevive(state, side, targetIndex);
+    if (!target.alive || !skillScopeMatches(skill, target, actorIndex, targetIndex, projectedAttributes)) return false;
     return enemies.some((enemy) => {
       const enemySkill = canUseSkill(state, opponentSide(side), state[opponentSide(side)].indexOf(enemy)) &&
         isAttackSkill(enemy.character.skill)
@@ -217,6 +260,32 @@ function reviveMayApply(state, side, actorIndex, skill, rules) {
       return estimateDamage(enemy, target, enemySkill, rules) >= target.currentHp;
     });
   });
+}
+
+function actorWillBeRevivedThisTurn(state, side, actorIndex, rules) {
+  const actor = state[side][actorIndex];
+  if (!actor?.alive) return false;
+  const enemies = state[opponentSide(side)].filter((combatant) => combatant.alive && !combatant.isGhost);
+  const lethalIncoming = enemies.some((enemy) => {
+    const enemyIndex = state[opponentSide(side)].indexOf(enemy);
+    const enemySkill = canUseSkill(state, opponentSide(side), enemyIndex) && isAttackSkill(enemy.character.skill)
+      ? enemy.character.skill
+      : BASIC_ATTACK;
+    return estimateDamage(enemy, actor, enemySkill, rules) >= actor.currentHp;
+  });
+  if (!lethalIncoming) return false;
+  return state[side].some((reviver, reviverIndex) => (
+    reviverIndex !== actorIndex &&
+    canUseSkill(state, side, reviverIndex) &&
+    reviver.character.skill?.type === "revive" &&
+    skillScopeMatches(
+      reviver.character.skill,
+      actor,
+      reviverIndex,
+      actorIndex,
+      projectedAttributesBeforeRevive(state, side, actorIndex),
+    )
+  ));
 }
 
 function skillDecision(state, side, actorIndex, rules, options) {
@@ -324,10 +393,13 @@ function expertSkillDecision(state, side, actorIndex, rules) {
       ? { use: true, reason: "通常攻撃より撃破・総ダメージ効率が上がるため使用" }
       : { use: false, reason: "既存の攻撃形態と重複するか盤面への寄与が増えないため温存" };
   }
+  if (skill.type === "heal") {
+    return actorWillBeRevivedThisTurn(state, side, actorIndex, rules)
+      ? { use: false, reason: "このターンに自身が蘇生対象になるため回復を温存" }
+      : { use: true, reason: "蘇生が成立するターン以外は使用可能な回復を使用" };
+  }
   const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
-  const useful = skill.type === "heal"
-    ? benefit.healingGain > 0
-    : benefit.outgoingGain > 0 || benefit.preventedDamage > 0;
+  const useful = benefit.outgoingGain > 0 || benefit.preventedDamage > 0;
   return useful
     ? { use: true, reason: "このターン以降の与ダメージ増加または被ダメージ軽減に寄与するため使用" }
     : { use: false, reason: "適用対象・属性条件・盤面効果が不足するため温存" };
@@ -472,6 +544,32 @@ function orderAttackIntents(intents, side, state, rules, options) {
     ));
   }
   if (options.attackOrderPolicy === ATTACK_ORDER_POLICIES.TACTICAL) {
+    const guard = intents.length ? activeGuardAgainst(state, side, intents[0].actor) : undefined;
+    if (guard) {
+      const guardIntentScore = (intent) => {
+        const actorGuard = activeGuardAgainst(state, side, intent.actor) ?? guard;
+        const damage = estimateDamage(intent.actor, actorGuard.target, intent.skill, rules);
+        const canFinishWithoutWaste = damage >= actorGuard.target.currentHp;
+        const attributeExempt = actorGuard.attributeSpecific && !actorGuard.redirectsActor;
+        return {
+          attributeExempt: Number(attributeExempt),
+          canFinishWithoutWaste: Number(canFinishWithoutWaste),
+          damage,
+        };
+      };
+      return intents.sort((left, right) => {
+        const leftScore = guardIntentScore(left);
+        const rightScore = guardIntentScore(right);
+        return (
+          rightScore.attributeExempt - leftScore.attributeExempt ||
+          rightScore.canFinishWithoutWaste - leftScore.canFinishWithoutWaste ||
+          (leftScore.canFinishWithoutWaste && rightScore.canFinishWithoutWaste
+            ? leftScore.damage - rightScore.damage
+            : rightScore.damage - leftScore.damage) ||
+          left.actorIndex - right.actorIndex
+        );
+      });
+    }
     return intents.sort((left, right) => (
       tacticalAttackIntentScore(right, state, rules, options) - tacticalAttackIntentScore(left, state, rules, options) ||
       left.actorIndex - right.actorIndex

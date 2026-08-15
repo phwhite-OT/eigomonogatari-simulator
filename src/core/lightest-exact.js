@@ -613,7 +613,7 @@ function exactApplyRevives(state, pendingRevives) {
       target.alive = true;
       target.reviveUsed = true;
       target.currentHp = Math.max(1, Math.min(target.maxHp * 2, target.maxHp * intent.skill.multiplier));
-      target.attributes = [...exactAttributes(target.character)];
+      if (!target.attributes.length) target.attributes = [...exactAttributes(target.character)];
       events.push({ side: intent.side, actorName: intent.character.name, targetName: target.character.name });
     }
   }

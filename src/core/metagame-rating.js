@@ -134,28 +134,60 @@ export function calculatePracticalMetagameMetrics(result, maximumPower = 1) {
     ? Math.min(0.24, (1 - practicalSkillReliability) * (0.09 + skillValue * 0.3))
     : 0;
   const powerPreference = clampUnit((Number(result.character?.pow) || 0) / Math.max(1, maximumPower));
+  const allyRetention = clampUnit(Number(result.teamBalance?.allyRetentionRate) || 0);
   const enemyPressure = clampUnit(Number(result.teamBalance?.enemyPressureRate) || 0);
+  const decisiveLossRate = clampUnit(Number(result.matchOutcome?.decisiveLossRate) || 0);
+  const combatPerformance = enemyPressure * 0.65 + allyRetention * 0.35;
+  const cost = Math.max(1, Number(result.character?.cost) || 1);
+  const costEfficiency = clampUnit(combatPerformance * 35 / cost);
+  const oneSidedStrength = Math.min(enemyPressure, allyRetention);
+  const defensiveSupport = ["damage_reduction", "guard", "attribute_guard", "heal", "revive"].includes(
+    result.character?.skill?.type,
+  );
+  const supportImpactReliability = defensiveSupport
+    ? practicalSkillReliability * clampUnit(
+      Math.max(0, Number(result.strategicActions?.advantageCreationPerScenario) || 0),
+    )
+    : 1;
+  const unreliableSupportPenalty = defensiveSupport
+    ? (1 - supportImpactReliability) * (0.04 + (1 - powerPreference) * 0.08)
+    : 0;
   const continuationValue = clampUnit(Math.max(0, Number(result.continuation?.winGainPerScenario) || 0));
   const carriedContinuationValue = clampUnit(Math.max(
     0,
     Number(result.continuation?.carriedWinGainPerScenario) || 0,
   ));
-  const practicalValue = clampUnit(
-    clampUnit(Number(result.matchOutcome?.expectedWinLowerBound) || 0) * 0.38 +
-    clampUnit(Number(result.matchOutcome?.expectedWinRate) || 0) * 0.2 +
+  const resultValue = clampUnit(Number(result.matchOutcome?.expectedWinLowerBound) || 0) * 0.32 +
+    clampUnit(Number(result.matchOutcome?.expectedWinRate) || 0) * 0.16;
+  const openerValue = resultValue +
+    enemyPressure * 0.2 +
+    powerPreference * 0.12 +
+    oneSidedStrength * 0.1 +
+    (allyRetention >= 0.8 ? allyRetention * 0.08 : allyRetention * 0.025) +
+    costEfficiency * 0.1 +
+    practicalSkillReliability * 0.04 -
+    decisiveLossRate * 0.14;
+  const laterValue = resultValue +
     clampUnit(Number(result.teamBalance?.balancedContribution) || 0) * 0.08 +
     enemyPressure * 0.1 +
-    powerPreference * 0.12 +
+    powerPreference * 0.1 +
+    oneSidedStrength * 0.05 +
+    costEfficiency * 0.06 +
     continuationValue * 0.07 +
     carriedContinuationValue * 0.035 +
-    practicalSkillReliability * 0.08 -
-    earlySkillLiability
+    practicalSkillReliability * 0.08;
+  const practicalValue = clampUnit(
+    (position === 1 ? openerValue : laterValue) - earlySkillLiability - unreliableSupportPenalty
   );
   return {
     position,
     practicalSkillReliability,
     earlySkillLiability,
     powerPreference,
+    costEfficiency,
+    oneSidedStrength,
+    supportImpactReliability,
+    unreliableSupportPenalty,
     practicalValue,
   };
 }

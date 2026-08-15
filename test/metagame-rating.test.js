@@ -19,20 +19,20 @@ function character(id, rarity = "CR") {
 
 function result(id, overrides = {}) {
   return {
-    character: character(id, overrides.rarity),
+    character: { ...character(id, overrides.rarity), cost: overrides.cost ?? 30, pow: overrides.pow ?? 100 },
     scenarioCount: 10,
     matchOutcome: {
       expectedWinRate: overrides.win ?? 0.6,
       expectedWinLowerBound: overrides.lower ?? 0.5,
       decisiveWinRate: 0.5,
-      decisiveLossRate: 0.3,
+      decisiveLossRate: overrides.loss ?? 0.3,
       ongoingRate: 0.2,
       baselineExpectedWinRate: 0.5,
       skillWinGain: 0.1,
     },
     teamBalance: {
-      allyRetentionRate: 0.6,
-      enemyPressureRate: 0.5,
+      allyRetentionRate: overrides.retention ?? 0.6,
+      enemyPressureRate: overrides.pressure ?? 0.5,
       balancedContribution: overrides.balance ?? 0.55,
     },
     strategicActions: {
@@ -224,4 +224,55 @@ test("tactical specialists track their upside separately from their average rank
   assert.equal(rankings.overall[0].character.id, "steady");
   assert.equal(rankings.tactical[0].character.id, "specialist");
   assert.deepEqual(selectDetailedCandidates(rankings, 2).map((entry) => entry.id), ["specialist", "steady"]);
+});
+
+test("初手は耐久だけより火力を重視し、一方的な敗北を強く減点する", () => {
+  const attacker = result("attacker", { pressure: 0.95, retention: 0.55, loss: 0.1, pow: 100, cost: 30 });
+  const passiveTank = result("passive-tank", { pressure: 0.2, retention: 0.95, loss: 0.45, pow: 25, cost: 30 });
+  attacker.position = 1;
+  passiveTank.position = 1;
+
+  const attackerMetrics = calculatePracticalMetagameMetrics(attacker, 100);
+  const tankMetrics = calculatePracticalMetagameMetrics(passiveTank, 100);
+  assert.ok(attackerMetrics.practicalValue > tankMetrics.practicalValue);
+});
+
+test("初手で高撃破率と高生存率を両立するキャラを最上位に評価する", () => {
+  const dominant = result("dominant", { pressure: 0.95, retention: 0.9, loss: 0.02, pow: 90, cost: 30 });
+  const glassCannon = result("glass", { pressure: 0.95, retention: 0.2, loss: 0.5, pow: 100, cost: 30 });
+  dominant.position = 1;
+  glassCannon.position = 1;
+
+  assert.ok(
+    calculatePracticalMetagameMetrics(dominant, 100).practicalValue >
+    calculatePracticalMetagameMetrics(glassCannon, 100).practicalValue,
+  );
+});
+
+test("同じ戦績なら低コストのキャラを高く評価する", () => {
+  const cheap = result("cheap", { pressure: 0.8, retention: 0.8, loss: 0.1, pow: 80, cost: 15 });
+  const expensive = result("expensive", { pressure: 0.8, retention: 0.8, loss: 0.1, pow: 80, cost: 60 });
+  cheap.position = 1;
+  expensive.position = 1;
+
+  const cheapMetrics = calculatePracticalMetagameMetrics(cheap, 100);
+  const expensiveMetrics = calculatePracticalMetagameMetrics(expensive, 100);
+  assert.ok(cheapMetrics.costEfficiency > expensiveMetrics.costEfficiency);
+  assert.ok(cheapMetrics.practicalValue > expensiveMetrics.practicalValue);
+});
+
+test("低ステータスの生存支援は高頻度で実績を出さなければ減点する", () => {
+  const reliable = result("reliable-support", { advantage: 1, pow: 20 });
+  const unreliable = result("unreliable-support", { advantage: 0.1, pow: 20 });
+  for (const entry of [reliable, unreliable]) {
+    entry.position = 1;
+    entry.character.skillTurn = 0;
+    entry.character.skill = { type: "damage_reduction" };
+    entry.reproduction = { skillActivationRate: 1, entryReadyRate: 1, scenarioCoverageRate: 1 };
+  }
+
+  const reliableMetrics = calculatePracticalMetagameMetrics(reliable, 100);
+  const unreliableMetrics = calculatePracticalMetagameMetrics(unreliable, 100);
+  assert.ok(reliableMetrics.supportImpactReliability > unreliableMetrics.supportImpactReliability);
+  assert.ok(reliableMetrics.practicalValue > unreliableMetrics.practicalValue);
 });

@@ -74,7 +74,7 @@ async function readTaskCheckpoint(task) {
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
-const MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
+const MODEL_VERSION = "iterative-metagame-v7-attribute-tactics";
 const ratingScript = path.join(scriptDirectory, "rate-metagame.mjs");
 const statusPath = path.resolve(projectRoot, readArgument("status", "reports/metagame-v6-batch-status.json"));
 const outputRoot = readArgument("output-root", "reports/metagame-ratings-v6");
@@ -140,7 +140,7 @@ const config = {
 await fs.mkdir(path.dirname(statusPath), { recursive: true });
 if (resetForModelChange) {
   await fs.rm(path.resolve(projectRoot, outputRoot), { recursive: true, force: true });
-  console.warn(`Metagame model changed from ${previousModelVersion ?? "unknown"} to ${MODEL_VERSION}; restarting v6 from zero.`);
+  console.warn(`Metagame model changed from ${previousModelVersion ?? "unknown"} to ${MODEL_VERSION}; restarting from zero.`);
 }
 console.log(`Metagame batch: ${completedTaskIds.size}/${tasks.length} runs already complete`);
 

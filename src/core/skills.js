@@ -28,7 +28,12 @@ function effectApplies(effect, ownerAttributes, opponentAttributes) {
 }
 
 function supportConditionApplies(skill, target) {
-  const targetAttributes = target.alive ? target.attributes : target.character?.attributes ?? [];
+  // A defeated combatant keeps the attributes it had when it was knocked out.
+  // Revive conditions must therefore use that battle-time state rather than
+  // silently reverting to the character's original attributes.
+  const targetAttributes = target.attributes?.length
+    ? target.attributes
+    : target.character?.attributes ?? [];
   return (skill.conditions ?? []).every((condition) => (
     condition.type !== "ally_attribute" || targetAttributes.includes(condition.attribute)
   ));
@@ -250,7 +255,7 @@ export function applySupportSkill(state, actorSide, actorIndex, skill, options =
       target.alive = true;
       target.reviveUsed = true;
       target.currentHp = Math.min(target.maxHp * 2, Math.max(1, target.maxHp * skill.multiplier));
-      target.attributes = [...(target.character?.attributes ?? [])];
+      if (!target.attributes?.length) target.attributes = [...(target.character?.attributes ?? [])];
     }
   } else if (skill.type === "attribute_change") {
     const attributes = (skill.effects ?? []).flatMap((effect) => effect.attribute ? [effect.attribute] : []);
