@@ -21,6 +21,7 @@ const sourceFiles = [
   "src/core/metagame-deck.js",
   "src/core/lightest-exact.js",
   "src/core/lightest.js",
+  "src/core/character-catalogue.js",
   "src/core/character-search.js",
   "src/ui/form.js",
   "src/ui/result.js",
@@ -29,6 +30,7 @@ const sourceFiles = [
   "src/ui/character-search.js",
   "src/ui/character-editor.js",
   "src/ui/tabs.js",
+  "src/auth/admin.js",
   "src/auth/supabase-auth.js",
   "src/app.js",
 ];

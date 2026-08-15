@@ -29,8 +29,8 @@
   <main id="top">
     <nav class="app-tabs" role="tablist" aria-label="推薦モード">
       <button class="app-tab is-active" type="button" role="tab" aria-selected="true" data-tab-target="pvp">対戦デッキ</button>
-      <button class="app-tab" type="button" role="tab" aria-selected="false" data-tab-target="characters">キャラ検索</button>
-      <button class="app-tab" type="button" role="tab" aria-selected="false" data-tab-target="lightest">最軽装</button>
+      <button class="app-tab" type="button" role="tab" aria-selected="false" data-tab-target="characters">キャラ図鑑</button>
+      <button class="app-tab" type="button" role="tab" aria-selected="false" data-tab-target="lightest" hidden>最軽装</button>
     </nav>
 
     <div class="app-tab-panel" data-tab-panel="pvp">
@@ -221,13 +221,13 @@
     <section class="app-tab-panel character-search-page" data-tab-panel="characters" data-character-search-root hidden>
       <div class="character-search-hero">
         <div>
-          <span class="eyebrow">SMART CHARACTER FINDER</span>
-          <h1>欲しいキャラを、<br><em>言葉で探す。</em></h1>
-          <p>名前、属性、スキル、地域、レアリティをまとめて検索します。使いたいキーワードを空白で並べるだけです。</p>
+          <span class="eyebrow">CHARACTER ENCYCLOPEDIA</span>
+          <h1>キャラ図鑑を、<br><em>検索して確認。</em></h1>
+          <p>送付データの順番を保った図鑑です。名前、属性、スキル、地域、レアリティから絞り込めます。</p>
         </div>
         <aside>
           <strong data-character-search-count>0体収録</strong>
-          <span>主要キーワードの組み合わせに対応</span>
+          <span>データ順の分類とキーワード検索に対応</span>
           <small>例：火 全体攻撃 / 回復 / 関東 R</small>
         </aside>
       </div>
@@ -236,11 +236,12 @@
         <form class="character-search-form" data-character-search-form role="search">
           <label class="character-search-input-wrap">
             <span aria-hidden="true">⌕</span>
-            <input type="search" name="characterQuery" autocomplete="off" placeholder="キャラ名や、欲しい性能を入力" aria-label="キャラクター検索">
+            <input type="search" name="characterQuery" autocomplete="off" placeholder="キャラ名や、欲しい性能を入力" aria-label="キャラ図鑑を検索">
           </label>
           <label class="character-search-sort">
             <span>並び順</span>
             <select name="characterSort">
+              <option value="source">データ順</option>
               <option value="relevance">関連度順</option>
               <option value="cost">コストが低い順</option>
               <option value="pow">Powerが高い順</option>

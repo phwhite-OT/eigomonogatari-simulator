@@ -1,5 +1,6 @@
-import { resolveAttributeClass } from "../data/rules.js";
+import { attributeClassLabel, resolveAttributeClass } from "../data/rules.js";
 import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
+import { groupCharactersForCatalogue } from "../core/character-catalogue.js";
 
 const CHARACTER_SEARCH_PAGE_SIZE = 24;
 
@@ -50,7 +51,7 @@ function createActionButton(label, action) {
   return button;
 }
 
-function renderCharacterCard(result, rank) {
+function renderCharacterCard(result, rank, { lightestAvailable = false } = {}) {
   const { character } = result;
   const card = characterSearchElement("article", "character-search-card");
   const heading = characterSearchElement("div", "character-search-card-heading");
@@ -88,6 +89,7 @@ function renderCharacterCard(result, rank) {
   reasons.append(reasonList);
 
   const actions = characterSearchElement("div", "character-search-actions");
+  actions.classList.toggle("is-admin", lightestAvailable);
   actions.append(
     createActionButton("IDをコピー", async (event) => {
       const copied = await copyText(String(character.id));
@@ -97,23 +99,84 @@ function renderCharacterCard(result, rank) {
     createActionButton("対戦の必須へ", (event) => {
       if (appendCharacterId("requiredIds", character.id)) event.currentTarget.textContent = "追加しました";
     }),
-    createActionButton("最軽装候補へ", (event) => {
-      if (appendCharacterId("lightestCandidates", character.id)) event.currentTarget.textContent = "追加しました";
-    }),
   );
+  if (lightestAvailable) {
+    actions.append(createActionButton("最軽装候補へ", (event) => {
+      if (appendCharacterId("lightestCandidates", character.id)) event.currentTarget.textContent = "追加しました";
+    }));
+  }
 
   card.append(heading, meta, stats, skill, reasons, actions);
   return card;
 }
 
-function renderSearchIntro(resultRoot, characterCount) {
-  const intro = characterSearchElement("div", "character-search-empty");
-  intro.append(
-    characterSearchElement("span", "character-search-empty-mark", "⌕"),
-    characterSearchElement("h2", "", `${formatNumber(characterCount)}体から検索できます`),
-    characterSearchElement("p", "", "名前、属性、スキル、地域、レアリティなどのキーワードを、空白で区切って入力してください。"),
+function catalogueResult(item, category) {
+  return {
+    character: item.character,
+    attributeLabel: attributeClassLabel(item.character.attributes),
+    reasons: ["送付データ順", `${category.name}・${item.sourceIndex + 1}番目`],
+  };
+}
+
+function renderCatalogueCategory(group, categoryIndex, options) {
+  const details = characterSearchElement("details", "character-catalogue-category");
+  const summary = characterSearchElement("summary");
+  const heading = characterSearchElement("span", "character-catalogue-category-heading");
+  heading.append(
+    characterSearchElement("strong", "", group.name),
+    characterSearchElement("small", "", `${formatNumber(group.items.length)}体・データ順`),
   );
-  resultRoot.replaceChildren(intro);
+  summary.append(heading, characterSearchElement("b", "", "表示"));
+  const content = characterSearchElement("div", "character-catalogue-category-content");
+  details.append(summary, content);
+
+  let visibleCount = CHARACTER_SEARCH_PAGE_SIZE;
+  let rendered = false;
+  const renderItems = () => {
+    const fragment = document.createDocumentFragment();
+    const grid = characterSearchElement("div", "character-search-grid");
+    group.items.slice(0, visibleCount).forEach((item) => {
+      grid.append(renderCharacterCard(catalogueResult(item, group), item.sourceIndex + 1, options));
+    });
+    fragment.append(grid);
+    if (visibleCount < group.items.length) {
+      const more = characterSearchElement("button", "button character-search-more", `さらに表示（残り${formatNumber(group.items.length - visibleCount)}体）`);
+      more.type = "button";
+      more.addEventListener("click", () => {
+        visibleCount += CHARACTER_SEARCH_PAGE_SIZE;
+        renderItems();
+      });
+      fragment.append(more);
+    }
+    content.replaceChildren(fragment);
+  };
+  details.addEventListener("toggle", () => {
+    if (!details.open || rendered) return;
+    rendered = true;
+    renderItems();
+  });
+  if (categoryIndex === 0) {
+    details.open = true;
+    rendered = true;
+    renderItems();
+  }
+  return details;
+}
+
+function renderCharacterCatalogue(resultRoot, index, options) {
+  const groups = groupCharactersForCatalogue(index.documents.map((document) => document.character));
+  const fragment = document.createDocumentFragment();
+  const overview = characterSearchElement("section", "character-search-overview character-catalogue-overview");
+  const copy = characterSearchElement("div");
+  copy.append(
+    characterSearchElement("span", "eyebrow", "CHARACTER ENCYCLOPEDIA"),
+    characterSearchElement("h2", "", `${formatNumber(index.documents.length)}体を収録`),
+    characterSearchElement("p", "", "送付データのシート順・行順を保ったまま分類しています。分類を開くと、登録された順に確認できます。"),
+  );
+  overview.append(copy, characterSearchElement("span", "character-catalogue-count", `${formatNumber(groups.length)}分類`));
+  fragment.append(overview);
+  groups.forEach((group, categoryIndex) => fragment.append(renderCatalogueCategory(group, categoryIndex, options)));
+  resultRoot.replaceChildren(fragment);
 }
 
 function renderNoResults(resultRoot, response) {
@@ -131,7 +194,7 @@ function renderNoResults(resultRoot, response) {
   resultRoot.replaceChildren(empty);
 }
 
-function renderSearchResults(resultRoot, response, visibleLimit, onLoadMore) {
+function renderSearchResults(resultRoot, response, visibleLimit, onLoadMore, options) {
   if (!response.total) {
     renderNoResults(resultRoot, response);
     return;
@@ -150,7 +213,7 @@ function renderSearchResults(resultRoot, response, visibleLimit, onLoadMore) {
   fragment.append(overview);
 
   const grid = characterSearchElement("div", "character-search-grid");
-  response.results.slice(0, visibleLimit).forEach((result, index) => grid.append(renderCharacterCard(result, index + 1)));
+  response.results.slice(0, visibleLimit).forEach((result, index) => grid.append(renderCharacterCard(result, index + 1, options)));
   fragment.append(grid);
   if (visibleLimit < response.total) {
     const loadMore = characterSearchElement("button", "button character-search-more", `さらに表示（残り${formatNumber(response.total - visibleLimit)}体）`);
@@ -161,8 +224,8 @@ function renderSearchResults(resultRoot, response, visibleLimit, onLoadMore) {
   resultRoot.replaceChildren(fragment);
 }
 
-export function initializeCharacterSearch(root, initialCharacters) {
-  if (!root) return { setCharacters() {}, search() {} };
+export function initializeCharacterSearch(root, initialCharacters, options = {}) {
+  if (!root) return { setCharacters() {}, setLightestAvailable() {}, search() {} };
   const form = root.querySelector("[data-character-search-form]");
   const input = form.elements.characterQuery;
   const sort = form.elements.characterSort;
@@ -173,12 +236,18 @@ export function initializeCharacterSearch(root, initialCharacters) {
   let response = null;
   let visibleLimit = CHARACTER_SEARCH_PAGE_SIZE;
   let debounceTimer = null;
+  let lightestAvailable = Boolean(options.lightestAvailable);
+  const renderOptions = () => ({ lightestAvailable });
 
   const renderCurrent = () => {
+    if (!response) {
+      renderCharacterCatalogue(resultRoot, index, renderOptions());
+      return;
+    }
     renderSearchResults(resultRoot, response, visibleLimit, () => {
       visibleLimit += CHARACTER_SEARCH_PAGE_SIZE;
       renderCurrent();
-    });
+    }, renderOptions());
   };
 
   const runSearch = () => {
@@ -186,7 +255,7 @@ export function initializeCharacterSearch(root, initialCharacters) {
     visibleLimit = CHARACTER_SEARCH_PAGE_SIZE;
     if (!query) {
       response = null;
-      renderSearchIntro(resultRoot, index.documents.length);
+      renderCurrent();
       return;
     }
     response = searchCharacters(index, query, { sort: sort.value, limit: index.documents.length });
@@ -223,6 +292,10 @@ export function initializeCharacterSearch(root, initialCharacters) {
     count.textContent = `${formatNumber(index.documents.length)}体収録`;
     runSearch();
   };
+  const setLightestAvailable = (allowed) => {
+    lightestAvailable = Boolean(allowed);
+    renderCurrent();
+  };
   setCharacters(initialCharacters);
-  return { setCharacters, search: runSearch };
+  return { setCharacters, setLightestAvailable, search: runSearch };
 }
