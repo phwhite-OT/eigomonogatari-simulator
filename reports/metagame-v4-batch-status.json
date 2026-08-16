@@ -1,7 +1,9 @@
 {
   "status": "paused",
   "startedAt": "2026-08-05T12:12:35.400Z",
-  "updatedAt": "2026-08-05T12:27:29.764Z",
+  "updatedAt": "2026-08-05T21:37:03.136Z",
+  "pausedAt": "2026-08-05T21:37:03.136Z",
+  "pauseReason": "Stopped after 1 task(s) due to max-tasks.",
   "config": {
     "attributeGroups": [
       [
@@ -49,25 +51,19 @@
     "finalScenarios": 30,
     "finalists": 40,
     "turns": 12,
-    "workers": 6,
+    "workers": 2,
     "outputRoot": "reports/metagame-ratings-v4",
     "priorOutputRoot": "reports/metagame-ratings-v4-prior-empty",
     "modelVersion": "iterative-metagame-v4-continuation-carryover"
   },
   "totalRuns": 280,
-  "completedRuns": 0,
-  "completedTaskIds": [],
-  "current": {
-    "allowedAttributes": [
-      "fire"
-    ],
-    "attributeKey": "fire",
-    "cost": 100,
-    "position": 1,
-    "pass": 1,
-    "constraintId": "fire:100",
-    "id": "1:fire:100:1"
-  },
-  "pausedAt": "2026-08-05T12:27:29.764Z",
-  "pauseReason": "Paused by user to prioritize lightest-deck search."
+  "completedRuns": 5,
+  "completedTaskIds": [
+    "1:fire:100:1",
+    "1:fire:100:2",
+    "1:fire:100:3",
+    "1:fire:100:4",
+    "1:fire:100:5"
+  ],
+  "current": null
 }

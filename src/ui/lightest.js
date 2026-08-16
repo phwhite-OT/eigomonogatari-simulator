@@ -1,4 +1,5 @@
 import { attributeClassLabel } from "../data/rules.js";
+import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
 import {
   findLightestDeck,
   resolveLightestEnemy,
@@ -17,6 +18,23 @@ function lightestPercent(value) {
 
 function splitValues(value) {
   return [...new Set(String(value ?? "").split(/[、,\n]/).map((item) => item.trim()).filter(Boolean))];
+}
+
+function splitDeckValues(value) {
+  return String(value ?? "").split(/[、,\n]/).map((item) => item.trim()).filter(Boolean);
+}
+
+function parseReferenceDecks(value, resolveCharacter, errors) {
+  return String(value ?? "").split(/[;\n]+/).map((line) => line.trim()).filter(Boolean).map((line, index) => {
+    const deck = [];
+    for (const entry of splitDeckValues(line)) {
+      const resolved = resolveCharacter(entry);
+      if (resolved.error) errors.push("公開デッキ " + (index + 1) + ": " + resolved.error);
+      else if (resolved.character) deck.push(resolved.character);
+    }
+    if (!deck.length) errors.push("公開デッキ " + (index + 1) + ": キャラを1体以上入力してください。");
+    return deck;
+  });
 }
 
 const LIGHTEST_SKILL_LABELS = Object.freeze({
@@ -300,11 +318,25 @@ function renderLightestResults(root, searchResult) {
     lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証`),
   );
   const omitted = searchResult.searchScope?.omitted ?? [];
-  if (omitted.length) {
+  if (["stage", "reference"].includes(searchResult.guidance?.mode)) {
+    const guidance = searchResult.guidance;
+    const usesReferenceCore = guidance.mode === "reference";
     overview.append(lightestElement(
       "span",
       "",
-      "省略した分岐: " + omitted.map((entry) => entry.label).join("・") + "。候補キャラ・総コスト・デッキ枚数は全探索です。",
+      guidance.applied
+        ? usesReferenceCore
+          ? "公開デッキ中心: 登録デッキ " + guidance.referenceDeckCount + "件の役割から、" + guidance.sourceCandidateCount + "体中" + guidance.candidateCount + "体を残して全探索。登録デッキのキャラは必ず残します。候補外の最適解は保証しません。"
+          : "攻略候補: ステージ相性・コスト・火力・耐久・発動ターンで " + guidance.sourceCandidateCount + "体から" + guidance.candidateCount + "体へ圧縮。公開デッキ " + guidance.referenceDeckCount + "件のキャラは残しています。候補外の最適解は保証しません。"
+        : "攻略候補: " + guidance.sourceCandidateCount + "体に支配関係のある候補はなく、全員を保持しています。",
+    ));
+  }
+  const actionOmitted = omitted.filter((entry) => entry.key !== "candidates");
+  if (actionOmitted.length) {
+    overview.append(lightestElement(
+      "span",
+      "",
+      "省略した行動分岐: " + actionOmitted.map((entry) => entry.label).join("・") + "。残った候補キャラ・総コスト・デッキ枚数は全探索です。",
     ));
   }
   if (searchResult.scout?.attempted) {
@@ -344,21 +376,45 @@ export function initializeLightest(root, characters) {
   const costProgressBar = progress.querySelector("[data-lightest-cost-bar]");
   const results = root.querySelector("[data-lightest-results]");
   const datalist = root.querySelector("#lightest-character-list");
+  const eventBonusInput = form.elements.lightestEventBonus;
+  const referenceDecksInput = form.elements.lightestReferenceDecks;
+  const eventBonusSelected = root.querySelector("[data-lightest-event-bonus-selected]");
+  const referenceDraftRoot = root.querySelector("[data-lightest-reference-draft]");
+  const referenceSelected = root.querySelector("[data-lightest-reference-selected]");
+  const referenceCount = root.querySelector("[data-lightest-reference-count]");
+  const referenceSave = root.querySelector("[data-lightest-reference-save]");
+  const referenceClear = root.querySelector("[data-lightest-reference-clear]");
+  const picker = root.querySelector("[data-lightest-character-picker]");
+  const pickerHeading = root.querySelector("[data-lightest-picker-heading]");
+  const pickerClose = root.querySelector("[data-lightest-picker-close]");
+  const pickerForm = root.querySelector("[data-lightest-picker-form]");
+  const pickerQuery = pickerForm.querySelector("[name=lightestPickerQuery]");
+  const pickerSubmit = pickerForm.querySelector("[data-lightest-picker-submit]");
+  const pickerResults = root.querySelector("[data-lightest-picker-results]");
   const sortByHp = root.querySelector("[data-lightest-sort-hp]");
   const sortByHpStatus = root.querySelector("[data-lightest-sort-hp-status]");
   const fastApproximation = form.elements.lightestFastApproximation;
   const automaticTargeting = form.elements.lightestAutomaticTargeting;
   const immediateSkills = form.elements.lightestImmediateSkills;
   const hpOrderOnly = form.elements.lightestHpOrderOnly;
+  const candidateGuidance = form.elements.lightestCandidateGuidance;
+  const referenceDeckCore = form.elements.lightestReferenceDeckCore;
   const fastApproximationToggle = root.querySelector("[data-lightest-fast-approximation-toggle]");
   let orderByHpDescending = false;
   let activeCharacters = characters;
   let resolveCharacter = createCharacterResolver(activeCharacters);
+  let characterSearchIndex = createCharacterSearchIndex(activeCharacters);
+  let referenceDraft = [];
+  let pickerMode = "event";
+  let pickerSearchTimer = null;
+  let refreshPickerSelections = () => {};
   let abortController = null;
 
   const setCharacters = (nextCharacters) => {
     activeCharacters = Array.isArray(nextCharacters) ? nextCharacters : [];
     resolveCharacter = createCharacterResolver(activeCharacters);
+    characterSearchIndex = createCharacterSearchIndex(activeCharacters);
+    refreshPickerSelections();
     const optionsFragment = document.createDocumentFragment();
     activeCharacters.forEach((character) => {
       const option = document.createElement("option");
@@ -370,6 +426,159 @@ export function initializeLightest(root, characters) {
   };
   setCharacters(characters);
   for (let index = 0; index < 5; index += 1) enemyRows.append(lightestEnemyRow(index));
+
+  const selectedCharacters = (value) => splitValues(value).flatMap((entry) => {
+    const resolved = resolveCharacter(entry);
+    return resolved.character ? [resolved.character] : [];
+  });
+  const selectedDeckCharacters = (value) => splitDeckValues(value).flatMap((entry) => {
+    const resolved = resolveCharacter(entry);
+    return resolved.character ? [resolved.character] : [];
+  });
+  const renderChips = (container, selected, onRemove, emptyLabel, removable = true) => {
+    container.replaceChildren();
+    if (!selected.length) {
+      container.append(lightestElement("span", "lightest-picker-empty", emptyLabel));
+      return;
+    }
+    selected.forEach((character, index) => {
+      const chip = lightestElement("span", "lightest-picker-chip");
+      chip.append(lightestElement("strong", "", character.name), lightestElement("small", "", "cost " + character.cost));
+      if (removable) {
+        const remove = lightestElement("button", "", "×");
+        remove.type = "button";
+        remove.setAttribute("aria-label", character.name + "を削除");
+        remove.addEventListener("click", () => onRemove(index));
+        chip.append(remove);
+      }
+      container.append(chip);
+    });
+  };
+  const setEventBonusCharacters = (selected) => {
+    const unique = [...new Map(selected.map((character) => [String(character.id), character])).values()];
+    eventBonusInput.value = unique.map((character) => String(character.id)).join(", ");
+    refreshPickerSelections();
+  };
+  const referenceLines = () => String(referenceDecksInput.value ?? "").split(/\n/).map((line) => line.trim()).filter(Boolean);
+  const setReferenceLines = (lines) => {
+    referenceDecksInput.value = lines.join("\n");
+    refreshPickerSelections();
+  };
+  const renderPickerResults = () => {
+    const query = pickerQuery.value.trim();
+    pickerResults.replaceChildren();
+    if (!query) {
+      pickerResults.append(lightestElement("p", "lightest-picker-message", "名前・属性・スキルなどで検索してください。例: 火 回復 / 低コスト 蘇生"));
+      return;
+    }
+    const response = searchCharacters(characterSearchIndex, query, { limit: 18 });
+    if (!response.total) {
+      pickerResults.append(lightestElement("p", "lightest-picker-message", "一致するキャラがありません。キーワードを短くして試してください。"));
+      return;
+    }
+    const list = lightestElement("div", "lightest-picker-results-grid");
+    response.results.forEach((result) => {
+      const character = result.character;
+      const card = lightestElement("article", "lightest-picker-result");
+      const heading = lightestElement("div", "");
+      heading.append(
+        lightestElement("strong", "", character.name),
+        lightestElement("small", "", attributeClassLabel(character.attributes) + "・" + character.rarity + "・cost " + character.cost),
+      );
+      card.append(heading, lightestElement("p", "", character.skillName || "スキルなし"));
+      const add = lightestElement("button", "", pickerMode === "event" ? "補正対象へ追加" : "作成中デッキへ追加");
+      add.type = "button";
+      if (pickerMode === "reference" && referenceDraft.length >= 5) {
+        add.disabled = true;
+        add.textContent = "デッキは5体まで";
+      }
+      add.addEventListener("click", () => {
+        if (pickerMode === "event") {
+          setEventBonusCharacters([...selectedCharacters(eventBonusInput.value), character]);
+        } else if (referenceDraft.length < 5) {
+          referenceDraft = [...referenceDraft, character];
+          refreshPickerSelections();
+          renderPickerResults();
+        }
+      });
+      card.append(add);
+      list.append(card);
+    });
+    pickerResults.append(list);
+  };
+  const openPicker = (mode) => {
+    pickerMode = mode;
+    picker.hidden = false;
+    pickerHeading.textContent = mode === "event" ? "イベント補正キャラを検索" : "公開デッキに入れるキャラを検索";
+    pickerQuery.value = "";
+    renderPickerResults();
+    pickerQuery.focus();
+  };
+  refreshPickerSelections = () => {
+    const bonuses = selectedCharacters(eventBonusInput.value);
+    renderChips(eventBonusSelected, bonuses, (index) => {
+      bonuses.splice(index, 1);
+      setEventBonusCharacters(bonuses);
+    }, "まだ追加されていません");
+    renderChips(referenceDraftRoot, referenceDraft, (index) => {
+      referenceDraft.splice(index, 1);
+      refreshPickerSelections();
+      renderPickerResults();
+    }, "検索でカードを選び、公開デッキを1件作成します");
+    referenceSave.disabled = !referenceDraft.length;
+    referenceClear.disabled = !referenceDraft.length;
+    referenceSelected.replaceChildren();
+    const lines = referenceLines();
+    referenceCount.textContent = "登録済み " + lines.length + "件";
+    if (!lines.length) {
+      referenceSelected.append(lightestElement("span", "lightest-picker-empty", "公開デッキはまだ登録されていません"));
+    } else {
+      lines.forEach((line, deckIndex) => {
+        const deck = selectedDeckCharacters(line);
+        const row = lightestElement("div", "lightest-reference-deck");
+        row.append(lightestElement("strong", "", "公開デッキ " + (deckIndex + 1)));
+        const cards = lightestElement("div", "lightest-picker-chips");
+        renderChips(cards, deck, null, "不明なカード", false);
+        row.append(cards);
+        const remove = lightestElement("button", "", "このデッキを削除");
+        remove.type = "button";
+        remove.addEventListener("click", () => {
+          const next = referenceLines();
+          next.splice(deckIndex, 1);
+          setReferenceLines(next);
+        });
+        row.append(remove);
+        referenceSelected.append(row);
+      });
+    }
+  };
+  root.querySelectorAll("[data-lightest-picker-open]").forEach((button) => {
+    button.addEventListener("click", () => openPicker(button.dataset.lightestPickerOpen));
+  });
+  pickerClose.addEventListener("click", () => { picker.hidden = true; });
+  pickerSubmit.addEventListener("click", renderPickerResults);
+  pickerQuery.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      renderPickerResults();
+    }
+  });
+  pickerQuery.addEventListener("input", () => {
+    clearTimeout(pickerSearchTimer);
+    pickerSearchTimer = setTimeout(renderPickerResults, 120);
+  });
+  referenceSave.addEventListener("click", () => {
+    if (!referenceDraft.length) return;
+    setReferenceLines([...referenceLines(), referenceDraft.map((character) => String(character.id)).join(", ")]);
+    referenceDraft = [];
+    refreshPickerSelections();
+  });
+  referenceClear.addEventListener("click", () => {
+    referenceDraft = [];
+    refreshPickerSelections();
+    renderPickerResults();
+  });
+  refreshPickerSelections();
   const refreshResolvedEnemyStats = () => {
     const difficulty = form.elements.lightestDifficulty.value;
     [...enemyRows.querySelectorAll("[data-lightest-enemy-row]")].forEach((row) => {
@@ -437,6 +646,9 @@ export function initializeLightest(root, characters) {
     sortByHp.disabled = busy;
     scopeControls.forEach((control) => { control.disabled = busy; });
     fastApproximation.disabled = busy;
+    candidateGuidance.disabled = busy;
+    referenceDeckCore.disabled = busy;
+    root.querySelectorAll("[data-lightest-picker-open], [data-lightest-reference-save], [data-lightest-reference-clear], [data-lightest-picker-close]").forEach((control) => { control.disabled = busy; });
     cancel.hidden = !busy;
     form.setAttribute("aria-busy", String(busy));
     progress.hidden = !busy;
@@ -477,6 +689,7 @@ export function initializeLightest(root, characters) {
       if (resolved.error) errors.push(`味方候補: ${resolved.error}`);
       else candidateIds.push(String(resolved.character.id));
     }
+    const referenceDecks = parseReferenceDecks(form.elements.lightestReferenceDecks.value, resolveCharacter, errors);
     const maxCost = Number(form.elements.lightestMaxCost.value);
     const targetCostText = form.elements.lightestTargetCost.value.trim();
     const targetCost = targetCostText === "" ? null : Number(targetCostText);
@@ -504,6 +717,7 @@ export function initializeLightest(root, characters) {
       rarities: splitValues(form.elements.lightestRarities.value),
       eventBonusIds,
       candidateIds,
+      referenceDecks,
     };
     abortController = new AbortController();
     setBusy(true);
@@ -527,6 +741,8 @@ export function initializeLightest(root, characters) {
         targetSearch: automaticTargeting.checked ? "automatic" : "all",
         skillSearch: immediateSkills.checked ? "automatic" : "all",
         orderSearch: hpOrderOnly.checked ? "hp_descending" : "all",
+        candidateGuidance: candidateGuidance.checked ? "stage" : "all",
+        referenceDeckCore: referenceDeckCore.checked,
         answerMultiplier: Number(form.elements.lightestAnswerMultiplier.value),
         enemyAttackMultiplier: Number(form.elements.lightestEnemyMultiplier.value),
         signal: abortController.signal,

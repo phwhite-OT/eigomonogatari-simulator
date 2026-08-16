@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   blendUsageEnvironments,
+  buildBootstrapEnvironment,
   buildUsageEnvironment,
   calculateMetagameCombinationPotential,
   calculateMetagameTacticalMetrics,
@@ -163,6 +164,44 @@ test("初手のスキルターン1は実戦上の発動信頼性を大きく下�
   assert.ok(openerMetrics.practicalSkillReliability < 0.3);
   assert.ok(laterMetrics.practicalSkillReliability > openerMetrics.practicalSkillReliability);
   assert.ok(openerMetrics.earlySkillLiability > laterMetrics.earlySkillLiability);
+});
+
+test("初手環境の初期候補は耐久より火力を優先する", () => {
+  const powerOpener = { ...character("power-opener"), hp: 100, pow: 500, skillTurn: 99 };
+  const hpOpener = { ...character("hp-opener"), hp: 500, pow: 100, skillTurn: 99 };
+
+  const environment = buildBootstrapEnvironment([powerOpener, hpOpener], 1);
+
+  assert.equal(environment[0].character.id, "power-opener");
+});
+
+test("耐久と全体生存支援は、ほぼ毎回働く場合だけ大きく評価する", () => {
+  const unreliable = result("unreliable");
+  unreliable.position = 1;
+  unreliable.character = {
+    ...unreliable.character,
+    hp: 1_000,
+    pow: 100,
+    cost: 20,
+    skillTurn: 0,
+    skill: { type: "guard", target: "ally_all", duration: 1, multiplier: 0.2 },
+  };
+  unreliable.matchOutcome.candidateSurvivalRate = 0.7;
+  unreliable.strategicActions.allyPreservationNetPerScenario = 0;
+  unreliable.reproduction = { skillActivationRate: 1, entryReadyRate: 1, scenarioCoverageRate: 1 };
+
+  const reliable = structuredClone(unreliable);
+  reliable.character.id = "reliable";
+  reliable.character.name = "reliable";
+  reliable.matchOutcome.candidateSurvivalRate = 0.95;
+  reliable.strategicActions.allyPreservationNetPerScenario = 1;
+
+  const unreliableMetrics = calculatePracticalMetagameMetrics(unreliable, 100);
+  const reliableMetrics = calculatePracticalMetagameMetrics(reliable, 100);
+
+  assert.ok(reliableMetrics.reliableDurability > unreliableMetrics.reliableDurability);
+  assert.ok(reliableMetrics.supportReliability > unreliableMetrics.supportReliability);
+  assert.ok(reliableMetrics.practicalValue > unreliableMetrics.practicalValue);
 });
 
 test("long-duration guard remains a combination specialist despite weak solo results", () => {

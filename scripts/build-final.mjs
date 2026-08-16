@@ -20,6 +20,7 @@ const sourceFiles = [
   "src/core/search-fast.js",
   "src/core/metagame-deck.js",
   "src/core/lightest-exact.js",
+  "src/core/lightest-guidance.js",
   "src/core/lightest.js",
   "src/core/character-catalogue.js",
   "src/core/character-search.js",

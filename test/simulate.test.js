@@ -226,7 +226,7 @@ test("蘇生は攻撃後・交代前に解決し、同じキャラへ一度だ�
   assert.equal(result.history[0].phases.at(-1).events.length, 0);
 });
 
-test("回復は蘇生対象を救えない場合に温存する", () => {
+test("回復は他の味方が蘇生対象でも温存しない", () => {
   const heal = {
     type: "heal",
     multiplier: 0.5,
@@ -245,9 +245,8 @@ test("回復は蘇生対象を救えない場合に温存する", () => {
   const selection = result.history[0].phases.find(({ id }) => id === "skill_selection");
   const event = selection.events.find(({ actorName }) => actorName === "healer");
 
-  assert.equal(event.type, "skill_hold");
-  assert.equal(event.reason, "回復後も蘇生対象となるため、回復を温存");
-  assert.equal(result.state.allies[1].skillUses, 0);
+  assert.equal(event.type, "skill_use");
+  assert.equal(event.reason, "現在ターンの実回復量があるため使用");
 });
 
 test("回復が蘇生対象を生存圏へ戻せる場合は使用する", () => {
@@ -271,7 +270,7 @@ test("回復が蘇生対象を生存圏へ戻せる場合は使用する", () =>
   const event = selection.events.find(({ actorName }) => actorName === "healer");
 
   assert.equal(event.type, "skill_use");
-  assert.equal(event.reason, "回復で蘇生対象を生存圏へ戻せるため使用");
+  assert.equal(event.reason, "現在ターンの実回復量があるため使用");
   assert.equal(result.state.allies[1].skillUses, 1);
 });
 
@@ -480,4 +479,124 @@ test("継続全体攻撃は次ターンも全敵へ適用され、継続実績�
     defenseHits: 0,
     carriedDefenseHits: 0,
   });
+});
+
+test("同じターンの色変更後も、色蘇生の対象は現在属性で判定する", () => {
+  const changeToFire = {
+    type: "attribute_change",
+    multiplier: 1,
+    target: "leader",
+    duration: 1,
+    conditions: [],
+    effects: [{ attribute: "fire" }],
+  };
+  const waterRevive = {
+    type: "revive",
+    multiplier: 1,
+    target: "leader",
+    duration: 1,
+    conditions: [{ type: "ally_attribute", attribute: "water" }],
+  };
+  const state = createBattleState(
+    [
+      character("water-leader", { hp: 100, attributes: ["water"], pow: 0 }),
+      character("changer", { skillTurn: 0, skill: changeToFire, pow: 0 }),
+      character("water-reviver", { skillTurn: 0, skill: waterRevive, pow: 0 }),
+    ],
+    [character("enemy", { pow: 200 })],
+  );
+
+  const result = simulateBattle(state, simpleRules, { turns: 1 });
+
+  assert.equal(result.state.allies[2].skillUses, 0);
+  assert.equal(result.history[0].phases[0].events.find(({ actorName }) => actorName === "water-reviver")?.type, "skill_hold");
+});
+
+test("回復は自身がこのターンに蘇生されるときだけ温存する", () => {
+  const heal = {
+    type: "heal",
+    multiplier: 0.5,
+    target: "self",
+    duration: 1,
+    conditions: [],
+  };
+  const revive = {
+    type: "revive",
+    multiplier: 1,
+    target: "leader",
+    duration: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [
+      character("healer", { hp: 100, skillTurn: 0, skill: heal, pow: 0 }),
+      character("ready-reviver", { skillTurn: 0, skill: revive, pow: 0 }),
+    ],
+    [character("enemy", { pow: 200 })],
+  );
+
+  const result = simulateBattle(state, simpleRules, { turns: 1, playStyle: "expert" });
+
+  assert.equal(result.state.allies[0].skillUses, 0);
+  assert.equal(result.state.allies[1].skillUses, 1);
+  assert.match(result.history[0].phases[0].events.find(({ actorName }) => actorName === "healer")?.reason, /自身が蘇生対象/);
+});
+
+test("かばう役には高火力の攻撃者を先に当てる", () => {
+  const state = createBattleState(
+    [character("weak", { pow: 100 }), character("strong", { pow: 300 })],
+    [character("protected", { pow: 0 }), character("guard", { hp: 1_000, pow: 0 })],
+  );
+  state.enemies[1].buffs = [{ type: "guard", multiplier: 1, remainingTurns: 1, conditions: [], activationOrder: 1 }];
+
+  const result = simulateBattle(state, simpleRules, {
+    turns: 1,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  });
+
+  assert.equal(result.history[0].actions[0].actorName, "strong");
+  assert.equal(result.history[0].actions[0].hits[0].targetName, "guard");
+});
+
+test("瀕死のかばう役は必要十分な火力で先に倒す", () => {
+  const state = createBattleState(
+    [character("weak", { pow: 100 }), character("strong", { pow: 300 })],
+    [character("protected", { pow: 0 }), character("guard", { hp: 1_000, pow: 0 })],
+  );
+  state.enemies[1].currentHp = 50;
+  state.enemies[1].buffs = [{ type: "guard", multiplier: 1, remainingTurns: 1, conditions: [], activationOrder: 1 }];
+
+  const result = simulateBattle(state, simpleRules, {
+    turns: 1,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  });
+
+  assert.equal(result.history[0].actions[0].actorName, "weak");
+  assert.equal(result.history[0].actions[0].hits[0].targetName, "guard");
+});
+
+test("色かばうの対象外の攻撃者は、直接かばう役を狙う", () => {
+  const state = createBattleState(
+    [character("water-attacker", { pow: 300, attributes: ["water"] }), character("fire-attacker", { pow: 100, attributes: ["fire"] })],
+    [character("protected", { pow: 0 }), character("water-guard", { hp: 1_000, pow: 0 })],
+  );
+  state.enemies[1].buffs = [{
+    type: "attribute_guard",
+    multiplier: 1,
+    remainingTurns: 1,
+    conditions: [{ type: "enemy_attribute", attribute: "water" }],
+    activationOrder: 1,
+  }];
+
+  const result = simulateBattle(state, simpleRules, {
+    turns: 1,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  });
+
+  assert.equal(result.history[0].actions[0].actorName, "fire-attacker");
+  assert.equal(result.history[0].actions[0].targetIndex, 1);
+  assert.equal(result.history[0].actions[0].hits[0].targetName, "water-guard");
 });

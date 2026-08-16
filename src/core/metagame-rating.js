@@ -43,7 +43,11 @@ function normalizedStatScore(character, maximumHp, maximumPower, position) {
   const skillReach = position === 1
     ? Number(character.skillTurn) === 0 ? 1 : 0
     : Number(character.skillTurn) <= expectedCharge + 1 ? 1 : 0;
-  return hp * 0.5 + power * 0.45 + skillReach * 0.05;
+  // 初手環境は先に倒されないための火力が最重要。耐久は「ほぼ耐える」
+  // 水準に届くかを実戦評価で判定するため、初期盤面の母集団では補助扱いにする。
+  const powerWeight = position === 1 ? 0.7 : 0.55;
+  const hpWeight = position === 1 ? 0.25 : 0.4;
+  return hp * hpWeight + power * powerWeight + skillReach * 0.05;
 }
 
 export function blendUsageEnvironments(baseEnvironment, priorEnvironment, priorWeight = 0.25) {
@@ -135,27 +139,65 @@ export function calculatePracticalMetagameMetrics(result, maximumPower = 1) {
     : 0;
   const powerPreference = clampUnit((Number(result.character?.pow) || 0) / Math.max(1, maximumPower));
   const enemyPressure = clampUnit(Number(result.teamBalance?.enemyPressureRate) || 0);
+  const candidateSurvivalRate = clampUnit(Number(
+    result.matchOutcome?.candidateSurvivalRate ?? result.teamBalance?.allyRetentionRate ?? 0,
+  ));
+  // 中途半端な耐久は一方的な敗北を止められない。大半の盤面で耐えて初めて
+  // 耐久値を大きく加点する。
+  const reliableDurability = candidateSurvivalRate >= 0.8
+    ? ((candidateSurvivalRate - 0.8) / 0.2) ** 0.75
+    : candidateSurvivalRate * 0.12;
+  const oneSidedLossRate = clampUnit(Number(result.matchOutcome?.oneSidedLossRate) || 0);
+  const cost = Math.max(1, Number(result.character?.cost) || 1);
+  const corePerformance = clampUnit(
+    (Number(result.matchOutcome?.expectedWinLowerBound) || 0) * 0.6 +
+    (Number(result.matchOutcome?.expectedWinRate) || 0) * 0.25 +
+    powerPreference * 0.15,
+  );
+  const costEfficiency = clampUnit(corePerformance * 30 / Math.max(8, cost));
   const continuationValue = clampUnit(Math.max(0, Number(result.continuation?.winGainPerScenario) || 0));
   const carriedContinuationValue = clampUnit(Math.max(
     0,
     Number(result.continuation?.carriedWinGainPerScenario) || 0,
   ));
+  const supportSkill = ["damage_reduction", "guard", "attribute_guard", "heal", "revive"].includes(
+    result.character?.skill?.type,
+  );
+  const observedSupportImpact = clampUnit(
+    Math.max(0, Number(result.strategicActions?.allyPreservationNetPerScenario) || 0) * 0.6 +
+    Math.max(0, Number(result.matchOutcome?.skillWinGain) || 0) * 3,
+  );
+  const supportReliability = supportSkill
+    ? Math.min(practicalSkillReliability, observedSupportImpact)
+    : 1;
+  const inactiveSupportLiability = supportSkill ? (1 - supportReliability) * 0.1 : 0;
+  const powerWeight = position === 1 ? 0.22 : 0.1;
   const practicalValue = clampUnit(
-    clampUnit(Number(result.matchOutcome?.expectedWinLowerBound) || 0) * 0.38 +
-    clampUnit(Number(result.matchOutcome?.expectedWinRate) || 0) * 0.2 +
-    clampUnit(Number(result.teamBalance?.balancedContribution) || 0) * 0.08 +
-    enemyPressure * 0.1 +
-    powerPreference * 0.12 +
-    continuationValue * 0.07 +
-    carriedContinuationValue * 0.035 +
-    practicalSkillReliability * 0.08 -
-    earlySkillLiability
+    clampUnit(Number(result.matchOutcome?.expectedWinLowerBound) || 0) * 0.31 +
+    clampUnit(Number(result.matchOutcome?.expectedWinRate) || 0) * 0.17 +
+    clampUnit(Number(result.teamBalance?.balancedContribution) || 0) * 0.07 +
+    enemyPressure * 0.09 +
+    powerPreference * powerWeight +
+    reliableDurability * 0.08 +
+    costEfficiency * 0.08 +
+    continuationValue * 0.06 +
+    carriedContinuationValue * 0.025 +
+    practicalSkillReliability * 0.07 -
+    earlySkillLiability -
+    oneSidedLossRate * 0.18 -
+    inactiveSupportLiability
   );
   return {
     position,
     practicalSkillReliability,
     earlySkillLiability,
     powerPreference,
+    candidateSurvivalRate,
+    reliableDurability,
+    oneSidedLossRate,
+    costEfficiency,
+    supportReliability,
+    inactiveSupportLiability,
     practicalValue,
   };
 }
