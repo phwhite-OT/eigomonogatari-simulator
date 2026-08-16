@@ -73,7 +73,12 @@ jobs:
               '. + [{input: $input, output_directory: $output_directory}]' <<< "$targets")"
             checkpoint_path="$RUNNER_TEMP/v8.5-role-balance-selection/$output_directory-progress.json"
             mkdir -p "$(dirname "$checkpoint_path")"
-            git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null || true
+            # A missing or truncated checkpoint must be treated as a fresh
+            # environment.  Leaving a zero-byte file here makes failures
+            # hard to diagnose and used to allow a no-op segment to loop.
+            if ! git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null || [ ! -s "$checkpoint_path" ]; then
+              rm -f "$checkpoint_path"
+            fi
             break
           done
 
@@ -85,6 +90,12 @@ jobs:
               --input="$input_id" \
               --checkpoint-path="$checkpoint_path" \
               --max-workers=20)"
+            shard_count="$(jq -r '.include | length' <<< "$work_matrix")"
+            if [ "$shard_count" -eq 0 ]; then
+              echo "No candidate shards were selected for incomplete input $input_id" >&2
+              exit 1
+            fi
+            echo "Selected $input_id with $shard_count candidate shards."
           fi
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "work_matrix=$work_matrix" >> "$GITHUB_OUTPUT"
@@ -96,7 +107,6 @@ jobs:
 
   evaluate:
     needs: select
-    if: needs.select.outputs.all_completed != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -131,8 +141,11 @@ jobs:
             git fetch --no-tags origin "+refs/heads/metagame-v8.5-role-balance-results:$results_ref"
           fi
           progress_path="reports/metagame-ratings-v8.5-role-balance/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
-          if git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null; then
+          if git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null && [ -s "$checkpoint_path" ]; then
             echo "Restored canonical progress for ${METAGAME_INPUT}, position ${{ matrix.position }}, shard ${{ matrix.shard }}"
+          else
+            rm -f "$checkpoint_path"
+            echo "No valid canonical progress was found; evaluating this shard from a clean checkpoint."
           fi
 
       - id: rate
@@ -430,4 +443,3 @@ jobs:
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --data '{"ref":"master"}'
-
