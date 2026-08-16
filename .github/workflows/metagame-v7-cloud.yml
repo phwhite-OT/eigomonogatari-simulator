@@ -51,7 +51,7 @@ jobs:
             local progress_path="$1"
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
-            jq -e '.status == "complete" and .context.version == "team-battle-v8.5-role-balance"' \
+            jq -e '.status == "complete" and .context.version == "team-battle-v8.6-combat-corrections"' \
               <<< "$progress" >/dev/null
           }
 
@@ -253,7 +253,7 @@ jobs:
           is_complete_file() {
             local progress_path="$1"
             [ -f "$progress_path" ] && jq -e \
-              '.status == "complete" and .context.version == "team-battle-v8.5-role-balance"' \
+              '.status == "complete" and .context.version == "team-battle-v8.6-combat-corrections"' \
               "$progress_path" >/dev/null
           }
 
@@ -401,7 +401,7 @@ jobs:
           git checkout "$results_ref" -- reports/metagame-ratings-v8.5-role-balance
           npm run build:metagame-data
           set +e
-          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; const v85 = data.constraints.filter((constraint) => constraint.modelVersion === "team-battle-v8.5-role-balance"); if (!v85.length) { console.log("No fully completed V8.5 role-balance constraint yet; keeping the existing public data."); process.exit(3); } if (data.sourceModelVersion !== "team-battle-v8.5-role-balance") throw new Error("V8.5 role-balance browser-data build used an incompatible model."); console.log(`Built ${v85.length} V8.5 role-balance browser constraints.`);'
+          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; const v86 = data.constraints.filter((constraint) => constraint.modelVersion === "team-battle-v8.6-combat-corrections"); if (!v86.length) { console.log("No fully completed V8.6 combat-corrections constraint yet; keeping the existing public data."); process.exit(3); } if (data.sourceModelVersion !== "team-battle-v8.6-combat-corrections") throw new Error("V8.6 combat-corrections browser-data build used an incompatible model."); console.log(`Built ${v86.length} V8.6 combat-corrections browser constraints.`);'
           validation_status=$?
           set -e
           if [ "$validation_status" -eq 3 ]; then exit 0; fi
@@ -430,3 +430,4 @@ jobs:
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --data '{"ref":"master"}'
+

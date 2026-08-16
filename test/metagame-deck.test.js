@@ -212,7 +212,7 @@ test("V8では補正キャラを候補と追加環境の両方へ入れて再対
   const constraint = {
     id: "fire:100",
     label: "火・コスト100",
-    modelVersion: "team-battle-v8.5-role-balance",
+    modelVersion: "team-battle-v8.6-combat-corrections",
     allowedAttributes: ["fire"],
     totalCost: 100,
     turns: 1,
@@ -469,3 +469,4 @@ test("a self-targeted continuous buff uses handoff likelihood", () => {
   assert.ok(fragileSourceScore > durableSourceScore);
   assert.ok(durableSourceScore > 0);
 });
+
