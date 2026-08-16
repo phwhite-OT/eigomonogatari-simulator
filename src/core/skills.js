@@ -204,13 +204,17 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
 
   if (skill.type === "aoe_attack") {
     const initialTargets = livingTargets();
-    const redirectIndex = resolveRedirectIndex(next[targetSide], actor);
-    if (redirectIndex === undefined) {
-      for (const targetIndex of initialTargets) {
-        for (let hit = 0; hit < Math.max(1, Number(skill.hits) || 1); hit += 1) attackTarget(targetIndex);
+    for (const targetIndex of initialTargets) {
+      for (let hit = 0; hit < Math.max(1, Number(skill.hits) || 1); hit += 1) {
+        // 全体攻撃は生存中の各敵へ一発ずつ飛ぶ。かばわれた場合も
+        // 各一発がかばう役へ向かうため、敵が5人なら5発を受ける。
+        const redirectIndex = resolveRedirectIndex(next[targetSide], actor);
+        attackTarget(
+          redirectIndex ?? targetIndex,
+          redirectIndex !== undefined,
+          redirectIndex !== undefined ? "guard" : "aoe_target",
+        );
       }
-    } else {
-      for (let hit = 0; hit < Math.max(1, Number(skill.hits) || 1); hit += 1) attackTarget(redirectIndex, true);
     }
   } else if (skill.type === "multi_hit_attack") {
     for (let hit = 0; hit < Math.max(1, skill.hits); hit += 1) {
@@ -360,3 +364,4 @@ export function evaluateSkillImpact(state, actorSide, actorIndex, rules) {
 export function isAttackSkill(skill) {
   return attackTypes.has(skill?.type);
 }
+
