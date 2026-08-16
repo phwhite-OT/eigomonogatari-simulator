@@ -1,7 +1,3 @@
-Exit code: 0
-Wall time: 1.1 seconds
-Total output lines: 1010
-Output:
 import {
   advanceTurn,
   evaluateBoard,
@@ -460,7 +456,54 @@ function expertSupportBenefit(state, side, actorIndex, skill, rules) {
 function healDecision(state, side, actorIndex, skill, rules, options = {}) {
   const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
   if (benefit.healingGain <= 0) return { use: false, reason: "回復対象に実際の回復がないため温存" };
-  return acto…601 tokens truncated…kill(state, side, actorIndex)) continue;
+  return actorWillBeRevivedThisTurn(state, side, actorIndex, rules, options.plannedAttributeIntents)
+    ? { use: false, reason: "このターンに自身が蘇生対象になるため温存" }
+    : { use: true, reason: "現在ターンの実回復量があるため使用" };
+}
+
+function expertSkillDecision(state, side, actorIndex, rules, options = {}) {
+  const actor = state[side][actorIndex];
+  const skill = actor.character.skill;
+  if (skill.type === "revive") {
+    return reviveMayApply(state, side, actorIndex, skill, rules)
+      ? { use: true, reason: "このターンの撃破を蘇生で覆せるため使用" }
+      : { use: false, reason: "このターンに蘇生対象が発生しないため温存" };
+  }
+  if (skill.type === "heal") {
+    const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
+    if (benefit.healingGain <= 0) {
+      return { use: false, reason: "現在ターンに回復できるHPがないため温存" };
+    }
+    return actorWillBeRevivedThisTurn(state, side, actorIndex, rules, options.plannedAttributeIntents)
+      ? { use: false, reason: "このターンに自身が蘇生対象になるため温存" }
+      : { use: true, reason: "現在ターンの実回復量があるため使用" };
+  }
+  if (isAttackSkill(skill)) {
+    const benefit = immediateAttackBenefit(state, side, actorIndex, skill, rules, options);
+    return benefit.gain > 0
+      ? {
+          use: true,
+          reason: `通常攻撃より今ターンの実与ダメージが${benefit.gain}増えるため使用`,
+        }
+      : {
+          use: false,
+          reason: "通常攻撃を上回る今ターンの実与ダメージがないため温存",
+        };
+  }
+  const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
+  const useful = skill.type === "heal"
+    ? benefit.healingGain > 0
+    : benefit.outgoingGain > 0 || benefit.preventedDamage > 0;
+  return useful
+    ? { use: true, reason: "このターン以降の与ダメージ増加または被ダメージ軽減に寄与するため使用" }
+    : { use: false, reason: "適用対象・属性条件・盤面効果が不足するため温存" };
+}
+
+function chooseSkills(state, rules, options) {
+  const candidates = [];
+  for (const side of ["allies", "enemies"]) {
+    for (let actorIndex = 0; actorIndex < state[side].length; actorIndex += 1) {
+      if (!canUseSkill(state, side, actorIndex)) continue;
       const actor = state[side][actorIndex];
       const decision = skillDecision(state, side, actorIndex, rules, options);
       candidates.push({
@@ -964,4 +1007,3 @@ export function scoreSimulationResult(result) {
     boardProgress * 0.05,
   );
 }
-
