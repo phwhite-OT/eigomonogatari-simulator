@@ -15,9 +15,6 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // input sheet still describes the five positions within one player's deck,
 // but a match is always simulated as five player decks versus five player
 // decks (25 characters per team including reserves).
-// Combat resolution changed for attack-skill timing and guarded area attacks.
-// Keep prior reports visible as historical data, but never mix them into this
-// corrected evaluation pass.
 export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.6-combat-corrections";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
@@ -445,7 +442,399 @@ function v8SelectLowOverlapDecks(environmentDecks, orderedIndexes, count = 9) {
       const overlap = environmentDecks[candidateIndex].reduce((total, character) => (
         total + (characterUses.has(String(character.id)) ? 1 : 0)
       ), 0);
-      const repeatedUses = environmentDecks[candidateIndex].reduce((total…4271 tokens truncated…file.role,
+      const repeatedUses = environmentDecks[candidateIndex].reduce((total, character) => (
+        total + (characterUses.get(String(character.id)) ?? 0)
+      ), 0);
+      const best = environmentDecks[remaining[bestIndex]];
+      const bestOverlap = best.reduce((total, character) => (
+        total + (characterUses.has(String(character.id)) ? 1 : 0)
+      ), 0);
+      const bestRepeatedUses = best.reduce((total, character) => (
+        total + (characterUses.get(String(character.id)) ?? 0)
+      ), 0);
+      if (overlap !== bestOverlap) return overlap < bestOverlap ? index : bestIndex;
+      if (repeatedUses !== bestRepeatedUses) return repeatedUses < bestRepeatedUses ? index : bestIndex;
+      return index < bestIndex ? index : bestIndex;
+    }, 0);
+    take(choiceIndex);
+  }
+  return selected;
+}
+
+/**
+ * Build deterministic five-player-versus-five-player match scenarios from the
+ * supplied fixed-environment decks.  Four decks form the candidate's allied
+ * team; the fifth allied deck is inserted at evaluation time.  Five further
+ * decks form the enemy team.  A scenario therefore always starts 5v5, never
+ * as the invalid V7.5 one-player-versus-one-player approximation.
+ */
+export function createMetagameV8TeamScenarios(resolvedInput, options = {}) {
+  const environmentDecks = options.environmentDecks ?? createMetagameV7EnvironmentDecks(resolvedInput, options);
+  if (environmentDecks.length < 9) {
+    throw new Error("5対5環境の作成には、異なる完成デッキが9本以上必要です。");
+  }
+  const deckCount = environmentDecks.length;
+  const minimumCoverageCount = Math.ceil(deckCount / 9);
+  const requestedCount = Math.max(minimumCoverageCount, Number(options.count) || deckCount);
+  // Make a deterministic permutation so that each nine-deck block is varied,
+  // while the first coverage pass still includes every supplied environment
+  // deck exactly once.  A stride coprime to the deck count is a permutation.
+  let stride = 17;
+  const greatestCommonDivisor = (left, right) => {
+    let a = Math.abs(left);
+    let b = Math.abs(right);
+    while (b) [a, b] = [b, a % b];
+    return a;
+  };
+  while (greatestCommonDivisor(stride, deckCount) !== 1) stride += 2;
+  const deckOrder = Array.from({ length: deckCount }, (_, index) => (
+    (index * stride) % deckCount
+  ));
+  const scenarios = [];
+  for (let scenarioIndex = 0; scenarioIndex < requestedCount; scenarioIndex += 1) {
+    const coverageAnchor = scenarioIndex % deckCount;
+    const coverageIndexes = Array.from({ length: 9 }, (_, offset) => (
+      deckOrder[(scenarioIndex * 9 + offset) % deckCount]
+    ));
+    const orderedIndexes = [
+      coverageAnchor,
+      ...Array.from({ length: deckCount - 1 }, (_, offset) => (
+        deckOrder[(scenarioIndex * 9 + offset) % deckCount]
+      )).filter((index) => index !== coverageAnchor),
+    ];
+    // The minimum coverage pass preserves every supplied deck. Subsequent
+    // scenarios deliberately choose the least-overlapping nine decks so one
+    // popular partner does not occupy most players on the same battlefield.
+    const decks = requestedCount <= minimumCoverageCount
+      ? coverageIndexes.map((index) => environmentDecks[index])
+      : v8SelectLowOverlapDecks(environmentDecks, orderedIndexes, 9);
+    scenarios.push({
+      id: `team-${scenarioIndex + 1}`,
+      allyDecks: decks.slice(0, 4),
+      enemyDecks: decks.slice(4),
+    });
+  }
+  return scenarios;
+}
+
+function characterEligibleAtV7Position(character, input, position) {
+  return character &&
+    Number(character.cost) <= Number(input.totalCost) &&
+    input.allowedAttributes.some((attribute) => character.attributes?.includes(attribute)) &&
+    character.allowedPositions?.includes(position) &&
+    isSkillTurnAllowedAtPosition(character, position);
+}
+
+function attributeConditionCoverage(conditions, type, characters) {
+  const relevant = (conditions ?? []).filter((condition) => condition.type === type);
+  if (!relevant.length) return 1;
+  if (!characters.length) return 0;
+  return characters.filter((candidate) => (
+    relevant.every((condition) => candidate.attributes?.includes(condition.attribute))
+  )).length / characters.length;
+}
+
+function allyConditionCoverage(character, skill, allyCandidates) {
+  const relevant = (skill?.conditions ?? []).filter((condition) => condition.type === "ally_attribute");
+  if (!relevant.length) return 1;
+  if (skill?.target === "self") {
+    return relevant.every((condition) => character.attributes?.includes(condition.attribute)) ? 1 : 0;
+  }
+  return attributeConditionCoverage(relevant, "ally_attribute", allyCandidates);
+}
+
+function v7CostEfficiency(rating) {
+  return (Number(rating.hp) + Number(rating.pow) * 0.75) / Math.max(1, Number(rating.cost));
+}
+
+function v8SkillReadiness(character, position) {
+  const skillType = character?.skill?.type ?? "none";
+  if (["none", "delay", "skill_reduction"].includes(skillType)) return 1;
+  const skillTurn = Math.max(0, Number(character?.skillTurn) || 0);
+  const expectedTurn = Math.max(0, Number(position) - 1);
+  const excessTurns = Math.max(0, skillTurn - expectedTurn);
+  if (!excessTurns) return 1;
+  // A 2nd-slot 2T skill must survive an additional turn after appearing.
+  // The same delay is less severe further back, where charging opportunities
+  // are more plentiful. Fifth-slot delays remain legal but decay gradually.
+  const perExtraTurn = position <= 1
+    ? 0.65
+    : position === 2
+      ? 0.42
+      : position === 3
+        ? 0.64
+        : position === 4
+          ? 0.8
+          : 0.9;
+  return perExtraTurn ** excessTurns;
+}
+
+function v8RoleForCharacter(character) {
+  switch (character?.skill?.type) {
+    case "single_attack": return "precision_attack";
+    case "aoe_attack":
+    case "multi_hit_attack": return "sweep_attack";
+    case "damage_reduction":
+    case "guard":
+    case "attribute_guard": return "defense";
+    case "revive": return "revive";
+    case "heal": return "recovery";
+    case "attack_buff":
+    case "attribute_change": return "support";
+    default: return "neutral";
+  }
+}
+
+function v8RoleIsAttack(role) {
+  return role === "precision_attack" || role === "sweep_attack";
+}
+
+function v8DamageRatio(character, enemy, rules, skillMultiplier = 1) {
+  const damage = calculateMinimumDamage({ attacker: character, defender: enemy, skillMultiplier, rules }).value;
+  return clampUnit(damage / Math.max(1, Number(enemy.hp) || 1));
+}
+
+function v8HighDurabilityEnemies(environmentPool) {
+  // A single-target finisher is a counter for the genuinely durable part of
+  // the field, not a replacement for clearing the whole board.  Restricting
+  // this sample to the upper fifth prevents ordinary enemies from making a
+  // precision skill look like universal board control.
+  const count = Math.max(1, Math.ceil(environmentPool.length * 0.2));
+  return [...environmentPool]
+    .sort((left, right) => (Number(right.hp) || 0) - (Number(left.hp) || 0))
+    .slice(0, count);
+}
+
+function v8HardTargetDemand(environmentPool, highDurability) {
+  const allAverageHp = average(environmentPool.map((enemy) => Math.max(1, Number(enemy.hp) || 1)));
+  const highAverageHp = average(highDurability.map((enemy) => Math.max(1, Number(enemy.hp) || 1)));
+  // The demand grows only when the upper HP band is materially harder than
+  // the rest of the supplied environment.  This keeps a precision attacker
+  // valuable against real walls without granting it a blanket advantage.
+  return clampUnit((highAverageHp / Math.max(1, allAverageHp) - 1) / 1.25);
+}
+
+function v8RoleFitness(character, environmentPool, rules, { offense, defense, skill, allyCoverage, enemyCoverage }) {
+  const role = v8RoleForCharacter(character);
+  const skillData = character.skill ?? {};
+  const skillMultiplier = Math.max(0, Number(skillData.multiplier) || 0);
+  const highDurability = v8HighDurabilityEnemies(environmentPool);
+  const hardTargetDemand = v8HardTargetDemand(environmentPool, highDurability);
+  const attackShare = average(environmentPool.map((enemy) => (
+    v8RoleIsAttack(v8RoleForCharacter(enemy)) ? 1 : 0
+  )));
+  const nonAttackShare = 1 - attackShare;
+  const attackConditionCoverage = clampUnit(allyCoverage * enemyCoverage);
+  const perHitCoverage = average(environmentPool.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier)
+  )));
+  const concentratedCoverage = average(highDurability.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier)
+  )));
+  const hitCount = Math.max(1, Number(skillData.hits) || 1);
+  const multiHitCoverage = average(environmentPool.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier * hitCount)
+  )));
+  const concentratedMultiHitCoverage = average(highDurability.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier * hitCount)
+  )));
+  const boardElimination = average(environmentPool.map((enemy) => (
+    v8DamageRatio(character, enemy, rules, skillMultiplier) >= 1 ? 1 : 0
+  )));
+
+  if (role === "precision_attack") {
+    const precisionValue = concentratedCoverage * (0.2 + hardTargetDemand * 0.8);
+    return {
+      role,
+      roleFit: precisionValue * attackConditionCoverage,
+      highDurabilityCoverage: concentratedCoverage,
+      boardCoverage: perHitCoverage,
+      boardElimination,
+      hardTargetDemand,
+      defenseMatchup: 0,
+      reviveMatchup: 0,
+    };
+  }
+  if (role === "sweep_attack") {
+    // AoE evaluates its damage on every target. Multi-hit keeps a lower
+    // single-hit score for broad-board flexibility, while retaining a
+    // separate concentrated score for the cases where all hits stay put.
+    const boardCoverage = skillData.type === "multi_hit_attack"
+      ? perHitCoverage * 0.7 + multiHitCoverage * 0.3
+      : perHitCoverage;
+    // Board attacks gain value from removing several ordinary enemies.  Their
+    // value is intentionally capped by actual per-target damage: surplus
+    // damage beyond a kill does not become extra score.
+    const boardControl = clampUnit(boardCoverage * 0.65 + boardElimination * 0.35);
+    return {
+      role,
+      roleFit: boardControl * attackConditionCoverage,
+      highDurabilityCoverage: skillData.type === "multi_hit_attack" ? concentratedMultiHitCoverage : concentratedCoverage,
+      boardCoverage,
+      boardElimination,
+      hardTargetDemand,
+      defenseMatchup: 0,
+      reviveMatchup: 0,
+    };
+  }
+  if (role === "defense") {
+    const reduction = clampUnit(1 - (Number(skillData.multiplier) || 1));
+    // Defense normally wins against non-attack roles.  A high-reduction guard
+    // is the exception: it can also absorb an attack-heavy turn, which is the
+    // H.F. Woman style of stabilising after a board-clear handoff.
+    const exceptionalGuard = skillData.type === "guard" && skillData.target === "self"
+      ? reduction * reduction
+      : 0;
+    const defenseMatchup = clampUnit(
+      defense * (0.25 + nonAttackShare * 0.75) + exceptionalGuard * attackShare * 0.4,
+    );
+    return {
+      role,
+      roleFit: defenseMatchup * 0.45 + skill * 0.55,
+      highDurabilityCoverage: 0,
+      boardCoverage: 0,
+      boardElimination: 0,
+      hardTargetDemand,
+      defenseMatchup,
+      reviveMatchup: 0,
+    };
+  }
+  if (role === "revive" || role === "recovery") {
+    const reviveMatchup = skill * (0.35 + attackShare * 0.65);
+    return {
+      role,
+      roleFit: reviveMatchup,
+      highDurabilityCoverage: 0,
+      boardCoverage: 0,
+      boardElimination: 0,
+      hardTargetDemand,
+      defenseMatchup: 0,
+      reviveMatchup,
+    };
+  }
+  if (role === "support") {
+    // A buff is not a completed win condition on its own.  Its full value is
+    // added later only when a reachable successor can actually use it.
+    const standaloneSupport = skillData.target === "ally_all" ? 0.55 : 0.4;
+    return {
+      role,
+      roleFit: skill * standaloneSupport,
+      highDurabilityCoverage: 0,
+      boardCoverage: 0,
+      boardElimination: 0,
+      hardTargetDemand,
+      defenseMatchup: 0,
+      reviveMatchup: 0,
+    };
+  }
+  return {
+    role,
+    roleFit: (offense + defense) / 2,
+    highDurabilityCoverage: 0,
+    boardCoverage: 0,
+    boardElimination: 0,
+    hardTargetDemand,
+    defenseMatchup: 0,
+    reviveMatchup: 0,
+  };
+}
+
+function characterProxyRating(character, position, environmentPool, maxima, rules, allyCandidates = []) {
+  const directScores = environmentPool.map((enemy) => {
+    const dealt = calculateMinimumDamage({ attacker: character, defender: enemy, rules }).value;
+    const taken = calculateMinimumDamage({ attacker: enemy, defender: character, rules }).value;
+    return {
+      offense: clampUnit(dealt / Math.max(1, Number(enemy.hp) || 1)),
+      defense: clampUnit(1 - taken / Math.max(1, Number(character.hp) || 1)),
+    };
+  });
+  const offense = average(directScores.map((score) => score.offense));
+  const defense = average(directScores.map((score) => score.defense));
+  const statPower = clampUnit(Number(character.pow) / maxima.pow);
+  const statHp = clampUnit(Number(character.hp) / maxima.hp);
+  const allyCoverage = allyConditionCoverage(character, character.skill, allyCandidates);
+  const enemyCoverage = attributeConditionCoverage(character.skill?.conditions, "enemy_attribute", environmentPool);
+  const skillReadiness = v8SkillReadiness(character, position);
+  const skillRaw = estimateSkillPotency(character, environmentPool, position, rules) * allyCoverage * enemyCoverage * skillReadiness;
+  const skill = clampUnit(skillRaw / 4);
+  const duration = Math.max(1, Number(character.skill?.duration) || 1);
+  const continuation = duration > 1 ? clampUnit((duration - 1) / 4) : 0;
+  const costEfficiency = clampUnit(v7CostEfficiency(character) / Math.max(1, maxima.costEfficiency));
+  const roleProfile = v8RoleFitness(character, environmentPool, rules, {
+    offense,
+    defense,
+    skill,
+    allyCoverage,
+    enemyCoverage,
+  });
+  const frontline = clampUnit(
+    statPower * 0.3 + statHp * 0.3 + offense * 0.2 + defense * 0.14 + costEfficiency * 0.06,
+  );
+  const rawPracticalValue = position === 1
+    ? frontline
+    : clampUnit(
+      roleProfile.roleFit * 0.46 + skill * 0.14 + costEfficiency * 0.16 +
+      ((offense + defense) / 2) * 0.14 + continuation * 0.05 + (statPower + statHp) / 2 * 0.05,
+    );
+  // This is applied before beam pruning. A strong but delayed 2nd/3rd-slot
+  // skill must not eliminate a reproducible earlier skill from consideration.
+  const practicalValue = clampUnit(rawPracticalValue * (0.65 + skillReadiness * 0.35));
+  return {
+    id: String(character.id),
+    name: character.name,
+    attributes: character.attributes,
+    rarity: character.rarity,
+    cost: character.cost,
+    hp: character.hp,
+    pow: character.pow,
+    skillTurn: character.skillTurn,
+    skillType: character.skill?.type ?? "none",
+    skillTarget: character.skill?.target ?? "self",
+    skillName: character.skillName ?? "",
+    role: roleProfile.role,
+    individualScore: practicalValue,
+    roleFit: roleProfile.roleFit,
+    roleBreakdown: {
+      frontline,
+      highDurabilityCoverage: roleProfile.highDurabilityCoverage,
+      boardCoverage: roleProfile.boardCoverage,
+      boardElimination: roleProfile.boardElimination,
+      hardTargetDemand: roleProfile.hardTargetDemand,
+      defenseMatchup: roleProfile.defenseMatchup,
+      reviveMatchup: roleProfile.reviveMatchup,
+      costEfficiency,
+      skillReadiness,
+      lateSkillRisk: 1 - skillReadiness,
+    },
+    expectedWinRate: practicalValue,
+    expectedWinLowerBound: practicalValue,
+    balancedContribution: clampUnit((offense + defense) / 2),
+    practicalValue,
+    practicalSkillReliability: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? skillReadiness : 1,
+    powerPreference: statPower,
+    enemyPressureRate: offense,
+    combinationPotential: continuation,
+    continuationWinGain: continuation * skill * (roleProfile.role === "support" ? 0.55 : 1),
+    carriedContinuationWinGain: continuation * skill * (roleProfile.role === "support" ? 0.55 : 1),
+    tacticalUpside: skill * (roleProfile.role === "support" ? 0.65 : 1),
+    tacticalRisk: 1 - skillReadiness,
+    allyRetentionRate: defense,
+    carriedDefenseRate: continuation * defense,
+    advantageCreation: ["damage_reduction", "guard", "attribute_guard", "heal", "revive"].includes(character.skill?.type)
+      ? skill : 0,
+    counteraction: ["single_attack", "aoe_attack", "multi_hit_attack"].includes(character.skill?.type)
+      ? skill : 0,
+    skillActivationRate: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? skillReadiness : 1,
+    v7Proxy: {
+      offense,
+      defense,
+      skill,
+      continuation,
+      allyCoverage,
+      enemyCoverage,
+      skillReadiness,
+      frontline,
+      role: roleProfile.role,
       roleFit: roleProfile.roleFit,
       practicalValue,
     },
@@ -879,4 +1268,3 @@ export function rankMetagameV7Characters(ratings) {
   ));
   return ranked.map((rating, index) => ({ ...rating, rank: index + 1 }));
 }
-
