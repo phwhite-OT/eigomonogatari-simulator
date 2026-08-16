@@ -63,12 +63,13 @@
         </div>
         <span class="metagame-data-status" data-metagame-data-status></span>
       </div>
+      <section class="metagame-calculation-status" data-metagame-calculation-status aria-live="polite"></section>
       <form class="metagame-simulator-form" data-metagame-form>
         <label class="field">
           <span>調査済みの属性・コスト縛り</span>
           <select name="metagameConstraint" aria-label="調査済み縛り"></select>
         </label>
-        <button class="button button-search" type="submit" data-metagame-submit><span>最高勝率デッキを計算</span><b>→</b></button>
+        <button class="button button-search" type="button" data-metagame-submit><span>最高勝率デッキを計算</span><b>→</b></button>
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
         <section class="metagame-fixed-slots" data-metagame-fixed-slots>
           <div class="metagame-fixed-slots-heading">
@@ -92,7 +93,7 @@
         <div><strong data-metagame-progress-label>候補デッキを生成</strong><span data-metagame-progress-value></span></div>
         <span><i data-metagame-progress-bar></i></span>
       </div>
-      <div class="metagame-simulator-results" data-metagame-result aria-live="polite"></div>
+      <div class="metagame-simulator-results" data-metagame-result aria-live="polite">調査済み環境を読み込んでいます…</div>
     </section>
 
     <div class="workspace">
@@ -298,7 +299,7 @@
 
             <section class="form-section">
               <div class="section-title"><span>02</span><div><h3>イベント補正</h3><p>強化対象と回答条件による攻撃倍率を設定します。</p></div></div>
-              <label class="field"><span>HP・Power 1.5倍の対象</span><input type="text" name="lightestEventBonus" placeholder="名前またはIDをカンマ区切り"></label>
+              <div class="lightest-picker-target"><span>HP・Power 1.5倍の対象</span><input type="hidden" name="lightestEventBonus"><button class="button lightest-picker-open" type="button" data-lightest-picker-open="event">キャラを検索して追加</button><div class="lightest-picker-chips" data-lightest-event-bonus-selected></div></div>
               <div class="field-grid field-grid-2 lightest-multiplier-grid">
                 <label class="field"><span>味方の回答・英語倍率</span><input type="number" name="lightestAnswerMultiplier" value="2.592" min="0" step="0.001" required></label>
                 <label class="field"><span>敵攻撃倍率</span><input type="number" name="lightestEnemyMultiplier" value="1" min="0" step="0.001" required></label>
@@ -318,8 +319,14 @@
               <div class="section-title"><span>04</span><div><h3>完全探索</h3><p>近似評価や試行上限を使わず、低コストから全編成・全配置・全行動を検証します。</p></div></div>
               <label class="field"><span>味方候補（任意）</span><input type="text" name="lightestCandidates" placeholder="名前またはIDをカンマ区切り・空欄は条件内全員"></label>
               <p class="lightest-help">最軽装で使われそうなキャラが分かっている場合だけ指定してください。指定した候補内では完全探索ですが、候補から外したキャラは証明範囲外になります。空欄なら属性・レアリティ・所持条件に合う全キャラを調べます。</p>
-              <div class="lightest-exact-notice"><strong>探索漏れなし</strong><span>スキル温存・同分類の使用順・正答／半誤答・各ターンの標的を状態が同一になる場合だけ統合します。</span></div>
+              <div class="lightest-picker-target"><span>確認済みの公開デッキ（任意）</span><input type="hidden" name="lightestReferenceDecks"><button class="button lightest-picker-open" type="button" data-lightest-picker-open="reference">公開デッキを登録</button><div class="lightest-picker-chips" data-lightest-reference-draft></div><div class="lightest-reference-actions"><button class="button" type="button" data-lightest-reference-save>この公開デッキを登録</button><button class="button" type="button" data-lightest-reference-clear>作成中を消去</button></div><strong class="lightest-reference-count" data-lightest-reference-count>登録済み 0件</strong><div class="lightest-reference-selected" data-lightest-reference-selected></div></div>
+              <p class="lightest-help">アプリで確認した公開デッキを、カード検索で1件ずつ登録します。何件でも登録できます。</p>
+              <label class="switch-row"><span><strong>攻略候補で絞る</strong><small>ステージ相性・コスト・火力・耐久・発動ターンで同型の劣位候補を除外。残った候補内は全探索</small></span><input type="checkbox" name="lightestCandidateGuidance" checked><i></i></label>
+              <label class="switch-row"><span><strong>公開デッキ中心</strong><small>登録デッキを基準に、同じ役割の低コスト代替候補へさらに絞る</small></span><input type="checkbox" name="lightestReferenceDeckCore" checked><i></i></label>
+              <div class="lightest-exact-notice"><strong>候補内は探索漏れなし</strong><span>スキル温存・同分類の使用順・正答／半誤答・各ターンの標的を状態が同一になる場合だけ統合します。攻略候補をオンにした場合だけ、候補外の最適解は保証しません。</span></div>
             </section>
+
+            <section class="lightest-character-picker" data-lightest-character-picker hidden><header><strong data-lightest-picker-heading>キャラを検索</strong><button type="button" data-lightest-picker-close aria-label="検索を閉じる">×</button></header><div data-lightest-picker-form><input type="search" name="lightestPickerQuery" placeholder="例: 火 回復 / 低コスト 蘇生"><button class="button" type="button" data-lightest-picker-submit>検索</button></div><div data-lightest-picker-results></div></section>
 
             <section class="form-section lightest-deck-rules">
               <div class="section-title"><span>05</span><div><h3>編成ルール</h3><p>最後の枠は蘇生スキルに固定します。</p></div></div>
@@ -455,7 +462,7 @@
     <span>DECK COMPASS / PROTOTYPE 0.1</span>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onload="window.dispatchEvent(new Event('eigo-supabase-ready'))"></script>
   <script>
 //__INLINE_SCRIPT__
   </script>

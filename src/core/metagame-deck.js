@@ -593,36 +593,48 @@ function metagameV7PrecomputedResults(constraint, characters, fixedSlots) {
     new Map((slot.candidates ?? []).map((rating) => [String(rating.id), rating]))
   ));
   const unique = new Map();
-  for (const slot of constraint.slots ?? []) {
-    for (const rating of slot.candidates ?? []) {
-      const precomputed = rating.v7BestDeck;
-      if (!Array.isArray(precomputed?.ids) || precomputed.ids.length !== 5) continue;
+  const precomputedDecks = Array.isArray(constraint.precomputedDecks)
+    ? constraint.precomputedDecks
+    : (constraint.slots ?? []).flatMap((slot) => (
+      (slot.candidates ?? []).map((rating) => rating.v7BestDeck)
+    ));
+  for (const rawPrecomputed of precomputedDecks) {
+      const ids = rawPrecomputed?.i ?? rawPrecomputed?.ids;
+      if (!Array.isArray(ids) || ids.length !== 5) continue;
       if ([...fixedSlots.entries()].some(([position, id]) => (
-        String(precomputed.ids[position - 1]) !== String(id)
+        String(ids[position - 1]) !== String(id)
       ))) continue;
-      const deck = precomputed.ids.map((id) => charactersById.get(String(id)));
+      const deck = ids.map((id) => charactersById.get(String(id)));
       if (deck.some((character) => !character)) continue;
-      const key = precomputed.ids.map(String).join("|");
+      const key = ids.map(String).join("|");
+      const expectedWinRate = Number(rawPrecomputed.w ?? rawPrecomputed.expectedWinRate) || 0;
+      const expectedWinLowerBound = Number(rawPrecomputed.l ?? rawPrecomputed.expectedWinLowerBound) || 0;
+      const scenarioCount = Number(rawPrecomputed.s ?? rawPrecomputed.scenarioCount) || 0;
       const candidate = {
         deck,
         ratings: deck.map((character, index) => (
-          ratingsByPosition[index].get(String(character.id)) ?? metagameFixedFallbackRating(character)
+          ratingsByPosition[index].get(String(character.id)) ?? {
+            ...metagameFixedFallbackRating(character),
+            expectedWinRate,
+            expectedWinLowerBound,
+            scenarioCount,
+            overallRank: "-",
+          }
         )),
-        totalCost: Number(precomputed.totalCost) || deck.reduce((sum, character) => sum + (Number(character.cost) || 0), 0),
-        proxyScore: Number(precomputed.proxyScore) || 0,
-        synergyScore: Number(precomputed.synergyScore) || 0,
+        totalCost: Number(rawPrecomputed.c ?? rawPrecomputed.totalCost) || deck.reduce((sum, character) => sum + (Number(character.cost) || 0), 0),
+        proxyScore: Number(rawPrecomputed.p ?? rawPrecomputed.proxyScore) || 0,
+        synergyScore: Number(rawPrecomputed.y ?? rawPrecomputed.synergyScore) || 0,
         handoffRisk: 0,
-        expectedWinRate: Number(precomputed.expectedWinRate) || 0,
-        expectedWinLowerBound: Number(precomputed.expectedWinLowerBound) || 0,
-        scenarioCount: Number(precomputed.scenarioCount) || 0,
-        decisiveWinRate: Number(precomputed.decisiveWinRate) || 0,
-        decisiveDrawRate: Number(precomputed.decisiveDrawRate) || 0,
-        decisiveLossRate: Number(precomputed.decisiveLossRate) || 0,
-        ongoingRate: Number(precomputed.ongoingRate) || 0,
+        expectedWinRate,
+        expectedWinLowerBound,
+        scenarioCount,
+        decisiveWinRate: Number(rawPrecomputed.a ?? rawPrecomputed.decisiveWinRate) || 0,
+        decisiveDrawRate: Number(rawPrecomputed.d ?? rawPrecomputed.decisiveDrawRate) || 0,
+        decisiveLossRate: Number(rawPrecomputed.e ?? rawPrecomputed.decisiveLossRate) || 0,
+        ongoingRate: Number(rawPrecomputed.o ?? rawPrecomputed.ongoingRate) || 0,
       };
       const current = unique.get(key);
       if (!current || candidate.expectedWinLowerBound > current.expectedWinLowerBound) unique.set(key, candidate);
-    }
   }
   return [...unique.values()].sort((left, right) => (
     right.expectedWinLowerBound - left.expectedWinLowerBound ||

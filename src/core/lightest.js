@@ -1,6 +1,7 @@
 import { applyRounding, resolveAttributeMultiplier } from "./damage.js";
 import { DEFAULT_RULES } from "../data/rules.js";
 import { calculateCharacterStatStages } from "../data/characters.js";
+import { buildLightestGuidedCandidatePool } from "./lightest-guidance.js";
 import {
   exactCandidateTrialPriority,
   findExactLightestDeck,
@@ -25,6 +26,7 @@ export const LIGHTEST_DEFAULTS = Object.freeze({
   targetSearch: "all",
   skillSearch: "all",
   orderSearch: "all",
+  candidateGuidance: "all",
 });
 
 const ATTACK_TYPES = new Set(["single_attack", "aoe_attack", "multi_hit_attack"]);
@@ -249,7 +251,7 @@ function canUseLightestSkill(unit) {
 
 function shouldUseAllySkill(state, actorIndex, skill) {
   if (skill.type === "heal") {
-    return state.allies.some((unit) => unit.alive && !unit.ghost && unit.currentHp < unit.maxHp * 1.95);
+    return state.allies.some((unit) => unit.alive && !unit.ghost && unit.currentHp < unit.maxHp * 2);
   }
   if (skill.type === "revive") {
     return state.allies.some((unit) => unit.ghost && !unit.reviveUsed) ||
@@ -541,8 +543,6 @@ function ghostDefeatedAllies(state) {
   for (const ally of state.allies) {
     if (ally.alive || ally.ghost) continue;
     ally.ghost = true;
-    ally.attributes = [...characterAttributes(ally.character)];
-    ally.buffs = [];
     ghosts.push(ally.character.name);
   }
   return ghosts;
@@ -557,7 +557,6 @@ function applyRevives(state, intents, events) {
       target.alive = true;
       target.reviveUsed = true;
       target.currentHp = Math.max(1, Math.min(target.maxHp * 2, target.maxHp * intent.skill.multiplier));
-      target.attributes = [...characterAttributes(target.character)];
       events.push({ side: intent.side, actorName: intent.character.name, targetName: target.character.name });
     }
   }
@@ -681,11 +680,12 @@ function lightestDeckSizes(stage) {
     .sort((left, right) => left - right);
 }
 
-function lightestSearchScope(stage, options) {
+function lightestSearchScope(stage, options, guidance = null) {
   const omitted = [];
   if (options.targetSearch === "automatic") omitted.push({ key: "targets", label: "手動ターゲット" });
   if (options.skillSearch === "automatic") omitted.push({ key: "skills", label: "スキル温存・使用順" });
   if (stage.orderByHpDescending) omitted.push({ key: "order", label: "並び順" });
+  if (guidance?.applied) omitted.push({ key: "candidates", label: "攻略候補" });
   return {
     targetSearch: options.targetSearch,
     skillSearch: options.skillSearch,
@@ -693,7 +693,7 @@ function lightestSearchScope(stage, options) {
     omitted,
   };
 }
-function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = null, searchScope) {
+function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = null, searchScope, guidance = null) {
   const reference = attempts.at(-1);
   const generatedCombinationCount = attempts.reduce((sum, attempt) => sum + attempt.generatedCombinationCount, 0);
   const simulatedDeckCount = attempts.reduce((sum, attempt) => sum + attempt.simulatedDeckCount, 0);
@@ -713,6 +713,7 @@ function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = 
     foundThreeStar: Boolean(best),
     searchedDeckSizes: deckSizes,
     scout,
+    guidance,
     searchScope,
     exact: !searchScope?.omitted?.length,
   };
@@ -902,16 +903,18 @@ export async function findLightestDeck(characters, stage, searchOptions = {}) {
     ...stage,
     orderByHpDescending: Boolean(stage.orderByHpDescending || normalizedOptions.orderSearch === "hp_descending"),
   };
-  const searchScope = lightestSearchScope(normalizedStage, normalizedOptions);
+  const guidance = buildLightestGuidedCandidatePool(characters, normalizedStage, normalizedOptions);
+  const guidedCharacters = guidance.characters;
+  const searchScope = lightestSearchScope(normalizedStage, normalizedOptions, guidance);
   if (!deckSizes.length) {
-    const result = await findExactLightestDeck(characters, normalizedStage, normalizedOptions);
-    return { ...result, searchScope, exact: !searchScope.omitted.length };
+    const result = await findExactLightestDeck(guidedCharacters, normalizedStage, normalizedOptions);
+    return { ...result, guidance, searchScope, exact: !searchScope.omitted.length };
   }
   const targetCost = lightestRequestedTargetCost(normalizedStage);
   const profiles = deckSizes.map((deckSize, index) => ({
     deckSize,
     deckSizeIndex: index + 1,
-    profile: prepareExactLightestCandidateProfile(characters, { ...normalizedStage, deckSize }, normalizedOptions),
+    profile: prepareExactLightestCandidateProfile(guidedCharacters, { ...normalizedStage, deckSize }, normalizedOptions),
   }));
   const scout = await lightestScoutWinningDeck(profiles, normalizedStage, normalizedOptions);
   const tasks = lightestCostTasks(profiles, targetCost, scout.deck)
@@ -942,7 +945,7 @@ export async function findLightestDeck(characters, stage, searchOptions = {}) {
       candidateCount: task.profile.available.length,
       taskCompleted: false,
     });
-    const attempt = await findExactLightestDeck(characters, {
+    const attempt = await findExactLightestDeck(guidedCharacters, {
       ...normalizedStage,
       deckSizes: undefined,
       deckSize: task.deckSize,
@@ -970,8 +973,8 @@ export async function findLightestDeck(characters, stage, searchOptions = {}) {
       taskCompleted: true,
     });
     const winner = attempt.results[0];
-    if (winner) return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, winner, scout, searchScope);
+    if (winner) return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, winner, scout, searchScope, guidance);
     await lightestYield();
   }
-  return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, null, scout, searchScope);
+  return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, null, scout, searchScope, guidance);
 }

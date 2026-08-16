@@ -107,6 +107,38 @@ test("自身・リーダー・味方全員の対象範囲を区別する", () =>
   assert.deepEqual(allResult.allies.map((combatant) => combatant.buffs.length), [1, 1]);
 });
 
+test("色変更後に倒れた味方は、元属性ではなく現在属性に一致する蘇生だけを受ける", () => {
+  const waterRevive = {
+    type: "revive",
+    multiplier: 1,
+    target: "ally_all",
+    duration: 1,
+    conditions: [{ type: "ally_attribute", attribute: "water" }],
+  };
+  const fireRevive = {
+    ...waterRevive,
+    conditions: [{ type: "ally_attribute", attribute: "fire" }],
+  };
+  const state = createBattleState(
+    [
+      character("changed-target", { attributes: ["water"] }),
+      character("water-reviver", { skill: waterRevive }),
+      character("fire-reviver", { skill: fireRevive }),
+    ],
+    [character("enemy")],
+  );
+  state.allies[0].alive = false;
+  state.allies[0].currentHp = 0;
+  state.allies[0].attributes = ["fire"];
+
+  const waterAttempt = applySkill(state, "allies", 1, simpleRules);
+  const fireAttempt = applySkill(waterAttempt, "allies", 2, simpleRules);
+
+  assert.equal(waterAttempt.allies[0].alive, false);
+  assert.equal(fireAttempt.allies[0].alive, true);
+  assert.deepEqual(fireAttempt.allies[0].attributes, ["fire"]);
+});
+
 test("攻撃バフは味方属性と敵属性の両条件を攻撃時に判定する", () => {
   const state = createBattleState(
     [character("attacker", { attributes: ["fire"] })],
@@ -430,7 +462,6 @@ test("蘇生はリーダー指定と味方属性条件を区別し、該当者�
   const defeat = (combatant) => {
     combatant.alive = false;
     combatant.currentHp = 0;
-    combatant.attributes = [];
   };
   const leaderSkill = { type: "revive", multiplier: 0.4, target: "leader", duration: 1, conditions: [] };
   const leaderState = createBattleState(

@@ -28,7 +28,9 @@ function effectApplies(effect, ownerAttributes, opponentAttributes) {
 }
 
 function supportConditionApplies(skill, target) {
-  const targetAttributes = target.alive ? target.attributes : target.character?.attributes ?? [];
+  // 属性条件は、戦闘中の現在属性で判定する。死亡直後も色変更の効果は
+  // 蘇生フェーズまで残るため、ここで元のキャラクター属性へ戻してはいけない。
+  const targetAttributes = target.attributes ?? target.character?.attributes ?? [];
   return (skill.conditions ?? []).every((condition) => (
     condition.type !== "ally_attribute" || targetAttributes.includes(condition.attribute)
   ));
@@ -254,7 +256,6 @@ export function applySupportSkill(state, actorSide, actorIndex, skill, options =
       target.alive = true;
       target.reviveUsed = true;
       target.currentHp = Math.min(target.maxHp * 2, Math.max(1, target.maxHp * skill.multiplier));
-      target.attributes = [...(target.character?.attributes ?? [])];
     }
   } else if (skill.type === "attribute_change") {
     const attributes = (skill.effects ?? []).flatMap((effect) => effect.attribute ? [effect.attribute] : []);

@@ -1056,6 +1056,8 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
     carriedDefenseHits: 0,
     continuationWinGain: 0,
     carriedContinuationWinGain: 0,
+    candidateSurvived: 0,
+    oneSidedLosses: 0,
   };
   const continuationEligible = supportsContinuationEvaluation(character);
   const tacticalProfiles = new Map();
@@ -1082,6 +1084,9 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
     const enemyPressure = clampUnit(actual.metrics.enemyLosses / initialEnemyCount);
     const allyPreservationNet = baseline.metrics.allyLosses - actual.metrics.allyLosses;
     const enemyRemovalNet = actual.metrics.enemyLosses - baseline.metrics.enemyLosses;
+    const candidateSurvived = !activeDefeated(actualState, actual.state, "allies", scenario.actorIndex);
+    const oneSidedLoss = actual.outcome === "enemies" &&
+      actual.metrics.enemyLosses === 0 && actual.metrics.allyLosses > 0;
 
     totals.scenarios += 1;
     winValues.push(actualWinValue);
@@ -1101,6 +1106,8 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
     }
     totals.allyPreservationNet += allyPreservationNet;
     totals.enemyRemovalNet += enemyRemovalNet;
+    totals.candidateSurvived += candidateSurvived ? 1 : 0;
+    totals.oneSidedLosses += oneSidedLoss ? 1 : 0;
     const profileId = String(scenario.battleProfile ?? "stock-balance");
     const profileTotals = tacticalProfiles.get(profileId) ?? {
       scenarios: 0,
@@ -1165,6 +1172,8 @@ export function evaluateCandidateMatchOutcome(character, scenarios, options) {
       ongoingRate: totals.ongoing / scenarioCount,
       baselineExpectedWinRate,
       skillWinGain: expectedWinRate - baselineExpectedWinRate,
+      candidateSurvivalRate: totals.candidateSurvived / scenarioCount,
+      oneSidedLossRate: totals.oneSidedLosses / scenarioCount,
     },
     teamBalance: {
       allyRetentionRate: totals.allyRetention / scenarioCount,

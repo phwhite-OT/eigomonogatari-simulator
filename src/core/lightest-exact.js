@@ -596,8 +596,6 @@ function exactGhostDefeatedAllies(state) {
   for (const ally of state.allies) {
     if (ally.alive || ally.ghost) continue;
     ally.ghost = true;
-    ally.attributes = [...exactAttributes(ally.character)];
-    ally.buffs = [];
     ghosts.push(ally.character.name);
   }
   return ghosts;
@@ -613,7 +611,6 @@ function exactApplyRevives(state, pendingRevives) {
       target.alive = true;
       target.reviveUsed = true;
       target.currentHp = Math.max(1, Math.min(target.maxHp * 2, target.maxHp * intent.skill.multiplier));
-      target.attributes = [...exactAttributes(target.character)];
       events.push({ side: intent.side, actorName: intent.character.name, targetName: target.character.name });
     }
   }
