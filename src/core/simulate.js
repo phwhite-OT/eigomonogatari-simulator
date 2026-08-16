@@ -1,3 +1,7 @@
+Exit code: 0
+Wall time: 1.1 seconds
+Total output lines: 1010
+Output:
 import {
   advanceTurn,
   evaluateBoard,
