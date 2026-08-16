@@ -2,8 +2,47 @@ import { createBattleState } from "./battleState.js";
 import { simulateBattle } from "./simulate.js";
 import { DEFAULT_ENVIRONMENT_BATTLE_PROFILES } from "./environment-rating.js";
 import { DEFAULT_RULES, resolveAttributeClass } from "../data/rules.js";
+import { isSkillTurnAllowedAtPosition } from "./filter.js";
 
 const METAGAME_DECK_PROFILES = DEFAULT_ENVIRONMENT_BATTLE_PROFILES;
+export const METAGAME_STAT_BOOST_MULTIPLIER = 1.5;
+
+export function normalizeMetagameBoostedCharacterIds(values) {
+  const rawValues = values instanceof Set ? [...values] : values ?? [];
+  return new Set((Array.isArray(rawValues) ? rawValues : [rawValues])
+    .map((value) => String(value?.id ?? value ?? "").trim())
+    .filter(Boolean));
+}
+
+/**
+ * Returns a non-mutating battle copy for a character affected by the current
+ * event bonus.  The base catalog must remain intact because the user may turn
+ * the bonus off and rerun the same constraint immediately afterwards.
+ */
+export function applyMetagameStatBoost(character, boostedCharacterIds, multiplier = METAGAME_STAT_BOOST_MULTIPLIER) {
+  if (!character) return character;
+  const boostedIds = normalizeMetagameBoostedCharacterIds(boostedCharacterIds);
+  if (!boostedIds.has(String(character.id))) return character;
+  if (Number(character?.metagameStatBoost?.multiplier) === Number(multiplier)) return character;
+  return {
+    ...character,
+    hp: Math.max(0, Number(character.hp) || 0) * multiplier,
+    pow: Math.max(0, Number(character.pow) || 0) * multiplier,
+    metagameStatBoost: {
+      multiplier,
+      hpMultiplier: multiplier,
+      powMultiplier: multiplier,
+    },
+  };
+}
+
+function metagameCharactersById(characters, boostedCharacterIds) {
+  const boostedIds = normalizeMetagameBoostedCharacterIds(boostedCharacterIds);
+  return new Map((characters ?? []).map((character) => [
+    String(character.id),
+    applyMetagameStatBoost(character, boostedIds),
+  ]));
+}
 
 function metagameDeckClampUnit(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
@@ -23,21 +62,28 @@ function metagameCandidateScore(rating) {
   const carriedContinuationWinGain = metagameDeckClampUnit(rating.carriedContinuationWinGain);
   const tacticalUpside = metagameDeckClampUnit(rating.tacticalUpside ?? rating.tactical?.tacticalUpside);
   const tacticalRisk = metagameDeckClampUnit(rating.tacticalRisk ?? rating.tactical?.tacticalRisk);
+  const lateSkillRisk = metagameDeckClampUnit(rating.roleBreakdown?.lateSkillRisk ?? rating.lateSkillRisk);
+  const roleFit = metagameDeckClampUnit(rating.roleFit ?? rating.individualScore);
+  const retention = metagameDeckClampUnit(rating.allyRetentionRate);
+  const stabilisingRole = ["defense", "revive", "recovery"].includes(rating.role);
   return (
-    metagameDeckClampUnit(rating.expectedWinLowerBound) * 0.36 +
-    metagameDeckClampUnit(rating.expectedWinRate) * 0.22 +
-    practicalValue * 0.13 +
-    metagameDeckClampUnit(rating.balancedContribution) * 0.05 +
-    enemyPressure * 0.12 +
-    powerPreference * 0.07 +
-    advantage * 0.045 +
-    counter * 0.045 +
+    metagameDeckClampUnit(rating.expectedWinLowerBound) * 0.29 +
+    metagameDeckClampUnit(rating.expectedWinRate) * 0.18 +
+    practicalValue * 0.15 +
+    roleFit * 0.14 +
+    metagameDeckClampUnit(rating.balancedContribution) * 0.07 +
+    enemyPressure * 0.055 +
+    powerPreference * 0.05 +
+    advantage * 0.07 +
+    counter * 0.035 +
     skillReliability * 0.035 +
-    combinationPotential * 0.10 +
-    continuationWinGain * 0.035 +
-    carriedContinuationWinGain * 0.045 +
-    tacticalUpside * 0.04 -
-    tacticalRisk * 0.04
+    combinationPotential * 0.04 +
+    continuationWinGain * 0.02 +
+    carriedContinuationWinGain * 0.025 +
+    tacticalUpside * 0.035 +
+    retention * (stabilisingRole ? 0.055 : 0.02) -
+    tacticalRisk * 0.04 -
+    lateSkillRisk * 0.08
   );
 }
 
@@ -92,16 +138,39 @@ function metagameDeckPairSynergy(source, target) {
   if (duration < 2 || reliability === 0 || !metagameSkillMatchesTarget(source, target)) return 0;
   const targetPower = metagameDeckClampUnit(target.rating.powerPreference);
   const targetEndurance = metagameDeckTargetEndurance(target);
-  const persistence = metagameDeckClampUnit((duration - 1) / 3);
-  const continuationWinGain = metagameDeckClampUnit(source.rating.continuationWinGain);
-  const carriedContinuationWinGain = metagameDeckClampUnit(source.rating.carriedContinuationWinGain);
-  const handoffValue = continuationWinGain * 0.04 + carriedContinuationWinGain * 0.06;
-  if (["ally_all", "self"].includes(skill.target) && skill.type === "attack_buff") {
+  const sourceRetention = metagameDeckClampUnit(source.rating.allyRetentionRate);
+  const distance = Math.max(1, Number(target.position) - Number(source.position) || 1);
+  // Continuous effects transfer on defeat.  A later slot can use one only if
+  // the source is likely to hand off before its remaining duration expires;
+  // treating every long effect as an unconditional buff for every successor
+  // is what previously inflated attack-buff stacks.
+  const handoffChance = 0.15 + (1 - sourceRetention) * 0.85;
+  const durationReach = metagameDeckClampUnit((duration - distance) / Math.max(1, duration - 1));
+  const allyAllReach = skill.target === "ally_all" ? 0.45 + handoffChance * 0.55 : handoffChance;
+  const continuationReach = reliability * durationReach * allyAllReach;
+  const targetBoard = metagameDeckClampUnit(target.rating.roleBreakdown?.boardCoverage);
+  const targetHardTarget = metagameDeckClampUnit(target.rating.roleBreakdown?.highDurabilityCoverage);
+  const targetOffense = Math.max(
+    targetBoard,
+    targetHardTarget * 0.65,
+    metagameDeckClampUnit(target.rating.enemyPressureRate) * 0.8,
+    targetPower * 0.45,
+  );
+  const targetIsSweep = metagameDeckRole(target.rating) === "sweep_attack";
+  if (["ally_all", "self", "leader"].includes(skill.target) && skill.type === "attack_buff") {
     const strength = metagameDeckClampUnit((Number(skill.multiplier) - 1) / 3);
-    return reliability * (0.02 + strength * 0.055 + handoffValue) * (0.6 + targetPower * 0.4);
+    return continuationReach * (0.008 + strength * 0.032) * targetOffense * (targetIsSweep ? 1.18 : 1);
   }
-  if (["ally_all", "self"].includes(skill.target) && skill.type === "attribute_change") {
-    return reliability * (0.015 + targetPower * 0.02 + handoffValue) * (0.55 + targetEndurance * 0.45);
+  if (["ally_all", "self", "leader"].includes(skill.target) && skill.type === "attribute_change") {
+    return continuationReach * (0.012 + targetOffense * 0.025) * (0.45 + targetEndurance * 0.55);
+  }
+  if (["aoe_attack", "multi_hit_attack"].includes(skill.type)) {
+    const modeStrength = skill.type === "aoe_attack"
+      ? 1
+      : metagameDeckClampUnit((Math.max(1, Number(skill.hits) || 1) - 1) / 4);
+    // A carried attack mode is especially valuable when the successor can
+    // remain on board and convert its normal attacks into board pressure.
+    return continuationReach * (0.016 + modeStrength * 0.055) * targetOffense * (0.4 + targetEndurance * 0.6);
   }
   if (["damage_reduction", "guard", "attribute_guard"].includes(skill.type)) {
     const reductionStrength = metagameDeckClampUnit(1 - (Number(skill.multiplier) || 1));
@@ -109,12 +178,9 @@ function metagameDeckPairSynergy(source, target) {
       source.rating.carriedDefenseRate ?? source.rating.continuation?.carriedDefenseHitsPerScenario ?? 0,
     );
     const carriedDefenseRate = metagameDeckClampUnit(carriedDefenseHits / 2);
-    const defenseValue = 0.035 + reductionStrength * 0.075 + persistence * 0.025 + carriedDefenseRate * 0.02 + handoffValue;
-    return reliability * defenseValue * (0.12 + targetEndurance * 0.88);
-  }
-  if (["aoe_attack", "multi_hit_attack"].includes(skill.type)) {
-    const followUpPressure = metagameDeckClampUnit(target.rating.counteraction / 2);
-    return reliability * (0.01 + followUpPressure * 0.015 + targetPower * 0.015 + handoffValue * 0.5);
+    const carriedWinEvidence = metagameDeckClampUnit(source.rating.carriedContinuationWinGain);
+    const defenseValue = 0.055 + reductionStrength * 0.065 + carriedDefenseRate * 0.02 + carriedWinEvidence * 0.02;
+    return continuationReach * defenseValue * (0.15 + targetEndurance * 0.85);
   }
   return 0;
 }
@@ -130,13 +196,87 @@ export function calculateMetagameDeckSynergy(deck, ratings) {
   ), 0);
 }
 
+function metagameDeckRole(rating) {
+  if (rating?.role) return rating.role;
+  switch (rating?.skillType) {
+    case "single_attack": return "precision_attack";
+    case "aoe_attack":
+    case "multi_hit_attack": return "sweep_attack";
+    case "damage_reduction":
+    case "guard":
+    case "attribute_guard": return "defense";
+    case "revive": return "revive";
+    case "heal": return "recovery";
+    case "attack_buff":
+    case "attribute_change": return "support";
+    default: return "neutral";
+  }
+}
+
+function metagameDeckRoleCountsAdd(roleCounts, rating) {
+  const role = metagameDeckRole(rating);
+  return { ...roleCounts, [role]: (roleCounts[role] ?? 0) + 1 };
+}
+
+function metagameDeckAttackCommitment(rating) {
+  const role = metagameDeckRole(rating);
+  if (role === "sweep_attack") return 1;
+  if (role === "precision_attack") return 0.8;
+  if (rating?.skillType === "attack_buff") {
+    return rating?.skillTarget === "ally_all" ? 0.55 : 0.7;
+  }
+  return 0;
+}
+
+function metagameDeckFirepowerSurplus(attackCommitment, roleCounts) {
+  const stabilisers = (roleCounts.defense ?? 0) + (roleCounts.revive ?? 0) + (roleCounts.recovery ?? 0);
+  const sufficientPressure = stabilisers > 0 ? 1.75 : 1.45;
+  return Math.max(0, attackCommitment - sufficientPressure);
+}
+
+function metagameDeckRoleBalance(roleCounts, deckLength, attackCommitment = 0) {
+  if (deckLength < 2) return 0;
+  const precision = roleCounts.precision_attack ?? 0;
+  const sweep = roleCounts.sweep_attack ?? 0;
+  const attack = precision + sweep > 0 || attackCommitment >= 0.7;
+  const defense = roleCounts.defense ?? 0;
+  const recovery = (roleCounts.revive ?? 0) + (roleCounts.recovery ?? 0);
+  let bonus = attack && defense > 0 ? 0.032 : 0;
+  if (attack && recovery > 0) bonus += 0.028;
+  if (defense > 0 && recovery > 0) bonus += 0.022;
+  if (attack && defense > 0 && recovery > 0) bonus += 0.018;
+  if (precision > 0 && sweep > 0) bonus += 0.01;
+  const repeatedRolePenalty = Object.values(roleCounts).reduce((total, count) => (
+    total + Math.max(0, Number(count) - 2) * 0.01
+  ), 0);
+  // This is not a ban on attack-heavy decks.  It merely makes the third and
+  // later offensive commitment earn its place through the 5v5 simulation
+  // instead of receiving another full proxy score by default.
+  const surplusPenalty = metagameDeckFirepowerSurplus(attackCommitment, roleCounts) * 0.045;
+  return bonus - repeatedRolePenalty - surplusPenalty;
+}
+
 function metagameDeckStateScore(state, totalCost) {
   const averageScore = state.proxyTotal / Math.max(1, state.deck.length);
-  const roleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.012 : 0;
+  const legacyRoleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.008 : 0;
+  const roleBonus = legacyRoleBonus + metagameDeckRoleBalance(
+    state.roleCounts ?? {},
+    state.deck.length,
+    state.attackCommitment ?? 0,
+  );
   const deckProgress = state.deck.length / 5;
   const budgetShare = state.totalCost / Math.max(1, totalCost);
   const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
   return averageScore + state.synergyScore + roleBonus - state.budgetStrain - state.handoffRisk - earlyBudgetPressure * 0.18;
+}
+
+function metagameDeckStrategyKey(state) {
+  const roles = state.roleCounts ?? {};
+  const attackBand = Math.min(3, Math.floor((state.attackCommitment ?? 0) + 0.35));
+  const defenseBand = Math.min(2, Number(roles.defense) || 0);
+  const recoveryBand = Math.min(2, (Number(roles.revive) || 0) + (Number(roles.recovery) || 0));
+  const supportBand = Math.min(2, Number(roles.support) || 0);
+  return `a${attackBand}-d${defenseBand}-r${recoveryBand}-s${supportBand}`;
 }
 
 function metagameTrimDeckBeam(states, width, totalCost) {
@@ -150,7 +290,7 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   }
   const unique = [...byId.values()];
   const selected = new Map();
-  const primaryCount = Math.max(1, Math.floor(width * 0.8));
+  const primaryCount = Math.max(1, Math.floor(width * 0.6));
   const primary = [...unique].sort((left, right) => (
     metagameDeckStateScore(right, totalCost) - metagameDeckStateScore(left, totalCost) ||
     left.totalCost - right.totalCost
@@ -159,6 +299,26 @@ function metagameTrimDeckBeam(states, width, totalCost) {
     state.deck.map((entry) => entry.character.id).join("|"),
     state,
   ));
+  // Preserve competitive role shapes for the full 5v5 evaluation.  This is
+  // deliberately a search-diversity rule, not a requirement that every deck
+  // contain a defense or a revive: a pressure-only deck can still win, but it
+  // must beat the best mixed decks in the actual battle simulation.
+  const byStrategy = new Map();
+  for (const state of primary) {
+    const key = metagameDeckStrategyKey(state);
+    const bucket = byStrategy.get(key) ?? [];
+    bucket.push(state);
+    byStrategy.set(key, bucket);
+  }
+  const strategyBuckets = [...byStrategy.values()].map((bucket) => [...bucket]);
+  let strategyCursor = 0;
+  while (selected.size < width && strategyBuckets.some((bucket) => bucket.length)) {
+    const bucket = strategyBuckets[strategyCursor % strategyBuckets.length];
+    strategyCursor += 1;
+    const state = bucket.shift();
+    if (!state) continue;
+    selected.set(state.deck.map((entry) => entry.character.id).join("|"), state);
+  }
   const costAware = [...unique].sort((left, right) => (
     metagameDeckStateScore(right, totalCost) - right.totalCost / Math.max(1, totalCost) * 0.05 -
       (metagameDeckStateScore(left, totalCost) - left.totalCost / Math.max(1, totalCost) * 0.05) ||
@@ -209,6 +369,29 @@ export function matchesMetagameFixedConstraint(character, constraint) {
   return Math.max(0, Number(character.cost) || 0) <= Math.max(0, Number(constraint?.totalCost) || 0);
 }
 
+function metagameAllowedPositions(character) {
+  return Array.isArray(character?.allowedPositions) && character.allowedPositions.length
+    ? character.allowedPositions.map(Number)
+    : [1, 2, 3, 4, 5];
+}
+
+function matchesMetagamePositionConstraint(character, constraint, position) {
+  return matchesMetagameFixedConstraint(character, constraint)
+    && metagameAllowedPositions(character).includes(Number(position))
+    && isSkillTurnAllowedAtPosition(character, position);
+}
+
+function metagameDeckIsLegal(deck, constraint, fixedSlots = new Map()) {
+  const totalCost = deck.reduce((sum, character) => sum + Math.max(0, Number(character?.cost) || 0), 0);
+  if (deck.length !== 5 || totalCost > Math.max(0, Number(constraint?.totalCost) || 0)) return false;
+  if (new Set(deck.map((character) => String(character?.id))).size !== deck.length) return false;
+  if (deck.filter((character) => character?.rarity === "伝").length > 1) return false;
+  return deck.every((character, index) => (
+    matchesMetagamePositionConstraint(character, constraint, index + 1)
+    && (!fixedSlots.has(index + 1) || String(character.id) === String(fixedSlots.get(index + 1)))
+  ));
+}
+
 function metagameFixedFallbackRating(character) {
   return {
     id: String(character.id),
@@ -218,6 +401,7 @@ function metagameFixedFallbackRating(character) {
     cost: character.cost,
     skillTurn: character.skillTurn,
     skillType: character.skill?.type ?? "none",
+    skillTarget: character.skill?.target ?? "self",
     skillName: character.skillName ?? "",
     overallRank: Number.MAX_SAFE_INTEGER,
     expectedWinRate: 0,
@@ -235,6 +419,29 @@ function metagameFixedFallbackRating(character) {
     advantageCreation: 0,
     counteraction: 0,
     skillActivationRate: 0,
+  };
+}
+
+function metagamePrecomputedRoleRating(character, compactRating, deckMetrics) {
+  const breakdown = compactRating?.b ?? compactRating?.roleBreakdown ?? {};
+  const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : undefined;
+  return {
+    ...metagameFixedFallbackRating(character),
+    role: compactRating?.k ?? compactRating?.role,
+    individualScore: finite(compactRating?.i ?? compactRating?.individualScore),
+    roleFit: finite(compactRating?.f ?? compactRating?.roleFit),
+    roleBreakdown: {
+      frontline: finite(breakdown.f ?? breakdown.frontline),
+      highDurabilityCoverage: finite(breakdown.h ?? breakdown.highDurabilityCoverage),
+      boardCoverage: finite(breakdown.a ?? breakdown.boardCoverage),
+      defenseMatchup: finite(breakdown.d ?? breakdown.defenseMatchup),
+      reviveMatchup: finite(breakdown.v ?? breakdown.reviveMatchup),
+      costEfficiency: finite(breakdown.c ?? breakdown.costEfficiency),
+      skillReadiness: finite(breakdown.r ?? breakdown.skillReadiness),
+      lateSkillRisk: finite(breakdown.l ?? breakdown.lateSkillRisk),
+    },
+    ...deckMetrics,
+    overallRank: "-",
   };
 }
 
@@ -282,10 +489,11 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
   const totalCost = Number(constraint?.totalCost) || 0;
   const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
-  const pools = (constraint?.slots ?? []).map((slot) => slot.candidates.map((rating) => ({
+  const pools = (constraint?.slots ?? []).map((slot, index) => slot.candidates.map((rating) => ({
     character: charactersById.get(String(rating.id)),
     rating,
     proxy: metagameCandidateScore(rating),
+    position: index + 1,
   })).filter((entry) => entry.character));
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
     throw new Error("この縛りは5枠分の詳細評価データが揃っていません。");
@@ -302,6 +510,8 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     budgetStrain: 0,
     advantageCount: 0,
     counterCount: 0,
+    roleCounts: {},
+    attackCommitment: 0,
   }];
   for (const pool of pools) {
     const expanded = [];
@@ -334,6 +544,8 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           ),
           advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
           counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
+          roleCounts: metagameDeckRoleCountsAdd(state.roleCounts, entry.rating),
+          attackCommitment: state.attackCommitment + metagameDeckAttackCommitment(entry.rating),
         });
       }
     }
@@ -350,6 +562,9 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     budgetStrain: state.budgetStrain,
     advantageCount: state.advantageCount,
     counterCount: state.counterCount,
+    roleCounts: state.roleCounts,
+    attackCommitment: state.attackCommitment,
+    firepowerSurplus: metagameDeckFirepowerSurplus(state.attackCommitment, state.roleCounts),
   })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
 }
 
@@ -363,10 +578,11 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
   const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
-  const pools = (constraint?.slots ?? []).map((slot) => slot.candidates.map((rating) => ({
+  const pools = (constraint?.slots ?? []).map((slot, index) => slot.candidates.map((rating) => ({
     character: charactersById.get(String(rating.id)),
     rating,
     proxy: metagameCandidateScore(rating),
+    position: index + 1,
   })).filter((entry) => entry.character));
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
     throw new Error("Metagame deck candidates require five populated slots.");
@@ -383,6 +599,8 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
     budgetStrain: 0,
     advantageCount: 0,
     counterCount: 0,
+    roleCounts: {},
+    attackCommitment: 0,
   }];
   for (let poolIndex = 0; poolIndex < pools.length; poolIndex += 1) {
     const pool = pools[poolIndex];
@@ -430,6 +648,8 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             ),
             advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
             counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
+            roleCounts: metagameDeckRoleCountsAdd(state.roleCounts, entry.rating),
+            attackCommitment: state.attackCommitment + metagameDeckAttackCommitment(entry.rating),
           });
         }
         checked += 1;
@@ -471,20 +691,39 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
     budgetStrain: state.budgetStrain,
     advantageCount: state.advantageCount,
     counterCount: state.counterCount,
+    roleCounts: state.roleCounts,
+    attackCommitment: state.attackCommitment,
+    firepowerSurplus: metagameDeckFirepowerSurplus(state.attackCommitment, state.roleCounts),
   })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
 }
 
-function metagameSelectFinalists(candidates, limit) {
-  const maximum = Math.min(candidates.length, Math.max(36, Number(limit) || 40));
+function metagameSelectFinalists(candidates, limit, minimum = 36) {
+  const maximum = Math.min(candidates.length, Math.max(minimum, Number(limit) || 40));
   const selected = new Map();
   const add = (candidate) => selected.set(candidate.deck.map((character) => character.id).join("|"), candidate);
-  candidates.slice(0, Math.ceil(maximum * 0.55)).forEach(add);
+  candidates.slice(0, Math.ceil(maximum * 0.4)).forEach(add);
+  const bestByStrategy = new Map();
+  for (const candidate of candidates) {
+    const key = metagameDeckStrategyKey(candidate);
+    if (!bestByStrategy.has(key)) bestByStrategy.set(key, candidate);
+  }
+  [...bestByStrategy.values()]
+    .sort((left, right) => right.proxyScore - left.proxyScore)
+    .forEach((candidate) => {
+      if (selected.size < maximum) add(candidate);
+    });
   const ratingTotal = (candidate, key) => candidate.ratings.reduce((sum, rating) => (
     sum + Math.max(0, Number(rating[key]) || 0)
   ), 0);
+  const stabilityTotal = (candidate) => {
+    const roles = candidate.roleCounts ?? {};
+    return (Number(roles.defense) || 0) + (Number(roles.revive) || 0) + (Number(roles.recovery) || 0);
+  };
   const selectors = [
     (left, right) => right.advantageCount - left.advantageCount || right.proxyScore - left.proxyScore,
     (left, right) => right.counterCount - left.counterCount || right.proxyScore - left.proxyScore,
+    (left, right) => stabilityTotal(right) - stabilityTotal(left) || right.proxyScore - left.proxyScore,
+    (left, right) => left.firepowerSurplus - right.firepowerSurplus || right.proxyScore - left.proxyScore,
     (left, right) => right.synergyScore - left.synergyScore || right.proxyScore - left.proxyScore,
     (left, right) => left.handoffRisk - right.handoffRisk || right.proxyScore - left.proxyScore,
     (left, right) => ratingTotal(right, "carriedContinuationWinGain") - ratingTotal(left, "carriedContinuationWinGain") || right.proxyScore - left.proxyScore,
@@ -506,6 +745,23 @@ function metagameSelectFinalists(candidates, limit) {
   for (const candidate of candidates) {
     if (selected.size >= maximum) break;
     add(candidate);
+  }
+  return [...selected.values()];
+}
+
+function metagameSelectFinalistsWithBoosts(candidates, limit, boostedIds) {
+  // A boosted deck is an interactive, on-demand calculation.  A smaller but
+  // strategy-diverse finalist set keeps it usable in the browser; every
+  // selected character still receives a mandatory full 5v5 evaluation below.
+  const selected = new Map(metagameSelectFinalists(candidates, limit, 8).map((candidate) => [
+    candidate.deck.map((character) => String(character.id)).join("|"), candidate,
+  ]));
+  for (const id of boostedIds) {
+    const representative = candidates.find((candidate) => (
+      candidate.deck.some((character) => String(character.id) === String(id))
+    ));
+    if (!representative) continue;
+    selected.set(representative.deck.map((character) => String(character.id)).join("|"), representative);
   }
   return [...selected.values()];
 }
@@ -549,24 +805,270 @@ function metagameHydrateEnvironment(constraint, charactersById) {
   })));
 }
 
+function metagameHydrateDeck(ids, charactersById) {
+  if (!Array.isArray(ids) || ids.length !== 5) throw new Error("環境プレイヤーデッキが5体ではありません。");
+  return ids.map((id) => {
+    const character = charactersById.get(String(id));
+    if (!character) throw new Error(`環境キャラID ${id} がキャラクターデータにありません。`);
+    return character;
+  });
+}
+
+function metagameV8ReconstructedScenarioCount(constraint) {
+  const deckCount = (constraint.environmentScenarios ?? []).reduce((total, scenario) => (
+    total + (Array.isArray(scenario) ? scenario.length : 0)
+  ), 0);
+  if (deckCount < 9) return 0;
+  return Math.max(Math.ceil(deckCount / 9), Number(constraint.scenarioCount) || 0);
+}
+
+function metagameV8ReconstructScenario(constraint, scenarioIndex) {
+  const environmentDecks = (constraint.environmentScenarios ?? []).flat();
+  const deckCount = environmentDecks.length;
+  const scenarioCount = metagameV8ReconstructedScenarioCount(constraint);
+  if (deckCount < 9 || scenarioIndex >= scenarioCount) return null;
+
+  let stride = 17;
+  const greatestCommonDivisor = (left, right) => {
+    let a = Math.abs(left);
+    let b = Math.abs(right);
+    while (b) [a, b] = [b, a % b];
+    return a;
+  };
+  while (greatestCommonDivisor(stride, deckCount) !== 1) stride += 2;
+  const decks = Array.from({ length: 9 }, (_, offset) => (
+    environmentDecks[(scenarioIndex * 9 * stride + offset * stride) % deckCount]
+  ));
+  return {
+    source: "reconstructed-v8-team-scenario",
+    allyIds: decks.slice(0, 4),
+    enemyIds: decks.slice(4),
+  };
+}
+
+function metagameEvidenceScenario(constraint, charactersById, scenarioIndex) {
+  const exactScenario = constraint.teamScenarios?.[scenarioIndex];
+  if (exactScenario) {
+    const allyIds = exactScenario.a ?? exactScenario.allyDecks;
+    const enemyIds = exactScenario.e ?? exactScenario.enemyDecks;
+    if (!Array.isArray(allyIds) || allyIds.length !== 4 || !Array.isArray(enemyIds) || enemyIds.length !== 5) {
+      throw new Error("V8の対戦根拠データが壊れています。");
+    }
+    return {
+      source: "cloud-v8-team-scenario",
+      allyDecks: allyIds.map((deck) => metagameHydrateDeck(deck, charactersById)),
+      enemyDecks: enemyIds.map((deck) => metagameHydrateDeck(deck, charactersById)),
+    };
+  }
+  if (String(constraint.modelVersion ?? "").startsWith("team-battle-v8.")) {
+    const reconstructed = metagameV8ReconstructScenario(constraint, scenarioIndex);
+    if (reconstructed) {
+      return {
+        source: reconstructed.source,
+        allyDecks: reconstructed.allyIds.map((deck) => metagameHydrateDeck(deck, charactersById)),
+        enemyDecks: reconstructed.enemyIds.map((deck) => metagameHydrateDeck(deck, charactersById)),
+      };
+    }
+  }
+  const legacyScenario = constraint.environmentScenarios?.[scenarioIndex];
+  if (!Array.isArray(legacyScenario) || legacyScenario.length < 9) {
+    throw new Error("この評価には再生可能な環境対戦データがありません。");
+  }
+  const decks = legacyScenario.map((deck) => metagameHydrateDeck(deck, charactersById));
+  return {
+    source: "legacy-nine-deck-scenario",
+    allyDecks: decks.slice(0, 4),
+    enemyDecks: decks.slice(4, 9),
+  };
+}
+
+function metagameBoostedEnvironmentDecks(constraint, charactersById, boostedIds) {
+  if (!boostedIds.size) return [];
+  const existingIds = new Set((constraint.teamScenarios ?? []).flatMap((scenario) => (
+    [...(scenario.a ?? scenario.allyDecks ?? []), ...(scenario.e ?? scenario.enemyDecks ?? [])]
+      .flat()
+      .map(String)
+  )));
+  const baseDecks = (constraint.precomputedDecks ?? []).flatMap((raw) => {
+    const ids = raw?.i ?? raw?.ids;
+    if (!Array.isArray(ids) || ids.length !== 5) return [];
+    try {
+      return [metagameHydrateDeck(ids, charactersById)];
+    } catch {
+      return [];
+    }
+  });
+  const added = [];
+  for (const id of boostedIds) {
+    // Existing environment appearances are already upgraded by the hydrated
+    // character map.  Add a representative opponent only for a newly viable
+    // boosted character so the supplied environment keeps its original weight.
+    if (existingIds.has(String(id))) continue;
+    const character = charactersById.get(String(id));
+    if (!character) continue;
+    let replacement = null;
+    for (const base of baseDecks) {
+      for (let index = 0; index < base.length; index += 1) {
+        const deck = [...base];
+        deck[index] = character;
+        if (metagameDeckIsLegal(deck, constraint)) {
+          replacement = deck;
+          break;
+        }
+      }
+      if (replacement) break;
+    }
+    if (replacement) added.push({ id: String(id), deck: replacement });
+  }
+  return added;
+}
+
+function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds, options = {}) {
+  const boostedIds = normalizeMetagameBoostedCharacterIds(boostedCharacterIds);
+  const hasTeamScenarios = Array.isArray(constraint.teamScenarios) && constraint.teamScenarios.length > 0;
+  const isV8 = hasTeamScenarios || String(constraint.modelVersion ?? "").startsWith("team-battle-v8.");
+  const scenarioCount = isV8
+    ? (hasTeamScenarios
+      ? constraint.teamScenarios.length
+      : metagameV8ReconstructedScenarioCount(constraint))
+    : constraint.environmentScenarios?.length ?? 0;
+  const allScenarios = Array.from({ length: scenarioCount }, (_, scenarioIndex) => {
+    const scenario = isV8
+      ? metagameEvidenceScenario(constraint, charactersById, scenarioIndex)
+      : (() => {
+          const decks = metagameHydrateEnvironment({
+            ...constraint,
+            environmentScenarios: [constraint.environmentScenarios[scenarioIndex]],
+          }, charactersById)[0];
+          return {
+            source: "legacy-nine-deck-scenario",
+            allyDecks: decks.slice(0, 4),
+            enemyDecks: decks.slice(4, 9),
+          };
+        })();
+    return { ...scenario, scenarioIndex };
+  });
+  const requestedBaseCount = Math.max(0, Number(options.maxBaseScenarios) || 0);
+  const baseCount = requestedBaseCount ? Math.min(requestedBaseCount, allScenarios.length) : allScenarios.length;
+  // Evenly sample the supplied scenarios instead of taking an early prefix:
+  // adjacent V8 scenarios can share deck components, while a stride preserves
+  // the breadth of the presented environment for an interactive calculation.
+  const scenarios = baseCount >= allScenarios.length
+    ? allScenarios
+    : Array.from({ length: baseCount }, (_, index) => (
+      allScenarios[Math.floor(index * allScenarios.length / baseCount)]
+    ));
+  const additions = metagameBoostedEnvironmentDecks(constraint, charactersById, boostedIds);
+  additions.forEach(({ id, deck }, index) => {
+    const source = scenarios[index % Math.max(1, scenarios.length)];
+    if (!source) return;
+    const enemyDecks = [...source.enemyDecks];
+    enemyDecks[index % enemyDecks.length] = deck;
+    scenarios.push({
+      source: "boosted-character-environment",
+      scenarioIndex: scenarios.length,
+      boostedEnvironmentCharacterId: id,
+      allyDecks: source.allyDecks,
+      enemyDecks,
+    });
+  });
+  return scenarios;
+}
+
+/**
+ * Replays the same team configurations and play profiles used by the rating.
+ * Only three representative full logs are returned, while the summary is
+ * calculated across every available scenario.
+ */
+export async function inspectMetagameDeckEvidence(deck, constraint, characters, options = {}) {
+  if (!Array.isArray(deck) || deck.length !== 5) throw new Error("再生する候補デッキは5体必要です。");
+  const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
+  const charactersById = metagameCharactersById(characters, boostedIds);
+  const boostedDeck = deck.map((character) => applyMetagameStatBoost(character, boostedIds));
+  const scenarios = metagameBattleScenarios(constraint, charactersById, boostedIds, {
+    maxBaseScenarios: options.boostedScenarioCount,
+  });
+  const scenarioCount = scenarios.length;
+  if (!scenarioCount) throw new Error("この評価には再生可能な環境対戦データがありません。");
+
+  const values = [];
+  const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
+  const entries = [];
+  for (let scenarioIndex = 0; scenarioIndex < scenarioCount; scenarioIndex += 1) {
+    if (options.signal?.aborted) throw metagameAbortError();
+    const scenario = scenarios[scenarioIndex];
+    const actorIndex = scenarioIndex % 5;
+    const allyDecks = [...scenario.allyDecks];
+    allyDecks.splice(actorIndex, 0, boostedDeck);
+    const profile = METAGAME_DECK_PROFILES[scenarioIndex % METAGAME_DECK_PROFILES.length];
+    const result = simulateBattle(
+      createBattleState(allyDecks, scenario.enemyDecks),
+      options.rules ?? DEFAULT_RULES,
+      {
+        turns: constraint.turns,
+        targetPolicy: profile.targetPolicy,
+        attackOrderPolicy: profile.attackOrderPolicy,
+        playStyle: profile.playStyle,
+        randomSeed: scenarioIndex,
+      },
+    );
+    const value = metagameProjectedWinValue(result);
+    values.push(value);
+    outcomes[result.outcome] += 1;
+    entries.push({
+      scenarioIndex,
+      source: scenario.source,
+      actorIndex,
+      profile,
+      value,
+      result,
+      allyDecks,
+      enemyDecks: scenario.enemyDecks,
+    });
+    options.onScenarioCompleted?.({ completed: scenarioIndex + 1, total: scenarioCount });
+    if ((scenarioIndex + 1) % 2 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  const ordered = [...entries].sort((left, right) => left.value - right.value || left.scenarioIndex - right.scenarioIndex);
+  const representativeIndexes = [...new Set([0, Math.floor((ordered.length - 1) / 2), ordered.length - 1])];
+  const labels = ["厳しい対戦例", "中央値の対戦例", "有利な対戦例"];
+  const total = Math.max(1, entries.length);
+  return {
+    source: entries[0]?.source ?? "unknown",
+    scenarioCount: entries.length,
+    expectedWinRate: values.reduce((sum, value) => sum + value, 0) / total,
+    expectedWinLowerBound: metagameMeanLowerBound(values),
+    decisiveWinRate: outcomes.allies / total,
+    decisiveDrawRate: outcomes.draw / total,
+    decisiveLossRate: outcomes.enemies / total,
+    ongoingRate: outcomes.ongoing / total,
+    boostedCharacterIds: [...boostedIds],
+    samples: representativeIndexes.map((index, labelIndex) => ({
+      ...ordered[index],
+      label: labels[labelIndex] ?? "対戦例",
+    })),
+  };
+}
+
 async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, options) {
   const winValues = [];
   const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
   for (let scenarioIndex = 0; scenarioIndex < scenarios.length; scenarioIndex += 1) {
     if (options.signal?.aborted) throw metagameAbortError();
-    const environmentDecks = scenarios[scenarioIndex];
+    const scenario = scenarios[scenarioIndex];
     const actorIndex = scenarioIndex % 5;
-    const allyDecks = environmentDecks.slice(0, 4);
+    const allyDecks = [...scenario.allyDecks];
     allyDecks.splice(actorIndex, 0, candidate.deck);
     const profile = METAGAME_DECK_PROFILES[scenarioIndex % METAGAME_DECK_PROFILES.length];
     const result = simulateBattle(
-      createBattleState(allyDecks, environmentDecks.slice(4)),
+      createBattleState(allyDecks, scenario.enemyDecks),
       rules,
       {
         turns: constraint.turns,
         targetPolicy: profile.targetPolicy,
         attackOrderPolicy: profile.attackOrderPolicy,
         playStyle: profile.playStyle,
+        randomSeed: scenarioIndex,
       },
     );
     winValues.push(metagameProjectedWinValue(result));
@@ -587,7 +1089,7 @@ async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, opt
   };
 }
 
-function metagameV7PrecomputedResults(constraint, characters, fixedSlots) {
+function metagameV8PrecomputedResults(constraint, characters, fixedSlots) {
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
   const ratingsByPosition = (constraint.slots ?? []).map((slot) => (
     new Map((slot.candidates ?? []).map((rating) => [String(rating.id), rating]))
@@ -596,7 +1098,7 @@ function metagameV7PrecomputedResults(constraint, characters, fixedSlots) {
   const precomputedDecks = Array.isArray(constraint.precomputedDecks)
     ? constraint.precomputedDecks
     : (constraint.slots ?? []).flatMap((slot) => (
-      (slot.candidates ?? []).map((rating) => rating.v7BestDeck)
+      (slot.candidates ?? []).map((rating) => rating.v8BestDeck ?? rating.v7BestDeck)
     ));
   for (const rawPrecomputed of precomputedDecks) {
       const ids = rawPrecomputed?.i ?? rawPrecomputed?.ids;
@@ -610,15 +1112,13 @@ function metagameV7PrecomputedResults(constraint, characters, fixedSlots) {
       const expectedWinRate = Number(rawPrecomputed.w ?? rawPrecomputed.expectedWinRate) || 0;
       const expectedWinLowerBound = Number(rawPrecomputed.l ?? rawPrecomputed.expectedWinLowerBound) || 0;
       const scenarioCount = Number(rawPrecomputed.s ?? rawPrecomputed.scenarioCount) || 0;
+      const compactRatings = rawPrecomputed.r ?? rawPrecomputed.ratings ?? [];
+      const deckMetrics = { expectedWinRate, expectedWinLowerBound, scenarioCount };
       const candidate = {
         deck,
         ratings: deck.map((character, index) => (
           ratingsByPosition[index].get(String(character.id)) ?? {
-            ...metagameFixedFallbackRating(character),
-            expectedWinRate,
-            expectedWinLowerBound,
-            scenarioCount,
-            overallRank: "-",
+            ...metagamePrecomputedRoleRating(character, compactRatings[index], deckMetrics),
           }
         )),
         totalCost: Number(rawPrecomputed.c ?? rawPrecomputed.totalCost) || deck.reduce((sum, character) => sum + (Number(character.cost) || 0), 0),
@@ -643,10 +1143,132 @@ function metagameV7PrecomputedResults(constraint, characters, fixedSlots) {
   ));
 }
 
+function metagameBoostedFallbackRating(character) {
+  return {
+    ...metagameFixedFallbackRating(character),
+    role: metagameDeckRole({ skillType: character.skill?.type, skillTarget: character.skill?.target }),
+    skillType: character.skill?.type ?? "none",
+    skillTarget: character.skill?.target ?? "self",
+    powerPreference: 0.55,
+    practicalValue: 0.5,
+    practicalSkillReliability: 0.5,
+    roleFit: 0.5,
+  };
+}
+
+function metagameCandidateFromBoostedV8Deck(base, deck, boostedIds) {
+  const ratings = deck.map((character, index) => (
+    String(character.id) === String(base.deck[index]?.id)
+      ? base.ratings[index] ?? metagameBoostedFallbackRating(character)
+      : metagameBoostedFallbackRating(character)
+  ));
+  const roleCounts = ratings.reduce((counts, rating) => metagameDeckRoleCountsAdd(counts, rating), {});
+  const attackCommitment = ratings.reduce((total, rating) => total + metagameDeckAttackCommitment(rating), 0);
+  const baseStats = base.deck.reduce((total, character) => (
+    total + Math.max(0, Number(character.hp) || 0) + Math.max(0, Number(character.pow) || 0)
+  ), 0);
+  const boostedStats = deck.reduce((total, character) => (
+    total + Math.max(0, Number(character.hp) || 0) + Math.max(0, Number(character.pow) || 0)
+  ), 0);
+  const boostedCount = deck.filter((character) => boostedIds.has(String(character.id))).length;
+  const statGain = Math.max(0, boostedStats / Math.max(1, baseStats) - 1);
+  const synergyScore = calculateMetagameDeckSynergy(deck, ratings);
+  return {
+    deck,
+    ratings,
+    totalCost: deck.reduce((total, character) => total + Math.max(0, Number(character.cost) || 0), 0),
+    // This score is used only to narrow the on-demand search.  The actual
+    // order is decided by the 5v5 battle results below, so every selected
+    // boosted character is also reserved a finalist slot.
+    proxyScore: (Number(base.proxyScore) || 0) + boostedCount * 0.035 + statGain * 0.09 + synergyScore,
+    synergyScore,
+    handoffRisk: 0,
+    budgetStrain: 0,
+    advantageCount: ratings.filter((rating) => Number(rating.advantageCreation) > 0).length,
+    counterCount: ratings.filter((rating) => Number(rating.counteraction) > 0).length,
+    roleCounts,
+    attackCommitment,
+    firepowerSurplus: metagameDeckFirepowerSurplus(attackCommitment, roleCounts),
+    boostedCharacterIds: [...boostedIds],
+  };
+}
+
+function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSlots) {
+  const charactersById = new Map((characters ?? []).map((character) => [String(character.id), character]));
+  const boostedCharacters = [...boostedIds].map((id) => charactersById.get(id)).filter(Boolean).map((character) => (
+    applyMetagameStatBoost(character, boostedIds)
+  ));
+  if (boostedCharacters.length !== boostedIds.size) {
+    throw new Error("指定した補正キャラの一部がキャラクターデータにありません。");
+  }
+  for (const character of boostedCharacters) {
+    if (!matchesMetagameFixedConstraint(character, constraint)) {
+      throw new Error(`${character.name} は選択中の属性・コスト縛りに合わないため補正できません。`);
+    }
+    if (![1, 2, 3, 4, 5].some((position) => matchesMetagamePositionConstraint(character, constraint, position))) {
+      throw new Error(`${character.name} はスキルターン・配置制限により、どの枠にも配置できません。`);
+    }
+  }
+
+  const bases = metagameV8PrecomputedResults(constraint, characters, fixedSlots).slice(0, 96);
+  const candidates = new Map();
+  const addCandidate = (base, deck) => {
+    if (!metagameDeckIsLegal(deck, constraint, fixedSlots)) return;
+    const candidate = metagameCandidateFromBoostedV8Deck(base, deck, boostedIds);
+    const key = deck.map((character) => String(character.id)).join("|");
+    const current = candidates.get(key);
+    if (!current || candidate.proxyScore > current.proxyScore) candidates.set(key, candidate);
+  };
+
+  for (const base of bases) {
+    const baseDeck = base.deck.map((character) => applyMetagameStatBoost(character, boostedIds));
+    addCandidate(base, baseDeck);
+    let states = [{ deck: [] }];
+    for (let index = 0; index < 5; index += 1) {
+      const position = index + 1;
+      const fixedId = fixedSlots.get(position);
+      const options = [baseDeck[index], ...boostedCharacters]
+        .filter((character, optionIndex, entries) => (
+          matchesMetagamePositionConstraint(character, constraint, position)
+          && (!fixedId || String(character.id) === String(fixedId))
+          && entries.findIndex((entry) => String(entry.id) === String(character.id)) === optionIndex
+        ));
+      states = states.flatMap((state) => options.flatMap((character) => {
+        const deck = [...state.deck, character];
+        const duplicate = deck.some((entry, entryIndex) => (
+          entryIndex < deck.length - 1 && String(entry.id) === String(character.id)
+        ));
+        const cost = deck.reduce((total, entry) => total + Math.max(0, Number(entry.cost) || 0), 0);
+        const legends = deck.filter((entry) => entry.rarity === "伝").length;
+        return !duplicate && cost <= (Number(constraint.totalCost) || 0) && legends <= 1 ? [{ deck }] : [];
+      }));
+      // This is a bounded generator around already-validated environment
+      // decks.  Prioritise inclusion of selected characters so a low-ranked
+      // character is still given a real battle evaluation after its 1.5x buff.
+      states.sort((left, right) => {
+        const leftBoosted = left.deck.filter((character) => boostedIds.has(String(character.id))).length;
+        const rightBoosted = right.deck.filter((character) => boostedIds.has(String(character.id))).length;
+        const leftCost = left.deck.reduce((total, character) => total + (Number(character.cost) || 0), 0);
+        const rightCost = right.deck.reduce((total, character) => total + (Number(character.cost) || 0), 0);
+        return rightBoosted - leftBoosted || leftCost - rightCost;
+      });
+      states = states.slice(0, 180);
+    }
+    states.forEach((state) => addCandidate(base, state.deck));
+  }
+  if (!candidates.size) {
+    throw new Error("補正キャラを含めて総コスト・スキルターン条件を満たすデッキを構成できませんでした。");
+  }
+  return [...candidates.values()].sort((left, right) => (
+    right.proxyScore - left.proxyScore || left.totalCost - right.totalCost
+  ));
+}
+
 export async function findBestMetagameDeck(data, constraintId, characters, options = {}) {
   const constraint = data?.constraints?.find((entry) => entry.id === constraintId);
   if (!constraint) throw new Error("選択した縛りの調査データがありません。");
-  const charactersById = new Map(characters.map((character) => [String(character.id), character]));
+  const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
+  const charactersById = metagameCharactersById(characters, boostedIds);
   options.onProgress?.({
     phase: "candidate",
     completed: 0,
@@ -657,24 +1279,77 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     stageTotal: 0,
     retained: 0,
   });
-  if (String(constraint.modelVersion ?? "").startsWith("fixed-environment-v7")) {
+  if (String(constraint.modelVersion ?? "").startsWith("team-battle-v8")) {
     const fixedSlots = metagameFixedSlots(options.fixedSlots);
-    const precomputed = metagameV7PrecomputedResults(constraint, characters, fixedSlots);
-    if (!precomputed.length) {
-      throw new Error("選択した固定キャラを同時に含むv7事前評価済みデッキがありません。");
+    if (!boostedIds.size) {
+      const precomputed = metagameV8PrecomputedResults(constraint, characters, fixedSlots);
+      if (!precomputed.length) {
+        throw new Error("選択した固定キャラを同時に含むV8事前評価済みデッキがありません。");
+      }
+      return {
+        constraint,
+        generatedAt: data.generatedAt,
+        candidateDeckCount: precomputed.length,
+        simulatedDeckCount: 0,
+        scenarioCount: Number(constraint.scenarioCount) || 0,
+        results: precomputed.slice(0, 3),
+      };
     }
+
+    const candidates = metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSlots);
+    const finalists = metagameSelectFinalistsWithBoosts(candidates, options.finalistCount ?? 8, boostedIds);
+    const boostedScenarioCount = Math.max(1, Number(options.boostedScenarioCount) || 18);
+    const scenarios = metagameBattleScenarios(constraint, charactersById, boostedIds, {
+      maxBaseScenarios: boostedScenarioCount,
+    });
+    const evaluated = [];
+    let completedSimulations = 0;
+    const totalSimulations = finalists.length * scenarios.length;
+    for (let index = 0; index < finalists.length; index += 1) {
+      evaluated.push(await metagameEvaluateDeck(
+        finalists[index],
+        scenarios,
+        constraint,
+        options.rules ?? DEFAULT_RULES,
+        {
+          ...options,
+          onScenarioCompleted: () => {
+            completedSimulations += 1;
+            options.onProgress?.({
+              phase: "simulation",
+              completed: completedSimulations,
+              total: totalSimulations,
+              valid: candidates.length,
+              deck: index + 1,
+              decks: finalists.length,
+              scenarios: scenarios.length,
+            });
+          },
+        },
+      ));
+    }
+    evaluated.sort((left, right) => (
+      right.expectedWinLowerBound - left.expectedWinLowerBound ||
+      right.expectedWinRate - left.expectedWinRate ||
+      left.totalCost - right.totalCost
+    ));
     return {
       constraint,
       generatedAt: data.generatedAt,
-      candidateDeckCount: precomputed.length,
-      simulatedDeckCount: 0,
-      scenarioCount: Number(constraint.scenarioCount) || 0,
-      results: precomputed.slice(0, 3),
+      candidateDeckCount: candidates.length,
+      simulatedDeckCount: finalists.length,
+      scenarioCount: scenarios.length,
+      boostedCharacterIds: [...boostedIds],
+      boostedScenarioCount,
+      results: evaluated.slice(0, 3),
     };
   }
-  const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, characters, options);
+  const boostedCharacters = characters.map((character) => applyMetagameStatBoost(character, boostedIds));
+  const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, boostedCharacters, options);
   const finalists = metagameSelectFinalists(candidates, options.finalistCount);
-  const scenarios = metagameHydrateEnvironment(constraint, charactersById);
+  const scenarios = metagameBattleScenarios(constraint, charactersById, boostedIds, {
+    maxBaseScenarios: boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 18) : undefined,
+  });
   const evaluated = [];
   let completedSimulations = 0;
   const totalSimulations = finalists.length * scenarios.length;
@@ -714,6 +1389,8 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     candidateDeckCount: candidates.length,
     simulatedDeckCount: finalists.length,
     scenarioCount: scenarios.length,
+    boostedCharacterIds: [...boostedIds],
+    boostedScenarioCount: boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 18) : undefined,
     results: evaluated.slice(0, 3),
   };
 }

@@ -3,18 +3,36 @@ function resolvePairMultiplier(attackAttribute, defenseAttribute, rules) {
 }
 
 export function resolveAttributeMultiplier(attackerAttributes, defenderAttributes, rules) {
+  return resolveAttributeMultiplierDetails(attackerAttributes, defenderAttributes, rules).multiplier;
+}
+
+export function resolveAttributeMultiplierDetails(attackerAttributes, defenderAttributes, rules) {
   const attacks = attackerAttributes?.length ? attackerAttributes : ["neutral"];
   const defenses = defenderAttributes?.length ? defenderAttributes : ["neutral"];
-  const multipliers = attacks.flatMap((attack) =>
-    defenses.map((defense) => resolvePairMultiplier(attack, defense, rules)),
+  const pairs = attacks.flatMap((attack) =>
+    defenses.map((defense) => ({
+      attack,
+      defense,
+      multiplier: resolvePairMultiplier(attack, defense, rules),
+    })),
   );
+  const multipliers = pairs.map((pair) => pair.multiplier);
 
-  if (rules.damage.attributeResolution === "best") return Math.max(...multipliers);
-  if (rules.damage.attributeResolution === "worst") return Math.min(...multipliers);
-  if (rules.damage.attributeResolution === "average") {
-    return multipliers.reduce((sum, multiplier) => sum + multiplier, 0) / multipliers.length;
+  let multiplier;
+  if (rules.damage.attributeResolution === "best") multiplier = Math.max(...multipliers);
+  else if (rules.damage.attributeResolution === "worst") multiplier = Math.min(...multipliers);
+  else if (rules.damage.attributeResolution === "average") {
+    multiplier = multipliers.reduce((sum, entry) => sum + entry, 0) / multipliers.length;
+  } else {
+    multiplier = multipliers[0] ?? 1;
   }
-  return multipliers[0] ?? 1;
+  return {
+    attacks: [...attacks],
+    defenses: [...defenses],
+    pairs,
+    resolution: rules.damage.attributeResolution,
+    multiplier,
+  };
 }
 
 function normalizeMultiplier(value, fallback = 1) {
@@ -63,11 +81,12 @@ export function calculateMinimumDamage({
   defenseMultiplier = 1,
   rules,
 }) {
-  const attributeMultiplier = resolveAttributeMultiplier(
+  const attribute = resolveAttributeMultiplierDetails(
     attacker.attributes,
     defender.attributes,
     rules,
   );
+  const attributeMultiplier = attribute.multiplier;
   const factors = {
     pow: Number(attacker.pow) || 0,
     skill: Number(skillMultiplier) || 0,
@@ -88,6 +107,7 @@ export function calculateMinimumDamage({
     value: applyRounding(raw, rules.damage.rounding),
     raw,
     factors,
+    attribute,
   };
 }
 

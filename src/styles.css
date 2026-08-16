@@ -333,6 +333,11 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .phase-block { display: grid; gap: 4px; }
 .phase-label { color: #5a7467; font-size: 9px; letter-spacing: .04em; }
 .trace-event-list { margin: 0; padding-left: 17px; color: #495952; font-size: 9px; line-height: 1.65; }
+.damage-formula { margin: 4px 0 2px; border: 1px solid #dbe6d2; border-radius: 6px; background: #fbfdf8; color: #40554a; }
+.damage-formula summary { padding: 3px 6px; cursor: pointer; color: #4e672c; font-size: 8px; font-weight: 800; }
+.damage-formula-equation, .damage-formula-breakdown { margin: 0; padding: 4px 6px; border-top: 1px solid #e7eee1; overflow-wrap: anywhere; font-size: 8px; line-height: 1.55; }
+.damage-formula-equation { color: #243d30; font-weight: 800; }
+.damage-formula-breakdown { color: #64736c; }
 
 .metagame-simulator {
   margin: 0 0 22px;
@@ -390,6 +395,28 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-fixed-picker-result strong { font-size: 10px; }
 .metagame-fixed-picker-result small { color: #788174; font-size: 8px; }
 .metagame-fixed-picker-result button { padding: 6px; border: 0; border-radius: 7px; background: #64772f; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-boosted-characters { grid-column: 1 / -1; padding: 14px; border: 1px solid #ead9a7; border-radius: 15px; background: linear-gradient(135deg, rgba(255,251,234,.9), rgba(252,253,247,.82)); }
+.metagame-boosted-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.metagame-boosted-heading strong, .metagame-boosted-heading small { display: block; }
+.metagame-boosted-heading strong { color: #786023; font-size: 12px; }
+.metagame-boosted-heading small { margin-top: 3px; color: #82765c; font-size: 9px; line-height: 1.5; }
+.metagame-boosted-heading button { padding: 6px 9px; border: 1px solid #d9c37d; border-radius: 8px; background: #fffdf5; color: #6c561f; font: inherit; font-size: 9px; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.metagame-boosted-heading button:disabled, .metagame-boosted-controls button:disabled, .metagame-boosted-results button:disabled { cursor: wait; opacity: .6; }
+.metagame-boosted-controls { display: flex; gap: 8px; margin-top: 12px; }
+.metagame-boosted-controls input { min-width: 0; flex: 1; padding: 8px 10px; border: 1px solid #ded2a8; border-radius: 8px; background: #fff; font: inherit; font-size: 10px; }
+.metagame-boosted-controls button { padding: 8px 11px; border: 0; border-radius: 8px; background: #756029; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-boosted-selected { display: flex; flex-wrap: wrap; gap: 6px; min-height: 22px; margin-top: 10px; }
+.metagame-boosted-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 5px 7px; border: 1px solid #dfc66f; border-radius: 999px; background: #fff7d7; color: #65511e; font-size: 9px; }
+.metagame-boosted-chip strong { overflow: hidden; max-width: 260px; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-boosted-chip button { width: 16px; height: 16px; padding: 0; border: 0; border-radius: 50%; background: #dfc66f; color: #5a4512; cursor: pointer; font: inherit; line-height: 1; }
+.metagame-boosted-empty, .metagame-boosted-message { margin: 0; color: #82765c; font-size: 9px; line-height: 1.6; }
+.metagame-boosted-results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.metagame-boosted-result { display: grid; gap: 5px; min-width: 0; padding: 9px; border: 1px solid #e5dbbd; border-radius: 9px; background: #fff; }
+.metagame-boosted-result strong, .metagame-boosted-result small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-boosted-result strong { font-size: 10px; }
+.metagame-boosted-result small { color: #82765c; font-size: 8px; }
+.metagame-boosted-result button { padding: 6px; border: 0; border-radius: 7px; background: #8a6d25; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-boost-badge { color: #81631b; font-weight: 900; }
 .metagame-surveyed-constraints { margin-top: 16px; padding: 14px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
 .metagame-surveyed-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
 .metagame-surveyed-heading strong { color: #526128; font-size: 12px; }
@@ -441,6 +468,25 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-slot-copy small { display: block; color: #697671; font-size: 8px; line-height: 1.55; }
 .metagame-slot-rating { margin-top: 7px; color: #5c7120 !important; font-weight: 700; }
 .metagame-result-note { margin: 2px 2px 0; color: var(--ink-soft); font-size: 10px; line-height: 1.7; }
+.metagame-evidence { margin: 0 14px 14px; border: 1px solid #d7e2bf; border-radius: 13px; background: #f8fbee; }
+.metagame-evidence > summary { padding: 12px 14px; color: #526a24; cursor: pointer; font-size: 10px; font-weight: 900; }
+.metagame-evidence-note, .metagame-evidence-overlap, .metagame-evidence-summary, .metagame-evidence-error { margin: 0; padding: 0 14px 11px; color: #65716d; font-size: 9px; line-height: 1.7; }
+.metagame-evidence-overlap { color: #536721; font-weight: 800; }
+.metagame-evidence-error { color: #953b2a; }
+.metagame-evidence-button { margin: 0 14px 13px; padding: 8px 11px; border: 0; border-radius: 8px; background: #637a2d; color: white; font: inherit; font-size: 9px; font-weight: 900; cursor: pointer; }
+.metagame-evidence-button:disabled { cursor: wait; opacity: .65; }
+.metagame-evidence-output { display: grid; gap: 10px; }
+.metagame-evidence-output > .metagame-evidence-note { padding-bottom: 13px; }
+.metagame-evidence-summary { padding: 11px 14px; border-top: 1px solid #dce5cc; border-bottom: 1px solid #dce5cc; background: rgba(255,255,255,.68); color: #3d5142; font-size: 10px; font-weight: 900; }
+.metagame-evidence-sample { padding: 0 14px 14px; }
+.metagame-evidence-sample h5 { margin: 0 0 4px; color: #435a1f; font-size: 11px; }
+.metagame-evidence-outcome { margin: 0 0 9px; color: #697771; font-size: 8px; }
+.metagame-evidence-teams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metagame-evidence-team { min-width: 0; padding: 9px; border: 1px solid #dce4d1; border-radius: 9px; background: white; }
+.metagame-evidence-team strong { display: block; margin-bottom: 5px; color: #516328; font-size: 9px; }
+.metagame-evidence-team ol { display: grid; gap: 4px; margin: 0; padding-left: 18px; }
+.metagame-evidence-team li { overflow: hidden; color: #64706c; font-size: 7px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.metagame-evidence .simulation-trace { margin-top: 10px; }
 
 @media (max-width: 1120px) {
   .metagame-slot-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -455,7 +501,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .metagame-simulator-form .button { width: 100%; }
   .metagame-fixed-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metagame-fixed-picker-results { grid-template-columns: 1fr; }
+  .metagame-boosted-results { grid-template-columns: 1fr; }
   .metagame-slot-list { grid-template-columns: 1fr 1fr; }
+  .metagame-evidence-teams { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -667,10 +715,23 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .character-search-reasons ul { display: flex; flex-wrap: wrap; gap: 5px; margin: 7px 0 0; padding: 0; list-style: none; }
 .character-search-reasons li { padding: 4px 6px; border-radius: 6px; background: white; color: #60706a; font-size: 7px; }
 .character-search-actions { display: grid; grid-template-columns: repeat(3,1fr); border-top: 1px solid #e7eae2; }
+.character-search-actions:not(.is-admin) { grid-template-columns: repeat(2,1fr); }
 .character-search-action { min-height: 39px; border: 0; border-right: 1px solid #e7eae2; background: white; color: #5a6963; cursor: pointer; font-size: 8px; font-weight: 800; }
 .character-search-action:last-child { border-right: 0; }
 .character-search-action:hover { background: #f4f8e8; color: #4d611b; }
 .character-search-more { width: 100%; min-height: 50px; margin-top: 15px; border: 1px solid var(--line); background: white; color: var(--ink); }
+.character-catalogue-overview { align-items: center; }
+.character-catalogue-count { padding: 8px 11px; border: 1px solid rgba(255,255,255,.22); border-radius: 999px; color: #e3eccd; font-size: 10px; font-weight: 900; white-space: nowrap; }
+.character-catalogue-category { margin-top: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.84); box-shadow: 0 7px 18px rgba(18,35,31,.04); }
+.character-catalogue-category > summary { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px 18px; cursor: pointer; list-style: none; }
+.character-catalogue-category > summary::-webkit-details-marker { display: none; }
+.character-catalogue-category-heading { display: grid; gap: 4px; }
+.character-catalogue-category-heading strong { color: var(--ink); font-size: 15px; }
+.character-catalogue-category-heading small { color: #71807b; font-size: 9px; font-weight: 800; }
+.character-catalogue-category > summary > b { display: grid; width: 36px; height: 28px; place-items: center; border-radius: 8px; background: #edf4d0; color: #566c1e; font-size: 8px; }
+.character-catalogue-category[open] > summary { border-bottom: 1px solid #e5e9df; background: #fbfdf5; }
+.character-catalogue-category[open] > summary > b { background: var(--ink); color: var(--lime); }
+.character-catalogue-category-content { padding: 14px; }
 
 @media (max-width: 900px) {
   .character-search-hero { grid-template-columns: 1fr; gap: 20px; }
@@ -684,6 +745,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .character-search-form { grid-template-columns: 1fr 1fr; }
   .character-search-sort { grid-column: 1 / -1; }
   .character-search-overview { align-items: start; flex-direction: column; padding: 18px; }
+  .character-catalogue-category > summary { padding: 14px; }
+  .character-catalogue-category-content { padding: 10px; }
   .character-search-intents { justify-content: flex-start; }
   .character-search-actions { grid-template-columns: 1fr; }
   .character-search-action { border-right: 0; border-bottom: 1px solid #e7eae2; }

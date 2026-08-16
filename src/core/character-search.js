@@ -223,6 +223,7 @@ function preferenceScore(character, entries, ranges) {
 
 function sortResults(results, sort) {
   const tie = (left, right) => left.sourceIndex - right.sourceIndex;
+  if (sort === "source") return results.sort(tie);
   if (sort === "cost") return results.sort((left, right) => left.character.cost - right.character.cost || right.score - left.score || tie(left, right));
   if (sort === "hp") return results.sort((left, right) => right.character.hp - left.character.hp || right.score - left.score || tie(left, right));
   if (sort === "pow") return results.sort((left, right) => right.character.pow - left.character.pow || right.score - left.score || tie(left, right));

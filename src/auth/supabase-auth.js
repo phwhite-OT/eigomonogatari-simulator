@@ -49,7 +49,8 @@ function isValidInput(email, password) {
   return email.length > 0 && password.length > 0;
 }
 
-export async function initializeSupabaseAuth(root = document) {
+export async function initializeSupabaseAuth(root = document, options = {}) {
+  const onSessionChange = typeof options.onSessionChange === "function" ? options.onSessionChange : () => {};
   const status = root.querySelector("[data-auth-status]");
   const openButton = root.querySelector("[data-auth-open]");
   const logoutButton = root.querySelector("[data-auth-logout]");
@@ -87,6 +88,7 @@ export async function initializeSupabaseAuth(root = document) {
     status.textContent = email ? `${email} でログイン中` : "ログインしていません";
     openButton.hidden = Boolean(email);
     logoutButton.hidden = !email;
+    onSessionChange(session);
   };
 
   const openDialog = () => {
@@ -161,6 +163,7 @@ export async function initializeSupabaseAuth(root = document) {
     status.textContent = "ログイン機能を利用できません";
     setMessage("ログイン機能の読み込みに失敗しました。ページを再読み込みしてください。", true);
     openButton.disabled = true;
+    onSessionChange(null);
     return null;
   }
 

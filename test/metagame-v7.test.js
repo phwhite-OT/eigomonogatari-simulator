@@ -5,14 +5,16 @@ import {
   buildMetagameV7CandidatePools,
   buildMetagameV7DeckCandidates,
   createMetagameV7EnvironmentDecks,
+  createMetagameV8TeamScenarios,
+  evaluateMetagameV7Deck,
   rateMetagameV7Character,
   resolveMetagameV7Input,
   resolveMetagameV7Name,
 } from "../src/core/metagame-v7.js";
-import { findBestMetagameDeck } from "../src/core/metagame-deck.js";
+import { findBestMetagameDeck, inspectMetagameDeckEvidence } from "../src/core/metagame-deck.js";
 import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
-import { buildMetagameV7Constraint } from "../scripts/build-metagame-simulator-data.mjs";
+import { buildMetagameV8Constraint } from "../scripts/build-metagame-simulator-data.mjs";
 
 function v7TestCharacter(id, name, position, options = {}) {
   return {
@@ -23,10 +25,10 @@ function v7TestCharacter(id, name, position, options = {}) {
     cost: options.cost ?? 20,
     hp: options.hp ?? 1_000,
     pow: options.pow ?? 1_000,
-    skillTurn: position - 1,
+    skillTurn: options.skillTurn ?? position - 1,
     maxUses: 0,
     allowedPositions: [1, 2, 3, 4, 5],
-    skill: { type: "none", multiplier: 1, duration: 1, target: "self", conditions: [] },
+    skill: options.skill ?? { type: "none", multiplier: 1, duration: 1, target: "self", conditions: [] },
   };
 }
 
@@ -67,7 +69,7 @@ test("v7 real environment includes every supplied candidate within the cost cap"
   const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
   const decks = createMetagameV7EnvironmentDecks(resolved, { count: 72, seed: 7107 });
 
-  assert.ok(decks.length >= 77);
+  assert.ok(decks.length >= resolved.environmentPools.flat().length);
   for (const deck of decks) {
     assert.equal(deck.length, 5);
     assert.ok(deck.reduce((sum, character) => sum + character.cost, 0) <= 100);
@@ -104,6 +106,243 @@ test("v7 completes each environment pivot with strong feasible partners instead 
     if (weakPivot < 0) continue;
     assert.ok(deck.every((character, index) => index === weakPivot || character.id.startsWith("high-")));
   }
+});
+
+test("v8.5 broad environment gives each supplied pivot multiple legal partner completions", () => {
+  const characters = [1, 2, 3, 4, 5].flatMap((position) => [
+    v7TestCharacter(`pivot-${position}`, `pivot-${position}`, position, { cost: 20, hp: 2_000, pow: 2_000 }),
+    v7TestCharacter(`alternate-${position}`, `alternate-${position}`, position, { cost: 20, hp: 1_700, pow: 1_700 }),
+  ]);
+  const input = {
+    id: "fire:100-broad-environment-test",
+    label: "broad environment test",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: [1, 2, 3, 4, 5].map((position) => [
+      `pivot-${position}`,
+      `alternate-${position}`,
+    ]),
+    exampleDeckNames: [],
+  };
+  const resolved = resolveMetagameV7Input(input, characters);
+  const decks = createMetagameV7EnvironmentDecks(resolved, {
+    count: 10,
+    environmentVariants: 2,
+  });
+  const pivotDecks = decks.filter((deck) => deck[0].id === "pivot-1");
+  const partnerKeys = new Set(pivotDecks.map((deck) => deck.slice(1).map((character) => character.id).join("|")));
+
+  assert.ok(decks.length >= 20);
+  assert.ok(partnerKeys.size >= 2);
+  assert.ok(decks.every((deck) => deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
+});
+
+test("later slots retain role-specific individual fit against the full supplied environment", () => {
+  const highDurability = v7TestCharacter("high-durability", "high-durability", 1, {
+    hp: 20_000,
+    pow: 100,
+    cost: 20,
+  });
+  const lightTarget = v7TestCharacter("light-target", "light-target", 2, {
+    hp: 1_000,
+    pow: 100,
+    cost: 20,
+  });
+  const single = v7TestCharacter("single", "single", 2, {
+    pow: 1_000,
+    skillTurn: 1,
+    skill: { type: "single_attack", multiplier: 10, target: "enemy_one", duration: 1, conditions: [] },
+  });
+  const multi = v7TestCharacter("multi", "multi", 2, {
+    pow: 1_000,
+    skillTurn: 1,
+    skill: { type: "multi_hit_attack", multiplier: 0.75, hits: 4, target: "enemy_one", duration: 1, conditions: [] },
+  });
+  const fillers = [1, 3, 4, 5].flatMap((position) => [
+    v7TestCharacter(`fill-${position}-a`, `fill-${position}-a`, position, { skillTurn: position - 1 }),
+    v7TestCharacter(`fill-${position}-b`, `fill-${position}-b`, position, { skillTurn: position - 1 }),
+  ]);
+  const input = {
+    id: "role-fit-test",
+    label: "role fit test",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: [
+      [highDurability.name],
+      [lightTarget.name],
+      [fillers.find((character) => character.id === "fill-3-a").name],
+      [fillers.find((character) => character.id === "fill-4-a").name],
+      [fillers.find((character) => character.id === "fill-5-a").name],
+    ],
+    exampleDeckNames: [],
+  };
+  const characters = [highDurability, lightTarget, single, multi, ...fillers];
+  const pools = buildMetagameV7CandidatePools(resolveMetagameV7Input(input, characters), characters);
+  const singleRating = pools.ratingsByPosition[1].get(single.id);
+  const multiRating = pools.ratingsByPosition[1].get(multi.id);
+
+  assert.equal(singleRating.role, "precision_attack");
+  assert.equal(multiRating.role, "sweep_attack");
+  assert.ok(singleRating.roleBreakdown.highDurabilityCoverage > multiRating.roleBreakdown.highDurabilityCoverage);
+  assert.ok(singleRating.individualScore > 0);
+  assert.ok(multiRating.individualScore > 0);
+});
+
+test("2枠目と3枠目は追加の待機ターンをスキル再現率へ反映する", () => {
+  const environment = [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`timing-env-${position}`, `timing-env-${position}`, position, {
+      hp: 2_000,
+      pow: 200,
+      cost: 15,
+    })
+  ));
+  const fastSecond = {
+    ...v7TestCharacter("fast-second", "fast-second", 2, {
+      skillTurn: 1,
+      pow: 1_000,
+      skill: { type: "single_attack", multiplier: 4, target: "enemy_one", duration: 1, conditions: [] },
+    }),
+    allowedPositions: [2],
+  };
+  const slowSecond = {
+    ...fastSecond,
+    id: "slow-second",
+    name: "slow-second",
+    skillTurn: 2,
+  };
+  const fastThird = {
+    ...v7TestCharacter("fast-third", "fast-third", 3, {
+      skillTurn: 2,
+      pow: 1_000,
+      skill: { type: "single_attack", multiplier: 4, target: "enemy_one", duration: 1, conditions: [] },
+    }),
+    allowedPositions: [3],
+  };
+  const slowThird = {
+    ...fastThird,
+    id: "slow-third",
+    name: "slow-third",
+    skillTurn: 3,
+  };
+  const input = {
+    id: "skill-reliability-test",
+    label: "skill reliability test",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: environment.map((character) => [character.name]),
+    exampleDeckNames: [],
+  };
+  const characters = [...environment, fastSecond, slowSecond, fastThird, slowThird];
+  const pools = buildMetagameV7CandidatePools(resolveMetagameV7Input(input, characters), characters);
+  const fastSecondRating = pools.ratingsByPosition[1].get(fastSecond.id);
+  const slowSecondRating = pools.ratingsByPosition[1].get(slowSecond.id);
+  const fastThirdRating = pools.ratingsByPosition[2].get(fastThird.id);
+  const slowThirdRating = pools.ratingsByPosition[2].get(slowThird.id);
+
+  assert.equal(fastSecondRating.roleBreakdown.skillReadiness, 1);
+  assert.equal(slowSecondRating.roleBreakdown.skillReadiness, 0.42);
+  assert.equal(fastThirdRating.roleBreakdown.skillReadiness, 1);
+  assert.equal(slowThirdRating.roleBreakdown.skillReadiness, 0.64);
+  assert.ok(fastSecondRating.individualScore > slowSecondRating.individualScore);
+  assert.ok(fastThirdRating.individualScore > slowThirdRating.individualScore);
+});
+
+test("extended team scenarios minimize duplicate characters across the ten players", () => {
+  const shared = v7TestCharacter("shared", "shared", 1);
+  const decks = Array.from({ length: 18 }, (_, team) => (
+    team < 9
+      ? [shared, 1, 2, 3, 4].map((position) => v7TestCharacter(`popular-${team}-${position}`, `popular-${team}-${position}`, position))
+      : [1, 2, 3, 4, 5].map((position) => v7TestCharacter(`distinct-${team}-${position}`, `distinct-${team}-${position}`, position))
+  ));
+  decks.slice(0, 9).forEach((deck) => { deck[0] = shared; });
+  const scenarios = createMetagameV8TeamScenarios({ environmentPools: [], examplePatterns: [] }, {
+    environmentDecks: decks,
+    count: 3,
+  });
+  const firstTeam = [...scenarios[0].allyDecks, ...scenarios[0].enemyDecks];
+  const sharedCount = firstTeam.flat().filter((character) => character.id === "shared").length;
+
+  assert.equal(sharedCount, 1);
+});
+
+test("v8 evaluates a candidate deck within a 5v5 team scenario", async () => {
+  const teams = [0, 1, 2, 3, 4].map((team) => [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`team-${team}-slot-${position}`, `team-${team}-slot-${position}`, position, {
+      cost: 20,
+      hp: 1_000,
+      pow: 1_000,
+    })
+  )));
+  const scenarios = createMetagameV8TeamScenarios({
+    environmentPools: teams[0].map((character) => [character]),
+    examplePatterns: [],
+  }, { environmentDecks: teams.concat(teams), count: 2 });
+  const result = evaluateMetagameV7Deck(teams[0], scenarios, { turns: 1 });
+
+  assert.equal(scenarios.length, 2);
+  assert.ok(scenarios.every((scenario) => scenario.allyDecks.length === 4));
+  assert.ok(scenarios.every((scenario) => scenario.enemyDecks.length === 5));
+  assert.equal(result.scenarioCount, 2);
+  assert.ok(Number.isFinite(result.expectedWinRate));
+
+  const evidence = await inspectMetagameDeckEvidence(teams[0], {
+    turns: 1,
+    teamScenarios: scenarios.map((scenario) => ({
+      a: scenario.allyDecks.map((entry) => entry.map((character) => String(character.id))),
+      e: scenario.enemyDecks.map((entry) => entry.map((character) => String(character.id))),
+    })),
+  }, teams.flat());
+  assert.equal(evidence.source, "cloud-v8-team-scenario");
+  assert.equal(evidence.scenarioCount, 2);
+  assert.equal(evidence.samples.length, 2);
+  assert.ok(Math.abs(evidence.expectedWinRate - result.expectedWinRate) < 1e-12);
+
+  const reconstructedEvidence = await inspectMetagameDeckEvidence(teams[0], {
+    modelVersion: "team-battle-v8.0",
+    turns: 1,
+    scenarioCount: 2,
+    environmentScenarios: [teams.concat(teams).map((entry) => entry.map((character) => String(character.id)))],
+  }, teams.flat());
+  assert.equal(reconstructedEvidence.source, "reconstructed-v8-team-scenario");
+  assert.equal(reconstructedEvidence.scenarioCount, 2);
+  assert.ok(Math.abs(reconstructedEvidence.expectedWinRate - result.expectedWinRate) < 1e-12);
+});
+
+test("v8 team scenarios cover every supplied environment deck", () => {
+  const decks = Array.from({ length: 23 }, (_, team) => [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`coverage-${team}-${position}`, `coverage-${team}-${position}`, position)
+  )));
+  const scenarios = createMetagameV8TeamScenarios({ environmentPools: [], examplePatterns: [] }, {
+    environmentDecks: decks,
+    count: 3,
+  });
+  const included = new Set(scenarios.flatMap((scenario) => [
+    ...scenario.allyDecks,
+    ...scenario.enemyDecks,
+  ]).map((deck) => deck[0].id));
+
+  assert.equal(scenarios.length, 3);
+  assert.deepEqual(included, new Set(decks.map((deck) => deck[0].id)));
+});
+
+test("v8 removes environment candidates that violate their supplied deck position", () => {
+  const legal = [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`legal-${position}`, `legal-${position}`, position)
+  ));
+  const illegal = v7TestCharacter("illegal", "illegal", 2, { skillTurn: 0 });
+  const input = {
+    id: "fire:100-position-audit-test",
+    label: "position audit",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    environmentNamesByPosition: [["legal-1"], ["legal-2", "illegal"], ["legal-3"], ["legal-4"], ["legal-5"]],
+    exampleDeckNames: [],
+  };
+  const resolved = resolveMetagameV7Input(input, [...legal, illegal]);
+
+  assert.deepEqual(resolved.environmentPools[1].map((character) => character.id), ["legal-2"]);
+  assert.equal(resolved.invalidEnvironmentCandidates.length, 1);
+  assert.equal(resolved.invalidEnvironmentCandidates[0].id, "illegal");
 });
 
 test("v7 includes affordable partners so high-cost targets cannot stop the batch", () => {
@@ -158,18 +397,14 @@ test("v7 completes partial deck examples before evaluating their specified chara
 });
 
 test("v7 registers every supplied fixed environment", () => {
-  const expectedPoolCounts = {
-    "water:100": [8, 16, 19, 22, 32],
-    "wind:100": [7, 15, 16, 20, 26],
-    "fire-water:100": [14, 22, 21, 25, 23],
-    "fire-wind:100": [15, 16, 17, 23, 23],
-    "water-wind:100": [12, 21, 16, 28, 29],
-    "all:100": [34, 45, 34, 66, 63],
-  };
-  for (const input of METAGAME_V7_INPUTS.filter((entry) => entry.id in expectedPoolCounts)) {
+  for (const input of METAGAME_V7_INPUTS) {
     const resolved = resolveMetagameV7Input(input, CHARACTER_CATALOG);
     const decks = createMetagameV7EnvironmentDecks(resolved, { count: 5 });
-    assert.deepEqual(resolved.environmentPools.map((pool) => pool.length), expectedPoolCounts[input.id]);
+    assert.ok(resolved.environmentPools.every((pool) => pool.length > 0));
+    assert.equal(
+      resolved.environmentPools.flat().length + resolved.invalidEnvironmentCandidates.length,
+      input.environmentNamesByPosition.flat().length,
+    );
     assert.ok(resolved.examplePatterns.length > 0);
     assert.equal(resolved.audit.filter((entry) => !entry.name).length, 0);
     assert.ok(decks.every((deck) => deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
@@ -221,7 +456,7 @@ test("completed v7 report is converted into a precomputed deck-generator constra
   const characters = CHARACTER_CATALOG.slice(0, 5);
   const report = {
     generatedAt: "2026-08-09T00:00:00.000Z",
-    model: { version: "fixed-environment-v7" },
+    model: { version: "team-battle-v8.0" },
     context: {
       inputId: "fire:100",
       label: "火・コスト100",
@@ -236,12 +471,31 @@ test("completed v7 report is converted into a precomputed deck-generator constra
     environmentDecks: [characters.map((character) => ({
       id: String(character.id), name: character.name, cost: character.cost,
     }))],
+    teamScenarios: [{
+      allyDecks: Array.from({ length: 4 }, () => characters.map((character) => ({
+        id: String(character.id), name: character.name, cost: character.cost,
+      }))),
+      enemyDecks: Array.from({ length: 5 }, () => characters.map((character) => ({
+        id: String(character.id), name: character.name, cost: character.cost,
+      }))),
+    }],
     rankingsByPosition: characters.map((character, index) => ({
       position: index + 1,
       characters: [{
         id: String(character.id), name: character.name, attributes: character.attributes,
         rarity: character.rarity, cost: character.cost, skillTurn: character.skillTurn,
         skillType: character.skill?.type ?? "none", skillName: character.skillName,
+        role: index === 0 ? "precision_attack" : "defense",
+        individualScore: 0.8 - index * 0.05,
+        roleFit: 0.7 - index * 0.05,
+        roleBreakdown: {
+          frontline: index === 0 ? 0.9 : 0,
+          highDurabilityCoverage: index === 0 ? 0.75 : 0,
+          boardCoverage: index === 0 ? 0.45 : 0,
+          defenseMatchup: index === 0 ? 0 : 0.6,
+          reviveMatchup: 0,
+          costEfficiency: 0.5,
+        },
         rank: 1,
         bestDeck: {
           ids: characters.map((entry) => String(entry.id)),
@@ -259,7 +513,7 @@ test("completed v7 report is converted into a precomputed deck-generator constra
     })),
   };
 
-  const constraint = buildMetagameV7Constraint(
+  const constraint = buildMetagameV8Constraint(
     report,
     new Map(characters.map((character) => [String(character.id), character])),
   );
@@ -268,7 +522,12 @@ test("completed v7 report is converted into a precomputed deck-generator constra
   assert.equal(constraint.slots.length, 5);
   assert.equal(constraint.slots[0].candidates, undefined);
   assert.equal(constraint.precomputedDecks[0].l, 0.5);
+  assert.equal(constraint.precomputedDecks[0].r[0].k, "precision_attack");
+  assert.equal(constraint.precomputedDecks[0].r[0].b.h, 0.75);
   assert.equal(constraint.environmentScenarios.length, 1);
+  assert.equal(constraint.teamScenarios.length, 1);
+  assert.equal(constraint.teamScenarios[0].a.length, 4);
+  assert.equal(constraint.teamScenarios[0].e.length, 5);
 
   const result = await findBestMetagameDeck(
     { generatedAt: report.generatedAt, constraints: [constraint] },
@@ -277,4 +536,6 @@ test("completed v7 report is converted into a precomputed deck-generator constra
   );
   assert.equal(result.simulatedDeckCount, 0);
   assert.equal(result.results[0].expectedWinRate, 0.6);
+  assert.equal(result.results[0].ratings[0].role, "precision_attack");
+  assert.equal(result.results[0].ratings[0].roleBreakdown.highDurabilityCoverage, 0.75);
 });

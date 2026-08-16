@@ -3,11 +3,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
-import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
+import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
 import {
   METAGAME_V7_MODEL_VERSION,
   buildMetagameV7CandidatePools,
   createMetagameV7EnvironmentDecks,
+  createMetagameV8TeamScenarios,
   rankMetagameV7Characters,
   rateMetagameV7Character,
   resolveMetagameV7Input,
@@ -85,12 +86,14 @@ async function writeCheckpoint(checkpointPath, checkpoint) {
 }
 
 const inputId = readArgument("input", "fire:100");
-const input = METAGAME_V7_INPUTS.find((entry) => entry.id === inputId);
+const input = METAGAME_V8_INPUTS.find((entry) => entry.id === inputId);
 if (!input) throw new Error(`v7入力 ${inputId} が見つかりません。`);
 
-const environmentCount = positiveInteger(readArgument("environment-count", "72"), 72, 5);
-const partnerLimit = positiveInteger(readArgument("partner-limit", "32"), 32, 32);
-const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "8"), 8, 1);
+const environmentCount = positiveInteger(readArgument("environment-count", "72"), 72, 9);
+const environmentVariants = positiveInteger(readArgument("environment-variants", "3"), 3, 1);
+const partnerLimit = positiveInteger(readArgument("partner-limit", "48"), 48, 32);
+const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "4"), 4, 1);
+const anchorDeckLimit = Math.max(0, Math.floor(Number(readArgument("anchor-deck-limit", "0")) || 0));
 const beamWidth = positiveInteger(readArgument("beam-width", "500"), 500, 50);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
@@ -98,7 +101,17 @@ const requestedPosition = readArgument("position", "all").toLowerCase();
 if (!/^(all|next|[1-5])$/.test(requestedPosition)) {
   throw new Error(`Invalid --position value: ${requestedPosition}`);
 }
-const outputRoot = readArgument("output-root", "reports/metagame-ratings-v7");
+const candidateIndicesArgument = readArgument("candidate-indices", "").trim();
+const candidateIndices = candidateIndicesArgument
+  ? new Set(candidateIndicesArgument.split(",").map((value) => {
+    if (!/^\d+$/.test(value.trim())) throw new Error(`Invalid candidate index: ${value}`);
+    return Number(value);
+  }))
+  : null;
+if (candidateIndices && !/^[1-5]$/.test(requestedPosition)) {
+  throw new Error("--candidate-indices requires one explicit --position from 1 through 5");
+}
+const outputRoot = readArgument("output-root", "reports/metagame-ratings-v8.5-role-balance");
 const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds", "0")) || 0);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
@@ -125,7 +138,14 @@ if (resolvedInput.invalidExamples.length) {
   console.warn(`スキルターンまたはコスト制限を満たさないデッキ例: ${resolvedInput.invalidExamples.join(", ")}（評価用デッキ候補には使いません）`);
 }
 
-const environmentDecks = createMetagameV7EnvironmentDecks(resolvedInput, { count: environmentCount });
+const environmentDecks = createMetagameV7EnvironmentDecks(resolvedInput, {
+  count: environmentCount,
+  environmentVariants,
+});
+const teamScenarios = createMetagameV8TeamScenarios(resolvedInput, {
+  environmentDecks,
+  count: environmentCount,
+});
 const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
 const selectedCandidatesByPosition = [1, 2, 3, 4, 5].map((position) => {
   const candidates = candidatePools.allByPosition[position - 1];
@@ -135,8 +155,11 @@ const checkpointContext = {
   version: METAGAME_V7_MODEL_VERSION,
   inputId,
   environmentCount,
+  environmentVariants,
+  teamScenarioCount: teamScenarios.length,
   partnerLimit,
   autoDeckLimit,
+  anchorDeckLimit,
   beamWidth,
   turns,
   maxCandidates: maxCandidates || null,
@@ -183,13 +206,26 @@ const positionsToEvaluate = requestedPosition === "all"
     ? [resultsByPosition.findIndex((ratings, index) => ratings.size < selectedCandidatesByPosition[index].length) + 1].filter(Boolean)
     : [Number(requestedPosition)];
 
+if (candidateIndices) {
+  const selectedCandidates = selectedCandidatesByPosition[positionsToEvaluate[0] - 1];
+  for (const candidateIndex of candidateIndices) {
+    if (candidateIndex >= selectedCandidates.length) {
+      throw new Error(`Candidate index ${candidateIndex} is outside position ${positionsToEvaluate[0]}`);
+    }
+  }
+}
+
 if (!finalizeOnly) {
   for (const position of positionsToEvaluate) {
     const candidates = candidatePools.allByPosition[position - 1];
     const selectedCandidates = selectedCandidatesByPosition[position - 1];
     const results = resultsByPosition[position - 1];
-    console.log(`${position}枠目: ${selectedCandidates.length}/${candidates.length}体を評価`);
-    for (const [index, character] of selectedCandidates.entries()) {
+    const selectedWork = selectedCandidates
+      .map((character, index) => ({ character, index }))
+      .filter(({ index }) => !candidateIndices || candidateIndices.has(index));
+    console.log(`${position}枠目: ${selectedWork.length}/${selectedCandidates.length}/${candidates.length}体を評価`);
+    let processedWork = 0;
+    for (const { index, character } of selectedWork) {
       if (results.has(String(character.id))) continue;
       if (Date.now() >= deadline) {
         stoppedEarly = true;
@@ -200,13 +236,14 @@ if (!finalizeOnly) {
         position,
         resolvedInput,
         candidatePools,
-        environmentDecks,
-        { autoDeckLimit, beamWidth, turns },
+        teamScenarios,
+        { autoDeckLimit, anchorDeckLimit, beamWidth, turns },
       );
       if (rating) results.set(String(rating.id), rating);
-      if ((index + 1) % 5 === 0) await saveProgress();
-      if ((index + 1) % 20 === 0 || index + 1 === selectedCandidates.length) {
-        console.log(`  ${index + 1}/${selectedCandidates.length}`);
+      processedWork += 1;
+      if (processedWork % 5 === 0) await saveProgress();
+      if (processedWork % 20 === 0 || processedWork === selectedWork.length) {
+        console.log(`  ${processedWork}/${selectedWork.length} (global index ${index})`);
       }
     }
     if (stoppedEarly) break;
@@ -238,6 +275,8 @@ const report = {
   generatedAt: new Date().toISOString(),
   model: {
     version: METAGAME_V7_MODEL_VERSION,
+    battleFormat: "5v5",
+    teamScenarioCount: teamScenarios.length,
     objective: "ユーザー提示の固定環境に対し、コスト100内で完成するデッキの下限勝率をキャラ評価へ使う。",
     environment: "環境は枠別の提示候補からのみ構成し、予測使用率・所持率・自動メタ生成を使わない。",
     characterScope: "属性・コスト・配置・従来のスキルターン制限を満たす全キャラ。",
@@ -245,7 +284,7 @@ const report = {
     continuationPolicy: "継続効果は12ターンの戦闘再現で評価し、提示デッキ例は成立済みの運用候補として自動生成候補と同列に検証する。",
     proxyPolicy: "パートナー探索だけに軽量の補助点を用い、最終順位は固定環境との戦闘結果だけで決める。",
     recoveryPolicy: "Recovery is normal up to maximum HP, half-effective above it, and capped at double maximum HP.",
-    excludedSkillPolicy: "Delay and skill-reduction are excluded from V7: they neither activate nor consume a use.",
+    excludedSkillPolicy: "Delay and skill-reduction are excluded from V8: they neither activate nor consume a use.",
     environmentPolicy: "Each supplied environment character is evaluated in a strong, feasible cost-capped deck; infeasible partial examples are omitted.",
   },
   context: {
@@ -254,10 +293,13 @@ const report = {
     allowedAttributes: resolvedInput.allowedAttributes,
     totalCost: resolvedInput.totalCost,
     turns,
-    requestedEnvironmentCount: environmentCount,
-    environmentCount: environmentDecks.length,
+  requestedEnvironmentCount: environmentCount,
+  environmentCount: environmentDecks.length,
+  environmentVariants,
+  teamScenarioCount: teamScenarios.length,
     partnerLimit,
     autoDeckLimit,
+    anchorDeckLimit,
     beamWidth,
     maxCandidates: maxCandidates || null,
     eligibleCandidateCountByPosition: candidatePools.allByPosition.map((pool) => pool.length),
@@ -266,11 +308,20 @@ const report = {
     source: resolvedInput.source,
     environmentPoolCounts: resolvedInput.environmentPools.map((pool) => pool.length),
     invalidExamples: resolvedInput.invalidExamples,
+    invalidEnvironmentCandidates: resolvedInput.invalidEnvironmentCandidates,
     matches: resolvedInput.audit,
   },
   environmentDecks: environmentDecks.map((deck) => deck.map((character) => ({
     id: String(character.id), name: character.name, cost: character.cost,
   }))),
+  teamScenarios: teamScenarios.map((scenario) => ({
+    allyDecks: scenario.allyDecks.map((deck) => deck.map((character) => ({
+      id: String(character.id), name: character.name, cost: character.cost,
+    }))),
+    enemyDecks: scenario.enemyDecks.map((deck) => deck.map((character) => ({
+      id: String(character.id), name: character.name, cost: character.cost,
+    }))),
+  })),
   environmentPools: resolvedInput.environmentPools.map((pool) => pool.map((character) => ({
     id: String(character.id), name: character.name, cost: character.cost,
   }))),

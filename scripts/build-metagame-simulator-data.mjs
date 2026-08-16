@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { METAGAME_SIMULATOR_DATA as EXISTING_METAGAME_SIMULATOR_DATA } from "../src/data/metagame-simulator-data.js";
-import { METAGAME_V7_INPUTS } from "../src/data/metagame-v7-inputs.js";
+import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
 import {
   buildEnvironmentPositionPool,
   DEFAULT_STRATEGIC_DECK_PROFILES,
@@ -18,15 +18,15 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V7_MODEL_VERSION = "fixed-environment-v7.5";
+const METAGAME_V8_MODEL_VERSION = "team-battle-v8.5-role-balance";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
-  ...METAGAME_V7_INPUTS.map((input) => Object.freeze({
-    type: "v7",
+  ...METAGAME_V8_INPUTS.map((input) => Object.freeze({
+    type: "v8",
     inputId: input.id,
-    statusPath: `reports/metagame-ratings-v7/${input.id.replaceAll(":", "-")}/progress.json`,
-    reportPath: `reports/metagame-ratings-v7/${input.id.replaceAll(":", "-")}/report.json`,
-    reportRoot: "reports/metagame-ratings-v7",
-    requiredModelVersion: METAGAME_V7_MODEL_VERSION,
+    statusPath: `reports/metagame-ratings-v8.5-role-balance/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v8.5-role-balance/${input.id.replaceAll(":", "-")}/report.json`,
+    reportRoot: "reports/metagame-ratings-v8.5-role-balance",
+    requiredModelVersion: METAGAME_V8_MODEL_VERSION,
     legacy: false,
   })),
   Object.freeze({
@@ -74,21 +74,21 @@ function completedMetagameConstraints(status) {
   return completedConstraints;
 }
 
-function v7CompletedRunCount(progress) {
+function v8CompletedRunCount(progress) {
   return (progress.resultsByPosition ?? []).filter((ratings, index) => (
     ratings.length > 0 && ratings.length >= (progress.context?.candidateIdsByPosition?.[index]?.length ?? Infinity)
   )).length;
 }
 
-function hasCompletedV7BrowserData(data) {
+function hasCompletedV8BrowserData(data) {
   return data?.sourceStatus === "complete"
     && data?.sourceModelCompatible === true
-    && /^fixed-environment-v7\./.test(String(data.sourceModelVersion ?? ""))
+    && String(data.sourceModelVersion ?? "").startsWith("team-battle-v8.")
     && Array.isArray(data.constraints)
     && data.constraints.length > 0;
 }
 
-async function readMetagameV7Source(projectRoot, source) {
+async function readMetagameV8Source(projectRoot, source) {
   const statusPath = path.resolve(projectRoot, source.statusPath);
   const reportPath = path.resolve(projectRoot, source.reportPath);
   try {
@@ -96,7 +96,7 @@ async function readMetagameV7Source(projectRoot, source) {
     const status = {
       status: progress.status ?? "unknown",
       updatedAt: progress.updatedAt ?? null,
-      completedRuns: v7CompletedRunCount(progress),
+      completedRuns: v8CompletedRunCount(progress),
       totalRuns: 5,
       config: { modelVersion: progress.context?.version ?? "unknown", passes: 1 },
     };
@@ -104,7 +104,7 @@ async function readMetagameV7Source(projectRoot, source) {
     const complete = modelCompatible && progress.status === "complete";
     const report = complete ? await readMetagameJson(reportPath) : null;
     if (report && report.model?.version !== source.requiredModelVersion) {
-      throw new Error(`v7 report model mismatch: ${report.model?.version ?? "unknown"}`);
+      throw new Error(`v8 report model mismatch: ${report.model?.version ?? "unknown"}`);
     }
     return {
       ...source,
@@ -123,7 +123,7 @@ async function readMetagameV7Source(projectRoot, source) {
 }
 
 async function readMetagameSource(projectRoot, source) {
-  if (source.type === "v7") return readMetagameV7Source(projectRoot, source);
+  if (source.type === "v8") return readMetagameV8Source(projectRoot, source);
   const statusPath = path.resolve(projectRoot, source.statusPath);
   try {
     const status = await readMetagameJson(statusPath);
@@ -221,7 +221,14 @@ function metagameEnvironmentScenarios(decks) {
   return scenarios;
 }
 
-function compactMetagameV7Candidate(entry, character) {
+function compactMetagameV8TeamScenarios(report) {
+  return (report.teamScenarios ?? []).map((scenario) => ({
+    a: (scenario.allyDecks ?? []).map((deck) => deck.map((entry) => String(entry.id))),
+    e: (scenario.enemyDecks ?? []).map((deck) => deck.map((entry) => String(entry.id))),
+  })).filter((scenario) => scenario.a.length === 4 && scenario.e.length === 5);
+}
+
+function compactMetagameV8Candidate(entry, character) {
   const skill = character?.skill ?? {};
   const duration = Math.max(1, Number(skill.duration) || 1);
   const defenseTypes = new Set(["damage_reduction", "guard", "attribute_guard", "heal", "revive"]);
@@ -234,6 +241,7 @@ function compactMetagameV7Candidate(entry, character) {
     cost: entry.cost,
     skillTurn: entry.skillTurn,
     skillType: entry.skillType,
+    skillTarget: entry.skillTarget ?? skill.target ?? "self",
     skillName: entry.skillName,
     overallRank: entry.rank ?? null,
     scenarioCount: entry.bestDeck?.scenarioCount ?? 0,
@@ -253,42 +261,73 @@ function compactMetagameV7Candidate(entry, character) {
     carriedDefenseRate: defenseTypes.has(skill.type) && duration > 1 ? 0.5 : 0,
     continuationWinGain: duration > 1 ? 0.25 : 0,
     carriedContinuationWinGain: duration > 1 ? 0.25 : 0,
-    strategicClass: "v7-fixed-environment",
+    strategicClass: "v8-team-battle",
     advantageCreation: defenseTypes.has(skill.type) ? 0.5 : 0,
     counteraction: attackTypes.has(skill.type) ? 0.5 : 0,
     allyPreservationNet: 0,
     enemyRemovalNet: 0,
     skillActivationRate: skill.type && skill.type !== "none" ? 1 : 0,
-    v7BestDeck: entry.bestDeck ?? null,
-    v7ExampleDeck: entry.exampleDeck ?? null,
+    v8BestDeck: entry.bestDeck ?? null,
+    v8ExampleDeck: entry.exampleDeck ?? null,
   };
 }
 
-function compactMetagameV7Deck(entry) {
-  const ids = entry?.i ?? entry?.ids;
+function compactMetagameV8Rating(entry) {
+  if (!entry) return null;
+  const breakdown = entry.b ?? entry.roleBreakdown ?? {};
+  const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : undefined;
+  const rating = {
+    // This is deliberately only the role evidence needed by the deck card;
+    // full per-character reports remain in the cloud artifacts.
+    k: entry.k ?? entry.role,
+    i: finite(entry.i ?? entry.individualScore),
+    f: finite(entry.f ?? entry.roleFit),
+    b: {
+      f: finite(breakdown.f ?? breakdown.frontline),
+      h: finite(breakdown.h ?? breakdown.highDurabilityCoverage),
+      a: finite(breakdown.a ?? breakdown.boardCoverage),
+      d: finite(breakdown.d ?? breakdown.defenseMatchup),
+      v: finite(breakdown.v ?? breakdown.reviveMatchup),
+      c: finite(breakdown.c ?? breakdown.costEfficiency),
+      r: finite(breakdown.r ?? breakdown.skillReadiness),
+      l: finite(breakdown.l ?? breakdown.lateSkillRisk),
+    },
+  };
+  const hasEvidence = [rating.i, rating.f, ...Object.values(rating.b)].some(Number.isFinite);
+  return hasEvidence ? rating : null;
+}
+
+function compactMetagameV8Deck(entry, ratingsByPosition) {
+  const source = entry?.v8BestDeck ?? entry?.v7BestDeck ?? entry?.bestDeck ?? entry;
+  const ids = source?.i ?? source?.ids;
   if (!Array.isArray(ids) || ids.length !== 5) return null;
-  return {
+  const compactRatings = source.r ?? source.ratings ?? ids.map((id, index) => (
+    compactMetagameV8Rating(ratingsByPosition?.[index]?.get(String(id)))
+  ));
+  const deck = {
     // Short field names keep the browser payload small. They are expanded by
     // metagame-deck.js when a result is displayed.
     i: ids.map(String),
-    c: Number(entry.c ?? entry.totalCost) || 0,
-    p: Number(entry.p ?? entry.proxyScore) || 0,
-    y: Number(entry.y ?? entry.synergyScore) || 0,
-    w: Number(entry.w ?? entry.expectedWinRate) || 0,
-    l: Number(entry.l ?? entry.expectedWinLowerBound) || 0,
-    s: Number(entry.s ?? entry.scenarioCount) || 0,
-    a: Number(entry.a ?? entry.decisiveWinRate) || 0,
-    d: Number(entry.d ?? entry.decisiveDrawRate) || 0,
-    e: Number(entry.e ?? entry.decisiveLossRate) || 0,
-    o: Number(entry.o ?? entry.ongoingRate) || 0,
-    x: entry.x ?? (entry.origin === "example" ? "example" : "automatic"),
+    c: Number(source.c ?? source.totalCost) || 0,
+    p: Number(source.p ?? source.proxyScore) || 0,
+    y: Number(source.y ?? source.synergyScore) || 0,
+    w: Number(source.w ?? source.expectedWinRate) || 0,
+    l: Number(source.l ?? source.expectedWinLowerBound) || 0,
+    s: Number(source.s ?? source.scenarioCount) || 0,
+    a: Number(source.a ?? source.decisiveWinRate) || 0,
+    d: Number(source.d ?? source.decisiveDrawRate) || 0,
+    e: Number(source.e ?? source.decisiveLossRate) || 0,
+    o: Number(source.o ?? source.ongoingRate) || 0,
+    x: source.x ?? (source.origin === "example" ? "example" : "automatic"),
   };
+  if (compactRatings.some(Boolean)) deck.r = compactRatings;
+  return deck;
 }
 
-function compactMetagameV7Decks(entries) {
+function compactMetagameV8Decks(entries, ratingsByPosition) {
   const unique = new Map();
   for (const entry of entries) {
-    const deck = compactMetagameV7Deck(entry?.v7BestDeck ?? entry?.bestDeck ?? entry);
+    const deck = compactMetagameV8Deck(entry, ratingsByPosition);
     if (!deck) continue;
     const key = deck.i.join("|");
     const current = unique.get(key);
@@ -301,7 +340,7 @@ function compactMetagameV7Decks(entries) {
   ));
 }
 
-function compactPublishedV7Constraint(constraint) {
+function compactPublishedV8Constraint(constraint) {
   const existingDecks = constraint.precomputedDecks ?? [];
   const rankedCandidates = (constraint.slots ?? []).flatMap((slot) => slot.candidates ?? []);
   return {
@@ -310,22 +349,22 @@ function compactPublishedV7Constraint(constraint) {
       position: slot.position,
       environment: slot.environment ?? [],
     })),
-    precomputedDecks: compactMetagameV7Decks([...existingDecks, ...rankedCandidates]),
+    precomputedDecks: compactMetagameV8Decks([...existingDecks, ...rankedCandidates]),
   };
 }
 
-function compactPublishedV7Data(data) {
+function compactPublishedV8Data(data) {
   return {
     ...data,
     constraints: data.constraints.map((constraint) => (
-      String(constraint.modelVersion ?? "").startsWith("fixed-environment-v7")
-        ? compactPublishedV7Constraint(constraint)
+      String(constraint.modelVersion ?? "").startsWith("team-battle-v8.")
+        ? compactPublishedV8Constraint(constraint)
         : constraint
     )),
   };
 }
 
-function v7EnvironmentPools(report) {
+function v8EnvironmentPools(report) {
   if (report.environmentPools?.length === 5) return report.environmentPools;
   return [0, 1, 2, 3, 4].map((index) => {
     const seen = new Set();
@@ -340,11 +379,15 @@ function v7EnvironmentPools(report) {
   });
 }
 
-export function buildMetagameV7Constraint(report, charactersById) {
+export function buildMetagameV8Constraint(report, charactersById) {
   const rankings = new Map((report.rankingsByPosition ?? []).map((slot) => [Number(slot.position), slot]));
-  const pools = v7EnvironmentPools(report);
-  const precomputedDecks = compactMetagameV7Decks(
+  const pools = v8EnvironmentPools(report);
+  const ratingsByPosition = [1, 2, 3, 4, 5].map((position) => (
+    new Map((rankings.get(position)?.characters ?? []).map((entry) => [String(entry.id), entry]))
+  ));
+  const precomputedDecks = compactMetagameV8Decks(
     [...rankings.values()].flatMap((slot) => slot.characters ?? []),
+    ratingsByPosition,
   );
   return {
     id: report.context?.inputId ?? "fire:100",
@@ -353,7 +396,10 @@ export function buildMetagameV7Constraint(report, charactersById) {
     allowedAttributes: report.context?.allowedAttributes ?? [],
     totalCost: Number(report.context?.totalCost) || 100,
     turns: Number(report.context?.turns) || 12,
-    scenarioCount: Number(report.context?.environmentCount) || report.environmentDecks?.length || 0,
+    scenarioCount: Number(report.context?.teamScenarioCount)
+      || Number(report.context?.environmentCount)
+      || report.environmentDecks?.length
+      || 0,
     modelVersion: report.model?.version ?? "unknown",
     reportGeneratedAt: report.generatedAt ?? null,
     slots: [1, 2, 3, 4, 5].map((position) => ({
@@ -373,6 +419,10 @@ export function buildMetagameV7Constraint(report, charactersById) {
       }),
     })),
     precomputedDecks,
+    // Preserve the exact 4+5 team split used by the cloud evaluator.  The
+    // previous flat nine-deck representation is useful for legacy reports,
+    // but cannot reproduce V8's deterministic deck permutation for an audit.
+    teamScenarios: compactMetagameV8TeamScenarios(report),
     environmentScenarios: metagameEnvironmentScenarios(report.environmentDecks ?? []),
   };
 }
@@ -432,14 +482,14 @@ export async function buildMetagameSimulatorData(options = {}) {
   const availableSources = (await Promise.all(
     configuredSources.map((source) => readMetagameSource(projectRoot, source)),
   )).filter(Boolean);
-  const completedV7Sources = availableSources.filter((candidate) => (
-    candidate.type === "v7" && candidate.completedConstraints.length && candidate.report
+  const completedV8Sources = availableSources.filter((candidate) => (
+    candidate.type === "v8" && candidate.completedConstraints.length && candidate.report
   ));
-  // The public Pages build has no reports/metagame-ratings-v7 directory. Do
-  // not replace its already-published completed V7 data with an empty source
+  // The public Pages build has no reports/metagame-ratings-v8 directory. Do
+  // not replace its already-published completed V8 data with an empty source
   // merely because the reports live on the dedicated results branch.
-  if (usesDefaultSources && !completedV7Sources.length && hasCompletedV7BrowserData(EXISTING_METAGAME_SIMULATOR_DATA)) {
-    const data = compactPublishedV7Data(EXISTING_METAGAME_SIMULATOR_DATA);
+  if (usesDefaultSources && !completedV8Sources.length && hasCompletedV8BrowserData(EXISTING_METAGAME_SIMULATOR_DATA)) {
+    const data = compactPublishedV8Data(EXISTING_METAGAME_SIMULATOR_DATA);
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
     await fs.writeFile(
       outputPath,
@@ -448,23 +498,30 @@ export async function buildMetagameSimulatorData(options = {}) {
     );
     return { outputPath, data };
   }
-  const source = completedV7Sources[0]
+  const source = completedV8Sources[0]
     ?? availableSources.find((candidate) => candidate.completedConstraints.length)
     ?? availableSources[0]
     ?? {
       statusPath: path.resolve(projectRoot, configuredSources[0].statusPath),
       reportRoot: path.resolve(projectRoot, configuredSources[0].reportRoot),
       legacy: Boolean(configuredSources[0].legacy),
-      status: { config: {}, completedTaskIds: [], completedRuns: 0, totalRuns: 0 },
+      status: {
+        status: "in_progress",
+        config: { modelVersion: METAGAME_V8_MODEL_VERSION, passes: 1 },
+        completedTaskIds: [],
+        completedRuns: 0,
+        totalRuns: 5,
+      },
+      modelCompatible: true,
       completedConstraints: [],
     };
   const { status, completedConstraints } = source;
   const charactersById = new Map(CHARACTER_CATALOG.map((character) => [String(character.id), character]));
   const constraints = [];
-  if (completedV7Sources.length) {
-    constraints.push(...completedV7Sources.map((entry) => buildMetagameV7Constraint(entry.report, charactersById)));
-  } else if (source.type === "v7" && source.report) {
-    constraints.push(buildMetagameV7Constraint(source.report, charactersById));
+  if (completedV8Sources.length) {
+    constraints.push(...completedV8Sources.map((entry) => buildMetagameV8Constraint(entry.report, charactersById)));
+  } else if (source.type === "v8" && source.report) {
+    constraints.push(buildMetagameV8Constraint(source.report, charactersById));
   } else {
     for (let index = 0; index < completedConstraints.length; index += 1) {
       constraints.push(await buildMetagameConstraint(

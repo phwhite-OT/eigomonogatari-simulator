@@ -114,13 +114,135 @@ function traceEventText(event) {
   return event.type;
 }
 
-function renderSimulationTrace(trace) {
+const DAMAGE_FACTOR_LABELS = Object.freeze([
+  ["pow", "POW"],
+  ["skill", "スキル倍率"],
+  ["attack", "攻撃バフ"],
+  ["self", "自分補正"],
+  ["excellent", "Excellent"],
+  ["questionLevel", "問題レベル"],
+  ["attribute", "属性相性"],
+  ["event", "イベント"],
+  ["special", "特殊補正"],
+  ["random", "乱数設定"],
+  ["pvp", "対戦補正"],
+  ["survival", "生存補正"],
+  ["defense", "防御補正"],
+]);
+
+const ATTRIBUTE_LABELS = Object.freeze({
+  fire: "火",
+  water: "水",
+  wind: "風",
+  neutral: "無",
+});
+
+function formatDamageFactor(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "?";
+  return numeric.toLocaleString("ja-JP", { maximumFractionDigits: 6 });
+}
+
+function resolveDamageRaw(hit) {
+  const explicitRaw = Number(hit.damageRaw);
+  if (Number.isFinite(explicitRaw)) return explicitRaw;
+  const values = Object.values(hit.factors ?? {}).map(Number);
+  return values.length && values.every(Number.isFinite)
+    ? values.reduce((product, value) => product * value, 1)
+    : undefined;
+}
+
+function formatAttributeMultiplier(value) {
+  const numeric = Number(value);
+  const fractions = [
+    [1 / 3, "1/3"],
+    [1 / 2, "1/2"],
+    [2 / 3, "2/3"],
+    [3 / 4, "3/4"],
+    [5 / 6, "5/6"],
+    [1, "1"],
+  ];
+  const fraction = fractions.find(([expected]) => Math.abs(numeric - expected) < 1e-9);
+  return fraction ? `${fraction[1]}（${formatDamageFactor(numeric)}）` : formatDamageFactor(numeric);
+}
+
+function attributeFormulaText(attribute) {
+  if (!attribute?.pairs?.length) return "";
+  const attributes = (values) => values.map((value) => ATTRIBUTE_LABELS[value] ?? value).join("・");
+  const pairTerms = attribute.pairs.map((pair) => (
+    `${ATTRIBUTE_LABELS[pair.attack] ?? pair.attack}→${ATTRIBUTE_LABELS[pair.defense] ?? pair.defense} ${formatAttributeMultiplier(pair.multiplier)}`
+  ));
+  const operator = attribute.resolution === "average"
+    ? `）÷${attribute.pairs.length}`
+    : "）";
+  return `属性：攻撃 ${attributes(attribute.attacks)} ／ 防御 ${attributes(attribute.defenses)}。` +
+    `（${pairTerms.join(" ＋ ")}${operator} = ${formatAttributeMultiplier(attribute.multiplier)}`;
+}
+
+function factorBreakdownText(key, label, value, hit) {
+  if (key === "survival") {
+    const turns = Math.max(0, Number(hit.survivalTurns) || 0);
+    const base = Number(hit.survivalBaseMultiplier) || 1.3;
+    return `${label} ${formatDamageFactor(value)}（${formatDamageFactor(base)}^${turns}、${turns}ターン生存）`;
+  }
+  if (key === "attribute") return `${label} ${formatAttributeMultiplier(value)}`;
+  return `${label} ${formatDamageFactor(value)}`;
+}
+
+function renderDamageFormula(hit, hitIndex) {
+  if (!hit.factors || !Object.keys(hit.factors).length) return null;
+  const details = element("details", "damage-formula");
+  details.append(element("summary", "", `ヒット${hitIndex + 1}のダメージ式を見る`));
+
+  const factors = DAMAGE_FACTOR_LABELS
+    .filter(([key]) => Object.hasOwn(hit.factors, key))
+    .map(([key, label]) => factorBreakdownText(key, label, hit.factors[key], hit));
+  const equation = DAMAGE_FACTOR_LABELS
+    .filter(([key]) => Object.hasOwn(hit.factors, key))
+    .map(([key]) => formatDamageFactor(hit.factors[key]))
+    .join(" × ");
+  const raw = resolveDamageRaw(hit);
+  const rounding = hit.rounding === "ceil"
+    ? "切り上げ"
+    : hit.rounding === "round"
+      ? "四捨五入"
+      : "切り捨て";
+
+  const formula = element("p", "damage-formula-equation");
+  formula.textContent = raw === undefined
+    ? `${equation} → ${rounding} = ${formatDamageFactor(hit.damage)}`
+    : `${equation} = ${formatDamageFactor(raw)} → ${rounding} = ${formatDamageFactor(hit.damage)}`;
+  const breakdown = element("p", "damage-formula-breakdown", factors.join(" ／ "));
+  const attributeDetail = attributeFormulaText(hit.attribute);
+  const targetDetail = hit.targetMode === "random_after_defeat"
+    ? "連撃の主対象を撃破したため、このヒットは生存中の敵からランダムに選択"
+    : hit.targetMode === "guard"
+      ? "かばう効果により、このヒットの対象を変更"
+      : "主対象へのヒット";
+  const targetLine = element("p", "damage-formula-breakdown", targetDetail);
+  if (attributeDetail) details.append(formula, breakdown, element("p", "damage-formula-breakdown", attributeDetail), targetLine);
+  else details.append(formula, breakdown, targetLine);
+  return details;
+}
+
+function renderTraceEvent(event) {
+  const item = element("li", "", traceEventText(event));
+  if (event.type === "attack") {
+    event.hits.forEach((hit, index) => {
+      const formula = renderDamageFormula(hit, index);
+      if (formula) item.append(formula);
+    });
+  }
+  return item;
+}
+
+export function renderSimulationTrace(trace) {
   const section = element("section", "insight-panel simulation-trace");
   section.append(element("h4", "", `対戦処理ログ：${trace.profileName}`));
   section.append(element(
     "p",
     "trace-note",
-    "推薦デッキを味方P2として配置し、他の味方4人と敵5人は代表値で再現しています。実デッキ同士の勝率ではありません。",
+    trace.note ?? "推薦デッキを味方P2として配置し、他の味方4人と敵5人は代表値で再現しています。実デッキ同士の勝率ではありません。",
   ));
   const assumptions = element("details", "trace-assumptions");
   assumptions.append(element("summary", "", "シミュレーションの仮定を見る"));
@@ -140,7 +262,7 @@ function renderSimulationTrace(trace) {
       const phaseBlock = element("section", "phase-block");
       phaseBlock.append(element("strong", "phase-label", phase.label));
       const eventList = element("ul", "trace-event-list");
-      phase.events.forEach((event) => eventList.append(element("li", "", traceEventText(event))));
+      phase.events.forEach((event) => eventList.append(renderTraceEvent(event)));
       phaseBlock.append(eventList);
       phaseList.append(phaseBlock);
     });

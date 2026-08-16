@@ -27,6 +27,7 @@ import { initializeCharacterSearch } from "./ui/character-search.js";
 import { initializeCharacterEditor } from "./ui/character-editor.js";
 import { initializeAppTabs } from "./ui/tabs.js";
 import { initializeSupabaseAuth } from "./auth/supabase-auth.js";
+import { isAdministratorSession } from "./auth/admin.js";
 
 const MANUAL_CHARACTERS_STORAGE_KEY = "eigo-deck-compass.manual-characters.v1";
 
@@ -56,9 +57,6 @@ function combineCharacters(baseCharacters, manualCharacters) {
   });
 }
 function bootstrap() {
-  const initializeAuthWhenAvailable = () => void initializeSupabaseAuth();
-  if (globalThis.supabase?.createClient) initializeAuthWhenAvailable();
-  else window.addEventListener("eigo-supabase-ready", initializeAuthWhenAvailable, { once: true });
   const form = document.querySelector("[data-search-form]");
   const dataSummary = document.querySelector("[data-data-summary]");
   const resultRoot = document.querySelector("[data-results]");
@@ -81,6 +79,7 @@ function bootstrap() {
   let characterSearchController = null;
   let lightestController = null;
   let deckCharacterPickerController = null;
+  let administratorAccess = false;
 
   const refreshData = () => {
     hydrateCharacterOptions(form, characters);
@@ -89,6 +88,17 @@ function bootstrap() {
     characterSearchController?.setCharacters(characters);
     lightestController?.setCharacters(characters);
     deckCharacterPickerController?.setCharacters(characters);
+  };
+
+  const tabsController = initializeAppTabs(document, { initialAccess: { lightest: false } });
+  const applyAdministratorAccess = (session) => {
+    const isAdministrator = isAdministratorSession(session);
+    administratorAccess = isAdministrator;
+    tabsController.setAccess("lightest", isAdministrator);
+    characterSearchController?.setLightestAvailable(isAdministrator);
+    if (isAdministrator && !lightestController) {
+      lightestController = initializeLightest(lightestRoot, characters);
+    }
   };
 
   const setBusy = (busy) => {
@@ -100,11 +110,9 @@ function bootstrap() {
   };
 
   initializeStaticOptions(form);
-  initializeAppTabs(document);
   deckCharacterPickerController = initializeDeckCharacterPicker(form, characters);
-  characterSearchController = initializeCharacterSearch(characterSearchRoot, characters);
+  characterSearchController = initializeCharacterSearch(characterSearchRoot, characters, { lightestAvailable: false });
   initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, CHARACTER_CATALOG);
-  lightestController = initializeLightest(lightestRoot, characters);
   initializeCharacterEditor(characterEditor, {
     getExistingIds: () => characters.map((character) => character.id),
     onAdd: (character) => {
@@ -124,6 +132,12 @@ function bootstrap() {
   }, null, 2);
   refreshData();
   renderIdle(resultRoot);
+
+  const initializeAuthWhenAvailable = () => void initializeSupabaseAuth(document, {
+    onSessionChange: applyAdministratorAccess,
+  });
+  if (globalThis.supabase?.createClient) initializeAuthWhenAvailable();
+  else window.addEventListener("eigo-supabase-ready", initializeAuthWhenAvailable, { once: true });
 
   fileInput.addEventListener("change", async () => {
     const [file] = fileInput.files;
@@ -200,9 +214,18 @@ function bootstrap() {
     version: "0.1.0",
     searchDecks,
     findBestMetagameDeck,
-    findLightestDeck,
-    simulateLightestStage,
-    solveExactLightestStage,
+    findLightestDeck: (...args) => {
+      if (!administratorAccess) throw new Error("最軽装機能は管理者アカウント専用です。");
+      return findLightestDeck(...args);
+    },
+    simulateLightestStage: (...args) => {
+      if (!administratorAccess) throw new Error("最軽装機能は管理者アカウント専用です。");
+      return simulateLightestStage(...args);
+    },
+    solveExactLightestStage: (...args) => {
+      if (!administratorAccess) throw new Error("最軽装機能は管理者アカウント専用です。");
+      return solveExactLightestStage(...args);
+    },
     createCharacterSearchIndex,
     parseCharacterSearchQuery,
     searchCharacters,

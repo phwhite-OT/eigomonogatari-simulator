@@ -47,10 +47,24 @@ export const CHARACTER_ATTRIBUTE_CORRECTIONS = Object.freeze({
   "em-c87499b64151": Object.freeze(["water", "wind"]),
 });
 
+// Verified post-import corrections. Keep these separate from the generated
+// workbook export so that a future Book1.xlsx refresh does not reintroduce a
+// known incorrect skill turn.
+export const CHARACTER_SKILL_TURN_CORRECTIONS = Object.freeze({
+  "em-8cafabee26c4": 4, // ホルトバージ君
+  "em-dec390a52ee6": 2, // 英国ストヘン技師
+});
+
 export const CHARACTER_CATALOG = Object.freeze([
   ...WORKBOOK_CHARACTERS.map((character) => {
     const attributes = CHARACTER_ATTRIBUTE_CORRECTIONS[character.id];
-    return attributes ? Object.freeze({ ...character, attributes }) : character;
+    const skillTurn = CHARACTER_SKILL_TURN_CORRECTIONS[character.id];
+    if (!attributes && skillTurn === undefined) return character;
+    return Object.freeze({
+      ...character,
+      ...(attributes ? { attributes } : {}),
+      ...(skillTurn === undefined ? {} : { skillTurn }),
+    });
   }),
   ...MANUAL_CHARACTER_SUPPLEMENTS,
 ]);

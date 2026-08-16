@@ -1,17 +1,8 @@
 name: Metagame environment evaluation
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - .github/workflows/metagame-cloud.yml
-      - scripts/rate-metagame.mjs
-      - scripts/rate-metagame-batch.mjs
-      - scripts/metagame-rating-worker.mjs
-      - src/core/environment-rating.js
-      - src/core/metagame-batch.js
-      - src/core/metagame-rating.js
+  # V6 is superseded by V8.5 role-balance. Keep it available for an intentional manual
+  # audit only, so its scheduled runs cannot delay Pages deployments.
   workflow_dispatch:
     inputs:
       max_tasks:
@@ -29,8 +20,6 @@ on:
         required: false
         default: "1"
         type: string
-  schedule:
-    - cron: "*/30 * * * *"
 
 permissions:
   actions: write

@@ -59,3 +59,8 @@ test("名前の軽い誤字を近似一致で見つける", () => {
   assert.equal(result.results[0].character.id, "asako");
   assert.ok(result.results[0].reasons.some((reason) => reason.includes("近似一致")));
 });
+
+test("データ順を指定した検索は受領順を保つ", () => {
+  const result = searchCharacters(index, "火 全体攻撃", { sort: "source" });
+  assert.deepEqual(result.results.map((entry) => entry.character.id), ["fire-aoe-low", "fire-aoe-high"]);
+});

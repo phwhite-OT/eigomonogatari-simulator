@@ -49,6 +49,19 @@ function opponentSide(side) {
   return side === "allies" ? "enemies" : "allies";
 }
 
+function seededRandom(seed) {
+  let state = 2_166_136_261;
+  for (const character of String(seed ?? 0)) {
+    state = Math.imul(state ^ character.charCodeAt(0), 16_777_619);
+  }
+  return () => {
+    state = (state + 0x6D2B79F5) | 0;
+    let value = Math.imul(state ^ (state >>> 15), 1 | state);
+    value ^= value + Math.imul(value ^ (value >>> 7), 61 | value);
+    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
 function targetableIndexes(combatants) {
   return combatants.flatMap((combatant, index) => (
     combatant.alive && !combatant.isGhost ? [index] : []
@@ -160,8 +173,8 @@ function compareTargetCandidates(left, right, policy, killablePool) {
     );
   }
   return (
-    Number(right.killable) - Number(left.killable) ||
     right.remaining - left.remaining ||
+    Number(right.killable) - Number(left.killable) ||
     compareDamageEfficiency(left, right, killablePool) ||
     left.skillTurnsRemaining - right.skillTurnsRemaining ||
     right.survivalTurns - left.survivalTurns ||
@@ -174,7 +187,7 @@ export function targetPolicyReason(policy = TARGET_POLICIES.KILL_CONFIRM) {
   if (policy === TARGET_POLICIES.EXPERT) return "残数平準化を最優先に、撃破効率・発動間近のスキル・長期生存を統合して判断";
   if (policy === TARGET_POLICIES.BALANCE) return "敵の残りキャラ数の平準化を最優先";
   if (policy === TARGET_POLICIES.SKILL_THREAT) return "残数平準化後、発動が近い敵を優先";
-  return "撃破可能な敵を確実に倒すことを優先し、その中で敵の残数を平準化";
+  return "敵の残りキャラ数を最優先し、同数なら確実に倒せる敵を優先";
 }
 
 export function selectPriorityTarget(state, actorSide, options = {}) {
@@ -203,8 +216,8 @@ export function selectPriorityTarget(state, actorSide, options = {}) {
     const selectedIndex = typeof selected === "object" ? selected?.index : selected;
     if (candidates.some((candidate) => candidate.index === selectedIndex)) return selectedIndex;
   }
-  // 色かばうを受けない攻撃者は、かばう役を直接倒して味方の攻撃を通す。
-  // 通常のかばう、または対象色の攻撃は実際の攻撃処理で自動的にかばう役へ向かう。
+  // 攻撃属性が色かばうの対象外なら、かばう役を直接倒して他の攻撃を通す。
+  // 通常のかばう、または対象属性の攻撃は攻撃処理でかばう役へリダイレクトされる。
   const guardBreakTarget = guardBreakTargetForAttacker(state, actorSide, actor);
   if (guardBreakTarget?.mode === 'bypass' && candidates.some(({ index }) => index === guardBreakTarget.index)) {
     return guardBreakTarget.index;
@@ -304,8 +317,9 @@ function skillDecision(state, side, actorIndex, rules, options) {
     return { use: false, reason: "今回の評価では短縮・遅延効果を使用しない" };
   }
   if (options.playStyle === PLAY_STYLES.EXPERT) {
-    return expertSkillDecision(state, side, actorIndex, rules, options);
+    return expertSkillDecision(state, side, actorIndex, rules);
   }
+  if (skill.type === "heal") return healDecision(state, side, actorIndex, skill, rules);
   const environmentPosition = actor.environmentPosition ?? actor.deckIndex + 1;
   if (environmentPosition >= 2 && skill.type !== "revive") {
     return { use: true, reason: "2枠目以降は使用可能なスキルを原則すぐ使用" };
@@ -351,8 +365,8 @@ function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK) {
   };
 }
 
-function projectedSkillDamage(state, side, actor, skill, rules) {
-  const effectiveSkill = attackSkillWithEffects(actor, skill);
+function projectedSkillDamage(state, side, actor, skill, rules, options = {}) {
+  const effectiveSkill = options.effective ? skill : attackSkillWithEffects(actor, skill);
   const targets = state[opponentSide(side)].filter((combatant) => combatant.alive && !combatant.isGhost);
   const damages = targets.map((target) => estimateDamage(actor, target, effectiveSkill, rules));
   if (effectiveSkill.type === "aoe_attack") {
@@ -382,7 +396,15 @@ function expertSupportBenefit(state, side, actorIndex, skill, rules) {
   const outgoingGain = crossTeamDamage(after, side, rules) - crossTeamDamage(state, side, rules);
   const preventedDamage = crossTeamDamage(state, opponentSide(side), rules) - crossTeamDamage(after, opponentSide(side), rules);
   const healingGain = totalCurrentHp(after, side) - totalCurrentHp(state, side);
-  return { outgoingGain, preventedDamage, healingGain };
+  return { after, outgoingGain, preventedDamage, healingGain };
+}
+
+function healDecision(state, side, actorIndex, skill, rules, options = {}) {
+  const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
+  if (benefit.healingGain <= 0) return { use: false, reason: "回復対象に実際の回復がないため温存" };
+  return actorWillBeRevivedThisTurn(state, side, actorIndex, rules, options.plannedAttributeIntents)
+    ? { use: false, reason: "このターンに自身が蘇生対象になるため温存" }
+    : { use: true, reason: "現在ターンの実回復量があるため使用" };
 }
 
 function expertSkillDecision(state, side, actorIndex, rules, options = {}) {
@@ -443,24 +465,28 @@ function chooseSkills(state, rules, options) {
       intent.reason = use
         ? "このターンの属性変更後に蘇生対象となる撃破予測があるため使用"
         : "このターンの属性変更後に蘇生対象となる撃破予測がないため温存";
-    } else if (intent.skill.type === "heal" && options.playStyle === PLAY_STYLES.EXPERT) {
-      const decision = expertSkillDecision(state, intent.side, intent.actorIndex, rules, {
-        ...options,
-        plannedAttributeIntents: attributeIntents,
-      });
+    } else if (intent.skill.type === "heal") {
+      const decision = options.playStyle === PLAY_STYLES.EXPERT
+        ? expertSkillDecision(state, intent.side, intent.actorIndex, rules, {
+          ...options,
+          plannedAttributeIntents: attributeIntents,
+        })
+        : healDecision(state, intent.side, intent.actorIndex, intent.skill, rules, {
+          plannedAttributeIntents: attributeIntents,
+        });
       intent.use = Boolean(decision.use);
       intent.reason = decision.reason;
     }
   }
   const events = candidates.map((intent) => (
     {
-      type: intent.use ? "skill_use" : "skill_hold",
-      side: intent.side,
-      actorIndex: intent.actorIndex,
-      actorId: intent.actorId,
-      actorName: intent.actorName,
-      skillType: intent.skill.type,
-      reason: intent.reason,
+        type: intent.use ? "skill_use" : "skill_hold",
+        side: intent.side,
+        actorIndex: intent.actorIndex,
+        actorId: intent.actorId,
+        actorName: intent.actorName,
+        skillType: intent.skill.type,
+        reason: intent.reason,
     }
   ));
   const intents = candidates.filter((intent) => intent.use);
@@ -536,7 +562,7 @@ function applySupportPhase(state, intents, skillTypes) {
 }
 
 function projectedAttackDamage(intent, state, rules) {
-  return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules);
+  return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules, { effective: true });
 }
 
 function tacticalAttackIntentScore(intent, state, rules, options) {
@@ -594,9 +620,7 @@ function compareGuardBreakOrder(left, right, state, rules) {
   const rightFinishes = rightGuard.damage >= guardHp;
   const nearDefeat = guardHp <= guardMaxHp * 0.35;
   if (nearDefeat && leftFinishes !== rightFinishes) return Number(rightFinishes) - Number(leftFinishes);
-  if (nearDefeat && leftFinishes && rightFinishes) {
-    return leftGuard.damage - rightGuard.damage;
-  }
+  if (nearDefeat && leftFinishes && rightFinishes) return leftGuard.damage - rightGuard.damage;
   return rightGuard.damage - leftGuard.damage;
 }
 
@@ -633,7 +657,19 @@ function attackIntents(state, selectedSkills, rules, options) {
     enemies: activeTokens(state, "enemies"),
   };
   return ["allies", "enemies"].flatMap((side) => orderAttackIntents(tokens[side].map((token) => {
-    const skill = attackSkillWithEffects(token.actor);
+    const selectedSkill = selected.get(`${side}:${token.actorIndex}`)?.skill;
+    // A selected attack skill changes this turn's attack.  Support skills have
+    // already been applied in their own phases, so their owner still makes a
+    // normal attack (possibly modified by the resulting continuous effects).
+    // A multi-hit skill is already added as a continuous attack-mode effect in
+    // the support phase. Start it from one hit here so the new effect changes
+    // 1 -> N, rather than adding its N hits a second time (N -> 2N - 1).
+    const baseSkill = selectedSkill?.type === "multi_hit_attack"
+      ? { ...selectedSkill, hits: 1 }
+      : isAttackSkill(selectedSkill)
+        ? selectedSkill
+        : BASIC_ATTACK;
+    const skill = attackSkillWithEffects(token.actor, baseSkill);
     return {
       ...token,
       skill,
@@ -666,6 +702,7 @@ function resolveAttacks(state, intents, rules, options) {
         targetIndex,
         deferReplacement: true,
         consumeSkill: false,
+        random: options.random,
       },
     );
     next = result.state;
@@ -789,6 +826,7 @@ export function simulateBattle(initialState, rules, options = {}) {
   };
   let state = structuredClone(initialState);
   const history = [];
+  const random = typeof options.random === "function" ? options.random : seededRandom(options.randomSeed);
 
   for (let turnIndex = 0; turnIndex < totalTurns; turnIndex += 1) {
     options.onTurnStart?.({ turn: state.turn, state: structuredClone(state) });
@@ -814,7 +852,7 @@ export function simulateBattle(initialState, rules, options = {}) {
     phases.push(phase("defense", defense.events));
 
     const scheduledAttacks = attackIntents(state, selection.intents, rules, options);
-    const attack = resolveAttacks(state, scheduledAttacks, rules, options);
+    const attack = resolveAttacks(state, scheduledAttacks, rules, { ...options, random });
     state = attack.state;
     phases.push(phase("attack", attack.actions));
 
