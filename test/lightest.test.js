@@ -400,6 +400,57 @@ test("並び替え前の安全な火力上限で不可能な組合せを除外�
   assert.equal(result.prePrunedCombinationCount, result.generatedCombinationCount);
 });
 
+test("総コスト帯の楽観ダメージ上限に届かない組合せは生成前にまとめて除外する", async () => {
+  const allies = Array.from({ length: 8 }, (_, index) => character("cost-prune-" + index, 1, 1));
+  const enemy = resolveLightestEnemy(character("cost-prune-enemy", 0, 0), { hp: 10_000, pow: 0 });
+  const result = await findExactLightestDeck(allies, {
+    enemies: [enemy],
+    deckSize: 5,
+    maxCost: 5,
+    targetCost: 5,
+    maxTurns: 1,
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+  });
+
+  assert.equal(result.foundThreeStar, false);
+  assert.equal(result.simulatedDeckCount, 0);
+  assert.ok(result.generatedCombinationCount > 1);
+  assert.equal(result.prePrunedCombinationCount, result.generatedCombinationCount);
+  assert.equal(result.prePrunedReasons.costDamageUpperBound, result.generatedCombinationCount);
+});
+
+test("自己対象バフは他キャラへ乗らない上限で組合せを事前除外する", async () => {
+  const selfBuffer = character("self-only-buffer", 1, 0, {
+    type: "attack_buff",
+    turn: 0,
+    multiplier: 10,
+    target: "self",
+  });
+  const allies = [
+    selfBuffer,
+    ...Array.from({ length: 4 }, (_, index) => character("self-only-weak-" + index, 1, 10)),
+  ];
+  const enemy = resolveLightestEnemy(character("self-only-enemy", 0, 0), { hp: 100, pow: 0 });
+  const result = await findExactLightestDeck(allies, {
+    enemies: [enemy],
+    deckSize: 5,
+    maxCost: 5,
+    targetCost: 5,
+    maxTurns: 1,
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+  });
+
+  assert.equal(result.foundThreeStar, false);
+  assert.equal(result.simulatedDeckCount, 0);
+  assert.equal(result.prePrunedReasons.compositionDamageUpperBound, 1);
+});
+
 test("standard lightest search skips half answers unless explicitly enabled", () => {
   const deck = Array.from({ length: 5 }, (_, index) => character("answer-ally-" + index, 1, 10));
   const enemy = resolveLightestEnemy(character("answer-enemy", 0, 0), { hp: 40, pow: 0 });

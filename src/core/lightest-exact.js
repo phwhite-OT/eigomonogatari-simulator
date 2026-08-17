@@ -810,6 +810,62 @@ function exactBoundProduct(left, right) {
   return Number.isFinite(result) ? result : Infinity;
 }
 
+function exactMaximumAttributeMultiplier() {
+  return Math.max(
+    1,
+    ...Object.values(DEFAULT_RULES.damage.attributeMultipliers ?? {})
+      .map(Number)
+      .filter((value) => Number.isFinite(value) && value >= 0),
+  );
+}
+
+function exactEnemyHpTotal(enemies) {
+  return enemies.reduce((sum, enemy) => sum + Math.max(0, Number(enemy?.hp) || 0), 0);
+}
+
+function exactSkillTargetsOnlySelf(character) {
+  return character?.skill?.target === "self" && !exactTargetsTeam(character);
+}
+
+function exactPotentialSkillUses(character) {
+  return Math.min(2, Math.max(0, Number(character?.maxUses) || 2));
+}
+
+function exactInitialDeckDamageUpperBound(deck, options) {
+  const eventBonusIds = new Set((options.eventBonusIds ?? []).map(String));
+  const potentialDamage = deck.reduce((sum, attacker) => {
+    const eventMultiplier = eventBonusIds.has(String(attacker.id))
+      ? Math.max(0, Number(options.eventBonusMultiplier) || 1)
+      : 1;
+    let attackBuffMultiplier = 1;
+    let hitCount = 1;
+    for (const source of deck) {
+      const skill = source.skill ?? {};
+      const canAffectAttacker = !exactSkillTargetsOnlySelf(source) || String(source.id) === String(attacker.id);
+      if (!canAffectAttacker) continue;
+      if (skill.type === "attack_buff") {
+        const multiplier = Math.max(1, Number(skill.multiplier) || 1);
+        for (let use = 0; use < exactPotentialSkillUses(source); use += 1) {
+          attackBuffMultiplier = exactBoundProduct(attackBuffMultiplier, multiplier);
+        }
+      }
+      if (skill.type === "aoe_attack") hitCount = Math.max(hitCount, 3);
+      if (skill.type === "multi_hit_attack") hitCount = Math.max(hitCount, Math.max(1, Number(skill.hits) || 1));
+    }
+    return sum + exactBoundProduct(
+      exactBoundProduct(Math.max(0, Number(attacker.pow) || 0) * eventMultiplier, attackBuffMultiplier),
+      hitCount,
+    );
+  }, 0);
+  return exactBoundProduct(
+    exactBoundProduct(
+      potentialDamage,
+      Math.max(0, Number(options.answerMultiplier) || 0) * exactMaximumAttributeMultiplier(),
+    ),
+    Math.max(0, Number(options.maxTurns) || 0),
+  );
+}
+
 function exactPotentialAttackMultiplier(state) {
   let multiplier = 1;
   const includeMultiplier = (value) => {
@@ -872,7 +928,11 @@ function exactImpossibleReason(state, options) {
 function exactInitialDeckImpossibleReason(deck, enemies, options) {
   const state = exactCreateState(deck, enemies, options);
   exactSpawn(state);
-  return exactImpossibleReason(state, options);
+  const stateReason = exactImpossibleReason(state, options);
+  if (stateReason) return stateReason;
+  return exactInitialDeckDamageUpperBound(deck, options) < exactEnemyHpTotal(enemies)
+    ? "compositionDamageUpperBound"
+    : null;
 }
 
 function exactAssumptions() {
@@ -1103,6 +1163,107 @@ function exactCombinationCounts(characters, deckSize, maxCost, allowDuplicates, 
   ]));
 }
 
+function exactOptimisticDamageFeature(character, eventBonusIds, eventBonusMultiplier) {
+  const skill = character.skill ?? {};
+  const eventMultiplier = eventBonusIds.has(String(character.id))
+    ? Math.max(0, Number(eventBonusMultiplier) || 1)
+    : 1;
+  const uses = exactPotentialSkillUses(character);
+  const buffMultiplier = skill.type === "attack_buff"
+    ? Array.from({ length: uses }).reduce(
+      (product) => exactBoundProduct(product, Math.max(1, Number(skill.multiplier) || 1)),
+      1,
+    )
+    : 1;
+  const hitCount = skill.type === "aoe_attack"
+    ? 3
+    : skill.type === "multi_hit_attack"
+      ? Math.max(1, Number(skill.hits) || 1)
+      : 1;
+  return {
+    power: Math.max(0, Number(character.pow) || 0) * eventMultiplier,
+    buffMultiplier,
+    hitCount,
+  };
+}
+
+function exactEmptyOptimisticDamageBound() {
+  return { power: 0, buffMultiplier: 1, hitCount: 1 };
+}
+
+function exactExtendOptimisticDamageBound(bound, feature) {
+  return {
+    power: bound.power + feature.power,
+    buffMultiplier: exactBoundProduct(bound.buffMultiplier, feature.buffMultiplier),
+    hitCount: Math.max(bound.hitCount, feature.hitCount),
+  };
+}
+
+function exactMergeOptimisticDamageBound(current, candidate) {
+  if (!current) return candidate;
+  if (!candidate) return current;
+  return {
+    power: Math.max(current.power, candidate.power),
+    buffMultiplier: Math.max(current.buffMultiplier, candidate.buffMultiplier),
+    hitCount: Math.max(current.hitCount, candidate.hitCount),
+  };
+}
+
+function exactOptimisticDamageUpperBoundsByCost(
+  characters,
+  deckSize,
+  maxCost,
+  allowDuplicates,
+  requiredLastSkillType,
+  options,
+) {
+  const boundsBySize = Array.from({ length: deckSize + 1 }, () => new Map());
+  boundsBySize[0].set(0, { withoutRequiredSkill: exactEmptyOptimisticDamageBound(), withRequiredSkill: null });
+  const eventBonusIds = new Set((options.eventBonusIds ?? []).map(String));
+  for (const character of characters) {
+    const cost = Math.max(0, Number(character.cost) || 0);
+    const feature = exactOptimisticDamageFeature(character, eventBonusIds, options.eventBonusMultiplier);
+    const isRequiredSkill = exactCharacterSkillType(character) === requiredLastSkillType;
+    const firstCount = allowDuplicates ? 1 : deckSize;
+    const lastCount = allowDuplicates ? deckSize : 1;
+    const increment = allowDuplicates ? 1 : -1;
+    for (let count = firstCount; allowDuplicates ? count <= lastCount : count >= lastCount; count += increment) {
+      for (const [sum, previous] of boundsBySize[count - 1]) {
+        const nextSum = sum + cost;
+        if (nextSum > maxCost) continue;
+        const next = boundsBySize[count].get(nextSum) ?? { withoutRequiredSkill: null, withRequiredSkill: null };
+        if (previous.withoutRequiredSkill) {
+          const extended = exactExtendOptimisticDamageBound(previous.withoutRequiredSkill, feature);
+          if (isRequiredSkill) {
+            next.withRequiredSkill = exactMergeOptimisticDamageBound(next.withRequiredSkill, extended);
+          } else {
+            next.withoutRequiredSkill = exactMergeOptimisticDamageBound(next.withoutRequiredSkill, extended);
+          }
+        }
+        if (previous.withRequiredSkill) {
+          const extended = exactExtendOptimisticDamageBound(previous.withRequiredSkill, feature);
+          next.withRequiredSkill = exactMergeOptimisticDamageBound(next.withRequiredSkill, extended);
+        }
+        boundsBySize[count].set(nextSum, next);
+      }
+    }
+  }
+  const scale = exactBoundProduct(
+    Math.max(0, Number(options.answerMultiplier) || 0) * exactMaximumAttributeMultiplier(),
+    Math.max(0, Number(options.maxTurns) || 0),
+  );
+  return new Map([...boundsBySize[deckSize]].flatMap(([cost, entry]) => {
+    const bound = requiredLastSkillType
+      ? entry.withRequiredSkill
+      : exactMergeOptimisticDamageBound(entry.withoutRequiredSkill, entry.withRequiredSkill);
+    if (!bound) return [];
+    return [[cost, exactBoundProduct(
+      exactBoundProduct(bound.power, bound.buffMultiplier),
+      exactBoundProduct(bound.hitCount, scale),
+    )]];
+  }));
+}
+
 export function prepareExactLightestCandidateProfile(characters, stage, searchOptions = {}) {
   const options = { ...EXACT_LIGHTEST_DEFAULTS, ...searchOptions };
   const deckSize = Number(stage.deckSize ?? options.deckSize);
@@ -1142,6 +1303,14 @@ export function prepareExactLightestCandidateProfile(characters, stage, searchOp
       normalizedStage.maxCost,
       options.allowDuplicates,
       normalizedStage.requiredLastSkillType,
+    ),
+    optimisticDamageUpperBoundsByCost: exactOptimisticDamageUpperBoundsByCost(
+      available,
+      deckSize,
+      normalizedStage.maxCost,
+      options.allowDuplicates,
+      normalizedStage.requiredLastSkillType,
+      { ...options, ...normalizedStage },
     ),
   };
 }
@@ -1264,7 +1433,8 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
   const canReusePreparedProfile = preparedCandidateProfile &&
     preparedCandidateProfile.deckSize === options.deckSize &&
     preparedCandidateProfile.maxCost === normalizedStage.maxCost &&
-    preparedCandidateProfile.allowDuplicates === Boolean(options.allowDuplicates);
+    preparedCandidateProfile.allowDuplicates === Boolean(options.allowDuplicates) &&
+    preparedCandidateProfile.optimisticDamageUpperBoundsByCost instanceof Map;
   const available = canReusePreparedProfile
     ? preparedCandidateProfile.available
     : exactAvailableCharacters(characters, normalizedStage, options);
@@ -1289,6 +1459,16 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
       options.allowDuplicates,
       normalizedStage.requiredLastSkillType,
     );
+  const optimisticDamageUpperBoundsByCost = canReusePreparedProfile
+    ? preparedCandidateProfile.optimisticDamageUpperBoundsByCost
+    : exactOptimisticDamageUpperBoundsByCost(
+      available,
+      options.deckSize,
+      normalizedStage.maxCost,
+      options.allowDuplicates,
+      normalizedStage.requiredLastSkillType,
+      { ...options, ...normalizedStage },
+    );
   const costsToSearch = (normalizedStage.targetCost === null
     ? attainableCosts
     : attainableCosts.filter((cost) => cost === normalizedStage.targetCost))
@@ -1301,12 +1481,37 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
   let stoppedOnFirstWin = false;
   let preferredDeckTested = false;
   let preferredDeckAccepted = false;
+  const prePrunedReasons = {
+    costDamageUpperBound: 0,
+    noActiveAllies: 0,
+    enemyCapacity: 0,
+    damageUpperBound: 0,
+    compositionDamageUpperBound: 0,
+  };
+  const totalEnemyHp = exactEnemyHpTotal(normalizedStage.enemies);
 
   for (const totalCost of costsToSearch) {
     searchedThroughCost = totalCost;
     const totalCombinations = combinationCountsByCost.get(totalCost) ?? 0;
     let costDeckCount = 0;
     let shouldStop = false;
+    const costDamageUpperBound = optimisticDamageUpperBoundsByCost.get(totalCost);
+    if (costDamageUpperBound !== undefined && costDamageUpperBound < totalEnemyHp) {
+      generatedCombinations += totalCombinations;
+      prePrunedCombinationCount += totalCombinations;
+      prePrunedReasons.costDamageUpperBound += totalCombinations;
+      options.onProgress?.({
+        phase: "exact",
+        cost: totalCost,
+        completed: simulatedDeckCount,
+        combinations: generatedCombinations,
+        totalCombinations,
+        costDeckCount,
+        valid: winners.length,
+        candidateCount: available.length,
+      });
+      continue;
+    }
     const preferredDeck = exactPreferredDeck(
       options.preferredDeck,
       available,
@@ -1353,6 +1558,7 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
       );
       if (initialImpossibleReason) {
         prePrunedCombinationCount += 1;
+        prePrunedReasons[initialImpossibleReason] = (prePrunedReasons[initialImpossibleReason] ?? 0) + 1;
         continue;
       }
       for (const deck of exactUniquePermutations(combination, {
@@ -1414,6 +1620,7 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
     generatedDeckCount: simulatedDeckCount,
     generatedCombinationCount: generatedCombinations,
     prePrunedCombinationCount,
+    prePrunedReasons,
     preferredDeckTested,
     preferredDeckAccepted,
     simulatedDeckCount,
