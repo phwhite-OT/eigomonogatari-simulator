@@ -114,7 +114,9 @@ function lightestEnemyRow(index) {
   );
   const character = document.createElement("input");
   character.type = "text";
-  character.setAttribute("list", "lightest-character-list");
+  character.autocomplete = "off";
+  character.setAttribute("aria-autocomplete", "list");
+  character.setAttribute("aria-expanded", "false");
   character.placeholder = "敵キャラ名を入力";
   character.dataset.lightestEnemyCharacter = "";
   const hp = document.createElement("input");
@@ -131,11 +133,15 @@ function lightestEnemyRow(index) {
   power.dataset.lightestEnemyPower = "";
   const resolved = lightestElement("p", "lightest-enemy-resolved", "キャラを選ぶと探索に使う敵ステータスを表示します。");
   resolved.dataset.lightestEnemyResolved = "";
+  const suggestions = lightestElement("div", "lightest-enemy-suggestions");
+  suggestions.dataset.lightestEnemySuggestions = "";
+  suggestions.setAttribute("role", "listbox");
+  suggestions.hidden = true;
   const remove = lightestElement("button", "lightest-enemy-remove", "×");
   remove.type = "button";
   remove.setAttribute("aria-label", `${index + 1}番目の敵を削除`);
   remove.addEventListener("click", () => row.remove());
-  row.append(character, hp, power, remove, resolved);
+  row.append(character, hp, power, remove, suggestions, resolved);
   return row;
 }
 
@@ -376,7 +382,6 @@ export function initializeLightest(root, characters) {
   const costProgressValue = progress.querySelector("[data-lightest-cost-value]");
   const costProgressBar = progress.querySelector("[data-lightest-cost-bar]");
   const results = root.querySelector("[data-lightest-results]");
-  const datalist = root.querySelector("#lightest-character-list");
   const eventBonusInput = form.elements.lightestEventBonus;
   const referenceDecksInput = form.elements.lightestReferenceDecks;
   const eventBonusSelected = root.querySelector("[data-lightest-event-bonus-selected]");
@@ -411,19 +416,61 @@ export function initializeLightest(root, characters) {
   let refreshPickerSelections = () => {};
   let abortController = null;
 
+  const hideEnemySuggestions = (row) => {
+    const input = row.querySelector("[data-lightest-enemy-character]");
+    const suggestions = row.querySelector("[data-lightest-enemy-suggestions]");
+    suggestions.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  };
+  const renderEnemySuggestions = (row) => {
+    const input = row.querySelector("[data-lightest-enemy-character]");
+    const suggestions = row.querySelector("[data-lightest-enemy-suggestions]");
+    const query = input.value.trim();
+    suggestions.replaceChildren();
+    if (!query) {
+      hideEnemySuggestions(row);
+      return;
+    }
+    const response = searchCharacters(characterSearchIndex, query, { limit: 12 });
+    if (!response.total) {
+      suggestions.append(lightestElement("p", "lightest-enemy-suggestion-message", "候補がありません。名前やIDを短くして試してください。"));
+      suggestions.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      return;
+    }
+    const list = document.createDocumentFragment();
+    response.results.forEach((result) => {
+      const character = result.character;
+      const option = lightestElement("button", "lightest-enemy-suggestion");
+      option.type = "button";
+      option.setAttribute("role", "option");
+      const heading = lightestElement("span", "lightest-enemy-suggestion-heading");
+      heading.append(
+        lightestElement("strong", "", character.name),
+        lightestElement("small", "", `ID: ${character.id}`),
+      );
+      option.append(
+        heading,
+        lightestElement("small", "lightest-enemy-suggestion-detail", `${attributeClassLabel(character.attributes)}・${character.rarity}・cost ${character.cost}｜${character.skillName || "スキルなし"}`),
+      );
+      option.addEventListener("click", () => {
+        input.value = characterDisplay(character);
+        input.focus();
+        hideEnemySuggestions(row);
+        renderResolvedEnemyStats(row, resolveCharacter, form.elements.lightestDifficulty.value);
+      });
+      list.append(option);
+    });
+    suggestions.append(list);
+    suggestions.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  };
+
   const setCharacters = (nextCharacters) => {
     activeCharacters = Array.isArray(nextCharacters) ? nextCharacters : [];
     resolveCharacter = createCharacterResolver(activeCharacters);
     characterSearchIndex = createCharacterSearchIndex(activeCharacters);
     refreshPickerSelections();
-    const optionsFragment = document.createDocumentFragment();
-    activeCharacters.forEach((character) => {
-      const option = document.createElement("option");
-      option.value = characterDisplay(character);
-      option.label = `${attributeClassLabel(character.attributes)}・${character.rarity}・cost ${character.cost}`;
-      optionsFragment.append(option);
-    });
-    datalist.replaceChildren(optionsFragment);
   };
   setCharacters(characters);
   for (let index = 0; index < 5; index += 1) enemyRows.append(lightestEnemyRow(index));
@@ -609,7 +656,24 @@ export function initializeLightest(root, characters) {
     refreshResolvedEnemyStats();
   });
   enemyRows.addEventListener("click", () => queueMicrotask(() => renumberEnemyRows(enemyRows)));
-  enemyRows.addEventListener("input", refreshResolvedEnemyStats);
+  enemyRows.addEventListener("input", (event) => {
+    refreshResolvedEnemyStats();
+    if (event.target.matches("[data-lightest-enemy-character]")) {
+      renderEnemySuggestions(event.target.closest("[data-lightest-enemy-row]"));
+    }
+  });
+  enemyRows.addEventListener("focusin", (event) => {
+    if (event.target.matches("[data-lightest-enemy-character]")) {
+      renderEnemySuggestions(event.target.closest("[data-lightest-enemy-row]"));
+    }
+  });
+  enemyRows.addEventListener("focusout", (event) => {
+    if (!event.target.matches("[data-lightest-enemy-character]")) return;
+    const row = event.target.closest("[data-lightest-enemy-row]");
+    setTimeout(() => {
+      if (!row.contains(document.activeElement)) hideEnemySuggestions(row);
+    }, 120);
+  });
   form.elements.lightestDifficulty.addEventListener("change", refreshResolvedEnemyStats);
   cancel.addEventListener("click", () => abortController?.abort());
   const scopeControls = [automaticTargeting, immediateSkills, hpOrderOnly];
