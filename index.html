@@ -10157,6 +10157,23 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return capacity;
   }
 
+  function exactStageInfeasibility(stage, searchOptions = {}) {
+    const maxTurns = Math.max(0, Math.floor(Number(stage?.maxTurns) || (
+      Number(searchOptions.maxTurns) || EXACT_LIGHTEST_DEFAULTS.maxTurns
+    )));
+    const enemyCount = Array.isArray(stage?.enemies) ? stage.enemies.length : 0;
+    const maximumDefeats = exactMaximumDefeatsByDeadline(1, maxTurns);
+    if (enemyCount > maximumDefeats) {
+      return {
+        reason: "enemyCapacity",
+        enemyCount,
+        maximumDefeats,
+        maxTurns,
+      };
+    }
+    return null;
+  }
+
   function exactBoundProduct(left, right) {
     if (left === 0 || right === 0) return 0;
     const result = left * right;
@@ -10634,6 +10651,23 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       orderByHpDescending: Boolean(stage.orderByHpDescending),
     };
     const available = exactAvailableCharacters(characters, normalizedStage, { ...options, deckSize });
+    const infeasibility = !available.length
+      ? { reason: "noAvailableCharacters" }
+      : !options.allowDuplicates && available.length < deckSize
+        ? { reason: "candidateCapacity", availableCharacterCount: available.length, deckSize }
+        : null;
+    if (infeasibility) {
+      return {
+        deckSize,
+        maxCost: normalizedStage.maxCost,
+        allowDuplicates: Boolean(options.allowDuplicates),
+        available,
+        attainableCosts: [],
+        combinationCountsByCost: new Map(),
+        optimisticDamageUpperBoundsByCost: new Map(),
+        infeasibility,
+      };
+    }
     if (!available.length) throw new Error("縛りに合う味方候補がありません");
     if (!options.allowDuplicates && available.length < deckSize) {
       throw new Error("重複なしでは味方候補がデッキ枚数に足りません");
@@ -10826,6 +10860,39 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       ? attainableCosts
       : attainableCosts.filter((cost) => cost === normalizedStage.targetCost))
       .filter((cost) => (combinationCountsByCost.get(cost) ?? 0) > 0);
+    const stageInfeasibility = exactStageInfeasibility(normalizedStage, options);
+    if (stageInfeasibility) {
+      const prePrunedCombinationCount = costsToSearch.reduce(
+        (sum, cost) => sum + (combinationCountsByCost.get(cost) ?? 0),
+        0,
+      );
+      return {
+        stage: normalizedStage,
+        results: [],
+        candidatePoolSize: available.length,
+        availableCharacterCount: available.length,
+        generatedDeckCount: 0,
+        generatedCombinationCount: prePrunedCombinationCount,
+        prePrunedCombinationCount,
+        prePrunedReasons: {
+          costDamageUpperBound: 0,
+          noActiveAllies: 0,
+          enemyCapacity: prePrunedCombinationCount,
+          damageUpperBound: 0,
+          compositionDamageUpperBound: 0,
+        },
+        preferredDeckTested: false,
+        preferredDeckAccepted: false,
+        simulatedDeckCount: 0,
+        searchedThroughCost: costsToSearch.at(-1) ?? normalizedStage.targetCost,
+        targetCost: normalizedStage.targetCost,
+        stoppedOnFirstWin: false,
+        foundThreeStar: false,
+        precheck: { stage: stageInfeasibility },
+        exact: true,
+        assumptions: exactAssumptions(),
+      };
+    }
     let generatedCombinations = 0;
     let prePrunedCombinationCount = 0;
     let simulatedDeckCount = 0;
@@ -11854,8 +11921,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       omitted,
     };
   }
-  function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = null, searchScope, guidance = null) {
-    const reference = attempts.at(-1);
+  function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = null, searchScope, guidance = null, precheck = null) {
+    const reference = attempts.at(-1) ?? {};
     const generatedCombinationCount = attempts.reduce((sum, attempt) => sum + attempt.generatedCombinationCount, 0);
     const prePrunedCombinationCount = attempts.reduce((sum, attempt) => sum + attempt.prePrunedCombinationCount, 0);
     const simulatedDeckCount = attempts.reduce((sum, attempt) => sum + attempt.simulatedDeckCount, 0);
@@ -11865,7 +11932,16 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       }
       return reasons;
     }, {});
-    const availableCharacterCount = Math.max(0, ...attempts.map((attempt) => attempt.availableCharacterCount));
+    const availableCharacterCount = Math.max(
+      0,
+      Number(precheck?.availableCharacterCount) || 0,
+      ...attempts.map((attempt) => attempt.availableCharacterCount),
+    );
+    const mergedPrecheck = {
+      ...(precheck ?? {}),
+      ...(reference.precheck ?? {}),
+      skippedDeckSizes: precheck?.skippedDeckSizes ?? [],
+    };
     return {
       ...reference,
       stage: { ...stage, deckSizes, deckSize: best?.deck.length ?? null },
@@ -11885,7 +11961,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       scout,
       guidance,
       searchScope,
+      precheck: mergedPrecheck,
       exact: !searchScope?.omitted?.length,
+      assumptions: reference.assumptions ?? [],
     };
   }
 
@@ -11906,6 +11984,12 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   }
   function lightestScoutDeckKey(deck) {
     return deck.map((character) => String(character.id)).join("\u001f");
+  }
+  function lightestDeckCost(deck) {
+    return deck.reduce((sum, character) => sum + lightestCharacterCost(character), 0);
+  }
+  function lightestTaskKey(deckSize, cost) {
+    return `${deckSize}\u001f${cost}`;
   }
   function lightestScoutCandidatePool(available, limit) {
     const efficiency = [...available].sort((left, right) => (
@@ -11984,16 +12068,19 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }
     return decks;
   }
-  async function lightestScoutWinningDeck(profiles, stage, options) {
+  async function lightestScoutWinningDeck(profiles, stage, options, eligibleTasks = null) {
     const deckLimit = Math.max(0, Math.floor(Number(options.scoutDeckLimit) || 0));
     if (!deckLimit) return { attempted: false, sampledDeckCount: 0, candidateDeckCount: 0, found: false };
     const targetCost = lightestRequestedTargetCost(stage);
+    const eligibleTaskKeys = eligibleTasks
+      ? new Set(eligibleTasks.map((task) => lightestTaskKey(task.deckSize, task.cost)))
+      : null;
     const candidates = profiles
       .flatMap((entry) => lightestScoutDecksForProfile(entry, stage, options))
-      .filter(({ deck }) => targetCost === null || deck.reduce((sum, character) => sum + lightestCharacterCost(character), 0) === targetCost)
+      .filter(({ deck }) => targetCost === null || lightestDeckCost(deck) === targetCost)
+      .filter(({ deck }) => !eligibleTaskKeys || eligibleTaskKeys.has(lightestTaskKey(deck.length, lightestDeckCost(deck))))
       .sort((left, right) => right.score - left.score ||
-        left.deck.reduce((sum, character) => sum + lightestCharacterCost(character), 0) -
-          right.deck.reduce((sum, character) => sum + lightestCharacterCost(character), 0))
+        lightestDeckCost(left.deck) - lightestDeckCost(right.deck))
       .slice(0, deckLimit);
     for (let index = 0; index < candidates.length; index += 1) {
       if (options.signal?.aborted) throw lightestAbortError();
@@ -12060,6 +12147,14 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     });
   }
 
+  function lightestDamageViableTasks(tasks, enemies) {
+    const totalEnemyHp = (enemies ?? []).reduce((sum, enemy) => sum + Math.max(0, Number(enemy?.hp) || 0), 0);
+    return tasks.filter((task) => {
+      const upperBound = task.profile.optimisticDamageUpperBoundsByCost.get(task.cost);
+      return upperBound === undefined || upperBound >= totalEnemyHp;
+    });
+  }
+
   async function findLightestDeck(characters, stage, searchOptions = {}) {
     const deckSizes = lightestDeckSizes(stage);
     const options = { ...LIGHTEST_DEFAULTS, ...searchOptions };
@@ -12081,14 +12176,70 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       return { ...result, guidance, searchScope, exact: !searchScope.omitted.length };
     }
     const targetCost = lightestRequestedTargetCost(normalizedStage);
-    const profiles = deckSizes.map((deckSize, index) => ({
+    const profileEntries = deckSizes.map((deckSize, index) => ({
       deckSize,
       deckSizeIndex: index + 1,
       profile: prepareExactLightestCandidateProfile(guidedCharacters, { ...normalizedStage, deckSize }, normalizedOptions),
     }));
-    const scout = await lightestScoutWinningDeck(profiles, normalizedStage, normalizedOptions);
-    const tasks = lightestCostTasks(profiles, targetCost, scout.deck)
-      .filter((task) => scout.upperCost === undefined || task.cost <= scout.upperCost);
+    const skippedDeckSizes = profileEntries.flatMap((entry) => {
+      const hasCombination = [...entry.profile.combinationCountsByCost.values()].some((count) => count > 0);
+      const infeasibility = entry.profile.infeasibility ?? (
+        !entry.profile.attainableCosts.length
+          ? { reason: "costCapacity", deckSize: entry.deckSize, maxCost: normalizedStage.maxCost }
+          : !hasCombination
+            ? { reason: "requiredLastSkillUnavailable", requiredLastSkillType: normalizedStage.requiredLastSkillType }
+            : null
+      );
+      return infeasibility ? [{ deckSize: entry.deckSize, ...infeasibility }] : [];
+    });
+    const profiles = profileEntries.filter((entry) => !skippedDeckSizes.some((skipped) => skipped.deckSize === entry.deckSize));
+    const precheck = {
+      availableCharacterCount: Math.max(0, ...profileEntries.map((entry) => entry.profile.available.length)),
+      skippedDeckSizes,
+    };
+    if (!profiles.length) {
+      return lightestCombinedSearchResult(normalizedStage, deckSizes, [], null, null, searchScope, guidance, precheck);
+    }
+    const stageInfeasibility = exactStageInfeasibility(normalizedStage, normalizedOptions);
+    if (stageInfeasibility) {
+      const attempts = [];
+      for (const entry of profiles) {
+        attempts.push(await findExactLightestDeck(guidedCharacters, {
+          ...normalizedStage,
+          deckSizes: undefined,
+          deckSize: entry.deckSize,
+        }, {
+          ...normalizedOptions,
+          preparedCandidateProfile: entry.profile,
+        }));
+      }
+      return lightestCombinedSearchResult(
+        normalizedStage,
+        deckSizes,
+        attempts,
+        null,
+        null,
+        searchScope,
+        guidance,
+        { ...precheck, stage: stageInfeasibility },
+      );
+    }
+    const candidateTasks = lightestCostTasks(profiles, targetCost);
+    if (!candidateTasks.length) {
+      return lightestCombinedSearchResult(normalizedStage, deckSizes, [], null, null, searchScope, guidance, precheck);
+    }
+    const damageViableTasks = lightestDamageViableTasks(candidateTasks, normalizedStage.enemies);
+    const searchPrecheck = !damageViableTasks.length
+      ? {
+        ...precheck,
+        damageUpperBound: { taskCount: candidateTasks.length, viableTaskCount: 0 },
+      }
+      : precheck;
+    const scout = damageViableTasks.length
+      ? await lightestScoutWinningDeck(profiles, normalizedStage, normalizedOptions, damageViableTasks)
+      : null;
+    const tasks = lightestCostTasks(profiles, targetCost, scout?.deck)
+      .filter((task) => scout?.upperCost === undefined || task.cost <= scout.upperCost);
     const attempts = [];
     for (let taskIndex = 0; taskIndex < tasks.length; taskIndex += 1) {
       const task = tasks[taskIndex];
@@ -12123,7 +12274,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       }, {
         ...normalizedOptions,
         preparedCandidateProfile: task.profile,
-        preferredDeck: task.cost === scout.upperCost && task.deckSize === scout.deck?.length ? scout.deck : undefined,
+        preferredDeck: task.cost === scout?.upperCost && task.deckSize === scout?.deck?.length ? scout?.deck : undefined,
         onProgress: (progress) => searchOptions.onProgress?.({
           ...progress,
           ...progressMetadata,
@@ -12143,10 +12294,19 @@ footer span { font-weight: 800; letter-spacing: .1em; }
         taskCompleted: true,
       });
       const winner = attempt.results[0];
-      if (winner) return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, winner, scout, searchScope, guidance);
+      if (winner) return lightestCombinedSearchResult(
+        normalizedStage,
+        deckSizes,
+        attempts,
+        winner,
+        scout,
+        searchScope,
+        guidance,
+        searchPrecheck,
+      );
       await lightestYield();
     }
-    return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, null, scout, searchScope, guidance);
+    return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, null, scout, searchScope, guidance, searchPrecheck);
   }
 
   //# sourceURL=src/core/lightest.js
@@ -14396,6 +14556,36 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       lightestElement("strong", "", lightestSearchSummary(searchResult)),
       lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証${prePruned ? `（条件未達が確定した${prePruned.toLocaleString("ja-JP")}組合せを事前除外）` : ""}`),
     );
+    const stageInfeasibility = searchResult.precheck?.stage;
+    if (stageInfeasibility?.reason === "enemyCapacity") {
+      overview.append(lightestElement(
+        "span",
+        "",
+        `事前判定: 敵${stageInfeasibility.enemyCount}体に対し、${stageInfeasibility.maxTurns}ターンで倒せる上限は${stageInfeasibility.maximumDefeats}体です。どの編成でも三冠不可のため、デッキ生成前に終了しました。`,
+      ));
+    }
+    const skippedDeckSizes = searchResult.precheck?.skippedDeckSizes ?? [];
+    if (skippedDeckSizes.length) {
+      const reasons = {
+        noAvailableCharacters: "使用可能な候補なし",
+        candidateCapacity: "重複なしで候補人数不足",
+        costCapacity: "コスト上限内で編成不可",
+        requiredLastSkillUnavailable: "末尾必須スキルの候補なし",
+      };
+      overview.append(lightestElement(
+        "span",
+        "",
+        `事前判定: ${skippedDeckSizes.map((entry) => `${entry.deckSize}体（${reasons[entry.reason] ?? entry.reason}）`).join("・")}を探索対象から除外しました。`,
+      ));
+    }
+    const damageUpperBound = searchResult.precheck?.damageUpperBound;
+    if (damageUpperBound?.taskCount && damageUpperBound.viableTaskCount === 0) {
+      overview.append(lightestElement(
+        "span",
+        "",
+        `事前判定: ${damageUpperBound.taskCount}通りのコスト・人数帯すべてで、楽観的に見積もっても敵総HPへ届きません。シミュレーションを行わず除外しました。`,
+      ));
+    }
     const omitted = searchResult.searchScope?.omitted ?? [];
     if (["stage", "reference"].includes(searchResult.guidance?.mode)) {
       const guidance = searchResult.guidance;
@@ -14432,7 +14622,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const assumptions = lightestElement("details", "lightest-assumptions");
     assumptions.append(lightestElement("summary", "", "現在の再現ルールと前提を見る"));
     const list = lightestElement("ul", "");
-    searchResult.assumptions.forEach((assumption) => list.append(lightestElement("li", "", assumption)));
+    (searchResult.assumptions ?? []).forEach((assumption) => list.append(lightestElement("li", "", assumption)));
     assumptions.append(list);
     root.append(assumptions);
   }

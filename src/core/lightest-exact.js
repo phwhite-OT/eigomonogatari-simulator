@@ -804,6 +804,23 @@ function exactMaximumDefeatsByDeadline(currentTurn, maxTurns) {
   return capacity;
 }
 
+export function exactStageInfeasibility(stage, searchOptions = {}) {
+  const maxTurns = Math.max(0, Math.floor(Number(stage?.maxTurns) || (
+    Number(searchOptions.maxTurns) || EXACT_LIGHTEST_DEFAULTS.maxTurns
+  )));
+  const enemyCount = Array.isArray(stage?.enemies) ? stage.enemies.length : 0;
+  const maximumDefeats = exactMaximumDefeatsByDeadline(1, maxTurns);
+  if (enemyCount > maximumDefeats) {
+    return {
+      reason: "enemyCapacity",
+      enemyCount,
+      maximumDefeats,
+      maxTurns,
+    };
+  }
+  return null;
+}
+
 function exactBoundProduct(left, right) {
   if (left === 0 || right === 0) return 0;
   const result = left * right;
@@ -1281,6 +1298,23 @@ export function prepareExactLightestCandidateProfile(characters, stage, searchOp
     orderByHpDescending: Boolean(stage.orderByHpDescending),
   };
   const available = exactAvailableCharacters(characters, normalizedStage, { ...options, deckSize });
+  const infeasibility = !available.length
+    ? { reason: "noAvailableCharacters" }
+    : !options.allowDuplicates && available.length < deckSize
+      ? { reason: "candidateCapacity", availableCharacterCount: available.length, deckSize }
+      : null;
+  if (infeasibility) {
+    return {
+      deckSize,
+      maxCost: normalizedStage.maxCost,
+      allowDuplicates: Boolean(options.allowDuplicates),
+      available,
+      attainableCosts: [],
+      combinationCountsByCost: new Map(),
+      optimisticDamageUpperBoundsByCost: new Map(),
+      infeasibility,
+    };
+  }
   if (!available.length) throw new Error("縛りに合う味方候補がありません");
   if (!options.allowDuplicates && available.length < deckSize) {
     throw new Error("重複なしでは味方候補がデッキ枚数に足りません");
@@ -1473,6 +1507,39 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
     ? attainableCosts
     : attainableCosts.filter((cost) => cost === normalizedStage.targetCost))
     .filter((cost) => (combinationCountsByCost.get(cost) ?? 0) > 0);
+  const stageInfeasibility = exactStageInfeasibility(normalizedStage, options);
+  if (stageInfeasibility) {
+    const prePrunedCombinationCount = costsToSearch.reduce(
+      (sum, cost) => sum + (combinationCountsByCost.get(cost) ?? 0),
+      0,
+    );
+    return {
+      stage: normalizedStage,
+      results: [],
+      candidatePoolSize: available.length,
+      availableCharacterCount: available.length,
+      generatedDeckCount: 0,
+      generatedCombinationCount: prePrunedCombinationCount,
+      prePrunedCombinationCount,
+      prePrunedReasons: {
+        costDamageUpperBound: 0,
+        noActiveAllies: 0,
+        enemyCapacity: prePrunedCombinationCount,
+        damageUpperBound: 0,
+        compositionDamageUpperBound: 0,
+      },
+      preferredDeckTested: false,
+      preferredDeckAccepted: false,
+      simulatedDeckCount: 0,
+      searchedThroughCost: costsToSearch.at(-1) ?? normalizedStage.targetCost,
+      targetCost: normalizedStage.targetCost,
+      stoppedOnFirstWin: false,
+      foundThreeStar: false,
+      precheck: { stage: stageInfeasibility },
+      exact: true,
+      assumptions: exactAssumptions(),
+    };
+  }
   let generatedCombinations = 0;
   let prePrunedCombinationCount = 0;
   let simulatedDeckCount = 0;

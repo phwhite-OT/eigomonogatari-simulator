@@ -324,6 +324,36 @@ function renderLightestResults(root, searchResult) {
     lightestElement("strong", "", lightestSearchSummary(searchResult)),
     lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証${prePruned ? `（条件未達が確定した${prePruned.toLocaleString("ja-JP")}組合せを事前除外）` : ""}`),
   );
+  const stageInfeasibility = searchResult.precheck?.stage;
+  if (stageInfeasibility?.reason === "enemyCapacity") {
+    overview.append(lightestElement(
+      "span",
+      "",
+      `事前判定: 敵${stageInfeasibility.enemyCount}体に対し、${stageInfeasibility.maxTurns}ターンで倒せる上限は${stageInfeasibility.maximumDefeats}体です。どの編成でも三冠不可のため、デッキ生成前に終了しました。`,
+    ));
+  }
+  const skippedDeckSizes = searchResult.precheck?.skippedDeckSizes ?? [];
+  if (skippedDeckSizes.length) {
+    const reasons = {
+      noAvailableCharacters: "使用可能な候補なし",
+      candidateCapacity: "重複なしで候補人数不足",
+      costCapacity: "コスト上限内で編成不可",
+      requiredLastSkillUnavailable: "末尾必須スキルの候補なし",
+    };
+    overview.append(lightestElement(
+      "span",
+      "",
+      `事前判定: ${skippedDeckSizes.map((entry) => `${entry.deckSize}体（${reasons[entry.reason] ?? entry.reason}）`).join("・")}を探索対象から除外しました。`,
+    ));
+  }
+  const damageUpperBound = searchResult.precheck?.damageUpperBound;
+  if (damageUpperBound?.taskCount && damageUpperBound.viableTaskCount === 0) {
+    overview.append(lightestElement(
+      "span",
+      "",
+      `事前判定: ${damageUpperBound.taskCount}通りのコスト・人数帯すべてで、楽観的に見積もっても敵総HPへ届きません。シミュレーションを行わず除外しました。`,
+    ));
+  }
   const omitted = searchResult.searchScope?.omitted ?? [];
   if (["stage", "reference"].includes(searchResult.guidance?.mode)) {
     const guidance = searchResult.guidance;
@@ -360,7 +390,7 @@ function renderLightestResults(root, searchResult) {
   const assumptions = lightestElement("details", "lightest-assumptions");
   assumptions.append(lightestElement("summary", "", "現在の再現ルールと前提を見る"));
   const list = lightestElement("ul", "");
-  searchResult.assumptions.forEach((assumption) => list.append(lightestElement("li", "", assumption)));
+  (searchResult.assumptions ?? []).forEach((assumption) => list.append(lightestElement("li", "", assumption)));
   assumptions.append(list);
   root.append(assumptions);
 }

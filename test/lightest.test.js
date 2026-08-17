@@ -736,3 +736,69 @@ test("lightest enemy input uses a filtered in-app candidate list", () => {
   assert.doesNotMatch(source, /setAttribute\("list", "lightest-character-list"\)/);
   assert.doesNotMatch(template, /id="lightest-character-list"/);
 });
+
+test("最軽装はターン内の撃破可能人数を超える敵をデッキ生成前に除外する", async () => {
+  const allies = Array.from({ length: 6 }, (_, index) => character(`capacity-ally-${index}`, 1, 1_000));
+  const enemies = Array.from({ length: 4 }, (_, index) => resolveLightestEnemy(
+    character(`capacity-enemy-${index}`, 0, 0),
+    { hp: 1, pow: 0, order: index },
+  ));
+  const result = await findLightestDeck(allies, {
+    enemies,
+    deckSizes: [1, 2, 3, 4, 5],
+    maxCost: 5,
+    maxTurns: 2,
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+  });
+
+  assert.equal(result.foundThreeStar, false);
+  assert.equal(result.simulatedDeckCount, 0);
+  assert.equal(result.precheck.stage.reason, "enemyCapacity");
+  assert.equal(result.precheck.stage.maximumDefeats, 3);
+  assert.equal(result.scout, null);
+});
+
+test("最軽装は重複なしで候補人数が足りない編成サイズを飛ばす", async () => {
+  const attacker = character("size-attacker", 1, 1_000);
+  const support = character("size-support", 1, 0);
+  const enemy = resolveLightestEnemy(character("size-enemy", 0, 0), { hp: 10, pow: 0 });
+  const result = await findLightestDeck([attacker, support], {
+    enemies: [enemy],
+    deckSizes: [1, 2, 3, 4, 5],
+    maxCost: 5,
+    maxTurns: 1,
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+  });
+
+  assert.equal(result.foundThreeStar, true);
+  assert.equal(result.results[0].deck.length, 1);
+  assert.deepEqual(result.precheck.skippedDeckSizes.map((entry) => entry.deckSize), [3, 4, 5]);
+  assert.ok(result.precheck.skippedDeckSizes.every((entry) => entry.reason === "candidateCapacity"));
+});
+
+test("最軽装は全コスト帯で火力上限が届かない場合に偵察も戦闘も省略する", async () => {
+  const allies = Array.from({ length: 8 }, (_, index) => character(`damage-ally-${index}`, 1, 1));
+  const enemy = resolveLightestEnemy(character("damage-enemy", 0, 0), { hp: 10_000, pow: 0 });
+  const result = await findLightestDeck(allies, {
+    enemies: [enemy],
+    deckSizes: [1, 2, 3, 4, 5],
+    maxCost: 5,
+    maxTurns: 1,
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+  });
+
+  assert.equal(result.foundThreeStar, false);
+  assert.equal(result.simulatedDeckCount, 0);
+  assert.equal(result.scout, null);
+  assert.equal(result.precheck.damageUpperBound.viableTaskCount, 0);
+  assert.ok(result.prePrunedReasons.costDamageUpperBound > 0);
+});

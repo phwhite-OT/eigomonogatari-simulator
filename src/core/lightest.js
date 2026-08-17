@@ -4,6 +4,7 @@ import { calculateCharacterStatStages } from "../data/characters.js";
 import { buildLightestGuidedCandidatePool } from "./lightest-guidance.js";
 import {
   exactCandidateTrialPriority,
+  exactStageInfeasibility,
   findExactLightestDeck,
   prepareExactLightestCandidateProfile,
   solveExactLightestStage,
@@ -693,8 +694,8 @@ function lightestSearchScope(stage, options, guidance = null) {
     omitted,
   };
 }
-function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = null, searchScope, guidance = null) {
-  const reference = attempts.at(-1);
+function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = null, searchScope, guidance = null, precheck = null) {
+  const reference = attempts.at(-1) ?? {};
   const generatedCombinationCount = attempts.reduce((sum, attempt) => sum + attempt.generatedCombinationCount, 0);
   const prePrunedCombinationCount = attempts.reduce((sum, attempt) => sum + attempt.prePrunedCombinationCount, 0);
   const simulatedDeckCount = attempts.reduce((sum, attempt) => sum + attempt.simulatedDeckCount, 0);
@@ -704,7 +705,16 @@ function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = 
     }
     return reasons;
   }, {});
-  const availableCharacterCount = Math.max(0, ...attempts.map((attempt) => attempt.availableCharacterCount));
+  const availableCharacterCount = Math.max(
+    0,
+    Number(precheck?.availableCharacterCount) || 0,
+    ...attempts.map((attempt) => attempt.availableCharacterCount),
+  );
+  const mergedPrecheck = {
+    ...(precheck ?? {}),
+    ...(reference.precheck ?? {}),
+    skippedDeckSizes: precheck?.skippedDeckSizes ?? [],
+  };
   return {
     ...reference,
     stage: { ...stage, deckSizes, deckSize: best?.deck.length ?? null },
@@ -724,7 +734,9 @@ function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = 
     scout,
     guidance,
     searchScope,
+    precheck: mergedPrecheck,
     exact: !searchScope?.omitted?.length,
+    assumptions: reference.assumptions ?? [],
   };
 }
 
@@ -745,6 +757,12 @@ function lightestScoutPriority(character) {
 }
 function lightestScoutDeckKey(deck) {
   return deck.map((character) => String(character.id)).join("\u001f");
+}
+function lightestDeckCost(deck) {
+  return deck.reduce((sum, character) => sum + lightestCharacterCost(character), 0);
+}
+function lightestTaskKey(deckSize, cost) {
+  return `${deckSize}\u001f${cost}`;
 }
 function lightestScoutCandidatePool(available, limit) {
   const efficiency = [...available].sort((left, right) => (
@@ -823,16 +841,19 @@ function lightestScoutDecksForProfile(entry, stage, options) {
   }
   return decks;
 }
-async function lightestScoutWinningDeck(profiles, stage, options) {
+async function lightestScoutWinningDeck(profiles, stage, options, eligibleTasks = null) {
   const deckLimit = Math.max(0, Math.floor(Number(options.scoutDeckLimit) || 0));
   if (!deckLimit) return { attempted: false, sampledDeckCount: 0, candidateDeckCount: 0, found: false };
   const targetCost = lightestRequestedTargetCost(stage);
+  const eligibleTaskKeys = eligibleTasks
+    ? new Set(eligibleTasks.map((task) => lightestTaskKey(task.deckSize, task.cost)))
+    : null;
   const candidates = profiles
     .flatMap((entry) => lightestScoutDecksForProfile(entry, stage, options))
-    .filter(({ deck }) => targetCost === null || deck.reduce((sum, character) => sum + lightestCharacterCost(character), 0) === targetCost)
+    .filter(({ deck }) => targetCost === null || lightestDeckCost(deck) === targetCost)
+    .filter(({ deck }) => !eligibleTaskKeys || eligibleTaskKeys.has(lightestTaskKey(deck.length, lightestDeckCost(deck))))
     .sort((left, right) => right.score - left.score ||
-      left.deck.reduce((sum, character) => sum + lightestCharacterCost(character), 0) -
-        right.deck.reduce((sum, character) => sum + lightestCharacterCost(character), 0))
+      lightestDeckCost(left.deck) - lightestDeckCost(right.deck))
     .slice(0, deckLimit);
   for (let index = 0; index < candidates.length; index += 1) {
     if (options.signal?.aborted) throw lightestAbortError();
@@ -899,6 +920,14 @@ function lightestCostTasks(profiles, targetCost, preferredDeck = null) {
   });
 }
 
+function lightestDamageViableTasks(tasks, enemies) {
+  const totalEnemyHp = (enemies ?? []).reduce((sum, enemy) => sum + Math.max(0, Number(enemy?.hp) || 0), 0);
+  return tasks.filter((task) => {
+    const upperBound = task.profile.optimisticDamageUpperBoundsByCost.get(task.cost);
+    return upperBound === undefined || upperBound >= totalEnemyHp;
+  });
+}
+
 export async function findLightestDeck(characters, stage, searchOptions = {}) {
   const deckSizes = lightestDeckSizes(stage);
   const options = { ...LIGHTEST_DEFAULTS, ...searchOptions };
@@ -920,14 +949,70 @@ export async function findLightestDeck(characters, stage, searchOptions = {}) {
     return { ...result, guidance, searchScope, exact: !searchScope.omitted.length };
   }
   const targetCost = lightestRequestedTargetCost(normalizedStage);
-  const profiles = deckSizes.map((deckSize, index) => ({
+  const profileEntries = deckSizes.map((deckSize, index) => ({
     deckSize,
     deckSizeIndex: index + 1,
     profile: prepareExactLightestCandidateProfile(guidedCharacters, { ...normalizedStage, deckSize }, normalizedOptions),
   }));
-  const scout = await lightestScoutWinningDeck(profiles, normalizedStage, normalizedOptions);
-  const tasks = lightestCostTasks(profiles, targetCost, scout.deck)
-    .filter((task) => scout.upperCost === undefined || task.cost <= scout.upperCost);
+  const skippedDeckSizes = profileEntries.flatMap((entry) => {
+    const hasCombination = [...entry.profile.combinationCountsByCost.values()].some((count) => count > 0);
+    const infeasibility = entry.profile.infeasibility ?? (
+      !entry.profile.attainableCosts.length
+        ? { reason: "costCapacity", deckSize: entry.deckSize, maxCost: normalizedStage.maxCost }
+        : !hasCombination
+          ? { reason: "requiredLastSkillUnavailable", requiredLastSkillType: normalizedStage.requiredLastSkillType }
+          : null
+    );
+    return infeasibility ? [{ deckSize: entry.deckSize, ...infeasibility }] : [];
+  });
+  const profiles = profileEntries.filter((entry) => !skippedDeckSizes.some((skipped) => skipped.deckSize === entry.deckSize));
+  const precheck = {
+    availableCharacterCount: Math.max(0, ...profileEntries.map((entry) => entry.profile.available.length)),
+    skippedDeckSizes,
+  };
+  if (!profiles.length) {
+    return lightestCombinedSearchResult(normalizedStage, deckSizes, [], null, null, searchScope, guidance, precheck);
+  }
+  const stageInfeasibility = exactStageInfeasibility(normalizedStage, normalizedOptions);
+  if (stageInfeasibility) {
+    const attempts = [];
+    for (const entry of profiles) {
+      attempts.push(await findExactLightestDeck(guidedCharacters, {
+        ...normalizedStage,
+        deckSizes: undefined,
+        deckSize: entry.deckSize,
+      }, {
+        ...normalizedOptions,
+        preparedCandidateProfile: entry.profile,
+      }));
+    }
+    return lightestCombinedSearchResult(
+      normalizedStage,
+      deckSizes,
+      attempts,
+      null,
+      null,
+      searchScope,
+      guidance,
+      { ...precheck, stage: stageInfeasibility },
+    );
+  }
+  const candidateTasks = lightestCostTasks(profiles, targetCost);
+  if (!candidateTasks.length) {
+    return lightestCombinedSearchResult(normalizedStage, deckSizes, [], null, null, searchScope, guidance, precheck);
+  }
+  const damageViableTasks = lightestDamageViableTasks(candidateTasks, normalizedStage.enemies);
+  const searchPrecheck = !damageViableTasks.length
+    ? {
+      ...precheck,
+      damageUpperBound: { taskCount: candidateTasks.length, viableTaskCount: 0 },
+    }
+    : precheck;
+  const scout = damageViableTasks.length
+    ? await lightestScoutWinningDeck(profiles, normalizedStage, normalizedOptions, damageViableTasks)
+    : null;
+  const tasks = lightestCostTasks(profiles, targetCost, scout?.deck)
+    .filter((task) => scout?.upperCost === undefined || task.cost <= scout.upperCost);
   const attempts = [];
   for (let taskIndex = 0; taskIndex < tasks.length; taskIndex += 1) {
     const task = tasks[taskIndex];
@@ -962,7 +1047,7 @@ export async function findLightestDeck(characters, stage, searchOptions = {}) {
     }, {
       ...normalizedOptions,
       preparedCandidateProfile: task.profile,
-      preferredDeck: task.cost === scout.upperCost && task.deckSize === scout.deck?.length ? scout.deck : undefined,
+      preferredDeck: task.cost === scout?.upperCost && task.deckSize === scout?.deck?.length ? scout?.deck : undefined,
       onProgress: (progress) => searchOptions.onProgress?.({
         ...progress,
         ...progressMetadata,
@@ -982,8 +1067,17 @@ export async function findLightestDeck(characters, stage, searchOptions = {}) {
       taskCompleted: true,
     });
     const winner = attempt.results[0];
-    if (winner) return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, winner, scout, searchScope, guidance);
+    if (winner) return lightestCombinedSearchResult(
+      normalizedStage,
+      deckSizes,
+      attempts,
+      winner,
+      scout,
+      searchScope,
+      guidance,
+      searchPrecheck,
+    );
     await lightestYield();
   }
-  return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, null, scout, searchScope, guidance);
+  return lightestCombinedSearchResult(normalizedStage, deckSizes, attempts, null, scout, searchScope, guidance, searchPrecheck);
 }
