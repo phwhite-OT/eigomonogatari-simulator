@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 import {
   findLightestDeck,
+  findLightestScoutUpperBound,
   resolveLightestEnemy,
   simulateLightestStage,
 } from "../src/core/lightest.js";
@@ -837,4 +838,65 @@ test("到達ターン内に使える蘇生が残る枝は戦闘中に切り捨�
   });
 
   assert.equal(result.threeStar, true);
+});
+
+test("最軽装の高速探索は完全証明前の勝利コスト上限だけを返す", async () => {
+  const cheap = character("scout-bound-cheap", 1, 0);
+  const attacker = character("scout-bound-attacker", 2, 1_000);
+  const reviver = character("scout-bound-reviver", 1, 0, { type: "revive", turn: 99 });
+  const enemy = resolveLightestEnemy(character("scout-bound-enemy", 0, 0), { hp: 50, pow: 0 });
+  const result = await findLightestScoutUpperBound([cheap, attacker, reviver], {
+    enemies: [enemy],
+    deckSizes: [2],
+    maxCost: 5,
+    maxTurns: 1,
+    requiredLastSkillType: "revive",
+  }, {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+  });
+
+  assert.equal(result.found, true);
+  assert.equal(result.upperCost, 3);
+  assert.equal(result.searchScope.targetSearch, "automatic");
+  assert.equal(result.searchScope.skillSearch, "automatic");
+});
+
+test("同一コストの候補shardを合算しても完全探索の勝利を失わない", async () => {
+  const weak = character("shard-weak", 1, 0);
+  const attacker = character("shard-attacker", 1, 1_000);
+  const reviver = character("shard-reviver", 1, 0, { type: "revive", turn: 99 });
+  const enemy = resolveLightestEnemy(character("shard-enemy", 0, 0), { hp: 50, pow: 0 });
+  const stage = {
+    enemies: [enemy],
+    deckSize: 2,
+    maxCost: 2,
+    targetCost: 2,
+    maxTurns: 1,
+    requiredLastSkillType: "revive",
+  };
+  const options = {
+    allowDuplicates: false,
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 0,
+    stopOnFirstWin: false,
+  };
+  const full = await findExactLightestDeck([weak, attacker, reviver], stage, options);
+  const shards = await Promise.all([0, 1].map((index) => findExactLightestDeck(
+    [weak, attacker, reviver],
+    stage,
+    { ...options, candidateShard: { index, count: 2 } },
+  )));
+
+  assert.equal(full.foundThreeStar, true);
+  assert.ok(shards.some((result) => result.foundThreeStar));
+  assert.equal(
+    shards.reduce((sum, result) => sum + result.generatedCombinationCount, 0),
+    full.generatedCombinationCount,
+  );
+  assert.deepEqual(shards.map((result) => result.candidateShard), [
+    { index: 0, count: 2 },
+    { index: 1, count: 2 },
+  ]);
 });

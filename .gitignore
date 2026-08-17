@@ -1,4 +1,5 @@
 node_modules/
+.cache/
 cloud-data/
 reports/*
 !reports/metagame-v4-batch-status.json

@@ -16,6 +16,7 @@
     "rate:metagame:batch": "node scripts/rate-metagame-batch.mjs",
     "rate:metagame:supervisor": "node scripts/rate-metagame-supervisor.mjs",
     "rate:metagame:v7": "node scripts/rate-metagame-v7.mjs",
-    "build:metagame-data": "node scripts/build-metagame-simulator-data.mjs"
+    "build:metagame-data": "node scripts/build-metagame-simulator-data.mjs",
+    "run:lightest:local": "node scripts/run-lightest-local.mjs"
   }
 }
