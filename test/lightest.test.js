@@ -727,3 +727,12 @@ test("lightest template exposes individual search-scope controls", () => {
   assert.match(template, /name="lightestHpOrderOnly"/);
   assert.match(template, /data-lightest-fast-approximation-toggle/);
 });
+
+test("lightest enemy input uses a filtered in-app candidate list", () => {
+  const source = readFileSync(new URL("../src/ui/lightest.js", import.meta.url), "utf8");
+  const template = readFileSync(new URL("../src/index.template.html", import.meta.url), "utf8");
+  assert.match(source, /data-lightest-enemy-suggestions/);
+  assert.match(source, /searchCharacters\(characterSearchIndex, query, \{ limit: 12 \}\)/);
+  assert.doesNotMatch(source, /setAttribute\("list", "lightest-character-list"\)/);
+  assert.doesNotMatch(template, /id="lightest-character-list"/);
+});
