@@ -744,6 +744,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .character-search-reasons li { padding: 4px 6px; border-radius: 6px; background: white; color: #60706a; font-size: 7px; }
 .character-search-actions { display: grid; grid-template-columns: repeat(3,1fr); border-top: 1px solid #e7eae2; }
 .character-search-actions:not(.is-admin) { grid-template-columns: repeat(2,1fr); }
+.character-search-actions.is-database-admin { grid-template-columns: repeat(4,1fr); }
 .character-search-action { min-height: 39px; border: 0; border-right: 1px solid #e7eae2; background: white; color: #5a6963; cursor: pointer; font-size: 8px; font-weight: 800; }
 .character-search-card.is-compact .character-search-meta { gap: 3px; padding: 0 8px 6px; }
 .character-search-card.is-compact .character-search-meta span { padding: 3px 5px; font-size: 6px; }
@@ -821,6 +822,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .character-editor-close { width: 33px; height: 33px; border: 1px solid var(--line); border-radius: 9px; background: white; color: #66736e; cursor: pointer; font-size: 20px; line-height: 1; }
 .character-editor-message { min-height: 20px; margin: 14px 26px 0; color: #5e7027; font-size: 10px; line-height: 1.6; }
 .character-editor-message.is-error { color: #973829; }
+.character-database-notice { margin: 9px 0 0; color: #718078; font-size: 9px; font-weight: 700; line-height: 1.55; }
 .character-editor-section { padding: 20px 26px; border-bottom: 1px solid var(--line); }
 .character-editor-section h3 { margin: 0 0 14px; font-size: 13px; }
 .character-editor-owned { margin-top: 13px; }
@@ -1015,10 +1017,11 @@ footer span { font-weight: 800; letter-spacing: .1em; }
                 <span><strong data-priority-count>0</strong>有力</span>
               </div>
               <div class="button-row">
-                <label class="button button-primary file-button">JSONを読み込む<input type="file" accept="application/json,.json" data-character-file></label>
-                <button class="button button-ghost" type="button" data-character-editor-open>＋ キャラを追加</button>
-                <button class="button button-ghost" type="button" data-reset-demo>収録データへ戻す</button>
+                <label class="button button-primary file-button" data-character-database-admin hidden>JSONを読み込む<input type="file" accept="application/json,.json" data-character-file></label>
+                <button class="button button-ghost" type="button" data-character-editor-open data-character-database-admin hidden>＋ キャラを追加</button>
+                <button class="button button-ghost" type="button" data-reset-demo data-character-database-admin hidden>収録データへ戻す</button>
               </div>
+              <p class="character-database-notice" data-character-database-notice>キャラデータベースの追加・編集は管理者アカウント専用です。</p>
             </div>
           </section>
 
@@ -1330,7 +1333,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   <dialog class="character-editor-dialog" data-character-editor>
     <form class="character-editor-form" data-character-editor-form>
       <header class="character-editor-heading">
-        <div><span class="eyebrow">ADD CHARACTER</span><h2>キャラを追加</h2></div>
+        <div><span class="eyebrow" data-character-editor-mode>ADD CHARACTER</span><h2 data-character-editor-title>キャラを追加</h2></div>
         <button class="character-editor-close" type="button" data-character-editor-close aria-label="閉じる">×</button>
       </header>
       <p class="character-editor-message" data-character-editor-message></p>
@@ -1343,7 +1346,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
           <label class="field"><span>コスト</span><input type="number" name="manualCost" min="0" step="1" required value="1"></label>
           <label class="field"><span>HP（無凸Lv1）</span><input type="number" name="manualHp" min="1" step="1" required></label>
           <label class="field"><span>Power（無凸Lv1）</span><input type="number" name="manualPow" min="0" step="1" required></label>
-          <label class="field field-wide"><span>育成状態</span><select name="manualStatGrowth"><option value="lv1">無凸Lv1</option><option value="max">無凸LvMAX（Lv1の2倍）</option><option value="max_limit_break" selected>完凸LvMAX（レア度別の到達Lvで算出）</option></select></label>
+          <label class="field field-wide"><span>育成状態</span><select name="manualStatGrowth"><option value="final">表示ステータスを直接入力</option><option value="lv1">無凸Lv1</option><option value="max">無凸LvMAX（Lv1の2倍）</option><option value="max_limit_break" selected>完凸LvMAX（レア度別の到達Lvで算出）</option></select></label>
           <label class="field"><span>竹HP（無凸LvMAX・任意）</span><input type="number" name="manualNonLimitMaxHp" min="1" step="1" placeholder="空欄はLv1の2倍"></label>
           <label class="field"><span>竹Power（無凸LvMAX・任意）</span><input type="number" name="manualNonLimitMaxPow" min="0" step="1" placeholder="空欄はLv1の2倍"></label>
           <label class="field"><span>松HP（完凸LvMAX・任意）</span><input type="number" name="manualFullLimitMaxHp" min="1" step="1" placeholder="例外キャラは実数値を入力"></label>
@@ -1384,7 +1387,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 
       <footer class="character-editor-actions">
         <button class="button button-ghost" type="button" data-character-editor-close>キャンセル</button>
-        <button class="button button-primary" type="submit">追加する</button>
+        <button class="button button-primary" type="submit" data-character-editor-submit>追加する</button>
       </footer>
     </form>
   </dialog>
@@ -2016,7 +2019,78 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     });
   }
 
+  function updateManualCharacter(values, existingCharacter) {
+    if (!existingCharacter || typeof existingCharacter !== "object") {
+      throw new TypeError("編集するキャラデータを指定してください。");
+    }
+
+    const draft = createManualCharacter(values, [existingCharacter.id]);
+    return normalizeCharacter({
+      ...existingCharacter,
+      ...draft,
+      id: String(existingCharacter.id),
+      source: existingCharacter.source,
+      pvpTier: existingCharacter.pvpTier,
+      allowedPositions: existingCharacter.allowedPositions,
+      preferredPositions: existingCharacter.preferredPositions,
+      positionRule: existingCharacter.positionRule,
+      maxUses: existingCharacter.maxUses,
+      notes: existingCharacter.notes,
+      roleTags: existingCharacter.roleTags,
+      skill: {
+        ...existingCharacter.skill,
+        ...draft.skill,
+        priority: existingCharacter.skill?.priority ?? draft.skill.priority,
+      },
+    });
+  }
+
   //# sourceURL=src/data/characters.js
+
+  const CHARACTER_DATABASE_TABLE = "character_catalog_overrides";
+
+  function requireDatabaseClient(client) {
+    if (!client?.from) throw new TypeError("キャラデータベースへ接続できません。");
+    return client;
+  }
+
+  function parseCharacterDatabaseRows(rows) {
+    if (!Array.isArray(rows)) throw new TypeError("キャラデータベースの応答形式が不正です。");
+    const characters = parseCharacterPayload(rows.map((row) => row?.payload));
+    for (const [index, character] of characters.entries()) {
+      if (String(character.id) !== String(rows[index]?.id)) {
+        throw new TypeError(`キャラデータベースの${index + 1}件目でIDが一致しません。`);
+      }
+    }
+    return characters;
+  }
+
+  async function loadCharacterDatabase(client) {
+    const { data, error } = await requireDatabaseClient(client)
+      .from(CHARACTER_DATABASE_TABLE)
+      .select("id, payload, updated_at")
+      .order("updated_at", { ascending: true });
+    if (error) throw error;
+    return parseCharacterDatabaseRows(data ?? []);
+  }
+
+  async function saveCharacterDatabaseCharacter(client, character) {
+    const [normalized] = parseCharacterPayload([character]);
+    const row = {
+      id: String(normalized.id),
+      payload: normalized,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await requireDatabaseClient(client)
+      .from(CHARACTER_DATABASE_TABLE)
+      .upsert(row, { onConflict: "id" })
+      .select("id, payload, updated_at")
+      .single();
+    if (error) throw error;
+    return parseCharacterDatabaseRows([data])[0];
+  }
+
+  //# sourceURL=src/data/character-database.js
 
   // Generated from Book1.xlsx by scripts/convert_workbook.py.
   const WORKBOOK_DATA_SUMMARY = Object.freeze({"sourceRows":2217,"uniqueCharacters":2216,"mergedExactDuplicates":1});
@@ -14598,7 +14672,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return portrait;
   }
 
-  function renderCharacterCard(result, rank, { lightestAvailable = false, compact = false } = {}) {
+  function renderCharacterCard(result, rank, { lightestAvailable = false, characterDatabaseAccess = false, onEditCharacter, compact = false } = {}) {
     const { character } = result;
     const card = characterSearchElement("article", "character-search-card");
     card.classList.toggle("is-compact", compact);
@@ -14640,7 +14714,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     reasons.append(reasonList);
 
     const actions = characterSearchElement("div", "character-search-actions");
-    actions.classList.toggle("is-admin", lightestAvailable);
+    actions.classList.toggle("is-admin", lightestAvailable || characterDatabaseAccess);
+    actions.classList.toggle("is-database-admin", characterDatabaseAccess);
     actions.append(
       createActionButton("IDをコピー", async (event) => {
         const copied = await copyText(String(character.id));
@@ -14655,6 +14730,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       actions.append(createActionButton("最軽装候補へ", (event) => {
         if (appendCharacterId("lightestCandidates", character.id)) event.currentTarget.textContent = "追加しました";
       }));
+    }
+    if (characterDatabaseAccess) {
+      actions.append(createActionButton("編集", () => onEditCharacter?.(character)));
     }
 
     card.append(heading, meta, stats, skill);
@@ -14778,7 +14856,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   }
 
   function initializeCharacterSearch(root, initialCharacters, options = {}) {
-    if (!root) return { setCharacters() {}, setLightestAvailable() {}, search() {} };
+    if (!root) return { setCharacters() {}, setLightestAvailable() {}, setCharacterDatabaseAccess() {}, search() {} };
     const form = root.querySelector("[data-character-search-form]");
     const input = form.elements.characterQuery;
     const sort = form.elements.characterSort;
@@ -14790,7 +14868,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     let visibleLimit = CHARACTER_SEARCH_PAGE_SIZE;
     let debounceTimer = null;
     let lightestAvailable = Boolean(options.lightestAvailable);
-    const renderOptions = () => ({ lightestAvailable });
+    let characterDatabaseAccess = Boolean(options.characterDatabaseAccess);
+    const onEditCharacter = typeof options.onEditCharacter === "function" ? options.onEditCharacter : () => {};
+    const renderOptions = () => ({ lightestAvailable, characterDatabaseAccess, onEditCharacter });
 
     const renderCurrent = () => {
       if (!response) {
@@ -14849,8 +14929,12 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       lightestAvailable = Boolean(allowed);
       renderCurrent();
     };
+    const setCharacterDatabaseAccess = (allowed) => {
+      characterDatabaseAccess = Boolean(allowed);
+      renderCurrent();
+    };
     setCharacters(initialCharacters);
-    return { setCharacters, setLightestAvailable, search: runSearch };
+    return { setCharacters, setLightestAvailable, setCharacterDatabaseAccess, search: runSearch };
   }
 
   //# sourceURL=src/ui/character-search.js
@@ -14858,17 +14942,27 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   const SKILL_DETAIL_CONFIG = Object.freeze({
     none: { fields: [], summary: "詳細設定はありません" },
     single_attack: { fields: ["multiplier", "allyAttribute", "enemyAttribute"], summary: "倍率・属性条件" },
-    aoe_attack: { fields: ["duration", "allyAttribute", "enemyAttribute"], summary: "継続ターン・属性条件" },
-    multi_hit_attack: { fields: ["hits", "duration", "allyAttribute", "enemyAttribute"], summary: "ヒット数・継続ターン・属性条件" },
-    attack_buff: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "倍率・継続ターン・属性条件" },
-    damage_reduction: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "軽減率・継続ターン・属性条件" },
-    guard: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "軽減率・継続ターン・属性条件" },
-    attribute_guard: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "軽減率・継続ターン・属性条件" },
-    heal: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "回復率・継続ターン・属性条件" },
-    revive: { fields: ["multiplier", "allyAttribute", "enemyAttribute"], summary: "蘇生率・属性条件" },
-    attribute_change: { fields: ["duration", "allyAttribute", "enemyAttribute", "effectAttribute"], summary: "継続ターン・属性条件・変更先属性" },
+    aoe_attack: { fields: ["duration", "allyAttribute", "enemyAttribute"], summary: "持続ターン・属性条件" },
+    multi_hit_attack: { fields: ["hits", "duration", "allyAttribute", "enemyAttribute"], summary: "ヒット数・持続ターン・属性条件" },
+    attack_buff: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "倍率・持続ターン・属性条件" },
+    damage_reduction: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "軽減率・持続ターン・属性条件" },
+    guard: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "軽減率・持続ターン・属性条件" },
+    attribute_guard: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "軽減率・持続ターン・属性条件" },
+    heal: { fields: ["multiplier", "duration", "allyAttribute", "enemyAttribute"], summary: "回復量・持続ターン・属性条件" },
+    revive: { fields: ["multiplier", "allyAttribute", "enemyAttribute"], summary: "蘇生量・属性条件" },
+    attribute_change: { fields: ["duration", "allyAttribute", "enemyAttribute", "effectAttribute"], summary: "持続ターン・属性条件・変更後属性" },
     skill_reduction: { fields: ["amount", "allyAttribute", "enemyAttribute"], summary: "短縮量・属性条件" },
     delay: { fields: ["amount", "allyAttribute", "enemyAttribute"], summary: "遅延量・属性条件" },
+  });
+
+  const ATTRIBUTE_CLASS_BY_KEY = Object.freeze({
+    fire: "fire",
+    water: "water",
+    wind: "wind",
+    "fire,water": "fire_water",
+    "fire,wind": "fire_wind",
+    "water,wind": "water_wind",
+    "fire,water,wind": "all",
   });
 
   function getSkillDetailConfig(skillType) {
@@ -14906,9 +15000,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     };
   }
 
-  function syncSkillDefaults(form) {
+  function syncSkillDefaults(form, { preserveTargetCount = false } = {}) {
     const skillType = form.elements.manualSkillType.value;
-    form.elements.manualSkillTargetCount.value = skillType === "aoe_attack" ? "5" : "1";
+    if (!preserveTargetCount) form.elements.manualSkillTargetCount.value = skillType === "aoe_attack" ? "5" : "1";
     const config = getSkillDetailConfig(skillType);
     const details = form.querySelector("[data-character-editor-details]");
     const summary = form.querySelector("[data-character-editor-skill-details-summary]");
@@ -14916,7 +15010,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       details.hidden = skillType === "none";
       if (details.hidden) details.removeAttribute("open");
     }
-    if (summary) summary.textContent = "スキルの詳細設定（" + config.summary + "）";
+    if (summary) summary.textContent = `スキルの詳細設定（${config.summary}）`;
     form.querySelectorAll("[data-skill-detail]").forEach((field) => {
       field.hidden = !config.fields.includes(field.dataset.skillDetail);
     });
@@ -14927,8 +15021,13 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     if (!preview) return;
     const hp = Number(form.elements.manualHp.value);
     const pow = Number(form.elements.manualPow.value);
+    const statGrowth = form.elements.manualStatGrowth.value;
     if (!Number.isFinite(hp) || hp <= 0 || !Number.isFinite(pow) || pow < 0) {
-      preview.textContent = "無凸Lv1のHPとPowerを入力すると、選択中の育成状態で使う数値を表示します。";
+      preview.textContent = "HPとPowerを入力すると、選択中の育成状態で使う数値を表示します。";
+      return;
+    }
+    if (statGrowth === "final") {
+      preview.textContent = `表示ステータスを直接使用: HP ${hp.toLocaleString("ja-JP")} / Power ${pow.toLocaleString("ja-JP")}`;
       return;
     }
     const stages = calculateCharacterStatStages(hp, pow, {
@@ -14938,15 +15037,15 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       fullLimitBreakHp: form.elements.manualFullLimitMaxHp.value,
       fullLimitBreakPow: form.elements.manualFullLimitMaxPow.value,
     });
-    const stats = stages[form.elements.manualStatGrowth.value];
+    const stats = stages[statGrowth];
     if (!stats) {
-      preview.textContent = "完凸LvMAXの数値を出すには、標準レア度（N/R/CR/ZR/MZR/伝）か個別の松ステータスを入力してください。";
+      preview.textContent = "完凸LvMAXの数値を使うには、対応するレア度または個別の到達ステータスを入力してください。";
       return;
     }
     const profile = stages.profile
-      ? "標準上限: Lv" + stages.profile.normalMaxLevel + " → Lv" + stages.profile.fullLimitBreakMaxLevel
+      ? `標準上限: Lv${stages.profile.normalMaxLevel} → Lv${stages.profile.fullLimitBreakMaxLevel}`
       : "個別ステータスを使用";
-    preview.textContent = profile + " / 探索で使う値: HP " + stats.hp.toLocaleString("ja-JP") + " / Power " + stats.pow.toLocaleString("ja-JP");
+    preview.textContent = `${profile} / 計算で使う値: HP ${stats.hp.toLocaleString("ja-JP")} / Power ${stats.pow.toLocaleString("ja-JP")}`;
   }
 
   function resetForm(form) {
@@ -14964,27 +15063,111 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     updateStatPreview(form);
   }
 
-  function initializeCharacterEditor(dialog, { getExistingIds, onAdd }) {
-    if (!dialog) return { open() {} };
+  function attributeClassFor(character) {
+    return ATTRIBUTE_CLASS_BY_KEY[(character.attributes ?? []).join(",")] ?? "fire";
+  }
+
+  function conditionAttribute(character, type) {
+    return character.skill?.conditions?.find((condition) => condition?.type === type)?.attribute ?? "";
+  }
+
+  function effectAttribute(character) {
+    const attributes = character.skill?.effects?.map((effect) => effect?.attribute).filter(Boolean) ?? [];
+    if (attributes.length === 3 && ["fire", "water", "wind"].every((attribute) => attributes.includes(attribute))) return "all";
+    return attributes[0] ?? "";
+  }
+
+  function setFormValue(form, name, value) {
+    const element = form.elements[name];
+    if (element) element.value = value ?? "";
+  }
+
+  function populateCharacterEditorForm(form, character) {
+    const usesManualStages = character.manualStageStats === true;
+    setFormValue(form, "manualName", character.name);
+    setFormValue(form, "manualAttribute", attributeClassFor(character));
+    setFormValue(form, "manualCost", character.cost);
+    setFormValue(form, "manualHp", usesManualStages ? character.level1Hp : character.hp);
+    setFormValue(form, "manualPow", usesManualStages ? character.level1Pow : character.pow);
+    setFormValue(form, "manualStatGrowth", usesManualStages ? character.statGrowth : "final");
+    setFormValue(form, "manualNonLimitMaxHp", usesManualStages ? character.baseHp : "");
+    setFormValue(form, "manualNonLimitMaxPow", usesManualStages ? character.basePow : "");
+    setFormValue(form, "manualFullLimitMaxHp", usesManualStages ? character.fullLimitBreakHp : "");
+    setFormValue(form, "manualFullLimitMaxPow", usesManualStages ? character.fullLimitBreakPow : "");
+    setFormValue(form, "manualRarity", character.rarity);
+    setFormValue(form, "manualRegion", character.region);
+    form.elements.manualOwned.checked = character.owned !== false;
+    setFormValue(form, "manualSkillType", character.skill?.type ?? "none");
+    setFormValue(form, "manualSkillTurn", character.skillTurn ?? 0);
+    setFormValue(form, "manualSkillName", character.skillName);
+    setFormValue(form, "manualSkillCategory", character.skillCategory === "-" ? "" : character.skillCategory);
+    setFormValue(form, "manualSkillTarget", character.skill?.target ?? "");
+    setFormValue(form, "manualSkillMultiplier", character.skill?.multiplier ?? 1);
+    setFormValue(form, "manualSkillHits", character.skill?.hits ?? 1);
+    setFormValue(form, "manualSkillDuration", character.skill?.duration ?? 1);
+    setFormValue(form, "manualSkillAmount", character.skill?.amount ?? 0);
+    setFormValue(form, "manualSkillTargetCount", character.skill?.targetCount ?? 1);
+    setFormValue(form, "manualSkillAllyAttribute", conditionAttribute(character, "ally_attribute"));
+    setFormValue(form, "manualSkillEnemyAttribute", conditionAttribute(character, "enemy_attribute"));
+    setFormValue(form, "manualSkillEffectAttribute", effectAttribute(character));
+    syncSkillDefaults(form, { preserveTargetCount: true });
+    updateStatPreview(form);
+  }
+
+  function initializeCharacterEditor(dialog, { getExistingIds = () => [], isAllowed = () => false, onAdd, onEdit } = {}) {
+    if (!dialog) return { open() {}, openForEdit() {}, setAccess() {} };
     const form = dialog.querySelector("[data-character-editor-form]");
     const message = dialog.querySelector("[data-character-editor-message]");
+    const mode = dialog.querySelector("[data-character-editor-mode]");
+    const title = dialog.querySelector("[data-character-editor-title]");
+    const submitButton = dialog.querySelector("[data-character-editor-submit]");
     const openButtons = document.querySelectorAll("[data-character-editor-open]");
     const closeButtons = dialog.querySelectorAll("[data-character-editor-close]");
+    let editingCharacter = null;
+    let busy = false;
 
     const showMessage = (text, error = false) => {
       message.textContent = text;
       message.classList.toggle("is-error", error);
     };
+    const setBusy = (nextBusy) => {
+      busy = nextBusy;
+      submitButton.disabled = nextBusy;
+      form.setAttribute("aria-busy", String(nextBusy));
+    };
+    const close = () => {
+      if (busy) return;
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    };
+    const assertAllowed = () => {
+      if (isAllowed()) return true;
+      showMessage("キャラデータベースの追加・編集は管理者アカウント専用です。", true);
+      return false;
+    };
     const open = () => {
+      if (!assertAllowed()) return;
+      editingCharacter = null;
       resetForm(form);
-      showMessage("無凸Lv1のHP・Powerと育成状態から最終値を自動計算し、すべての探索で共通利用します。");
+      mode.textContent = "ADD CHARACTER";
+      title.textContent = "キャラを追加";
+      submitButton.textContent = "追加する";
+      showMessage("無凸Lv1のHP・Powerと育成状態から、すべての計算で共通利用します。");
       if (typeof dialog.showModal === "function") dialog.showModal();
       else dialog.setAttribute("open", "");
       form.elements.manualName.focus();
     };
-    const close = () => {
-      if (typeof dialog.close === "function") dialog.close();
-      else dialog.removeAttribute("open");
+    const openForEdit = (character) => {
+      if (!assertAllowed() || !character) return;
+      editingCharacter = character;
+      populateCharacterEditorForm(form, character);
+      mode.textContent = "EDIT CHARACTER";
+      title.textContent = "キャラを編集";
+      submitButton.textContent = "変更を保存";
+      showMessage(`ID ${character.id} を編集しています。保存するとキャラデータベースへ反映されます。`);
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+      form.elements.manualName.focus();
     };
 
     openButtons.forEach((button) => button.addEventListener("click", open));
@@ -14998,25 +15181,32 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       form.elements.manualNonLimitMaxPow,
       form.elements.manualFullLimitMaxHp,
       form.elements.manualFullLimitMaxPow,
-    ].forEach((input) => {
-      input.addEventListener("input", () => updateStatPreview(form));
-    });
+    ].forEach((input) => input.addEventListener("input", () => updateStatPreview(form)));
     form.elements.manualStatGrowth.addEventListener("change", () => updateStatPreview(form));
     dialog.addEventListener("click", (event) => {
       if (event.target === dialog) close();
     });
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (busy || !assertAllowed()) return;
       try {
-        const character = createManualCharacter(formValues(form), getExistingIds());
-        onAdd(character);
+        setBusy(true);
+        const character = editingCharacter
+          ? updateManualCharacter(formValues(form), editingCharacter)
+          : createManualCharacter(formValues(form), getExistingIds());
+        const save = editingCharacter ? onEdit : onAdd;
+        if (typeof save !== "function") throw new TypeError("キャラデータベースの保存処理を開始できません。");
+        await save(character, editingCharacter);
+        setBusy(false);
         close();
       } catch (error) {
-        showMessage(error.message ?? String(error), true);
+        showMessage(error?.message ?? String(error), true);
+      } finally {
+        setBusy(false);
       }
     });
 
-    return { open };
+    return { open, openForEdit, setAccess() {} };
   }
 
   //# sourceURL=src/ui/character-editor.js
@@ -15287,32 +15477,12 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 
   //# sourceURL=src/auth/supabase-auth.js
 
-  const MANUAL_CHARACTERS_STORAGE_KEY = "eigo-deck-compass.manual-characters.v1";
-
-  function loadManualCharacters() {
-    try {
-      const raw = localStorage.getItem(MANUAL_CHARACTERS_STORAGE_KEY);
-      return raw ? parseCharacterPayload(JSON.parse(raw)) : [];
-    } catch {
-      return [];
+  function combineCharacters(...characterLists) {
+    const charactersById = new Map();
+    for (const characters of characterLists) {
+      for (const character of characters) charactersById.set(String(character.id), character);
     }
-  }
-
-  function saveManualCharacters(characters) {
-    try {
-      localStorage.setItem(MANUAL_CHARACTERS_STORAGE_KEY, JSON.stringify(characters));
-    } catch {
-    }
-  }
-
-  function combineCharacters(baseCharacters, manualCharacters) {
-    const ids = new Set();
-    return [...baseCharacters, ...manualCharacters].filter((character) => {
-      const id = String(character.id);
-      if (ids.has(id)) return false;
-      ids.add(id);
-      return true;
-    });
+    return [...charactersById.values()];
   }
   function bootstrap() {
     const form = document.querySelector("[data-search-form]");
@@ -15328,21 +15498,26 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const cancelButton = form.querySelector("[data-cancel-button]");
     const fileInput = document.querySelector("[data-character-file]");
     const resetDataButton = document.querySelector("[data-reset-demo]");
+    const characterDatabaseNotice = document.querySelector("[data-character-database-notice]");
+    const characterDatabaseAdminControls = document.querySelectorAll("[data-character-database-admin]");
     const bundledSourceLabel = `Book1.xlsx＋手動補完データ（${CHARACTER_CATALOG_SUMMARY.totalCharacters.toLocaleString("ja-JP")}体）`;
     let baseCharacters = [...CHARACTER_CATALOG];
-    let manualCharacters = loadManualCharacters();
-    let characters = combineCharacters(baseCharacters, manualCharacters);
+    let databaseCharacters = [];
+    let characters = combineCharacters(baseCharacters, databaseCharacters);
     let sourceLabel = bundledSourceLabel;
     let abortController = null;
     let characterSearchController = null;
+    let characterEditorController = null;
     let lightestController = null;
     let deckCharacterPickerController = null;
+    let databaseClient = null;
+    let characterDatabaseRevision = 0;
     let administratorAccess = false;
 
     const refreshData = () => {
       hydrateCharacterOptions(form, characters);
-      const manualLabel = manualCharacters.length ? ` + 手入力${manualCharacters.length.toLocaleString("ja-JP")}体` : "";
-      updateDataSummary(dataSummary, characters, sourceLabel + manualLabel);
+      const databaseLabel = databaseCharacters.length ? ` + 管理DB${databaseCharacters.length.toLocaleString("ja-JP")}体` : "";
+      updateDataSummary(dataSummary, characters, sourceLabel + databaseLabel);
       characterSearchController?.setCharacters(characters);
       lightestController?.setCharacters(characters);
       deckCharacterPickerController?.setCharacters(characters);
@@ -15354,32 +15529,80 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       administratorAccess = isAdministrator;
       tabsController.setAccess("lightest", isAdministrator);
       characterSearchController?.setLightestAvailable(isAdministrator);
+      characterSearchController?.setCharacterDatabaseAccess(isAdministrator);
+      characterDatabaseAdminControls.forEach((control) => { control.hidden = !isAdministrator; });
+      fileInput.disabled = !isAdministrator;
+      resetDataButton.disabled = !isAdministrator;
+      if (characterDatabaseNotice) {
+        characterDatabaseNotice.textContent = isAdministrator
+          ? "管理者としてログイン中です。キャラの追加・編集はキャラデータベースへ保存されます。"
+          : "キャラデータベースの追加・編集は管理者アカウント専用です。";
+      }
       if (isAdministrator && !lightestController) {
         lightestController = initializeLightest(lightestRoot, characters);
       }
+      if (databaseClient) void refreshCharacterDatabase();
     };
 
     const setBusy = (busy) => {
       searchButton.disabled = busy;
       cancelButton.hidden = !busy;
-      fileInput.disabled = busy;
+      fileInput.disabled = busy || !administratorAccess;
+      resetDataButton.disabled = busy || !administratorAccess;
       form.setAttribute("aria-busy", String(busy));
       if (!busy) progressRoot.hidden = true;
     };
 
+    const persistCharacterDatabaseEntry = async (character) => {
+      if (!administratorAccess) throw new Error("キャラデータベースの追加・編集は管理者アカウント専用です。");
+      if (!databaseClient) throw new Error("キャラデータベースへの接続を準備中です。少し待ってからもう一度保存してください。");
+      const savedCharacter = await saveCharacterDatabaseCharacter(databaseClient, character);
+      characterDatabaseRevision += 1;
+      databaseCharacters = combineCharacters(
+        databaseCharacters.filter((item) => String(item.id) !== String(savedCharacter.id)),
+        [savedCharacter],
+      );
+      characters = combineCharacters(baseCharacters, databaseCharacters);
+      refreshData();
+      renderIdle(resultRoot);
+      if (characterDatabaseNotice) {
+        characterDatabaseNotice.textContent = `キャラデータベースへ保存しました（管理DB ${databaseCharacters.length.toLocaleString("ja-JP")}体）。`;
+      }
+    };
+
+    async function refreshCharacterDatabase() {
+      if (!databaseClient) return;
+      const revision = ++characterDatabaseRevision;
+      try {
+        const loadedCharacters = await loadCharacterDatabase(databaseClient);
+        if (revision !== characterDatabaseRevision) return;
+        databaseCharacters = loadedCharacters;
+        characters = combineCharacters(baseCharacters, databaseCharacters);
+        refreshData();
+        if (administratorAccess && characterDatabaseNotice) {
+          characterDatabaseNotice.textContent = `キャラデータベースを同期しました（管理DB ${databaseCharacters.length.toLocaleString("ja-JP")}体）。`;
+        }
+      } catch (error) {
+        console.warn("Character database is unavailable.", error);
+        if (administratorAccess && characterDatabaseNotice) {
+          characterDatabaseNotice.textContent = "キャラデータベースを読み込めません。Supabaseのマイグレーション適用後に再読み込みしてください。";
+        }
+      }
+    }
+
     initializeStaticOptions(form);
     deckCharacterPickerController = initializeDeckCharacterPicker(form, characters);
-    characterSearchController = initializeCharacterSearch(characterSearchRoot, characters, { lightestAvailable: false });
+    characterSearchController = initializeCharacterSearch(characterSearchRoot, characters, {
+      lightestAvailable: false,
+      characterDatabaseAccess: false,
+      onEditCharacter: (character) => characterEditorController?.openForEdit(character),
+    });
     initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, CHARACTER_CATALOG);
-    initializeCharacterEditor(characterEditor, {
+    characterEditorController = initializeCharacterEditor(characterEditor, {
       getExistingIds: () => characters.map((character) => character.id),
-      onAdd: (character) => {
-        manualCharacters = [...manualCharacters, character];
-        saveManualCharacters(manualCharacters);
-        characters = combineCharacters(baseCharacters, manualCharacters);
-        refreshData();
-        renderIdle(resultRoot);
-      },
+      isAllowed: () => administratorAccess,
+      onAdd: persistCharacterDatabaseEntry,
+      onEdit: persistCharacterDatabaseEntry,
     });
     resetDataButton.textContent = "収録データへ戻す";
     rulesEditor.value = JSON.stringify({
@@ -15391,19 +15614,25 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     refreshData();
     renderIdle(resultRoot);
 
-    const initializeAuthWhenAvailable = () => void initializeSupabaseAuth(document, {
-      onSessionChange: applyAdministratorAccess,
-    });
+    const initializeAuthWhenAvailable = () => void (async () => {
+      const auth = await initializeSupabaseAuth(document, {
+        onSessionChange: applyAdministratorAccess,
+      });
+      if (!auth?.client) return;
+      databaseClient = auth.client;
+      await refreshCharacterDatabase();
+    })();
     if (globalThis.supabase?.createClient) initializeAuthWhenAvailable();
     else window.addEventListener("eigo-supabase-ready", initializeAuthWhenAvailable, { once: true });
 
     fileInput.addEventListener("change", async () => {
+      if (!administratorAccess) return;
       const [file] = fileInput.files;
       if (!file) return;
       try {
         const payload = JSON.parse(await file.text());
         baseCharacters = parseCharacterPayload(payload);
-        characters = combineCharacters(baseCharacters, manualCharacters);
+        characters = combineCharacters(baseCharacters, databaseCharacters);
         sourceLabel = file.name;
         refreshData();
         renderIdle(resultRoot);
@@ -15414,8 +15643,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     });
 
     resetDataButton.addEventListener("click", () => {
+      if (!administratorAccess) return;
       baseCharacters = [...CHARACTER_CATALOG];
-      characters = combineCharacters(baseCharacters, manualCharacters);
+      characters = combineCharacters(baseCharacters, databaseCharacters);
       sourceLabel = bundledSourceLabel;
       fileInput.value = "";
       refreshData();

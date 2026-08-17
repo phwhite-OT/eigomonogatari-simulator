@@ -448,3 +448,29 @@ export function createManualCharacter(values, existingIds = []) {
     },
   });
 }
+
+export function updateManualCharacter(values, existingCharacter) {
+  if (!existingCharacter || typeof existingCharacter !== "object") {
+    throw new TypeError("編集するキャラデータを指定してください。");
+  }
+
+  const draft = createManualCharacter(values, [existingCharacter.id]);
+  return normalizeCharacter({
+    ...existingCharacter,
+    ...draft,
+    id: String(existingCharacter.id),
+    source: existingCharacter.source,
+    pvpTier: existingCharacter.pvpTier,
+    allowedPositions: existingCharacter.allowedPositions,
+    preferredPositions: existingCharacter.preferredPositions,
+    positionRule: existingCharacter.positionRule,
+    maxUses: existingCharacter.maxUses,
+    notes: existingCharacter.notes,
+    roleTags: existingCharacter.roleTags,
+    skill: {
+      ...existingCharacter.skill,
+      ...draft.skill,
+      priority: existingCharacter.skill?.priority ?? draft.skill.priority,
+    },
+  });
+}

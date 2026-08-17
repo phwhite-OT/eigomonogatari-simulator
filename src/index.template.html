@@ -124,10 +124,11 @@
                 <span><strong data-priority-count>0</strong>有力</span>
               </div>
               <div class="button-row">
-                <label class="button button-primary file-button">JSONを読み込む<input type="file" accept="application/json,.json" data-character-file></label>
-                <button class="button button-ghost" type="button" data-character-editor-open>＋ キャラを追加</button>
-                <button class="button button-ghost" type="button" data-reset-demo>収録データへ戻す</button>
+                <label class="button button-primary file-button" data-character-database-admin hidden>JSONを読み込む<input type="file" accept="application/json,.json" data-character-file></label>
+                <button class="button button-ghost" type="button" data-character-editor-open data-character-database-admin hidden>＋ キャラを追加</button>
+                <button class="button button-ghost" type="button" data-reset-demo data-character-database-admin hidden>収録データへ戻す</button>
               </div>
+              <p class="character-database-notice" data-character-database-notice>キャラデータベースの追加・編集は管理者アカウント専用です。</p>
             </div>
           </section>
 
@@ -439,7 +440,7 @@
   <dialog class="character-editor-dialog" data-character-editor>
     <form class="character-editor-form" data-character-editor-form>
       <header class="character-editor-heading">
-        <div><span class="eyebrow">ADD CHARACTER</span><h2>キャラを追加</h2></div>
+        <div><span class="eyebrow" data-character-editor-mode>ADD CHARACTER</span><h2 data-character-editor-title>キャラを追加</h2></div>
         <button class="character-editor-close" type="button" data-character-editor-close aria-label="閉じる">×</button>
       </header>
       <p class="character-editor-message" data-character-editor-message></p>
@@ -452,7 +453,7 @@
           <label class="field"><span>コスト</span><input type="number" name="manualCost" min="0" step="1" required value="1"></label>
           <label class="field"><span>HP（無凸Lv1）</span><input type="number" name="manualHp" min="1" step="1" required></label>
           <label class="field"><span>Power（無凸Lv1）</span><input type="number" name="manualPow" min="0" step="1" required></label>
-          <label class="field field-wide"><span>育成状態</span><select name="manualStatGrowth"><option value="lv1">無凸Lv1</option><option value="max">無凸LvMAX（Lv1の2倍）</option><option value="max_limit_break" selected>完凸LvMAX（レア度別の到達Lvで算出）</option></select></label>
+          <label class="field field-wide"><span>育成状態</span><select name="manualStatGrowth"><option value="final">表示ステータスを直接入力</option><option value="lv1">無凸Lv1</option><option value="max">無凸LvMAX（Lv1の2倍）</option><option value="max_limit_break" selected>完凸LvMAX（レア度別の到達Lvで算出）</option></select></label>
           <label class="field"><span>竹HP（無凸LvMAX・任意）</span><input type="number" name="manualNonLimitMaxHp" min="1" step="1" placeholder="空欄はLv1の2倍"></label>
           <label class="field"><span>竹Power（無凸LvMAX・任意）</span><input type="number" name="manualNonLimitMaxPow" min="0" step="1" placeholder="空欄はLv1の2倍"></label>
           <label class="field"><span>松HP（完凸LvMAX・任意）</span><input type="number" name="manualFullLimitMaxHp" min="1" step="1" placeholder="例外キャラは実数値を入力"></label>
@@ -493,7 +494,7 @@
 
       <footer class="character-editor-actions">
         <button class="button button-ghost" type="button" data-character-editor-close>キャンセル</button>
-        <button class="button button-primary" type="submit">追加する</button>
+        <button class="button button-primary" type="submit" data-character-editor-submit>追加する</button>
       </footer>
     </form>
   </dialog>

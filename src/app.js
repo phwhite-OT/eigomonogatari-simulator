@@ -1,5 +1,6 @@
 import { DEFAULT_RULES, mergeRules, validateRules } from "./data/rules.js";
 import { parseCharacterPayload } from "./data/characters.js";
+import { loadCharacterDatabase, saveCharacterDatabaseCharacter } from "./data/character-database.js";
 import { CHARACTER_CATALOG, CHARACTER_CATALOG_SUMMARY } from "./data/character-catalog.js";
 import { METAGAME_SIMULATOR_DATA } from "./data/metagame-simulator-data.js";
 import { searchDecks } from "./core/search-fast.js";
@@ -29,32 +30,12 @@ import { initializeAppTabs } from "./ui/tabs.js";
 import { initializeSupabaseAuth } from "./auth/supabase-auth.js";
 import { isAdministratorSession } from "./auth/admin.js";
 
-const MANUAL_CHARACTERS_STORAGE_KEY = "eigo-deck-compass.manual-characters.v1";
-
-function loadManualCharacters() {
-  try {
-    const raw = localStorage.getItem(MANUAL_CHARACTERS_STORAGE_KEY);
-    return raw ? parseCharacterPayload(JSON.parse(raw)) : [];
-  } catch {
-    return [];
+function combineCharacters(...characterLists) {
+  const charactersById = new Map();
+  for (const characters of characterLists) {
+    for (const character of characters) charactersById.set(String(character.id), character);
   }
-}
-
-function saveManualCharacters(characters) {
-  try {
-    localStorage.setItem(MANUAL_CHARACTERS_STORAGE_KEY, JSON.stringify(characters));
-  } catch {
-  }
-}
-
-function combineCharacters(baseCharacters, manualCharacters) {
-  const ids = new Set();
-  return [...baseCharacters, ...manualCharacters].filter((character) => {
-    const id = String(character.id);
-    if (ids.has(id)) return false;
-    ids.add(id);
-    return true;
-  });
+  return [...charactersById.values()];
 }
 function bootstrap() {
   const form = document.querySelector("[data-search-form]");
@@ -70,21 +51,26 @@ function bootstrap() {
   const cancelButton = form.querySelector("[data-cancel-button]");
   const fileInput = document.querySelector("[data-character-file]");
   const resetDataButton = document.querySelector("[data-reset-demo]");
+  const characterDatabaseNotice = document.querySelector("[data-character-database-notice]");
+  const characterDatabaseAdminControls = document.querySelectorAll("[data-character-database-admin]");
   const bundledSourceLabel = `Book1.xlsx＋手動補完データ（${CHARACTER_CATALOG_SUMMARY.totalCharacters.toLocaleString("ja-JP")}体）`;
   let baseCharacters = [...CHARACTER_CATALOG];
-  let manualCharacters = loadManualCharacters();
-  let characters = combineCharacters(baseCharacters, manualCharacters);
+  let databaseCharacters = [];
+  let characters = combineCharacters(baseCharacters, databaseCharacters);
   let sourceLabel = bundledSourceLabel;
   let abortController = null;
   let characterSearchController = null;
+  let characterEditorController = null;
   let lightestController = null;
   let deckCharacterPickerController = null;
+  let databaseClient = null;
+  let characterDatabaseRevision = 0;
   let administratorAccess = false;
 
   const refreshData = () => {
     hydrateCharacterOptions(form, characters);
-    const manualLabel = manualCharacters.length ? ` + 手入力${manualCharacters.length.toLocaleString("ja-JP")}体` : "";
-    updateDataSummary(dataSummary, characters, sourceLabel + manualLabel);
+    const databaseLabel = databaseCharacters.length ? ` + 管理DB${databaseCharacters.length.toLocaleString("ja-JP")}体` : "";
+    updateDataSummary(dataSummary, characters, sourceLabel + databaseLabel);
     characterSearchController?.setCharacters(characters);
     lightestController?.setCharacters(characters);
     deckCharacterPickerController?.setCharacters(characters);
@@ -96,32 +82,80 @@ function bootstrap() {
     administratorAccess = isAdministrator;
     tabsController.setAccess("lightest", isAdministrator);
     characterSearchController?.setLightestAvailable(isAdministrator);
+    characterSearchController?.setCharacterDatabaseAccess(isAdministrator);
+    characterDatabaseAdminControls.forEach((control) => { control.hidden = !isAdministrator; });
+    fileInput.disabled = !isAdministrator;
+    resetDataButton.disabled = !isAdministrator;
+    if (characterDatabaseNotice) {
+      characterDatabaseNotice.textContent = isAdministrator
+        ? "管理者としてログイン中です。キャラの追加・編集はキャラデータベースへ保存されます。"
+        : "キャラデータベースの追加・編集は管理者アカウント専用です。";
+    }
     if (isAdministrator && !lightestController) {
       lightestController = initializeLightest(lightestRoot, characters);
     }
+    if (databaseClient) void refreshCharacterDatabase();
   };
 
   const setBusy = (busy) => {
     searchButton.disabled = busy;
     cancelButton.hidden = !busy;
-    fileInput.disabled = busy;
+    fileInput.disabled = busy || !administratorAccess;
+    resetDataButton.disabled = busy || !administratorAccess;
     form.setAttribute("aria-busy", String(busy));
     if (!busy) progressRoot.hidden = true;
   };
 
+  const persistCharacterDatabaseEntry = async (character) => {
+    if (!administratorAccess) throw new Error("キャラデータベースの追加・編集は管理者アカウント専用です。");
+    if (!databaseClient) throw new Error("キャラデータベースへの接続を準備中です。少し待ってからもう一度保存してください。");
+    const savedCharacter = await saveCharacterDatabaseCharacter(databaseClient, character);
+    characterDatabaseRevision += 1;
+    databaseCharacters = combineCharacters(
+      databaseCharacters.filter((item) => String(item.id) !== String(savedCharacter.id)),
+      [savedCharacter],
+    );
+    characters = combineCharacters(baseCharacters, databaseCharacters);
+    refreshData();
+    renderIdle(resultRoot);
+    if (characterDatabaseNotice) {
+      characterDatabaseNotice.textContent = `キャラデータベースへ保存しました（管理DB ${databaseCharacters.length.toLocaleString("ja-JP")}体）。`;
+    }
+  };
+
+  async function refreshCharacterDatabase() {
+    if (!databaseClient) return;
+    const revision = ++characterDatabaseRevision;
+    try {
+      const loadedCharacters = await loadCharacterDatabase(databaseClient);
+      if (revision !== characterDatabaseRevision) return;
+      databaseCharacters = loadedCharacters;
+      characters = combineCharacters(baseCharacters, databaseCharacters);
+      refreshData();
+      if (administratorAccess && characterDatabaseNotice) {
+        characterDatabaseNotice.textContent = `キャラデータベースを同期しました（管理DB ${databaseCharacters.length.toLocaleString("ja-JP")}体）。`;
+      }
+    } catch (error) {
+      console.warn("Character database is unavailable.", error);
+      if (administratorAccess && characterDatabaseNotice) {
+        characterDatabaseNotice.textContent = "キャラデータベースを読み込めません。Supabaseのマイグレーション適用後に再読み込みしてください。";
+      }
+    }
+  }
+
   initializeStaticOptions(form);
   deckCharacterPickerController = initializeDeckCharacterPicker(form, characters);
-  characterSearchController = initializeCharacterSearch(characterSearchRoot, characters, { lightestAvailable: false });
+  characterSearchController = initializeCharacterSearch(characterSearchRoot, characters, {
+    lightestAvailable: false,
+    characterDatabaseAccess: false,
+    onEditCharacter: (character) => characterEditorController?.openForEdit(character),
+  });
   initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, CHARACTER_CATALOG);
-  initializeCharacterEditor(characterEditor, {
+  characterEditorController = initializeCharacterEditor(characterEditor, {
     getExistingIds: () => characters.map((character) => character.id),
-    onAdd: (character) => {
-      manualCharacters = [...manualCharacters, character];
-      saveManualCharacters(manualCharacters);
-      characters = combineCharacters(baseCharacters, manualCharacters);
-      refreshData();
-      renderIdle(resultRoot);
-    },
+    isAllowed: () => administratorAccess,
+    onAdd: persistCharacterDatabaseEntry,
+    onEdit: persistCharacterDatabaseEntry,
   });
   resetDataButton.textContent = "収録データへ戻す";
   rulesEditor.value = JSON.stringify({
@@ -133,19 +167,25 @@ function bootstrap() {
   refreshData();
   renderIdle(resultRoot);
 
-  const initializeAuthWhenAvailable = () => void initializeSupabaseAuth(document, {
-    onSessionChange: applyAdministratorAccess,
-  });
+  const initializeAuthWhenAvailable = () => void (async () => {
+    const auth = await initializeSupabaseAuth(document, {
+      onSessionChange: applyAdministratorAccess,
+    });
+    if (!auth?.client) return;
+    databaseClient = auth.client;
+    await refreshCharacterDatabase();
+  })();
   if (globalThis.supabase?.createClient) initializeAuthWhenAvailable();
   else window.addEventListener("eigo-supabase-ready", initializeAuthWhenAvailable, { once: true });
 
   fileInput.addEventListener("change", async () => {
+    if (!administratorAccess) return;
     const [file] = fileInput.files;
     if (!file) return;
     try {
       const payload = JSON.parse(await file.text());
       baseCharacters = parseCharacterPayload(payload);
-      characters = combineCharacters(baseCharacters, manualCharacters);
+      characters = combineCharacters(baseCharacters, databaseCharacters);
       sourceLabel = file.name;
       refreshData();
       renderIdle(resultRoot);
@@ -156,8 +196,9 @@ function bootstrap() {
   });
 
   resetDataButton.addEventListener("click", () => {
+    if (!administratorAccess) return;
     baseCharacters = [...CHARACTER_CATALOG];
-    characters = combineCharacters(baseCharacters, manualCharacters);
+    characters = combineCharacters(baseCharacters, databaseCharacters);
     sourceLabel = bundledSourceLabel;
     fileInput.value = "";
     refreshData();

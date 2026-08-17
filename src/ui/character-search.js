@@ -74,7 +74,7 @@ function renderCharacterPortrait(character) {
   return portrait;
 }
 
-function renderCharacterCard(result, rank, { lightestAvailable = false, compact = false } = {}) {
+function renderCharacterCard(result, rank, { lightestAvailable = false, characterDatabaseAccess = false, onEditCharacter, compact = false } = {}) {
   const { character } = result;
   const card = characterSearchElement("article", "character-search-card");
   card.classList.toggle("is-compact", compact);
@@ -116,7 +116,8 @@ function renderCharacterCard(result, rank, { lightestAvailable = false, compact 
   reasons.append(reasonList);
 
   const actions = characterSearchElement("div", "character-search-actions");
-  actions.classList.toggle("is-admin", lightestAvailable);
+  actions.classList.toggle("is-admin", lightestAvailable || characterDatabaseAccess);
+  actions.classList.toggle("is-database-admin", characterDatabaseAccess);
   actions.append(
     createActionButton("IDをコピー", async (event) => {
       const copied = await copyText(String(character.id));
@@ -131,6 +132,9 @@ function renderCharacterCard(result, rank, { lightestAvailable = false, compact 
     actions.append(createActionButton("最軽装候補へ", (event) => {
       if (appendCharacterId("lightestCandidates", character.id)) event.currentTarget.textContent = "追加しました";
     }));
+  }
+  if (characterDatabaseAccess) {
+    actions.append(createActionButton("編集", () => onEditCharacter?.(character)));
   }
 
   card.append(heading, meta, stats, skill);
@@ -254,7 +258,7 @@ function renderSearchResults(resultRoot, response, visibleLimit, onLoadMore, opt
 }
 
 export function initializeCharacterSearch(root, initialCharacters, options = {}) {
-  if (!root) return { setCharacters() {}, setLightestAvailable() {}, search() {} };
+  if (!root) return { setCharacters() {}, setLightestAvailable() {}, setCharacterDatabaseAccess() {}, search() {} };
   const form = root.querySelector("[data-character-search-form]");
   const input = form.elements.characterQuery;
   const sort = form.elements.characterSort;
@@ -266,7 +270,9 @@ export function initializeCharacterSearch(root, initialCharacters, options = {})
   let visibleLimit = CHARACTER_SEARCH_PAGE_SIZE;
   let debounceTimer = null;
   let lightestAvailable = Boolean(options.lightestAvailable);
-  const renderOptions = () => ({ lightestAvailable });
+  let characterDatabaseAccess = Boolean(options.characterDatabaseAccess);
+  const onEditCharacter = typeof options.onEditCharacter === "function" ? options.onEditCharacter : () => {};
+  const renderOptions = () => ({ lightestAvailable, characterDatabaseAccess, onEditCharacter });
 
   const renderCurrent = () => {
     if (!response) {
@@ -325,6 +331,10 @@ export function initializeCharacterSearch(root, initialCharacters, options = {})
     lightestAvailable = Boolean(allowed);
     renderCurrent();
   };
+  const setCharacterDatabaseAccess = (allowed) => {
+    characterDatabaseAccess = Boolean(allowed);
+    renderCurrent();
+  };
   setCharacters(initialCharacters);
-  return { setCharacters, setLightestAvailable, search: runSearch };
+  return { setCharacters, setLightestAvailable, setCharacterDatabaseAccess, search: runSearch };
 }
