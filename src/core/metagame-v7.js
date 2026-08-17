@@ -15,6 +15,9 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // input sheet still describes the five positions within one player's deck,
 // but a match is always simulated as five player decks versus five player
 // decks (25 characters per team including reserves).
+// Combat resolution changed for attack-skill timing and guarded area attacks.
+// Keep prior reports visible as historical data, but never mix them into this
+// corrected evaluation pass.
 export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.6-combat-corrections";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to

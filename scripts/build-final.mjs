@@ -9,6 +9,8 @@ const sourceFiles = [
   "src/data/characters.js",
   "src/data/workbook-characters.js",
   "src/data/character-catalog.js",
+  "src/data/character-image-manifest.js",
+  "src/data/character-images.js",
   "src/data/metagame-simulator-data.js",
   "src/core/damage.js",
   "src/core/filter.js",
@@ -41,6 +43,7 @@ function stripModuleSyntax(source, fileName) {
     .replace(/import\s+[\s\S]*?\s+from\s+["'][^"']+["'];?\s*/g, "")
     .replace(/^export\s+/gm, "")
     .replace(/^/gm, "  ")
+    .replace(/[ \t]+$/gm, "")
     .concat(`\n  //# sourceURL=${fileName}\n`);
 }
 

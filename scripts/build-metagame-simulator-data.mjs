@@ -561,4 +561,3 @@ if (directPath === fileURLToPath(import.meta.url)) {
   const result = await buildMetagameSimulatorData();
   console.log(`Built ${path.relative(process.cwd(), result.outputPath)} (${result.data.constraints.length} constraints)`);
 }
-

@@ -626,4 +626,3 @@ test("5対5では全プレイヤーが同じターンに攻撃し、選んだ攻
   assert.equal(skilled.skillType, "single_attack");
   assert.equal(skilled.hits[0].damage, 600);
 });
-

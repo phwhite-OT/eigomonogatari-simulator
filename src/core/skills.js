@@ -364,4 +364,3 @@ export function evaluateSkillImpact(state, actorSide, actorIndex, rules) {
 export function isAttackSkill(skill) {
   return attackTypes.has(skill?.type);
 }
-

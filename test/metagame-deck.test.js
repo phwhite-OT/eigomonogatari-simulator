@@ -469,4 +469,3 @@ test("a self-targeted continuous buff uses handoff likelihood", () => {
   assert.ok(fragileSourceScore > durableSourceScore);
   assert.ok(durableSourceScore > 0);
 });
-

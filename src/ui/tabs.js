@@ -4,7 +4,7 @@ export function initializeAppTabs(root = document, options = {}) {
   if (!buttons.length || !panels.length) return { activate() {}, setAccess() {}, isAccessible() { return false; } };
 
   const targets = new Set(buttons.map((button) => button.dataset.tabTarget));
-  const hashTargets = { "#pvp": "pvp", "#characters": "characters", "#lightest": "lightest" };
+  const hashTargets = { "#pvp": "pvp", "#characters": "characters", "#rights": "rights", "#lightest": "lightest" };
   const access = new Map([...targets].map((target) => [target, options.initialAccess?.[target] !== false]));
   let activeTarget = null;
 

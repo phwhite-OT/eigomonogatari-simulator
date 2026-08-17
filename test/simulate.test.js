@@ -682,4 +682,3 @@ test("色かばうの対象外の攻撃者は、直接かばう役を狙う", ()
   assert.equal(result.history[0].actions[0].targetIndex, 1);
   assert.equal(result.history[0].actions[0].hits[0].targetName, "water-guard");
 });
-

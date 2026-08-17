@@ -66,4 +66,3 @@ process.stdout.write(`${JSON.stringify({
     candidate_indices: candidateIndices.join(","),
   })),
 })}\n`);
-
