@@ -313,9 +313,10 @@ function lightestSearchSummary(searchResult) {
 function renderLightestResults(root, searchResult) {
   root.replaceChildren();
   const overview = lightestElement("section", "lightest-result-overview");
+  const prePruned = Math.max(0, Number(searchResult.prePrunedCombinationCount) || 0);
   overview.append(
     lightestElement("strong", "", lightestSearchSummary(searchResult)),
-    lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証`),
+    lightestElement("span", "", `${searchResult.availableCharacterCount}体・組合せ${searchResult.generatedCombinationCount.toLocaleString("ja-JP")}・配置込み${searchResult.simulatedDeckCount.toLocaleString("ja-JP")}デッキを検証${prePruned ? `（条件未達が確定した${prePruned.toLocaleString("ja-JP")}組合せを事前除外）` : ""}`),
   );
   const omitted = searchResult.searchScope?.omitted ?? [];
   if (["stage", "reference"].includes(searchResult.guidance?.mode)) {

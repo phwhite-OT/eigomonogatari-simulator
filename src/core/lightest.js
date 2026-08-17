@@ -696,7 +696,14 @@ function lightestSearchScope(stage, options, guidance = null) {
 function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = null, searchScope, guidance = null) {
   const reference = attempts.at(-1);
   const generatedCombinationCount = attempts.reduce((sum, attempt) => sum + attempt.generatedCombinationCount, 0);
+  const prePrunedCombinationCount = attempts.reduce((sum, attempt) => sum + attempt.prePrunedCombinationCount, 0);
   const simulatedDeckCount = attempts.reduce((sum, attempt) => sum + attempt.simulatedDeckCount, 0);
+  const prePrunedReasons = attempts.reduce((reasons, attempt) => {
+    for (const [reason, count] of Object.entries(attempt.prePrunedReasons ?? {})) {
+      reasons[reason] = (reasons[reason] ?? 0) + count;
+    }
+    return reasons;
+  }, {});
   const availableCharacterCount = Math.max(0, ...attempts.map((attempt) => attempt.availableCharacterCount));
   return {
     ...reference,
@@ -706,6 +713,8 @@ function lightestCombinedSearchResult(stage, deckSizes, attempts, best, scout = 
     availableCharacterCount,
     generatedDeckCount: simulatedDeckCount,
     generatedCombinationCount,
+    prePrunedCombinationCount,
+    prePrunedReasons,
     simulatedDeckCount,
     searchedThroughCost: best?.totalCost ?? reference?.searchedThroughCost ?? null,
     targetCost: stage.targetCost ?? null,
