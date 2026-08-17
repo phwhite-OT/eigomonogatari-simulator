@@ -744,7 +744,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .character-search-reasons li { padding: 4px 6px; border-radius: 6px; background: white; color: #60706a; font-size: 7px; }
 .character-search-actions { display: grid; grid-template-columns: repeat(3,1fr); border-top: 1px solid #e7eae2; }
 .character-search-actions:not(.is-admin) { grid-template-columns: repeat(2,1fr); }
-.character-search-actions.is-database-admin { grid-template-columns: repeat(4,1fr); }
+.character-search-actions.is-database-admin { grid-template-columns: repeat(6,1fr); }
 .character-search-action { min-height: 39px; border: 0; border-right: 1px solid #e7eae2; background: white; color: #5a6963; cursor: pointer; font-size: 8px; font-weight: 800; }
 .character-search-card.is-compact .character-search-meta { gap: 3px; padding: 0 8px 6px; }
 .character-search-card.is-compact .character-search-meta span { padding: 3px 5px; font-size: 6px; }

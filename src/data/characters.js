@@ -157,6 +157,14 @@ function asFiniteNumber(value, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function normalizeCataloguePlacement(value) {
+  if (!value || typeof value !== "object") return null;
+  const anchorId = String(value.anchorId ?? "").trim();
+  const position = String(value.position ?? "");
+  if (!anchorId || !["before", "after"].includes(position)) return null;
+  return { anchorId, position };
+}
+
 export function normalizeCharacter(rawCharacter, index = 0) {
   const attributes = Array.isArray(rawCharacter.attributes)
     ? rawCharacter.attributes.map(String).filter(Boolean)
@@ -250,6 +258,7 @@ export function normalizeCharacter(rawCharacter, index = 0) {
     skillTurn: Math.max(0, asFiniteNumber(rawCharacter.skillTurn)),
     maxUses: Math.min(2, Math.max(0, asFiniteNumber(rawCharacter.maxUses, 2))),
     source: rawCharacter.source ?? null,
+    cataloguePlacement: normalizeCataloguePlacement(rawCharacter.cataloguePlacement),
     skill: {
       type: String(rawCharacter.skill?.type ?? "none"),
       multiplier: asFiniteNumber(rawCharacter.skill?.multiplier, 1),
@@ -460,6 +469,7 @@ export function updateManualCharacter(values, existingCharacter) {
     ...draft,
     id: String(existingCharacter.id),
     source: existingCharacter.source,
+    cataloguePlacement: existingCharacter.cataloguePlacement,
     pvpTier: existingCharacter.pvpTier,
     allowedPositions: existingCharacter.allowedPositions,
     preferredPositions: existingCharacter.preferredPositions,

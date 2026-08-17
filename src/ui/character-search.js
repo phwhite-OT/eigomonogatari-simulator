@@ -74,7 +74,13 @@ function renderCharacterPortrait(character) {
   return portrait;
 }
 
-function renderCharacterCard(result, rank, { lightestAvailable = false, characterDatabaseAccess = false, onEditCharacter, compact = false } = {}) {
+function renderCharacterCard(result, rank, {
+  lightestAvailable = false,
+  characterDatabaseAccess = false,
+  onEditCharacter,
+  onAddCharacterAtPosition,
+  compact = false,
+} = {}) {
   const { character } = result;
   const card = characterSearchElement("article", "character-search-card");
   card.classList.toggle("is-compact", compact);
@@ -134,7 +140,11 @@ function renderCharacterCard(result, rank, { lightestAvailable = false, characte
     }));
   }
   if (characterDatabaseAccess) {
-    actions.append(createActionButton("編集", () => onEditCharacter?.(character)));
+    actions.append(
+      createActionButton("編集", () => onEditCharacter?.(character)),
+      createActionButton("前に追加", () => onAddCharacterAtPosition?.(character, "before")),
+      createActionButton("後に追加", () => onAddCharacterAtPosition?.(character, "after")),
+    );
   }
 
   card.append(heading, meta, stats, skill);
@@ -272,7 +282,8 @@ export function initializeCharacterSearch(root, initialCharacters, options = {})
   let lightestAvailable = Boolean(options.lightestAvailable);
   let characterDatabaseAccess = Boolean(options.characterDatabaseAccess);
   const onEditCharacter = typeof options.onEditCharacter === "function" ? options.onEditCharacter : () => {};
-  const renderOptions = () => ({ lightestAvailable, characterDatabaseAccess, onEditCharacter });
+  const onAddCharacterAtPosition = typeof options.onAddCharacterAtPosition === "function" ? options.onAddCharacterAtPosition : () => {};
+  const renderOptions = () => ({ lightestAvailable, characterDatabaseAccess, onEditCharacter, onAddCharacterAtPosition });
 
   const renderCurrent = () => {
     if (!response) {

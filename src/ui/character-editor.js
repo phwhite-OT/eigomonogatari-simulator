@@ -185,6 +185,7 @@ export function initializeCharacterEditor(dialog, { getExistingIds = () => [], i
   const openButtons = document.querySelectorAll("[data-character-editor-open]");
   const closeButtons = dialog.querySelectorAll("[data-character-editor-close]");
   let editingCharacter = null;
+  let insertionContext = null;
   let busy = false;
 
   const showMessage = (text, error = false) => {
@@ -209,6 +210,7 @@ export function initializeCharacterEditor(dialog, { getExistingIds = () => [], i
   const open = () => {
     if (!assertAllowed()) return;
     editingCharacter = null;
+    insertionContext = null;
     resetForm(form);
     mode.textContent = "ADD CHARACTER";
     title.textContent = "キャラを追加";
@@ -218,9 +220,25 @@ export function initializeCharacterEditor(dialog, { getExistingIds = () => [], i
     else dialog.setAttribute("open", "");
     form.elements.manualName.focus();
   };
+  const openAtPosition = (anchor, position) => {
+    if (!assertAllowed() || !anchor || !["before", "after"].includes(position)) return;
+    editingCharacter = null;
+    insertionContext = { anchor, position };
+    resetForm(form);
+    const direction = position === "before" ? "前" : "後";
+    form.elements.manualRegion.value = anchor.region || "手入力";
+    mode.textContent = "ADD AT POSITION";
+    title.textContent = "指定位置にキャラを追加";
+    submitButton.textContent = "この位置に追加";
+    showMessage(`「${anchor.name}」（ID ${anchor.id}）の${direction}に追加します。保存後もこの位置を維持します。`);
+    if (typeof dialog.showModal === "function") dialog.showModal();
+    else dialog.setAttribute("open", "");
+    form.elements.manualName.focus();
+  };
   const openForEdit = (character) => {
     if (!assertAllowed() || !character) return;
     editingCharacter = character;
+    insertionContext = null;
     populateCharacterEditorForm(form, character);
     mode.textContent = "EDIT CHARACTER";
     title.textContent = "キャラを編集";
@@ -252,9 +270,24 @@ export function initializeCharacterEditor(dialog, { getExistingIds = () => [], i
     if (busy || !assertAllowed()) return;
     try {
       setBusy(true);
-      const character = editingCharacter
+      let character = editingCharacter
         ? updateManualCharacter(formValues(form), editingCharacter)
         : createManualCharacter(formValues(form), getExistingIds());
+      if (insertionContext && !editingCharacter) {
+        const anchor = insertionContext.anchor;
+        character = {
+          ...character,
+          source: {
+            ...(character.source ?? {}),
+            sheet: anchor.source?.sheet || anchor.region || "追加キャラ・その他",
+            row: "",
+          },
+          cataloguePlacement: {
+            anchorId: String(anchor.id),
+            position: insertionContext.position,
+          },
+        };
+      }
       const save = editingCharacter ? onEdit : onAdd;
       if (typeof save !== "function") throw new TypeError("キャラデータベースの保存処理を開始できません。");
       await save(character, editingCharacter);
@@ -267,5 +300,5 @@ export function initializeCharacterEditor(dialog, { getExistingIds = () => [], i
     }
   });
 
-  return { open, openForEdit, setAccess() {} };
+  return { open, openAtPosition, openForEdit, setAccess() {} };
 }

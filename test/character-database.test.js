@@ -4,6 +4,7 @@ import { createManualCharacter, updateManualCharacter } from "../src/data/charac
 import {
   CHARACTER_DATABASE_TABLE,
   loadCharacterDatabase,
+  mergeCharacterDatabaseIntoCatalogue,
   parseCharacterDatabaseRows,
   saveCharacterDatabaseCharacter,
 } from "../src/data/character-database.js";
@@ -23,10 +24,14 @@ function sampleCharacter() {
 }
 
 test("キャラデータベース行は正規化されたキャラとして読み出す", () => {
-  const character = sampleCharacter();
+  const character = {
+    ...sampleCharacter(),
+    cataloguePlacement: { anchorId: "catalogue-20", position: "before" },
+  };
   const [loaded] = parseCharacterDatabaseRows([{ id: character.id, payload: character }]);
   assert.equal(loaded.id, character.id);
   assert.equal(loaded.name, "DBテストキャラ");
+  assert.deepEqual(loaded.cataloguePlacement, { anchorId: "catalogue-20", position: "before" });
 });
 
 test("キャラデータベース行のIDとpayloadのIDが異なる場合は拒否する", () => {
@@ -84,6 +89,25 @@ test("キャラデータベースは更新日時順に差分を読み出す", as
   assert.equal(loaded.id, character.id);
 });
 
+test("追加キャラは指定したキャラの前後へ図鑑順で挿入できる", () => {
+  const base = [
+    { id: "a", name: "A" },
+    { id: "b", name: "B" },
+    { id: "c", name: "C" },
+  ];
+  const database = [
+    { id: "before-b", name: "前", cataloguePlacement: { anchorId: "b", position: "before" } },
+    { id: "after-b", name: "後", cataloguePlacement: { anchorId: "b", position: "after" } },
+    { id: "after-after-b", name: "さらに後", cataloguePlacement: { anchorId: "after-b", position: "after" } },
+    { id: "last", name: "末尾" },
+  ];
+
+  assert.deepEqual(
+    mergeCharacterDatabaseIntoCatalogue(base, database).map((character) => character.id),
+    ["a", "before-b", "b", "after-b", "after-after-b", "c", "last"],
+  );
+});
+
 test("編集ではキャラIDと詳細な評価設定を維持する", () => {
   const original = {
     ...sampleCharacter(),
@@ -115,4 +139,23 @@ test("編集ではキャラIDと詳細な評価設定を維持する", () => {
   assert.equal(updated.pvpTier, "priority");
   assert.deepEqual(updated.roleTags, ["guard"]);
   assert.equal(updated.skill.priority, "high");
+});
+
+test("編集しても指定済みの図鑑位置を維持する", () => {
+  const original = {
+    ...sampleCharacter(),
+    cataloguePlacement: { anchorId: "catalogue-20", position: "after" },
+  };
+  const updated = updateManualCharacter({
+    name: "更新後キャラ",
+    attributeClass: "fire",
+    cost: 20,
+    hp: 1200,
+    pow: 900,
+    rarity: "R",
+    region: "テスト",
+    skillTurn: 2,
+    skillType: "aoe_attack",
+  }, original);
+  assert.deepEqual(updated.cataloguePlacement, { anchorId: "catalogue-20", position: "after" });
 });

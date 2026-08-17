@@ -1,6 +1,10 @@
 import { DEFAULT_RULES, mergeRules, validateRules } from "./data/rules.js";
 import { parseCharacterPayload } from "./data/characters.js";
-import { loadCharacterDatabase, saveCharacterDatabaseCharacter } from "./data/character-database.js";
+import {
+  loadCharacterDatabase,
+  mergeCharacterDatabaseIntoCatalogue,
+  saveCharacterDatabaseCharacter,
+} from "./data/character-database.js";
 import { CHARACTER_CATALOG, CHARACTER_CATALOG_SUMMARY } from "./data/character-catalog.js";
 import { METAGAME_SIMULATOR_DATA } from "./data/metagame-simulator-data.js";
 import { searchDecks } from "./core/search-fast.js";
@@ -31,11 +35,7 @@ import { initializeSupabaseAuth } from "./auth/supabase-auth.js";
 import { isAdministratorSession } from "./auth/admin.js";
 
 function combineCharacters(...characterLists) {
-  const charactersById = new Map();
-  for (const characters of characterLists) {
-    for (const character of characters) charactersById.set(String(character.id), character);
-  }
-  return [...charactersById.values()];
+  return mergeCharacterDatabaseIntoCatalogue(characterLists[0], characterLists.slice(1).flat());
 }
 function bootstrap() {
   const form = document.querySelector("[data-search-form]");
@@ -111,10 +111,10 @@ function bootstrap() {
     if (!databaseClient) throw new Error("キャラデータベースへの接続を準備中です。少し待ってからもう一度保存してください。");
     const savedCharacter = await saveCharacterDatabaseCharacter(databaseClient, character);
     characterDatabaseRevision += 1;
-    databaseCharacters = combineCharacters(
-      databaseCharacters.filter((item) => String(item.id) !== String(savedCharacter.id)),
-      [savedCharacter],
-    );
+    databaseCharacters = [
+      ...databaseCharacters.filter((item) => String(item.id) !== String(savedCharacter.id)),
+      savedCharacter,
+    ];
     characters = combineCharacters(baseCharacters, databaseCharacters);
     refreshData();
     renderIdle(resultRoot);
@@ -149,6 +149,7 @@ function bootstrap() {
     lightestAvailable: false,
     characterDatabaseAccess: false,
     onEditCharacter: (character) => characterEditorController?.openForEdit(character),
+    onAddCharacterAtPosition: (anchor, position) => characterEditorController?.openAtPosition(anchor, position),
   });
   initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, CHARACTER_CATALOG);
   characterEditorController = initializeCharacterEditor(characterEditor, {
