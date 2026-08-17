@@ -3,7 +3,9 @@ import { dirname, relative, resolve } from "node:path";
 import { buildMetagameSimulatorData } from "./build-metagame-simulator-data.mjs";
 
 const projectRoot = resolve(import.meta.dirname, "..");
-await buildMetagameSimulatorData();
+if (!process.argv.includes("--skip-metagame-data")) {
+  await buildMetagameSimulatorData();
+}
 const sourceFiles = [
   "src/data/rules.js",
   "src/data/characters.js",

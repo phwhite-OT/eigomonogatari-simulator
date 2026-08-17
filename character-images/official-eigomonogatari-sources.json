@@ -1,0 +1,860 @@
+{
+  "manual-nijo-yukata-mode": {
+    "characterName": "二条嬢☆浴衣モード",
+    "sourcePage": "https://eigomonogatari.com/event-tag-2006/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1440.png",
+    "file": "manual-nijo-yukata-mode.png"
+  },
+  "em-e0ae1e287b90": {
+    "characterName": "春のお兄さん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1964.png",
+    "file": "em-e0ae1e287b90.png"
+  },
+  "em-0d449e302187": {
+    "characterName": "水神ヨッカブイ先生",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2005.png",
+    "file": "em-0d449e302187.png"
+  },
+  "em-40bd3b1e44fa": {
+    "characterName": "五月病の悪魔の契約",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1963.png",
+    "file": "em-40bd3b1e44fa.png"
+  },
+  "em-bc6da5addf52": {
+    "characterName": "桜ブーナッド",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1960.png",
+    "file": "em-bc6da5addf52.png"
+  },
+  "em-5f311c45014a": {
+    "characterName": "パーントゥ大先生",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1786.png",
+    "file": "em-5f311c45014a.png"
+  },
+  "em-2a20d82018a7": {
+    "characterName": "強飯式太子君",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1737.png",
+    "file": "em-2a20d82018a7.png"
+  },
+  "em-3e2d46063b3e": {
+    "characterName": "なっとくん様",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2042.png",
+    "file": "em-3e2d46063b3e.png"
+  },
+  "em-3deff3291fd4": {
+    "characterName": "有閑カノープス",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1801.png",
+    "file": "em-3deff3291fd4.png"
+  },
+  "em-de301e40803c": {
+    "characterName": "どうしんフェス様",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1793.png",
+    "file": "em-de301e40803c.png"
+  },
+  "em-afce812f791d": {
+    "characterName": "めい子のMAY DAY",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1962.png",
+    "file": "em-afce812f791d.png"
+  },
+  "em-ceac25f15ae4": {
+    "characterName": "桜レンジャーズ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1959.png",
+    "file": "em-ceac25f15ae4.png"
+  },
+  "em-490ce6c4d005": {
+    "characterName": "ア、ショーカ大王",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1790.png",
+    "file": "em-490ce6c4d005.png"
+  },
+  "em-8d610f16d330": {
+    "characterName": "明日香大怪盗",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1776.png",
+    "file": "em-8d610f16d330.png"
+  },
+  "em-3c1078996c9c": {
+    "characterName": "めい子のNEW DAY",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1961.png",
+    "file": "em-3c1078996c9c.png"
+  },
+  "em-7b1e3e0a5bfe": {
+    "characterName": "花びらの精霊",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1990/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1958.png",
+    "file": "em-7b1e3e0a5bfe.png"
+  },
+  "em-962f1faafed7": {
+    "characterName": "三貴子アマテラス",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1818.png",
+    "file": "em-962f1faafed7.png"
+  },
+  "em-33880cee5e60": {
+    "characterName": "三貴子ツクヨミ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1864.png",
+    "file": "em-33880cee5e60.png"
+  },
+  "em-5e492c884ca0": {
+    "characterName": "三貴子素戔嗚",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1886.png",
+    "file": "em-5e492c884ca0.png"
+  },
+  "em-d7873747b412": {
+    "characterName": "藤のフヒッティ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1918.png",
+    "file": "em-d7873747b412.png"
+  },
+  "em-4c03ad40dce9": {
+    "characterName": "源のゴライコー",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1950.png",
+    "file": "em-4c03ad40dce9.png"
+  },
+  "em-748c1a866dbc": {
+    "characterName": "Hey Yeah 清盛",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1988.png",
+    "file": "em-748c1a866dbc.png"
+  },
+  "em-05c5072dc080": {
+    "characterName": "橘の元祖☆みっちー",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2021.png",
+    "file": "em-05c5072dc080.png"
+  },
+  "em-a5e1e009bda8": {
+    "characterName": "くまのたん伝説",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2053.png",
+    "file": "em-a5e1e009bda8.png"
+  },
+  "em-2f36c9341591": {
+    "characterName": "☆龍神☆尊氏様",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1933.png",
+    "file": "em-2f36c9341591.png"
+  },
+  "em-076a0181e290": {
+    "characterName": "夏の海の天の川伝説",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2006.png",
+    "file": "em-076a0181e290.png"
+  },
+  "em-370ba5df8d09": {
+    "characterName": "悪霊狩人ちび大助",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2035.png",
+    "file": "em-370ba5df8d09.png"
+  },
+  "em-9667a89799b5": {
+    "characterName": "冬の双子姫",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2067.png",
+    "file": "em-9667a89799b5.png"
+  },
+  "em-a280c7496ca0": {
+    "characterName": "武門の誉れ玄き冬将軍",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1690.png",
+    "file": "em-a280c7496ca0.png"
+  },
+  "em-6eed78e1fe62": {
+    "characterName": "リア充の権化安倍晴明",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1701.png",
+    "file": "em-6eed78e1fe62.png"
+  },
+  "em-523af93f71e3": {
+    "characterName": "神田祭らーの集い",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1741.png",
+    "file": "em-523af93f71e3.png"
+  },
+  "em-404f12535630": {
+    "characterName": "祇園祭の素戔嗚さま",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1772.png",
+    "file": "em-404f12535630.png"
+  },
+  "em-4d4a6386f8f8": {
+    "characterName": "九周年ぴよ子",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1800.png",
+    "file": "em-4d4a6386f8f8.png"
+  },
+  "em-d5465017bfd1": {
+    "characterName": "チュパカブ先輩",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1819.png",
+    "file": "em-d5465017bfd1.png"
+  },
+  "em-31758a7d7c63": {
+    "characterName": "ﾗｰｶﾞﾙﾌﾘｮｩﾄﾙﾑりん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1820.png",
+    "file": "em-31758a7d7c63.png"
+  },
+  "em-2f3cf0f345e4": {
+    "characterName": "ふらっとウッズ子さん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1865.png",
+    "file": "em-2f3cf0f345e4.png"
+  },
+  "em-49b522eac464": {
+    "characterName": "ジェヴォたんは狼？",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1866.png",
+    "file": "em-49b522eac464.png"
+  },
+  "em-37e222cb9f2b": {
+    "characterName": "いんばーぬたん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1887.png",
+    "file": "em-37e222cb9f2b.png"
+  },
+  "em-9b4f5ff97dee": {
+    "characterName": "モスウーマン師匠",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1888.png",
+    "file": "em-9b4f5ff97dee.png"
+  },
+  "em-e8331e3aec6c": {
+    "characterName": "辰の子ぴよ子",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1919.png",
+    "file": "em-e8331e3aec6c.png"
+  },
+  "em-5bd7e19b00f4": {
+    "characterName": "土田野古子",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1920.png",
+    "file": "em-5bd7e19b00f4.png"
+  },
+  "em-7a57f923ab2c": {
+    "characterName": "ありえんキャット様",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1921.png",
+    "file": "em-7a57f923ab2c.png"
+  },
+  "em-7b7bc6faa9ba": {
+    "characterName": "パティは実況勢",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1951.png",
+    "file": "em-7b7bc6faa9ba.png"
+  },
+  "em-da18dad9d936": {
+    "characterName": "もけーれ！ムベちゃん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1952.png",
+    "file": "em-da18dad9d936.png"
+  },
+  "em-0e334d0d8b75": {
+    "characterName": "フアイチヴ夫",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1989.png",
+    "file": "em-0e334d0d8b75.png"
+  },
+  "em-9413da55b7e0": {
+    "characterName": "ヤマピカリャーコ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1990.png",
+    "file": "em-9413da55b7e0.png"
+  },
+  "em-c6a0a8b51afe": {
+    "characterName": "ライオットうお太",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2022.png",
+    "file": "em-c6a0a8b51afe.png"
+  },
+  "em-e84c5851ba6b": {
+    "characterName": "地下大河のルーシー",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2023.png",
+    "file": "em-e84c5851ba6b.png"
+  },
+  "em-983cb2f685ee": {
+    "characterName": "再びニートだ浅ちゃん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2054.png",
+    "file": "em-983cb2f685ee.png"
+  },
+  "em-e7f75bf37d9f": {
+    "characterName": "あっついさん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2055.png",
+    "file": "em-e7f75bf37d9f.png"
+  },
+  "em-a447724e3bc1": {
+    "characterName": "ヴァレサバ☆関くん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1832.png",
+    "file": "em-a447724e3bc1.png"
+  },
+  "em-5a047ed41d97": {
+    "characterName": "KJの少女Hi児",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1691.png",
+    "file": "em-5a047ed41d97.png"
+  },
+  "em-7d756ba8373e": {
+    "characterName": "謹賀新年のびゃこ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1702.png",
+    "file": "em-7d756ba8373e.png"
+  },
+  "em-9a1b8b33af97": {
+    "characterName": "バレチョコすわ子",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1720.png",
+    "file": "em-9a1b8b33af97.png"
+  },
+  "em-2eebc4f8633d": {
+    "characterName": "すわっ！かつより君",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1728.png",
+    "file": "em-2eebc4f8633d.png"
+  },
+  "em-b791d78202d5": {
+    "characterName": "英国面の本気",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1748.png",
+    "file": "em-b791d78202d5.png"
+  },
+  "em-e442a06775e7": {
+    "characterName": "祭りだ☆富姫",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1750.png",
+    "file": "em-e442a06775e7.png"
+  },
+  "em-d76a5850c323": {
+    "characterName": "牛追いガウガウ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1762.png",
+    "file": "em-d76a5850c323.png"
+  },
+  "em-68c38b69771b": {
+    "characterName": "ぱんつぁーぴよ子",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1769.png",
+    "file": "em-68c38b69771b.png"
+  },
+  "em-5861838d2e36": {
+    "characterName": "ばうあー泥棒",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1775.png",
+    "file": "em-5861838d2e36.png"
+  },
+  "em-a3563f41a151": {
+    "characterName": "ラクダンデス隊長",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1789.png",
+    "file": "em-a3563f41a151.png"
+  },
+  "em-32538f7c8341": {
+    "characterName": "熊殺しのサンタマン",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1797.png",
+    "file": "em-32538f7c8341.png"
+  },
+  "em-4c7896c435d3": {
+    "characterName": "宮司の尊氏公",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1805.png",
+    "file": "em-4c7896c435d3.png"
+  },
+  "em-8522b1e6c291": {
+    "characterName": "百華百彩久連子",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1813.png",
+    "file": "em-8522b1e6c291.png"
+  },
+  "em-7e2c5e9ede5c": {
+    "characterName": "シャムロックのガハラ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1816.png",
+    "file": "em-7e2c5e9ede5c.png"
+  },
+  "em-90d2686cfd0d": {
+    "characterName": "花火戦隊サイガーRe",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1833.png",
+    "file": "em-90d2686cfd0d.png"
+  },
+  "em-f9ca1348e6ed": {
+    "characterName": "斎王代「鵺」",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1844.png",
+    "file": "em-f9ca1348e6ed.png"
+  },
+  "em-00b4dc762ce0": {
+    "characterName": "ハクさんはファイター",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1846.png",
+    "file": "em-00b4dc762ce0.png"
+  },
+  "em-83c97b8f4e6e": {
+    "characterName": "アルルのキャミー",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1858.png",
+    "file": "em-83c97b8f4e6e.png"
+  },
+  "em-cdd7690ef318": {
+    "characterName": "京都コーラマン",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1862.png",
+    "file": "em-cdd7690ef318.png"
+  },
+  "em-0784bb7beecf": {
+    "characterName": "ダリア・宮子・9",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1875.png",
+    "file": "em-0784bb7beecf.png"
+  },
+  "em-f4980131820e": {
+    "characterName": "ﾊﾛｳｨﾝのヴラドさん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1885.png",
+    "file": "em-f4980131820e.png"
+  },
+  "em-7e81ebc98ef9": {
+    "characterName": "稼働！K-MEN",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1898.png",
+    "file": "em-7e81ebc98ef9.png"
+  },
+  "em-9b97e564ea43": {
+    "characterName": "ユールシスター☆ノエルん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1926.png",
+    "file": "em-9b97e564ea43.png"
+  },
+  "em-490281caead8": {
+    "characterName": "にくぁう羽子板・辰",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1929.png",
+    "file": "em-490281caead8.png"
+  },
+  "em-710becd5b772": {
+    "characterName": "雪女フェス祭カーニバル",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1932.png",
+    "file": "em-710becd5b772.png"
+  },
+  "em-2f92f911f129": {
+    "characterName": "ICHIKIの音楽祭",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1957.png",
+    "file": "em-2f92f911f129.png"
+  },
+  "em-14092b64f08d": {
+    "characterName": "コハク糖の魔導師",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1999.png",
+    "file": "em-14092b64f08d.png"
+  },
+  "em-7419b64dec0e": {
+    "characterName": "天の飛龍巻",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2002.png",
+    "file": "em-7419b64dec0e.png"
+  },
+  "em-b27009a57b71": {
+    "characterName": "架けろきしわだっしー",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2028.png",
+    "file": "em-b27009a57b71.png"
+  },
+  "em-a6fe320c7afa": {
+    "characterName": "戸隠忍者はハント中",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2031.png",
+    "file": "em-a6fe320c7afa.png"
+  },
+  "em-6d1e4c915f30": {
+    "characterName": "チートモードな楽趣味さん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2034.png",
+    "file": "em-6d1e4c915f30.png"
+  },
+  "em-47c29240fd33": {
+    "characterName": "大晦日のネギそば給仕少女",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2060.png",
+    "file": "em-47c29240fd33.png"
+  },
+  "em-ad82a61bcc2a": {
+    "characterName": "ｺﾄﾖﾛ!巳ーちゃん様",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2063.png",
+    "file": "em-ad82a61bcc2a.png"
+  },
+  "em-de36aab296aa": {
+    "characterName": "月下皇帝ランたん様",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2066.png",
+    "file": "em-de36aab296aa.png"
+  },
+  "em-eb4ef5fa8f2f": {
+    "characterName": "応援ぴよ子団長",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1856.png",
+    "file": "em-eb4ef5fa8f2f.png"
+  },
+  "em-5c8b9af61816": {
+    "characterName": "ぴっよコイン先生",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1857.png",
+    "file": "em-5c8b9af61816.png"
+  },
+  "em-814b464a2192": {
+    "characterName": "ナナホシ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1802.png",
+    "file": "em-814b464a2192.png"
+  },
+  "em-3488d6542112": {
+    "characterName": "クロゴキ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1803.png",
+    "file": "em-3488d6542112.png"
+  },
+  "em-7fa1cc0147ae": {
+    "characterName": "フンコロガシ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1804.png",
+    "file": "em-7fa1cc0147ae.png"
+  },
+  "em-ff5428a9ceca": {
+    "characterName": "アブラムシ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1821.png",
+    "file": "em-ff5428a9ceca.png"
+  },
+  "em-076ae15080b8": {
+    "characterName": "ゾウムシ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1822.png",
+    "file": "em-076ae15080b8.png"
+  },
+  "em-59a8f156dec4": {
+    "characterName": "クロアリ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1867.png",
+    "file": "em-59a8f156dec4.png"
+  },
+  "em-5d696ecc61dd": {
+    "characterName": "カミキリ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1868.png",
+    "file": "em-5d696ecc61dd.png"
+  },
+  "em-872b1096af45": {
+    "characterName": "アシナガ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1889.png",
+    "file": "em-872b1096af45.png"
+  },
+  "em-3111e08d3ca9": {
+    "characterName": "ヒラズゲンセイ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1890.png",
+    "file": "em-3111e08d3ca9.png"
+  },
+  "em-05133b447edd": {
+    "characterName": "コメツキ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1922.png",
+    "file": "em-05133b447edd.png"
+  },
+  "em-018ed1cdac9e": {
+    "characterName": "フユシャク",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1923.png",
+    "file": "em-018ed1cdac9e.png"
+  },
+  "em-b8280ba8915c": {
+    "characterName": "ゲンゴロウ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1954.png",
+    "file": "em-b8280ba8915c.png"
+  },
+  "em-1be59b60bcb4": {
+    "characterName": "アメンボ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1991.png",
+    "file": "em-1be59b60bcb4.png"
+  },
+  "em-d751cb04cbae": {
+    "characterName": "ショウリョウ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1992.png",
+    "file": "em-d751cb04cbae.png"
+  },
+  "em-10b41d0249c9": {
+    "characterName": "ホタル",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2024.png",
+    "file": "em-10b41d0249c9.png"
+  },
+  "em-d74e6be8b4b9": {
+    "characterName": "クビキリギス",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2025.png",
+    "file": "em-d74e6be8b4b9.png"
+  },
+  "em-4aa5c06abdbe": {
+    "characterName": "クサギカメムシ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2056.png",
+    "file": "em-4aa5c06abdbe.png"
+  },
+  "em-5a8b6c2acb19": {
+    "characterName": "ユスリカ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2057.png",
+    "file": "em-5a8b6c2acb19.png"
+  },
+  "em-4d9586371e6c": {
+    "characterName": "鞭・打つ子さん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1700.png",
+    "file": "em-4d9586371e6c.png"
+  },
+  "em-ffdcaffc4a41": {
+    "characterName": "雑煮入り☆うるっしー",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1703.png",
+    "file": "em-ffdcaffc4a41.png"
+  },
+  "em-96a3648b46e2": {
+    "characterName": "チョコ染めの安井さん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1721.png",
+    "file": "em-96a3648b46e2.png"
+  },
+  "em-80894fcaa10c": {
+    "characterName": "とんこつ神！博多美子",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1729.png",
+    "file": "em-80894fcaa10c.png"
+  },
+  "em-14d31235a3f8": {
+    "characterName": "かっちゃんのBIG強飯",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1738.png",
+    "file": "em-14d31235a3f8.png"
+  },
+  "em-5d62afcf01d5": {
+    "characterName": "転がる！けねず君",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1749.png",
+    "file": "em-5d62afcf01d5.png"
+  },
+  "em-75c1af17d152": {
+    "characterName": "浴衣美人な日女路嬢",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1751.png",
+    "file": "em-75c1af17d152.png"
+  },
+  "em-17a8d3f2a8d3": {
+    "characterName": "牛迫 角子さん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1763.png",
+    "file": "em-17a8d3f2a8d3.png"
+  },
+  "em-f3ce9865b46f": {
+    "characterName": "BeasT5",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1770.png",
+    "file": "em-f3ce9865b46f.png"
+  },
+  "em-44fb3ea29b8e": {
+    "characterName": "カナちゃんでい",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1787.png",
+    "file": "em-44fb3ea29b8e.png"
+  },
+  "em-f70fc38ed477": {
+    "characterName": "栗栖　益子さん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1798.png",
+    "file": "em-f70fc38ed477.png"
+  },
+  "em-30b1960a9425": {
+    "characterName": "赤城山の風神太郎",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1806.png",
+    "file": "em-30b1960a9425.png"
+  },
+  "em-bb2bd26d4796": {
+    "characterName": "のり男の浪漫",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1814.png",
+    "file": "em-bb2bd26d4796.png"
+  },
+  "em-abedd080c9aa": {
+    "characterName": "ﾚﾌﾟﾗｺｰﾝな落花妖精",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1817.png",
+    "file": "em-abedd080c9aa.png"
+  },
+  "em-db7ee0abcada": {
+    "characterName": "ＫＲ２ジョーの戦い",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1834.png",
+    "file": "em-db7ee0abcada.png"
+  },
+  "em-36ce9827163b": {
+    "characterName": "検非違使なけいび氏",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1845.png",
+    "file": "em-36ce9827163b.png"
+  },
+  "em-bf60c5d7bbe5": {
+    "characterName": "ワイン塗れのぐっすん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1847.png",
+    "file": "em-bf60c5d7bbe5.png"
+  },
+  "em-c6337efaceae": {
+    "characterName": "ｴﾚｶﾞﾝﾄ☆トラボル子",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1859.png",
+    "file": "em-c6337efaceae.png"
+  },
+  "em-9a400a6535d5": {
+    "characterName": "ｸﾗﾌﾄｼﾞﾝｼﾞｬｰの妖精",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1863.png",
+    "file": "em-9a400a6535d5.png"
+  },
+  "em-89867a1b17eb": {
+    "characterName": "ゴッホさんとおこﾀﾞﾘｱ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1876.png",
+    "file": "em-89867a1b17eb.png"
+  },
+  "em-bb22778026f9": {
+    "characterName": "吸血さん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1884.png",
+    "file": "em-bb22778026f9.png"
+  },
+  "em-3c2d84f01c84": {
+    "characterName": "休憩。蟹男",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1897.png",
+    "file": "em-3c2d84f01c84.png"
+  },
+  "em-2c691fe63d0d": {
+    "characterName": "ブッシュドノエルん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1925.png",
+    "file": "em-2c691fe63d0d.png"
+  },
+  "em-dfbe69861ff7": {
+    "characterName": "餅もちにくぁうさん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1928.png",
+    "file": "em-dfbe69861ff7.png"
+  },
+  "em-2a96e91a2f35": {
+    "characterName": "雪男フェス祭カーニバル",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1931.png",
+    "file": "em-2a96e91a2f35.png"
+  },
+  "em-65cc0d6a4bcc": {
+    "characterName": "TAGIの映画祭",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1956.png",
+    "file": "em-65cc0d6a4bcc.png"
+  },
+  "em-ad084af57188": {
+    "characterName": "魔法使い らくがーる",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1998.png",
+    "file": "em-ad084af57188.png"
+  },
+  "em-28c6b952551d": {
+    "characterName": "海の昇竜貫",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2001.png",
+    "file": "em-28c6b952551d.png"
+  },
+  "em-06a3d28ae15f": {
+    "characterName": "オオガラッパ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2004.png",
+    "file": "em-06a3d28ae15f.png"
+  },
+  "em-16f5c5743e68": {
+    "characterName": "駆けろわだっしー",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2027.png",
+    "file": "em-16f5c5743e68.png"
+  },
+  "em-28a4ccf4cbfc": {
+    "characterName": "ステンバーイちび蔵",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2030.png",
+    "file": "em-28a4ccf4cbfc.png"
+  },
+  "em-c37c2a529421": {
+    "characterName": "ディワリのｱﾗｸｼｭﾐｰ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2033.png",
+    "file": "em-c37c2a529421.png"
+  },
+  "em-0e6d3baf12ca": {
+    "characterName": "ネギ少女じゅんちゃん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2059.png",
+    "file": "em-0e6d3baf12ca.png"
+  },
+  "em-e362f95d25c3": {
+    "characterName": "巳ーちゃんさん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2062.png",
+    "file": "em-e362f95d25c3.png"
+  },
+  "em-3dc0af65e330": {
+    "characterName": "ランたんちゃん",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1978/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon2065.png",
+    "file": "em-3dc0af65e330.png"
+  },
+  "em-a81a753351d9": {
+    "characterName": "戸定梨香",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1976/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1730.png",
+    "file": "em-a81a753351d9.png"
+  },
+  "em-23638c0715eb": {
+    "characterName": "ばけごろう",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1976/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1731.png",
+    "file": "em-23638c0715eb.png"
+  },
+  "em-74c87c37d930": {
+    "characterName": "むぅむぅ",
+    "sourcePage": "https://eigomonogatari.com/event-tag-1976/",
+    "sourceImage": "https://englishstoryserver.com/Icon/Icon/Icon1771.png",
+    "file": "em-74c87c37d930.png"
+  }
+}
