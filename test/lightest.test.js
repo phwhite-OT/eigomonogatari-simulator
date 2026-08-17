@@ -802,3 +802,39 @@ test("最軽装は全コスト帯で火力上限が届かない場合に偵察�
   assert.equal(result.precheck.damageUpperBound.viableTaskCount, 0);
   assert.ok(result.prePrunedReasons.costDamageUpperBound > 0);
 });
+
+test("戦闘行動で蘇生不能な味方が出た枝は三冠不可能として即時に打ち切る", () => {
+  const fragile = { ...character("recovery-fragile", 1, 100), hp: 50, baseHp: 50 };
+  const survivor = {
+    ...character("recovery-late-reviver", 1, 100, { type: "revive", turn: 99, multiplier: 1, target: "ally_all" }),
+    hp: 500,
+    baseHp: 500,
+  };
+  const enemy = resolveLightestEnemy(character("recovery-enemy", 0, 100), { hp: 350, pow: 100 });
+  const result = solveExactLightestStage([fragile, survivor], [enemy], {
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 1,
+    maxTurns: 2,
+  });
+
+  assert.equal(result.threeStar, false);
+  assert.equal(result.exactSearch.battleBranches, 1);
+  assert.equal(result.exactSearch.prunedStates.threeStarRecovery, 1);
+});
+
+test("到達ターン内に使える蘇生が残る枝は戦闘中に切り捨てない", () => {
+  const fragile = { ...character("recovery-revivable", 1, 100), hp: 50, baseHp: 50 };
+  const reviver = {
+    ...character("recovery-ready-reviver", 1, 100, { type: "revive", turn: 1, multiplier: 1, target: "ally_all" }),
+    hp: 500,
+    baseHp: 500,
+  };
+  const enemy = resolveLightestEnemy(character("recovery-revive-enemy", 0, 100), { hp: 180, pow: 100 });
+  const result = solveExactLightestStage([fragile, reviver], [enemy], {
+    answerMultiplier: 1,
+    enemyAttackMultiplier: 1,
+    maxTurns: 2,
+  });
+
+  assert.equal(result.threeStar, true);
+});
