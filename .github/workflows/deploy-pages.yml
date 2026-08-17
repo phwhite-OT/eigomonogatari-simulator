@@ -32,6 +32,10 @@ jobs:
           npm run build
           mkdir -p _site
           cp index.html _site/index.html
+          mkdir -p _site/character-images
+          find character-images -maxdepth 1 -type f \
+            \( -iname '*.avif' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
+            -exec cp {} _site/character-images/ \;
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
