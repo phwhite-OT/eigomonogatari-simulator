@@ -32,6 +32,14 @@ function normalizeName(value) {
     .toLocaleLowerCase("ja-JP");
 }
 
+function isColourVariantName(value) {
+  return /[（(]\s*色違い\s*[）)]\s*$/u.test(String(value ?? ""));
+}
+
+function baseCharacterName(value) {
+  return String(value ?? "").replace(/[（(]\s*色違い\s*[）)]\s*$/u, "").trim();
+}
+
 function decodeHtml(value) {
   return String(value ?? "")
     .replace(/&amp;/gu, "&")
@@ -89,20 +97,31 @@ function officialCharacterName(value) {
 
 function extractOfficialImageEntries(html, pageUrl) {
   const entries = [];
-  for (const row of String(html ?? "").matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)) {
-    const imageTag = row[1].match(/<img\b[^>]*>/iu)?.[0];
-    const sourceValue = imageTag ? (readAttribute(imageTag, "data-src") || readAttribute(imageTag, "src")) : "";
+  const seenEntries = new Set();
+  const addEntry = (name, sourceValue) => {
     let sourceUrl;
     try {
       sourceUrl = new URL(sourceValue, officialOrigin);
     } catch {
-      continue;
+      return;
     }
-    if (!/^https?:$/iu.test(sourceUrl.protocol) || !/(^|\.)englishstoryserver\.com$/iu.test(sourceUrl.hostname)) continue;
+    if (!name || !/^https?:$/iu.test(sourceUrl.protocol) || !/(^|\.)englishstoryserver\.com$/iu.test(sourceUrl.hostname)) return;
+    const key = `${name}\u0000${sourceUrl.href}`;
+    if (seenEntries.has(key)) return;
+    seenEntries.add(key);
+    entries.push({ name, sourceUrl: sourceUrl.href, pageUrl, sourceRegistry: "official-eigomonogatari" });
+  };
+  for (const row of String(html ?? "").matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)) {
+    const imageTag = row[1].match(/<img\b[^>]*>/iu)?.[0];
+    const sourceValue = imageTag ? (readAttribute(imageTag, "data-src") || readAttribute(imageTag, "src")) : "";
     const cells = [...row[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/giu)].map((cell) => textFromHtml(cell[1]));
     const name = officialCharacterName(cells[1]);
-    if (!name) continue;
-    entries.push({ name, sourceUrl: sourceUrl.href, pageUrl, sourceRegistry: "official-eigomonogatari" });
+    addEntry(name, sourceValue);
+  }
+  for (const tag of String(html ?? "").matchAll(/<img\b[^>]*>/giu)) {
+    const name = officialCharacterName(readAttribute(tag[0], "alt"));
+    const sourceValue = readAttribute(tag[0], "data-src") || readAttribute(tag[0], "src");
+    addEntry(name, sourceValue);
   }
   return entries;
 }
@@ -139,30 +158,76 @@ async function fetchDetailPages() {
   })).filter(({ pageUrl, html }) => pageUrl && html);
 }
 
-async function fetchOfficialPosts() {
-  const postUrl = new URL("/wp-json/wp/v2/posts", officialOrigin);
-  postUrl.searchParams.set("per_page", "100");
-  postUrl.searchParams.set("page", "1");
-  const { response: firstResponse, json: firstPage } = await fetchWordPressJson(postUrl);
+async function fetchPaginatedWordPressJson(origin, endpoint, label) {
+  const requestUrl = new URL(endpoint, origin);
+  requestUrl.searchParams.set("per_page", "100");
+  requestUrl.searchParams.set("page", "1");
+  const { response: firstResponse, json: firstPage } = await fetchWordPressJson(requestUrl);
   const pageCount = Math.max(1, Number(firstResponse.headers.get("x-wp-totalpages") ?? 1));
-  const posts = [...firstPage];
+  const items = [...firstPage];
   const pages = Array.from({ length: pageCount - 1 }, (_, index) => index + 2);
   const concurrency = 4;
   for (let index = 0; index < pages.length; index += concurrency) {
     const batch = pages.slice(index, index + concurrency);
-    const pagePosts = await Promise.all(batch.map(async (page) => {
-      const url = new URL(postUrl);
+    const pageItems = await Promise.all(batch.map(async (page) => {
+      const url = new URL(requestUrl);
       url.searchParams.set("page", String(page));
       const { json } = await fetchWordPressJson(url);
       return json;
     }));
-    posts.push(...pagePosts.flat());
-    console.log(`Fetched official article pages ${Math.min(index + concurrency + 1, pageCount)}/${pageCount}.`);
+    items.push(...pageItems.flat());
+    console.log(`Fetched ${label} article pages ${Math.min(index + concurrency + 1, pageCount)}/${pageCount}.`);
   }
+  return items;
+}
+
+async function fetchWordPressPosts(origin, label, endpoint = "/wp-json/wp/v2/posts") {
+  const posts = await fetchPaginatedWordPressJson(origin, endpoint, label);
   return posts.map((post) => ({
     pageUrl: String(post.link ?? ""),
     html: String(post.content?.rendered ?? ""),
   })).filter(({ pageUrl, html }) => pageUrl && html);
+}
+
+async function fetchLetsMediaEntries() {
+  const media = await fetchPaginatedWordPressJson(sourceOrigin, "/wp-json/wp/v2/media", "lets-eiigo media");
+  const entries = [];
+  for (const item of media) {
+    if (!String(item.mime_type ?? "").startsWith("image/")) continue;
+    const sourceUrl = String(item.source_url ?? "").trim();
+    if (!sourceUrl) continue;
+    const names = new Set([
+      textFromHtml(item.alt_text),
+      textFromHtml(item.title?.rendered),
+    ]);
+    for (const name of names) {
+      if (!name) continue;
+      entries.push({
+        name,
+        sourceUrl,
+        pageUrl: String(item.link ?? sourceUrl),
+        sourceRegistry: "lets-eiigo",
+        recordUnmatched: false,
+      });
+    }
+  }
+  return entries;
+}
+
+async function fetchLetsPosts() {
+  return fetchWordPressPosts(sourceOrigin, "lets-eiigo");
+}
+
+async function fetchLetsPages() {
+  return fetchWordPressPosts(sourceOrigin, "lets-eiigo fixed", "/wp-json/wp/v2/pages");
+}
+
+async function fetchOfficialPosts() {
+  return fetchWordPressPosts(officialOrigin, "official");
+}
+
+async function fetchOfficialPages() {
+  return fetchWordPressPosts(officialOrigin, "official fixed", "/wp-json/wp/v2/pages");
 }
 
 function extensionFor(response, sourceUrl) {
@@ -228,6 +293,28 @@ for (const character of CHARACTER_CATALOG) {
   byName.get(key).push(character);
 }
 
+function charactersForImageName(name) {
+  const isColourVariant = isColourVariantName(name);
+  const characters = byName.get(normalizeName(baseCharacterName(name))) ?? [];
+  const matchingVariation = characters.filter((character) => (
+    String(character.source?.sheet ?? "") === "色違い"
+  ) === isColourVariant);
+  return matchingVariation.length ? matchingVariation : isColourVariant ? [] : characters;
+}
+
+function addCandidate(entry, candidates, seenCharacters) {
+  const matchedCharacters = charactersForImageName(entry.name);
+  if (!matchedCharacters.length) {
+    if (entry.recordUnmatched !== false) candidates.push({ ...entry, status: "unmatched" });
+    return;
+  }
+  for (const character of matchedCharacters) {
+    if (seenCharacters.has(character.id)) continue;
+    seenCharacters.add(character.id);
+    candidates.push({ ...entry, character, status: "matched" });
+  }
+}
+
 const indexResponse = await fetch(catalogueIndexUrl, {
   headers: requestHeaders,
 });
@@ -236,7 +323,7 @@ const indexHtml = await indexResponse.text();
 for (const url of extractCatalogueUrls(indexHtml)) imagePages.add(url);
 
 const candidates = [];
-const seenSources = new Set();
+const seenCharacters = new Set();
 for (const pageUrl of [...imagePages]) {
   const response = pageUrl === catalogueIndexUrl
     ? { ok: true, text: async () => indexHtml }
@@ -246,45 +333,47 @@ for (const pageUrl of [...imagePages]) {
     continue;
   }
   for (const entry of extractImageEntries(await response.text(), pageUrl)) {
-    const matchedCharacters = byName.get(normalizeName(entry.name)) ?? [];
-    if (matchedCharacters.length !== 1) {
-      candidates.push({ ...entry, status: matchedCharacters.length ? "ambiguous" : "unmatched" });
-      continue;
-    }
-    const character = matchedCharacters[0];
-    if (seenSources.has(character.id)) continue;
-    seenSources.add(character.id);
-    candidates.push({ ...entry, character, status: "matched" });
+    addCandidate(entry, candidates, seenCharacters);
   }
 }
 
 const detailPages = await fetchDetailPages();
 for (const { pageUrl, html } of detailPages) {
   for (const entry of extractImageEntries(html, pageUrl)) {
-    const matchedCharacters = byName.get(normalizeName(entry.name)) ?? [];
-    if (matchedCharacters.length !== 1) {
-      candidates.push({ ...entry, status: matchedCharacters.length ? "ambiguous" : "unmatched" });
-      continue;
-    }
-    const character = matchedCharacters[0];
-    if (seenSources.has(character.id)) continue;
-    seenSources.add(character.id);
-    candidates.push({ ...entry, character, status: "matched" });
+    addCandidate(entry, candidates, seenCharacters);
   }
+}
+
+const letsPosts = await fetchLetsPosts();
+for (const { pageUrl, html } of letsPosts) {
+  for (const entry of extractImageEntries(html, pageUrl)) {
+    addCandidate(entry, candidates, seenCharacters);
+  }
+}
+
+const letsPages = await fetchLetsPages();
+for (const { pageUrl, html } of letsPages) {
+  for (const entry of extractImageEntries(html, pageUrl)) {
+    addCandidate(entry, candidates, seenCharacters);
+  }
+}
+
+const letsMediaEntries = await fetchLetsMediaEntries();
+for (const entry of letsMediaEntries) {
+  addCandidate(entry, candidates, seenCharacters);
 }
 
 const officialPosts = await fetchOfficialPosts();
 for (const { pageUrl, html } of officialPosts) {
   for (const entry of extractOfficialImageEntries(html, pageUrl)) {
-    const matchedCharacters = byName.get(normalizeName(entry.name)) ?? [];
-    if (matchedCharacters.length !== 1) {
-      candidates.push({ ...entry, status: matchedCharacters.length ? "ambiguous" : "unmatched" });
-      continue;
-    }
-    const character = matchedCharacters[0];
-    if (seenSources.has(character.id)) continue;
-    seenSources.add(character.id);
-    candidates.push({ ...entry, character, status: "matched" });
+    addCandidate(entry, candidates, seenCharacters);
+  }
+}
+
+const officialPages = await fetchOfficialPages();
+for (const { pageUrl, html } of officialPages) {
+  for (const entry of extractOfficialImageEntries(html, pageUrl)) {
+    addCandidate(entry, candidates, seenCharacters);
   }
 }
 
@@ -344,7 +433,11 @@ await writeJson(unmatchedPath, unmatched);
 console.log(JSON.stringify({
   pages: imagePages.size,
   detailPages: detailPages.length,
+  letsPosts: letsPosts.length,
+  letsPages: letsPages.length,
+  letsMediaEntries: letsMediaEntries.length,
   officialPosts: officialPosts.length,
+  officialPages: officialPages.length,
   matched: matched.length,
   selected: selected.length,
   downloaded,
