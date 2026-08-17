@@ -111,9 +111,9 @@ jobs:
     timeout-minutes: 180
     strategy:
       fail-fast: false
-      # The repository is public and GitHub Free permits 20 standard hosted jobs.
-      # Four independent inputs times five deck positions use that capacity exactly.
-      max-parallel: 20
+      # GitHub Free permits 20 standard hosted jobs. Reserve one runner for
+      # implementation, validation, deployment, and other interactive work.
+      max-parallel: 19
       matrix: ${{ fromJSON(needs.select.outputs.work_matrix) }}
     env:
       METAGAME_TIME_BUDGET_SECONDS: "10000"
