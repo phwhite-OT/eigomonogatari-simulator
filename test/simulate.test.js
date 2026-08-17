@@ -451,6 +451,54 @@ test("expert play holds a continuous buff with no matching attribute target", ()
   assert.equal(result.history[0].phases[0].events[0].type, "skill_hold");
 });
 
+test("expert play uses a nonlethal aoe attack when its total immediate damage is higher", () => {
+  const aoe = {
+    type: "aoe_attack",
+    multiplier: 1,
+    target: "enemy_all",
+    targetCount: 5,
+    duration: 1,
+    hits: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [character("aoe", { skillTurn: 0, skill: aoe })],
+    [
+      character("enemy-a", { hp: 1_000, pow: 0 }),
+      character("enemy-b", { hp: 1_000, pow: 0 }),
+    ],
+  );
+  const result = simulateBattle(state, simpleRules, { turns: 1, playStyle: "expert" });
+  const selection = result.history[0].phases.find(({ id }) => id === "skill_selection");
+  const action = result.history[0].actions.find(({ actorName }) => actorName === "aoe");
+
+  assert.equal(selection.events.find(({ actorName }) => actorName === "aoe")?.type, "skill_use");
+  assert.equal(action.hits.length, 2);
+  assert.equal(result.state.enemies.every((enemy) => enemy.currentHp > 0), true);
+});
+
+test("expert play uses a nonlethal multi-hit attack when its immediate damage is higher", () => {
+  const multiHit = {
+    type: "multi_hit_attack",
+    multiplier: 1,
+    hits: 3,
+    target: "self",
+    duration: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [character("multi", { skillTurn: 0, skill: multiHit })],
+    [character("enemy", { hp: 1_000, pow: 0 })],
+  );
+  const result = simulateBattle(state, simpleRules, { turns: 1, playStyle: "expert" });
+  const selection = result.history[0].phases.find(({ id }) => id === "skill_selection");
+  const action = result.history[0].actions.find(({ actorName }) => actorName === "multi");
+
+  assert.equal(selection.events.find(({ actorName }) => actorName === "multi")?.type, "skill_use");
+  assert.equal(action.hits.length, 3);
+  assert.equal(result.state.enemies[0].currentHp > 0, true);
+});
+
 
 test("継続全体攻撃は次ターンも全敵へ適用され、継続実績として記録する", () => {
   const continuousAoe = {
@@ -557,6 +605,40 @@ test("かばう役には高火力の攻撃者を先に当てる", () => {
 
   assert.equal(result.history[0].actions[0].actorName, "strong");
   assert.equal(result.history[0].actions[0].hits[0].targetName, "guard");
+});
+
+test("全体攻撃はかばわれる敵数ぶんの合計火力でかばう役を優先して崩す", () => {
+  const aoe = {
+    type: "aoe_attack",
+    multiplier: 1,
+    target: "enemy_all",
+    duration: 1,
+    hits: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [
+      character("aoe", { pow: 100, skillTurn: 0, skill: aoe }),
+      character("single", { pow: 250 }),
+    ],
+    [
+      character("guard", { hp: 1_000, pow: 0 }),
+      character("protected-left", { pow: 0 }),
+      character("protected-right", { pow: 0 }),
+    ],
+  );
+  state.enemies[0].buffs = [{ type: "guard", multiplier: 1, remainingTurns: 1, conditions: [], activationOrder: 1 }];
+
+  const result = simulateBattle(state, simpleRules, {
+    turns: 1,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  });
+  const action = result.history[0].actions[0];
+
+  assert.equal(action.actorName, "aoe");
+  assert.equal(action.hits.length, 3);
+  assert.deepEqual(action.hits.map(({ targetName }) => targetName), ["guard", "guard", "guard"]);
 });
 
 test("瀕死のかばう役は必要十分な火力で先に倒す", () => {

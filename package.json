@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-final.mjs",
+    "build:character-images": "node scripts/build-character-image-manifest.mjs",
+    "import:lets-eiigo-images": "node scripts/import-lets-eiigo-images.mjs",
     "test": "node --test",
     "rate:characters": "node scripts/rate-characters.mjs",
     "rate:environment": "node scripts/rate-environment.mjs",

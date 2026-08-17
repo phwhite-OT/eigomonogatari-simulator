@@ -317,7 +317,7 @@ function skillDecision(state, side, actorIndex, rules, options) {
     return { use: false, reason: "今回の評価では短縮・遅延効果を使用しない" };
   }
   if (options.playStyle === PLAY_STYLES.EXPERT) {
-    return expertSkillDecision(state, side, actorIndex, rules);
+    return expertSkillDecision(state, side, actorIndex, rules, options);
   }
   if (skill.type === "heal") return healDecision(state, side, actorIndex, skill, rules);
   const environmentPosition = actor.environmentPosition ?? actor.deckIndex + 1;
@@ -378,6 +378,60 @@ function projectedSkillDamage(state, side, actor, skill, rules, options = {}) {
     : strongestHit;
 }
 
+function resolvedAttackDamage(state, side, actorIndex, skill, rules, targetPolicy) {
+  const actor = state[side][actorIndex];
+  if (!actor?.alive || actor.isGhost) return 0;
+  const targetIndex = selectPriorityTarget(state, side, {
+    actor,
+    actorIndex,
+    skill,
+    rules,
+    targetPolicy,
+  });
+  if (targetIndex === undefined) return 0;
+  const action = resolveAttackAction(state, side, actorIndex, rules, skill, {
+    actorSnapshot: actor,
+    targetIndex,
+    deferReplacement: true,
+    consumeSkill: false,
+    // 連撃で撃破後に生じる余剰ヒット先だけは乱数だが、温存判定では
+    // 常に同じ見積りにして選択を再現可能にする。
+    random: () => 0,
+  });
+  return action.hits.reduce((sum, hit) => sum + hit.damage, 0);
+}
+
+function immediateAttackBenefit(state, side, actorIndex, skill, rules, options = {}) {
+  const actor = state[side][actorIndex];
+  const normalSkill = attackSkillWithEffects(actor, BASIC_ATTACK);
+  const normalDamage = resolvedAttackDamage(
+    state,
+    side,
+    actorIndex,
+    normalSkill,
+    rules,
+    options.targetPolicy,
+  );
+  // 連撃・全体攻撃は支援フェーズで攻撃形態の継続効果として付与される。
+  // 実際の攻撃と同じ順序で付与後の盤面から見積もることで、攻撃範囲と
+  // ヒット数を落とさずに通常攻撃と比較する。
+  const after = applySupportSkill(state, side, actorIndex, skill, { consumeSkill: false });
+  const actingAfter = after[side][actorIndex];
+  const baseSkill = skill.type === "multi_hit_attack"
+    ? { ...skill, hits: 1 }
+    : skill;
+  const effectiveSkill = attackSkillWithEffects(actingAfter, baseSkill);
+  const skillDamage = resolvedAttackDamage(
+    after,
+    side,
+    actorIndex,
+    effectiveSkill,
+    rules,
+    options.targetPolicy,
+  );
+  return { normalDamage, skillDamage, gain: skillDamage - normalDamage };
+}
+
 function crossTeamDamage(state, attackingSide, rules) {
   const defendingSide = opponentSide(attackingSide);
   return state[attackingSide].filter((combatant) => combatant.alive && !combatant.isGhost).reduce((sum, actor) => (
@@ -425,10 +479,16 @@ function expertSkillDecision(state, side, actorIndex, rules, options = {}) {
       : { use: true, reason: "現在ターンの実回復量があるため使用" };
   }
   if (isAttackSkill(skill)) {
-    const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
-    return benefit.outgoingGain > 0
-      ? { use: true, reason: "通常攻撃より撃破・総ダメージ効率が上がるため使用" }
-      : { use: false, reason: "既存の攻撃形態と重複するか盤面への寄与が増えないため温存" };
+    const benefit = immediateAttackBenefit(state, side, actorIndex, skill, rules, options);
+    return benefit.gain > 0
+      ? {
+          use: true,
+          reason: `通常攻撃より今ターンの実与ダメージが${benefit.gain}増えるため使用`,
+        }
+      : {
+          use: false,
+          reason: "通常攻撃を上回る今ターンの実与ダメージがないため温存",
+        };
   }
   const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
   const useful = skill.type === "heal"
@@ -593,9 +653,16 @@ function tacticalAttackIntentScore(intent, state, rules, options) {
 function guardBreakAssessment(intent, state, rules) {
   const guard = guardBreakTargetForAttacker(state, intent.side, intent.actor);
   if (!guard) return undefined;
+  const perHitDamage = estimateDamage(intent.actor, guard.combatant, intent.skill, rules);
+  const hitCount = Math.max(1, Number(intent.skill.hits) || 1);
+  // 全体攻撃がかばわれる場合は、元々の生存対象すべてへの一発ずつが
+  // かばう役へ集まる。その総量で、かばう役を崩す攻撃順を比較する。
+  const targetCount = intent.skill.type === "aoe_attack"
+    ? targetableIndexes(state[opponentSide(intent.side)]).length
+    : 1;
   return {
     ...guard,
-    damage: estimateDamage(intent.actor, guard.combatant, intent.skill, rules),
+    damage: perHitDamage * hitCount * targetCount,
   };
 }
 

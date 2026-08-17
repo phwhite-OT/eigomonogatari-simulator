@@ -331,19 +331,27 @@ test("かわすは攻撃をリーダーへリダイレクトする", () => {
   assert.equal(next.enemies[1].currentHp, 1000);
 });
 
-test("全体攻撃がかばわれた場合はかばう役へ1体分だけ当てて終了する", () => {
+test("全体攻撃がかばわれた場合は生存敵数ぶんかばう役へ当てる", () => {
   const aoe = character("aoe", {
     skill: { type: "aoe_attack", multiplier: 1, duration: 1, hits: 1 },
   });
-  const createState = (guardHp) => {
+  const createState = (guardHp, ghostCount = 0) => {
     const state = createBattleState(
       [aoe],
       [
         character("guard", { hp: guardHp }),
         character("protected-left"),
         character("protected-right"),
+        character("ghost-one"),
+        character("ghost-two"),
       ],
     );
+    for (let index = 0; index < ghostCount; index += 1) {
+      const target = state.enemies.at(-(index + 1));
+      target.alive = false;
+      target.isGhost = true;
+      target.currentHp = 0;
+    }
     state.enemies[0].buffs = [{
       type: "guard",
       multiplier: 0.5,
@@ -354,15 +362,15 @@ test("全体攻撃がかばわれた場合はかばう役へ1体分だけ当て�
     return state;
   };
 
-  const survived = applySkill(createState(250), "allies", 0, simpleRules);
-  assert.equal(survived.enemies[0].currentHp, 200);
+  const survived = applySkill(createState(1_000, 2), "allies", 0, simpleRules);
+  assert.equal(survived.enemies[0].currentHp, 850);
   assert.equal(survived.enemies[1].currentHp, 1000);
   assert.equal(survived.enemies[2].currentHp, 1000);
 
-  const defeated = applySkill(createState(80), "allies", 0, simpleRules);
-  assert.equal(defeated.enemies[0].currentHp, 30);
+  const defeated = applySkill(createState(80, 2), "allies", 0, simpleRules);
+  assert.equal(defeated.enemies[0].currentHp, 0);
   assert.equal(defeated.enemies[1].currentHp, 1000);
-  assert.equal(defeated.enemies[2].currentHp, 1000);
+  assert.equal(defeated.enemies[2].currentHp, 900);
 });
 
 test("連続攻撃はかばう役の撃破後に残りの攻撃を続行する", () => {
@@ -386,7 +394,7 @@ test("連続攻撃はかばう役の撃破後に残りの攻撃を続行する",
   assert.equal(next.enemies[0].currentHp, 0);
   assert.equal(next.enemies[1].currentHp, 900);
 });
-test("全体攻撃をかばって生存した場合は同じキャラが場に残る", () => {
+test("全体攻撃中にかばう役を倒した後は残りの対象へ進む", () => {
   const aoe = character("aoe", {
     skill: { type: "aoe_attack", multiplier: 1, duration: 1, hits: 1 },
   });
@@ -408,10 +416,10 @@ test("全体攻撃をかばって生存した場合は同じキャラが場に�
 
   const next = applySkill(state, "allies", 0, simpleRules);
 
-  assert.equal(next.enemies[0].character.name, "guard");
-  assert.equal(next.enemies[0].currentHp, 30);
+  assert.equal(next.enemies[0].character.name, "guard-reserve");
+  assert.equal(next.enemies[0].currentHp, 200);
   assert.equal(next.enemies[1].currentHp, 1000);
-  assert.equal(next.enemies[2].currentHp, 1000);
+  assert.equal(next.enemies[2].currentHp, 900);
 });
 test("短縮・遅延スキルは効果を適用せず使用回数も消費しない", () => {
   for (const skill of [

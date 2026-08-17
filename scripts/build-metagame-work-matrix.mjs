@@ -3,7 +3,11 @@ import path from "node:path";
 
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
-import { buildMetagameV7CandidatePools, resolveMetagameV7Input } from "../src/core/metagame-v7.js";
+import {
+  buildMetagameV7CandidatePools,
+  METAGAME_V8_MODEL_VERSION,
+  resolveMetagameV7Input,
+} from "../src/core/metagame-v7.js";
 import { buildMetagameCandidateShardPlan } from "../src/core/metagame-work-shards.js";
 
 function readArgument(name, fallback) {
@@ -35,7 +39,13 @@ if (!input) throw new Error(`Unknown metagame input: ${inputId}`);
 const partnerLimit = positiveInteger(readArgument("partner-limit", "48"), 48, 32);
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
 const maxWorkers = positiveInteger(readArgument("max-workers", "20"), 20);
-const progress = await readProgress(readArgument("checkpoint-path", ""));
+const savedProgress = await readProgress(readArgument("checkpoint-path", ""));
+// A model revision intentionally starts all candidate ratings over.  The
+// workflow's completion gate already checks this version; mirror it here so
+// an older fully-populated checkpoint cannot produce a zero-shard no-op.
+const progress = savedProgress?.context?.version === METAGAME_V8_MODEL_VERSION
+  ? savedProgress
+  : null;
 const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
 const candidateIdsByPosition = candidatePools.allByPosition.map((candidates) => (

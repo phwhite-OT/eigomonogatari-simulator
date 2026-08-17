@@ -18,7 +18,7 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V8_MODEL_VERSION = "team-battle-v8.5-role-balance";
+const METAGAME_V8_MODEL_VERSION = "team-battle-v8.6-combat-corrections";
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V8_INPUTS.map((input) => Object.freeze({
     type: "v8",

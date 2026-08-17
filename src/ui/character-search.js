@@ -1,4 +1,5 @@
 import { attributeClassLabel, resolveAttributeClass } from "../data/rules.js";
+import { resolveCharacterImageUrl } from "../data/character-images.js";
 import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
 import { groupCharactersForCatalogue } from "../core/character-catalogue.js";
 
@@ -51,9 +52,32 @@ function createActionButton(label, action) {
   return button;
 }
 
-function renderCharacterCard(result, rank, { lightestAvailable = false } = {}) {
+function renderCharacterPortrait(character) {
+  const portrait = characterSearchElement("div", "character-portrait");
+  portrait.dataset.characterImageId = String(character.id);
+  const imageUrl = resolveCharacterImageUrl(character);
+  const showPlaceholder = () => {
+    portrait.replaceChildren(characterSearchElement("span", "character-portrait-placeholder", "画像"));
+    portrait.classList.add("is-placeholder");
+  };
+  if (!imageUrl) {
+    showPlaceholder();
+    return portrait;
+  }
+  const image = document.createElement("img");
+  image.src = imageUrl;
+  image.alt = `${character.name}の画像`;
+  image.loading = "lazy";
+  image.decoding = "async";
+  image.addEventListener("error", showPlaceholder, { once: true });
+  portrait.append(image);
+  return portrait;
+}
+
+function renderCharacterCard(result, rank, { lightestAvailable = false, compact = false } = {}) {
   const { character } = result;
   const card = characterSearchElement("article", "character-search-card");
+  card.classList.toggle("is-compact", compact);
   const heading = characterSearchElement("div", "character-search-card-heading");
   const identity = characterSearchElement("div", "character-search-identity");
   const attributeClass = resolveAttributeClass(character.attributes);
@@ -62,6 +86,7 @@ function renderCharacterCard(result, rank, { lightestAvailable = false } = {}) {
   const id = characterSearchElement("small", "", `ID ${character.id}`);
   identity.append(attribute, name, id);
   const rankLabel = characterSearchElement("span", "character-search-rank", `#${rank}`);
+  if (compact) heading.append(renderCharacterPortrait(character));
   heading.append(identity, rankLabel);
 
   const meta = characterSearchElement("div", "character-search-meta");
@@ -106,7 +131,9 @@ function renderCharacterCard(result, rank, { lightestAvailable = false } = {}) {
     }));
   }
 
-  card.append(heading, meta, stats, skill, reasons, actions);
+  card.append(heading, meta, stats, skill);
+  if (!compact) card.append(reasons);
+  card.append(actions);
   return card;
 }
 
@@ -134,9 +161,9 @@ function renderCatalogueCategory(group, categoryIndex, options) {
   let rendered = false;
   const renderItems = () => {
     const fragment = document.createDocumentFragment();
-    const grid = characterSearchElement("div", "character-search-grid");
+    const grid = characterSearchElement("div", "character-catalogue-grid");
     group.items.slice(0, visibleCount).forEach((item) => {
-      grid.append(renderCharacterCard(catalogueResult(item, group), item.sourceIndex + 1, options));
+      grid.append(renderCharacterCard(catalogueResult(item, group), item.sourceIndex + 1, { ...options, compact: true }));
     });
     fragment.append(grid);
     if (visibleCount < group.items.length) {
