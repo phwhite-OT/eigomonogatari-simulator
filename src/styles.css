@@ -736,6 +736,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .character-search-reasons li { padding: 4px 6px; border-radius: 6px; background: white; color: #60706a; font-size: 7px; }
 .character-search-actions { display: grid; grid-template-columns: repeat(3,1fr); border-top: 1px solid #e7eae2; }
 .character-search-actions:not(.is-admin) { grid-template-columns: repeat(2,1fr); }
+.character-search-actions.is-database-admin { grid-template-columns: repeat(4,1fr); }
 .character-search-action { min-height: 39px; border: 0; border-right: 1px solid #e7eae2; background: white; color: #5a6963; cursor: pointer; font-size: 8px; font-weight: 800; }
 .character-search-card.is-compact .character-search-meta { gap: 3px; padding: 0 8px 6px; }
 .character-search-card.is-compact .character-search-meta span { padding: 3px 5px; font-size: 6px; }
@@ -813,6 +814,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .character-editor-close { width: 33px; height: 33px; border: 1px solid var(--line); border-radius: 9px; background: white; color: #66736e; cursor: pointer; font-size: 20px; line-height: 1; }
 .character-editor-message { min-height: 20px; margin: 14px 26px 0; color: #5e7027; font-size: 10px; line-height: 1.6; }
 .character-editor-message.is-error { color: #973829; }
+.character-database-notice { margin: 9px 0 0; color: #718078; font-size: 9px; font-weight: 700; line-height: 1.55; }
 .character-editor-section { padding: 20px 26px; border-bottom: 1px solid var(--line); }
 .character-editor-section h3 { margin: 0 0 14px; font-size: 13px; }
 .character-editor-owned { margin-top: 13px; }

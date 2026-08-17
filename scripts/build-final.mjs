@@ -9,6 +9,7 @@ if (!process.argv.includes("--skip-metagame-data")) {
 const sourceFiles = [
   "src/data/rules.js",
   "src/data/characters.js",
+  "src/data/character-database.js",
   "src/data/workbook-characters.js",
   "src/data/character-catalog.js",
   "src/data/character-image-manifest.js",
