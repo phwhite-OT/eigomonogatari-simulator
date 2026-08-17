@@ -729,7 +729,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .character-search-rank { color: #9aa49f; font: 800 10px ui-monospace,monospace; }
 .character-search-meta { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 18px 12px; }
 .character-search-meta span { padding: 5px 8px; border-radius: 999px; background: #f0f2ec; color: #5f6d68; font-size: 8px; font-weight: 800; }
-.character-search-stats { display: grid; grid-template-columns: repeat(3,1fr); border-block: 1px solid #e8ebe3; background: #fafbf7; }
+.character-search-stats { display: grid; grid-template-columns: repeat(2,1fr); border-block: 1px solid #e8ebe3; background: #fafbf7; }
 .character-search-stats span { padding: 10px 12px; border-right: 1px solid #e8ebe3; }
 .character-search-stats span:last-child { border-right: 0; }
 .character-search-stats small, .character-search-stats strong { display: block; }
@@ -14318,15 +14318,17 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     }
 
     const stats = characterSearchElement("div", "character-search-stats");
-    for (const [label, value] of [["HP", character.hp], ["Power", character.pow], ["Skill", `${character.skillTurn}T`]]) {
+    for (const [label, value] of [["HP", character.hp], ["Power", character.pow]]) {
       const stat = characterSearchElement("span");
       stat.append(characterSearchElement("small", "", label), characterSearchElement("strong", "", typeof value === "number" ? formatNumber(value) : value));
       stats.append(stat);
     }
 
     const skill = characterSearchElement("div", "character-search-skill");
+    const skillCategory = character.skillCategory && character.skillCategory !== "-" ? character.skillCategory : "スキルなし";
+    const skillHeading = skillCategory === "スキルなし" ? skillCategory : `${character.skillTurn}T ・ ${skillCategory}`;
     skill.append(
-      characterSearchElement("strong", "", character.skillCategory && character.skillCategory !== "-" ? character.skillCategory : "スキルなし"),
+      characterSearchElement("strong", "", skillHeading),
       characterSearchElement("p", "", character.skillName || "スキル説明なし"),
     );
 

@@ -95,15 +95,17 @@ function renderCharacterCard(result, rank, { lightestAvailable = false, compact 
   }
 
   const stats = characterSearchElement("div", "character-search-stats");
-  for (const [label, value] of [["HP", character.hp], ["Power", character.pow], ["Skill", `${character.skillTurn}T`]]) {
+  for (const [label, value] of [["HP", character.hp], ["Power", character.pow]]) {
     const stat = characterSearchElement("span");
     stat.append(characterSearchElement("small", "", label), characterSearchElement("strong", "", typeof value === "number" ? formatNumber(value) : value));
     stats.append(stat);
   }
 
   const skill = characterSearchElement("div", "character-search-skill");
+  const skillCategory = character.skillCategory && character.skillCategory !== "-" ? character.skillCategory : "スキルなし";
+  const skillHeading = skillCategory === "スキルなし" ? skillCategory : `${character.skillTurn}T ・ ${skillCategory}`;
   skill.append(
-    characterSearchElement("strong", "", character.skillCategory && character.skillCategory !== "-" ? character.skillCategory : "スキルなし"),
+    characterSearchElement("strong", "", skillHeading),
     characterSearchElement("p", "", character.skillName || "スキル説明なし"),
   );
 
