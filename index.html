@@ -752,7 +752,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .character-search-reasons li { padding: 4px 6px; border-radius: 6px; background: white; color: #60706a; font-size: 7px; }
 .character-search-actions { display: grid; grid-template-columns: repeat(3,1fr); border-top: 1px solid #e7eae2; }
 .character-search-actions:not(.is-admin) { grid-template-columns: repeat(2,1fr); }
-.character-search-actions.is-database-admin { grid-template-columns: repeat(4,1fr); }
+.character-search-actions.is-database-admin { grid-template-columns: repeat(6,1fr); }
 .character-search-action { min-height: 39px; border: 0; border-right: 1px solid #e7eae2; background: white; color: #5a6963; cursor: pointer; font-size: 8px; font-weight: 800; }
 .character-search-card.is-compact .character-search-meta { gap: 3px; padding: 0 8px 6px; }
 .character-search-card.is-compact .character-search-meta span { padding: 3px 5px; font-size: 6px; }
@@ -1734,6 +1734,14 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return Number.isFinite(number) ? number : fallback;
   }
 
+  function normalizeCataloguePlacement(value) {
+    if (!value || typeof value !== "object") return null;
+    const anchorId = String(value.anchorId ?? "").trim();
+    const position = String(value.position ?? "");
+    if (!anchorId || !["before", "after"].includes(position)) return null;
+    return { anchorId, position };
+  }
+
   function normalizeCharacter(rawCharacter, index = 0) {
     const attributes = Array.isArray(rawCharacter.attributes)
       ? rawCharacter.attributes.map(String).filter(Boolean)
@@ -1827,6 +1835,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       skillTurn: Math.max(0, asFiniteNumber(rawCharacter.skillTurn)),
       maxUses: Math.min(2, Math.max(0, asFiniteNumber(rawCharacter.maxUses, 2))),
       source: rawCharacter.source ?? null,
+      cataloguePlacement: normalizeCataloguePlacement(rawCharacter.cataloguePlacement),
       skill: {
         type: String(rawCharacter.skill?.type ?? "none"),
         multiplier: asFiniteNumber(rawCharacter.skill?.multiplier, 1),
@@ -2037,6 +2046,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       ...draft,
       id: String(existingCharacter.id),
       source: existingCharacter.source,
+      cataloguePlacement: existingCharacter.cataloguePlacement,
       pvpTier: existingCharacter.pvpTier,
       allowedPositions: existingCharacter.allowedPositions,
       preferredPositions: existingCharacter.preferredPositions,
@@ -2059,6 +2069,57 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   function requireDatabaseClient(client) {
     if (!client?.from) throw new TypeError("キャラデータベースへ接続できません。");
     return client;
+  }
+
+  function characterId(character) {
+    return String(character?.id ?? "");
+  }
+
+  // Keep workbook order as the baseline, while allowing a manually added character
+  // to live directly before or after a chosen catalogue entry. Placement anchors are
+  // IDs, so edits to the anchor's name or stats do not move the added character.
+  function mergeCharacterDatabaseIntoCatalogue(baseCharacters, databaseCharacters) {
+    const base = Array.isArray(baseCharacters) ? baseCharacters : [];
+    const database = Array.isArray(databaseCharacters) ? databaseCharacters : [];
+    const databaseById = new Map(database.map((character) => [characterId(character), character]));
+    const baseIds = new Set(base.map(characterId));
+    const merged = base.map((character) => databaseById.get(characterId(character)) ?? character);
+    const pending = database.filter((character) => !baseIds.has(characterId(character)));
+    const lastBefore = new Map();
+    const lastAfter = new Map();
+
+    while (pending.length) {
+      let inserted = false;
+      for (let index = 0; index < pending.length; index += 1) {
+        const character = pending[index];
+        const placement = character.cataloguePlacement;
+        if (!placement) continue;
+        const anchorIndex = merged.findIndex((entry) => characterId(entry) === placement.anchorId);
+        if (anchorIndex < 0) continue;
+
+        const siblingId = placement.position === "before"
+          ? lastBefore.get(placement.anchorId)
+          : lastAfter.get(placement.anchorId);
+        const siblingIndex = siblingId
+          ? merged.findIndex((entry) => characterId(entry) === siblingId)
+          : -1;
+        const insertIndex = siblingIndex >= 0
+          ? siblingIndex + 1
+          : placement.position === "before"
+            ? anchorIndex
+            : anchorIndex + 1;
+        merged.splice(insertIndex, 0, character);
+        if (placement.position === "before") lastBefore.set(placement.anchorId, characterId(character));
+        else lastAfter.set(placement.anchorId, characterId(character));
+        pending.splice(index, 1);
+        inserted = true;
+        break;
+      }
+      if (!inserted) break;
+    }
+
+    // A removed or renamed anchor must not make a saved character disappear.
+    return [...merged, ...pending];
   }
 
   function parseCharacterDatabaseRows(rows) {
@@ -14960,7 +15021,13 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     return portrait;
   }
 
-  function renderCharacterCard(result, rank, { lightestAvailable = false, characterDatabaseAccess = false, onEditCharacter, compact = false } = {}) {
+  function renderCharacterCard(result, rank, {
+    lightestAvailable = false,
+    characterDatabaseAccess = false,
+    onEditCharacter,
+    onAddCharacterAtPosition,
+    compact = false,
+  } = {}) {
     const { character } = result;
     const card = characterSearchElement("article", "character-search-card");
     card.classList.toggle("is-compact", compact);
@@ -15020,7 +15087,11 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       }));
     }
     if (characterDatabaseAccess) {
-      actions.append(createActionButton("編集", () => onEditCharacter?.(character)));
+      actions.append(
+        createActionButton("編集", () => onEditCharacter?.(character)),
+        createActionButton("前に追加", () => onAddCharacterAtPosition?.(character, "before")),
+        createActionButton("後に追加", () => onAddCharacterAtPosition?.(character, "after")),
+      );
     }
 
     card.append(heading, meta, stats, skill);
@@ -15158,7 +15229,8 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     let lightestAvailable = Boolean(options.lightestAvailable);
     let characterDatabaseAccess = Boolean(options.characterDatabaseAccess);
     const onEditCharacter = typeof options.onEditCharacter === "function" ? options.onEditCharacter : () => {};
-    const renderOptions = () => ({ lightestAvailable, characterDatabaseAccess, onEditCharacter });
+    const onAddCharacterAtPosition = typeof options.onAddCharacterAtPosition === "function" ? options.onAddCharacterAtPosition : () => {};
+    const renderOptions = () => ({ lightestAvailable, characterDatabaseAccess, onEditCharacter, onAddCharacterAtPosition });
 
     const renderCurrent = () => {
       if (!response) {
@@ -15412,6 +15484,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const openButtons = document.querySelectorAll("[data-character-editor-open]");
     const closeButtons = dialog.querySelectorAll("[data-character-editor-close]");
     let editingCharacter = null;
+    let insertionContext = null;
     let busy = false;
 
     const showMessage = (text, error = false) => {
@@ -15436,6 +15509,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
     const open = () => {
       if (!assertAllowed()) return;
       editingCharacter = null;
+      insertionContext = null;
       resetForm(form);
       mode.textContent = "ADD CHARACTER";
       title.textContent = "キャラを追加";
@@ -15445,9 +15519,25 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       else dialog.setAttribute("open", "");
       form.elements.manualName.focus();
     };
+    const openAtPosition = (anchor, position) => {
+      if (!assertAllowed() || !anchor || !["before", "after"].includes(position)) return;
+      editingCharacter = null;
+      insertionContext = { anchor, position };
+      resetForm(form);
+      const direction = position === "before" ? "前" : "後";
+      form.elements.manualRegion.value = anchor.region || "手入力";
+      mode.textContent = "ADD AT POSITION";
+      title.textContent = "指定位置にキャラを追加";
+      submitButton.textContent = "この位置に追加";
+      showMessage(`「${anchor.name}」（ID ${anchor.id}）の${direction}に追加します。保存後もこの位置を維持します。`);
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+      form.elements.manualName.focus();
+    };
     const openForEdit = (character) => {
       if (!assertAllowed() || !character) return;
       editingCharacter = character;
+      insertionContext = null;
       populateCharacterEditorForm(form, character);
       mode.textContent = "EDIT CHARACTER";
       title.textContent = "キャラを編集";
@@ -15479,9 +15569,24 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       if (busy || !assertAllowed()) return;
       try {
         setBusy(true);
-        const character = editingCharacter
+        let character = editingCharacter
           ? updateManualCharacter(formValues(form), editingCharacter)
           : createManualCharacter(formValues(form), getExistingIds());
+        if (insertionContext && !editingCharacter) {
+          const anchor = insertionContext.anchor;
+          character = {
+            ...character,
+            source: {
+              ...(character.source ?? {}),
+              sheet: anchor.source?.sheet || anchor.region || "追加キャラ・その他",
+              row: "",
+            },
+            cataloguePlacement: {
+              anchorId: String(anchor.id),
+              position: insertionContext.position,
+            },
+          };
+        }
         const save = editingCharacter ? onEdit : onAdd;
         if (typeof save !== "function") throw new TypeError("キャラデータベースの保存処理を開始できません。");
         await save(character, editingCharacter);
@@ -15494,7 +15599,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       }
     });
 
-    return { open, openForEdit, setAccess() {} };
+    return { open, openAtPosition, openForEdit, setAccess() {} };
   }
 
   //# sourceURL=src/ui/character-editor.js
@@ -15766,11 +15871,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   //# sourceURL=src/auth/supabase-auth.js
 
   function combineCharacters(...characterLists) {
-    const charactersById = new Map();
-    for (const characters of characterLists) {
-      for (const character of characters) charactersById.set(String(character.id), character);
-    }
-    return [...charactersById.values()];
+    return mergeCharacterDatabaseIntoCatalogue(characterLists[0], characterLists.slice(1).flat());
   }
   function bootstrap() {
     const form = document.querySelector("[data-search-form]");
@@ -15846,10 +15947,10 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       if (!databaseClient) throw new Error("キャラデータベースへの接続を準備中です。少し待ってからもう一度保存してください。");
       const savedCharacter = await saveCharacterDatabaseCharacter(databaseClient, character);
       characterDatabaseRevision += 1;
-      databaseCharacters = combineCharacters(
-        databaseCharacters.filter((item) => String(item.id) !== String(savedCharacter.id)),
-        [savedCharacter],
-      );
+      databaseCharacters = [
+        ...databaseCharacters.filter((item) => String(item.id) !== String(savedCharacter.id)),
+        savedCharacter,
+      ];
       characters = combineCharacters(baseCharacters, databaseCharacters);
       refreshData();
       renderIdle(resultRoot);
@@ -15884,6 +15985,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
       lightestAvailable: false,
       characterDatabaseAccess: false,
       onEditCharacter: (character) => characterEditorController?.openForEdit(character),
+      onAddCharacterAtPosition: (anchor, position) => characterEditorController?.openAtPosition(anchor, position),
     });
     initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, CHARACTER_CATALOG);
     characterEditorController = initializeCharacterEditor(characterEditor, {

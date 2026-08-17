@@ -4,6 +4,8 @@
 
 保存先は Supabase の `public.character_catalog_overrides` です。追加キャラはそのまま登録され、既存キャラを編集した場合は同じIDの差分として保存されます。公開図鑑・編成検索・計算は、収録データにこの差分を上書きして利用します。
 
+管理者は図鑑・検索結果の各キャラにある「前に追加」「後に追加」から、任意の位置へ新キャラを追加できます。位置は基準キャラのIDで保存されるため、再読み込み後も同じ前後関係を維持します。通常の「＋ キャラを追加」は従来どおり末尾追加です。
+
 ## 初回の有効化
 
 Supabase Dashboard の SQL Editor で、[20260817_character_catalog_overrides.sql](../supabase/migrations/20260817_character_catalog_overrides.sql) を一度だけ実行します。SQL は次を設定します。
