@@ -928,8 +928,46 @@ function exactRemainingDamageUpperBound(state, options) {
   );
 }
 
-function exactImpossibleReason(state, options) {
+function exactPotentialSkillReduction(state) {
+  return state.allies.reduce((sum, unit) => {
+    if (!unit.alive || unit.ghost || unit.character.skill?.type !== "skill_reduction") return sum;
+    const maxUses = Math.min(2, Math.max(0, Number(unit.character.maxUses) || 2));
+    const remainingUses = Math.max(0, maxUses - unit.skillUses);
+    return sum + remainingUses * Math.max(0, Number(unit.character.skill?.amount) || 0);
+  }, 0);
+}
+
+function exactReviveCanTargetAlly(unit, actorIndex, allyIndex) {
+  const skill = unit.character.skill ?? {};
+  if (skill.target === "leader") return allyIndex === 0;
+  if (skill.target === "self" && !exactTargetsTeam(unit.character)) return allyIndex === actorIndex;
+  return true;
+}
+
+function exactCanPotentiallyReviveAlly(state, allyIndex, options, afterActions = false) {
+  if (afterActions && state.turn >= options.maxTurns) return false;
+  const potentialReduction = exactPotentialSkillReduction(state);
+  const futureCounterGain = Math.max(0, options.maxTurns - state.turn);
+  return state.allies.some((unit, actorIndex) => {
+    if (!unit.alive || unit.ghost || unit.character.skill?.type !== "revive") return false;
+    const maxUses = Math.min(2, Math.max(0, Number(unit.character.maxUses) || 2));
+    if (unit.skillUses >= maxUses || !exactReviveCanTargetAlly(unit, actorIndex, allyIndex)) return false;
+    const requiredCounter = Math.max(0, Number(unit.character.skillTurn) || 0);
+    return unit.skillCounter + futureCounterGain + potentialReduction >= requiredCounter;
+  });
+}
+
+function exactThreeStarRecoveryImpossible(state, options, afterActions = false) {
+  return state.allies.some((ally, allyIndex) => (
+    (!ally.alive || ally.ghost) && (
+      ally.reviveUsed || !exactCanPotentiallyReviveAlly(state, allyIndex, options, afterActions)
+    )
+  ));
+}
+
+function exactImpossibleReason(state, options, afterActions = false) {
   if (!exactActive(state.allies).length) return "noActiveAllies";
+  if (exactThreeStarRecoveryImpossible(state, options, afterActions)) return "threeStarRecovery";
   const remainingEnemyCount = exactActive(state.enemies).length + state.enemyQueue.length;
   if (remainingEnemyCount > exactMaximumDefeatsByDeadline(state.turn, options.maxTurns)) {
     return "enemyCapacity";
@@ -977,7 +1015,7 @@ export function solveExactLightestStage(deck, enemies, solveOptions = {}) {
     battleBranches: 0,
     skippedTargetControls: 0,
     collapsedTargetPlans: 0,
-    prunedStates: { noActiveAllies: 0, enemyCapacity: 0, damageUpperBound: 0 },
+    prunedStates: { noActiveAllies: 0, threeStarRecovery: 0, enemyCapacity: 0, damageUpperBound: 0 },
   };
 
   const search = (inputState) => {
@@ -1007,6 +1045,12 @@ export function solveExactLightestStage(deck, enemies, solveOptions = {}) {
         for (const manualTargets of exactManualTargetPlans(skillBranch.state, stats, options)) {
           stats.battleBranches += 1;
           const battle = exactResolveBattle(skillBranch, options, answerMode.factor, manualTargets);
+          const postBattleImpossibleReason = exactImpossibleReason(battle.state, options, true);
+          if (postBattleImpossibleReason) {
+            stats.prunedStates[postBattleImpossibleReason] += 1;
+            failedMemo.add(exactStateKey(battle.state));
+            continue;
+          }
           const turnLog = {
             turn: state.turn,
             spawned,
