@@ -1,0 +1,19 @@
+{
+  "maxCost": 120,
+  "maxTurns": 12,
+  "deckSizes": [1, 2, 3, 4, 5],
+  "difficulty": "pine",
+  "allowedAttributes": ["fire", "water", "wind"],
+  "rarities": [],
+  "eventBonusIds": [],
+  "requiredLastSkillType": "revive",
+  "enemies": [
+    { "characterId": "em-4b8a1db2788c" }
+  ],
+  "searchOptions": {
+    "allowDuplicates": true,
+    "ownedOnly": true,
+    "answerMultiplier": 2.592,
+    "enemyAttackMultiplier": 1
+  }
+}

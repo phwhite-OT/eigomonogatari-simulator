@@ -928,6 +928,70 @@ function lightestDamageViableTasks(tasks, enemies) {
   });
 }
 
+// Phase 1 for the local runner.  This deliberately returns only a proven
+// winning *upper bound*: candidate guidance and automatic actions may miss a
+// cheaper deck, but every returned deck is simulated before it is accepted.
+// The caller must still exhaust every lower cost with the exact search.
+export async function findLightestScoutUpperBound(characters, stage, searchOptions = {}) {
+  const deckSizes = lightestDeckSizes(stage);
+  const options = { ...LIGHTEST_DEFAULTS, ...searchOptions };
+  const normalizedOptions = {
+    ...options,
+    targetSearch: "automatic",
+    skillSearch: "automatic",
+    orderSearch: "hp_descending",
+  };
+  const normalizedStage = {
+    ...stage,
+    orderByHpDescending: true,
+  };
+  const guidance = buildLightestGuidedCandidatePool(characters, normalizedStage, normalizedOptions);
+  const scoutCharacters = guidance.characters;
+  const searchScope = lightestSearchScope(normalizedStage, normalizedOptions, guidance);
+  const requestedDeckSizes = deckSizes.length
+    ? deckSizes
+    : [Number(normalizedStage.deckSize ?? normalizedOptions.deckSize)];
+  const profileEntries = requestedDeckSizes.map((deckSize, index) => ({
+    deckSize,
+    deckSizeIndex: index + 1,
+    profile: prepareExactLightestCandidateProfile(
+      scoutCharacters,
+      { ...normalizedStage, deckSize },
+      normalizedOptions,
+    ),
+  }));
+  const profiles = profileEntries.filter((entry) => !entry.profile.infeasibility);
+  const stageInfeasibility = exactStageInfeasibility(normalizedStage, normalizedOptions);
+  if (!profiles.length || stageInfeasibility) {
+    return {
+      found: false,
+      scout: { attempted: false, sampledDeckCount: 0, candidateDeckCount: 0, found: false },
+      guidance,
+      searchScope,
+      stage: normalizedStage,
+      precheck: stageInfeasibility ? { stage: stageInfeasibility } : null,
+    };
+  }
+  const targetCost = lightestRequestedTargetCost(normalizedStage);
+  const tasks = lightestDamageViableTasks(
+    lightestCostTasks(profiles, targetCost),
+    normalizedStage.enemies,
+  );
+  const scout = tasks.length
+    ? await lightestScoutWinningDeck(profiles, normalizedStage, normalizedOptions, tasks)
+    : { attempted: false, sampledDeckCount: 0, candidateDeckCount: 0, found: false };
+  return {
+    found: Boolean(scout?.found),
+    upperCost: scout?.upperCost ?? null,
+    deck: scout?.deck ?? null,
+    scout,
+    guidance,
+    searchScope,
+    stage: normalizedStage,
+    precheck: tasks.length ? null : { damageUpperBound: true },
+  };
+}
+
 export async function findLightestDeck(characters, stage, searchOptions = {}) {
   const deckSizes = lightestDeckSizes(stage);
   const options = { ...LIGHTEST_DEFAULTS, ...searchOptions };

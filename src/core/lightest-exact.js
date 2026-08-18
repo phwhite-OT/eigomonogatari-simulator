@@ -727,6 +727,10 @@ function exactManualTargetPlans(state, stats, options) {
     enemy.alive && !enemy.ghost ? [index] : []
   ));
   const manualTargets = Array(state.allies.length).fill(undefined);
+  // "lazy" keeps the full manual search exact, but gives the normal automatic
+  // choice one chance first.  On the common winning deck this avoids creating
+  // every 3^5 target assignment; if that path fails the remaining manual plans
+  // are still searched, so no solution is discarded.
   if (!targetIndexes.length || options.targetSearch === "automatic") return [manualTargets];
   const referenceTarget = state.enemies[targetIndexes[0]];
   const targetableAllyIndexes = state.allies.flatMap((ally, index) => (
@@ -767,7 +771,7 @@ function exactManualTargetPlans(state, stats, options) {
     selectTarget(0, 0);
   };
   selectGroup(0);
-  return plans;
+  return options.targetSearch === "lazy" ? [manualTargets, ...plans] : plans;
 }
 
 function exactTargetAssignments(state, manualTargets) {
@@ -921,11 +925,26 @@ function exactRemainingDamageUpperBound(state, options) {
   ), 0);
   return exactBoundProduct(
     exactBoundProduct(
-      exactBoundProduct(power, Math.max(0, Number(options.answerMultiplier) || 0)),
+      exactBoundProduct(
+        power,
+        Math.max(0, Number(options.answerMultiplier) || 0) * exactMaximumAttributeMultiplier(),
+      ),
       exactPotentialAttackMultiplier(state),
     ),
     exactBoundProduct(exactPotentialHitsPerAttacker(state), remainingTurns),
   );
+}
+
+function exactCandidateShard(options) {
+  const count = Math.max(1, Math.floor(Number(options.candidateShard?.count) || 1));
+  const index = Math.floor(Number(options.candidateShard?.index) || 0);
+  if (count === 1 || index < 0 || index >= count) return null;
+  return { index, count };
+}
+
+function exactShardCombinationCount(total, shard) {
+  if (!shard) return total;
+  return Math.max(0, Math.ceil((total - shard.index) / shard.count));
 }
 
 function exactPotentialSkillReduction(state) {
@@ -1481,6 +1500,7 @@ function* exactUniquePermutations(deck, constraints = {}) {
 
 export async function findExactLightestDeck(characters, stage, searchOptions = {}) {
   const options = { ...EXACT_LIGHTEST_DEFAULTS, ...searchOptions };
+  const candidateShard = exactCandidateShard(options);
   const requestedDeckSize = Number(stage.deckSize ?? options.deckSize);
   if (!Number.isInteger(requestedDeckSize) || requestedDeckSize < 1 || requestedDeckSize > 5) {
     throw new Error("デッキ枚数は1〜5で設定してください");
@@ -1592,6 +1612,7 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
   let stoppedOnFirstWin = false;
   let preferredDeckTested = false;
   let preferredDeckAccepted = false;
+  let shardSkippedCombinationCount = 0;
   const prePrunedReasons = {
     costDamageUpperBound: 0,
     noActiveAllies: 0,
@@ -1604,13 +1625,14 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
   for (const totalCost of costsToSearch) {
     searchedThroughCost = totalCost;
     const totalCombinations = combinationCountsByCost.get(totalCost) ?? 0;
+    const shardCombinations = exactShardCombinationCount(totalCombinations, candidateShard);
     let costDeckCount = 0;
     let shouldStop = false;
     const costDamageUpperBound = optimisticDamageUpperBoundsByCost.get(totalCost);
     if (costDamageUpperBound !== undefined && costDamageUpperBound < totalEnemyHp) {
-      generatedCombinations += totalCombinations;
-      prePrunedCombinationCount += totalCombinations;
-      prePrunedReasons.costDamageUpperBound += totalCombinations;
+      generatedCombinations += shardCombinations;
+      prePrunedCombinationCount += shardCombinations;
+      prePrunedReasons.costDamageUpperBound += shardCombinations;
       options.onProgress?.({
         phase: "exact",
         cost: totalCost,
@@ -1631,7 +1653,9 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
       totalCost,
     );
     const preferredDeckKey = preferredDeck ? exactDeckOrderKey(preferredDeck) : null;
-    if (preferredDeck) {
+    // A preferred deck is a latency optimisation only.  Restrict it to shard 0
+    // so a local worker pool does not simulate the same deck in every worker.
+    if (preferredDeck && (!candidateShard || candidateShard.index === 0)) {
       if (options.signal?.aborted) throw exactAbortError();
       preferredDeckTested = true;
       const result = solveExactLightestStage(preferredDeck, normalizedStage.enemies, {
@@ -1650,6 +1674,7 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
         }
       }
     }
+    let combinationIndex = 0;
     for (const combination of exactCombinationsAtCost(
       available,
       totalCost,
@@ -1657,6 +1682,12 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
       options.allowDuplicates,
     )) {
       if (!exactDeckHasRequiredLastSkill(combination, normalizedStage.requiredLastSkillType)) continue;
+      const assignedToShard = !candidateShard || combinationIndex % candidateShard.count === candidateShard.index;
+      combinationIndex += 1;
+      if (!assignedToShard) {
+        shardSkippedCombinationCount += 1;
+        continue;
+      }
       generatedCombinations += 1;
       const initialImpossibleReason = exactInitialDeckImpossibleReason(
         combination,
@@ -1732,6 +1763,8 @@ export async function findExactLightestDeck(characters, stage, searchOptions = {
     generatedCombinationCount: generatedCombinations,
     prePrunedCombinationCount,
     prePrunedReasons,
+    candidateShard,
+    shardSkippedCombinationCount,
     preferredDeckTested,
     preferredDeckAccepted,
     simulatedDeckCount,
