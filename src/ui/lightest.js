@@ -1,9 +1,147 @@
 import { attributeClassLabel } from "../data/rules.js";
 import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
 import {
-  findLightestDeck,
   resolveLightestEnemy,
 } from "../core/lightest.js";
+
+const LOCAL_LIGHTEST_BRIDGE = "http://127.0.0.1:41773";
+
+function localBridgeUnavailable(message = "ローカル最軽装計算機に接続できません") {
+  const error = new Error(message);
+  error.name = "LocalLightestBridgeUnavailable";
+  return error;
+}
+
+function abortError() {
+  const error = new Error("最軽装の計算を中断しました。");
+  error.name = "AbortError";
+  return error;
+}
+
+function waitForLocalJob(milliseconds, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
+    const timer = window.setTimeout(done, milliseconds);
+    const onAbort = () => {
+      window.clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(abortError());
+    };
+    function done() {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function checkLocalLightestBridge() {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 2_000);
+  try {
+    const response = await fetch(`${LOCAL_LIGHTEST_BRIDGE}/health`, {
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    if (!response.ok) throw localBridgeUnavailable();
+    return response.json();
+  } catch (error) {
+    if (error?.name === "LocalLightestBridgeUnavailable") throw error;
+    throw localBridgeUnavailable();
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function localLightestSearchResult(serverResult, stage, characterCount) {
+  const winner = serverResult.result ?? null;
+  const completedCosts = serverResult.exactProof?.completedCosts ?? serverResult.completedCosts ?? [];
+  return {
+    stage,
+    results: winner ? [winner] : [],
+    foundThreeStar: Boolean(winner?.threeStar),
+    targetCost: Number.isInteger(stage.targetCost) ? stage.targetCost : null,
+    searchedThroughCost: winner?.totalCost ?? completedCosts.at(-1) ?? stage.maxCost,
+    stoppedOnFirstWin: Boolean(winner),
+    availableCharacterCount: characterCount,
+    generatedCombinationCount: 0,
+    prePrunedCombinationCount: 0,
+    simulatedDeckCount: 0,
+    searchScope: { omitted: [] },
+    assumptions: winner?.assumptions ?? [],
+    scout: serverResult.scout ? {
+      attempted: true,
+      found: Boolean(serverResult.scout.found),
+      sampledDeckCount: serverResult.scout.sampledDeckCount ?? 0,
+      upperCost: serverResult.scout.upperCost,
+    } : null,
+    local: true,
+    localWorkerCount: serverResult.exactProof?.workerCount ?? serverResult.workerCount,
+  };
+}
+
+async function findLightestWithLocalComputer(characters, stage, options) {
+  await checkLocalLightestBridge();
+  if (options.signal?.aborted) throw abortError();
+
+  const searchOptions = {
+    allowDuplicates: options.allowDuplicates,
+    ownedOnly: options.ownedOnly,
+    // Automatic-only is an explicitly selected fast mode. Otherwise the
+    // local solver starts with automatic targeting and expands only needed
+    // manual branches, retaining an exact proof.
+    targetSearch: options.targetSearch === "automatic" ? "automatic" : "lazy",
+    answerMultiplier: options.answerMultiplier,
+    enemyAttackMultiplier: options.enemyAttackMultiplier,
+  };
+  let response;
+  try {
+    response = await fetch(`${LOCAL_LIGHTEST_BRIDGE}/jobs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage, characters, searchOptions }),
+      signal: options.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    throw localBridgeUnavailable();
+  }
+  const started = await response.json().catch(() => ({}));
+  if (!response.ok || !started.id) {
+    throw new Error(started.error ?? "ローカル最軽装計算機のジョブを開始できませんでした。");
+  }
+
+  const cancelRemoteJob = () => fetch(`${LOCAL_LIGHTEST_BRIDGE}/jobs/${started.id}`, {
+    method: "DELETE",
+    keepalive: true,
+  }).catch(() => undefined);
+  options.signal?.addEventListener("abort", cancelRemoteJob, { once: true });
+  try {
+    while (true) {
+      await waitForLocalJob(750, options.signal);
+      let jobResponse;
+      try {
+        jobResponse = await fetch(`${LOCAL_LIGHTEST_BRIDGE}/jobs/${started.id}`, {
+          signal: options.signal,
+          cache: "no-store",
+        });
+      } catch (error) {
+        if (error?.name === "AbortError") throw error;
+        throw localBridgeUnavailable("ローカル最軽装計算機との接続が切れました。");
+      }
+      const job = await jobResponse.json().catch(() => ({}));
+      if (!jobResponse.ok) throw new Error(job.error ?? "ローカル計算ジョブを確認できませんでした。");
+      if (job.status === "complete") return localLightestSearchResult(job.result, stage, characters.length);
+      if (job.status === "failed") throw new Error(job.error ?? "ローカル最軽装計算機でエラーが発生しました。");
+      if (job.status === "cancelled") throw abortError();
+    }
+  } finally {
+    options.signal?.removeEventListener("abort", cancelRemoteJob);
+  }
+}
 
 function lightestElement(tag, className, text) {
   const node = document.createElement(tag);
@@ -299,6 +437,17 @@ function renderLightestResult(result, rank) {
 
 function lightestSearchSummary(searchResult) {
   const targetCost = Number.isInteger(searchResult.targetCost) ? searchResult.targetCost : null;
+  if (searchResult.local) {
+    const workerLabel = searchResult.localWorkerCount ? `（PCの ${searchResult.localWorkerCount} Worker）` : "";
+    if (!searchResult.foundThreeStar) {
+      return targetCost === null
+        ? `ローカル計算機${workerLabel}で最大コスト ${searchResult.stage.maxCost} まで完全検証しましたが、三冠クリアはありません。`
+        : `ローカル計算機${workerLabel}で指定コスト ${targetCost} を完全検証しましたが、三冠クリアはありません。`;
+    }
+    return targetCost === null
+      ? `ローカル計算機${workerLabel}で最小コスト ${searchResult.searchedThroughCost} を完全検証しました。`
+      : `ローカル計算機${workerLabel}で指定コスト ${targetCost} の三冠クリアを確認しました。`;
+  }
   const omitted = searchResult.searchScope?.omitted ?? [];
   if (omitted.length) {
     const suffix = "省略: " + omitted.map((entry) => entry.label).join("・");
@@ -828,9 +977,15 @@ export function initializeLightest(root, characters) {
     const searchRange = targetCost === null
       ? `低い総コストから最大指定コスト ${maxCost} まで`
       : `指定コスト ${targetCost} だけ`;
-    renderLightestMessage(results, `${searchRange}、全デッキ配置と全行動を漏れなく調べています。三冠デッキを1件見つけた時点で終了します。`);
+    renderLightestMessage(results, `${searchRange}を、このPCのローカル計算機で探索しています。高速探索で上限を確保した後、その以下をWorker並列で完全検証します。`);
     try {
-      const searchResult = await findLightestDeck(activeCharacters, stage, {
+      overallProgressLabel.textContent = "ローカル計算機を起動・接続中";
+      overallProgressValue.textContent = "localhost を確認しています";
+      costProgressLabel.textContent = "最小コストを完全検証中";
+      costProgressValue.textContent = "チェックポイントはPC内に保存されます";
+      progressLabel.textContent = "ローカルCPU Worker";
+      progressValue.textContent = "計算中です。中断しても次回は途中から再開します。";
+      const searchResult = await findLightestWithLocalComputer(activeCharacters, stage, {
         allowDuplicates: form.elements.lightestAllowDuplicates.checked,
         ownedOnly: form.elements.lightestOwnedOnly.checked,
         targetSearch: automaticTargeting.checked ? "automatic" : "all",
@@ -897,7 +1052,12 @@ export function initializeLightest(root, characters) {
       });
       renderLightestResults(results, searchResult);
     } catch (error) {
-      renderLightestMessage(results, error.name === "AbortError" ? "最軽装探索を中止しました。" : error.message, error.name !== "AbortError");
+      const message = error.name === "AbortError"
+        ? "最軽装探索を中止しました。"
+        : error.name === "LocalLightestBridgeUnavailable"
+          ? "ローカル最軽装計算機が起動していません。PCのターミナルで `npm run serve:lightest:local` を実行したまま、このボタンをもう一度押してください。"
+          : error.message;
+      renderLightestMessage(results, message, error.name !== "AbortError");
     } finally {
       abortController = null;
       setBusy(false);

@@ -122,6 +122,15 @@ function normalizeInput(payload, characters) {
   if (!Number.isFinite(stage.maxCost) || stage.maxCost < 0) {
     throw new Error("stage.maxCost に0以上の数値を設定してください");
   }
+  if (stage.targetCost !== null && stage.targetCost !== undefined && String(stage.targetCost).trim() !== "") {
+    const targetCost = Number(stage.targetCost);
+    if (!Number.isInteger(targetCost) || targetCost < 0 || targetCost > stage.maxCost) {
+      throw new Error("stage.targetCost は0以上かつmaxCost以下の整数を設定してください");
+    }
+    stage.targetCost = targetCost;
+  } else {
+    stage.targetCost = null;
+  }
   if (!stage.enemies.length) throw new Error("stage.enemies を1体以上設定してください");
   const options = {
     allowDuplicates: rawOptions.allowDuplicates ?? true,
@@ -130,8 +139,9 @@ function normalizeInput(payload, characters) {
     enemyAttackMultiplier: Number(rawOptions.enemyAttackMultiplier) || 1,
     eventBonusMultiplier: Number(rawOptions.eventBonusMultiplier) || 1.5,
     allowHalfAnswer: Boolean(rawOptions.allowHalfAnswer),
-    // automatic first, then every manual plan. This remains an exact search.
-    targetSearch: rawOptions.targetSearch === "all" ? "all" : "lazy",
+    // Automatic targeting is tried before every manual target plan.  Unless
+    // the user explicitly selected automatic-only mode this remains exact.
+    targetSearch: rawOptions.targetSearch === "automatic" ? "automatic" : "lazy",
     skillSearch: "all",
     resultLimit: 1,
   };
@@ -151,7 +161,7 @@ function exactCostPlan(characters, stage, options, maximumCost) {
     const profile = prepareExactLightestCandidateProfile(characters, { ...stage, deckSize }, options);
     if (profile.infeasibility) continue;
     for (const cost of profile.attainableCosts) {
-      if (cost > maximumCost || (profile.combinationCountsByCost.get(cost) ?? 0) <= 0) continue;
+      if (cost > maximumCost || (stage.targetCost !== null && cost !== stage.targetCost) || (profile.combinationCountsByCost.get(cost) ?? 0) <= 0) continue;
       // This is the same generous bound used by the exact solver. Skipping it
       // therefore cannot remove a winning composition.
       const damageBound = profile.optimisticDamageUpperBoundsByCost.get(cost);
@@ -294,7 +304,7 @@ async function main() {
   const cached = await readJson(cachePath);
   if (cached?.status === "complete") {
     console.log(`キャッシュを使用しました: 最小コスト ${cached.minimumCost ?? "未発見"} (${cachePath})`);
-    return;
+    return cached;
   }
 
   let checkpoint = await readJson(checkpointPath);
@@ -317,7 +327,7 @@ async function main() {
   await saveCheckpoint();
 
   let upperCost = checkpoint.scout?.upperCost ?? null;
-  if (upperCost === null && scoutEnabled) {
+  if (upperCost === null && scoutEnabled && stage.targetCost === null) {
     console.log("第1段階: 自動ターゲット・自動スキルで勝利コスト上限を探索しています...");
     const scout = await findLightestScoutUpperBound(characters, stage, {
       ...options,
@@ -342,7 +352,7 @@ async function main() {
       : "  高速探索では勝利候補なし。最大コストまで完全検証します。");
   }
 
-  const proofLimit = upperCost ?? stage.maxCost;
+  const proofLimit = stage.targetCost ?? upperCost ?? stage.maxCost;
   const plan = exactCostPlan(characters, stage, options, proofLimit);
   if (plan.stageInfeasibility) {
     checkpoint.status = "complete";
@@ -351,7 +361,7 @@ async function main() {
     await saveCheckpoint();
     await writeJson(cachePath, { ...checkpoint, minimumCost: null, result: null });
     console.log("敵出現数の上限により、この条件は不可能です。");
-    return;
+    return { ...checkpoint, minimumCost: null, result: null };
   }
 
   console.log(`第2段階: ${workerCount} Workerで低コストから完全検証します (上限 ${proofLimit})。`);
@@ -389,7 +399,7 @@ async function main() {
       await saveCheckpoint();
       await writeJson(cachePath, final);
       console.log(`完了: 最小コスト = ${cost}。結果を ${cachePath} に保存しました。`);
-      return;
+      return final;
     }
     checkpoint.completedCosts = [...new Set([...(checkpoint.completedCosts ?? []), cost])].sort((left, right) => left - right);
     checkpoint.current = null;
@@ -408,10 +418,13 @@ async function main() {
   await saveCheckpoint();
   await writeJson(cachePath, final);
   console.log(`完了: コスト ${proofLimit} 以下に★3勝利はありません。結果を ${cachePath} に保存しました。`);
+  return final;
 }
 
 try {
-  await main();
+  const result = await main();
+  const resultPath = argument("result");
+  if (resultPath) await writeJson(path.resolve(projectRoot, resultPath), result);
 } catch (error) {
   console.error(error?.stack ?? error?.message ?? String(error));
   process.exitCode = 1;
