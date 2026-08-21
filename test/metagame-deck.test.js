@@ -226,6 +226,11 @@ test("中間の環境コスト縛りは両側の調査済み帯を併用する",
   assert.equal(resolved.interpolation.upperCost, 200);
   assert.equal(resolved.environmentScenarios.length, 3);
   assert.match(resolved.label, /100\/200/);
+  assert.equal(
+    resolveMetagameConstraint({ constraints: [lower, upper] }, "fire", 150).id,
+    resolved.id,
+    "属性選択値でも同じ環境コスト縛りを解決できる",
+  );
 });
 
 test("metagame simulator reports candidate and battle progress", async () => {

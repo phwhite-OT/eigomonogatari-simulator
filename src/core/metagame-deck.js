@@ -56,7 +56,8 @@ function metagameMergeEnvironmentSlot(lowerSlot, upperSlot, position) {
  * both bands' decks and scenarios into the later real battle verification.
  */
 export function resolveMetagameConstraint(data, constraintId, requestedTotalCost) {
-  const source = data?.constraints?.find((entry) => entry.id === constraintId);
+  const source = data?.constraints?.find((entry) => entry.id === constraintId)
+    ?? data?.constraints?.find((entry) => metagameConstraintAttributeKey(entry) === String(constraintId));
   if (!source) throw new Error("選択した縛りの調査データがありません。");
   const requested = Number(requestedTotalCost);
   if (!Number.isFinite(requested) || requested < 1) return source;
@@ -1680,6 +1681,10 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
       };
     }
 
+    // Give the browser a chance to paint the initial progress state before
+    // the bounded candidate construction starts.
+    await metagameYieldToBrowser();
+    if (options.signal?.aborted) throw metagameAbortError();
     const interactiveCharacters = [...charactersById.values()];
     const generated = metagameV8BoostedCandidates(
       constraint,
@@ -1701,9 +1706,29 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
       environmentCharacterIds: automaticIds,
       maxAdditionalEnvironmentDecks: options.maxAdditionalEnvironmentDecks,
     });
+    options.onProgress?.({
+      phase: "candidate",
+      completed: 5,
+      total: 5,
+      slot: 5,
+      slots: 5,
+      checked: candidates.length,
+      stageTotal: candidates.length,
+      retained: candidates.length,
+      valid: candidates.length,
+    });
     const evaluated = [];
     let completedSimulations = 0;
     const totalSimulations = finalists.length * scenarios.length;
+    options.onProgress?.({
+      phase: "simulation",
+      completed: 0,
+      total: totalSimulations,
+      valid: candidates.length,
+      deck: 1,
+      decks: finalists.length,
+      scenarios: scenarios.length,
+    });
     for (let index = 0; index < finalists.length; index += 1) {
       evaluated.push(await metagameEvaluateDeck(
         finalists[index],

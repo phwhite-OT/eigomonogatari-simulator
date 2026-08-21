@@ -377,35 +377,6 @@ function metagameUiSlot(character, rating, position, environment, deck, constrai
   return card;
 }
 
-function metagameUiEnvironmentAudit(constraint) {
-  const section = metagameUiElement("section", "metagame-environment-audit");
-  const heading = metagameUiElement("div", "metagame-environment-heading");
-  heading.append(
-    metagameUiElement("h3", "", "枠ごとの予測環境"),
-    metagameUiElement("p", "", "各枠で出現頻度が高いと推定された上位10体です。所持率と枠評価順位から使用率を算出しています。"),
-  );
-  const grid = metagameUiElement("div", "metagame-environment-grid");
-  constraint.slots.forEach((slot) => {
-    const card = metagameUiElement("article", "metagame-environment-slot");
-    card.append(metagameUiElement("h4", "", `${slot.position}枠目`));
-    const list = metagameUiElement("ol", "");
-    slot.environment.forEach((entry) => {
-      const item = metagameUiElement("li", "");
-      const copy = metagameUiElement("span", "");
-      copy.append(
-        metagameUiElement("strong", "", entry.name),
-        metagameUiElement("small", "", `${attributeClassLabel(entry.attributes)}・${entry.rarity}・cost ${entry.cost}`),
-      );
-      item.append(copy, metagameUiElement("b", "", metagameUiPercent(entry.projectedUsageShare)));
-      list.append(item);
-    });
-    card.append(list);
-    grid.append(card);
-  });
-  section.append(heading, grid);
-  return section;
-}
-
 function metagameUiDeckEnvironmentOverlap(deck, constraint) {
   const environmentById = new Map((constraint.slots ?? []).flatMap((slot) => slot.environment ?? []).map((entry) => [
     String(entry.id), entry,
@@ -604,7 +575,7 @@ function renderMetagameSimulatorResult(container, searchResult, characters) {
       `環境コスト${requestedCost}: コスト${lowerCost}・${upperCost}の調査済み環境を併用`,
     ));
   }
-  container.append(overview, metagameUiEnvironmentAudit(searchResult.constraint));
+  container.append(overview);
   searchResult.results.forEach((result, index) => container.append(
     metagameUiResultCard(result, index + 1, searchResult.constraint, characters),
   ));
@@ -648,14 +619,6 @@ function renderSurveyedMetagameConstraints(container, constraints, selectedId) {
   });
   container.append(heading, list);
 }
-function renderMetagameEnvironmentPreview(container, constraint) {
-  container.replaceChildren();
-  if (!constraint) {
-    container.append(metagameUiElement("p", "metagame-environment-preview-empty", "調査済みの環境データはありません。"));
-    return;
-  }
-  container.append(metagameUiEnvironmentAudit(constraint));
-}
 function renderMetagameSimulatorMessage(container, message, error = false) {
   container.replaceChildren(metagameUiElement(
     "section",
@@ -677,8 +640,6 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   const progressBar = progress.querySelector("[data-metagame-progress-bar]");
   const resultRoot = root.querySelector("[data-metagame-result]");
   const calculationStatus = root.querySelector("[data-metagame-calculation-status]");
-  const previewStatus = root.querySelector("[data-metagame-environment-preview-status]");
-  const previewContent = root.querySelector("[data-metagame-environment-preview-content]");
   const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
   const fixedSlotList = form.querySelector("[data-metagame-fixed-slot-list]");
   const fixedClearButton = form.querySelector("[data-metagame-fixed-clear]");
@@ -945,15 +906,6 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   };
   const updateEnvironmentPreview = () => {
     const constraint = selectedConstraint();
-    const interpolationLabel = constraint?.interpolation?.kind === "between"
-      ? `・${constraint.interpolation.lowerCost}/${constraint.interpolation.upperCost}帯を併用`
-      : constraint?.interpolation?.kind === "nearest"
-        ? `・${constraint.interpolation.sourceCost}帯を参照`
-        : "";
-    previewStatus.textContent = constraint
-      ? `${constraint.scenarioCount}盤面${interpolationLabel}${boostedCharacters.size ? `・補正 ${boostedCharacters.size}体を再評価` : ""}${automaticCharacterIds.size ? `・管理DB ${automaticCharacterIds.size}体を自動反映` : ""}`
-      : "調査済み環境なし";
-    renderMetagameEnvironmentPreview(previewContent, constraint);
     renderSurveyedMetagameConstraints(surveyedConstraints, data.constraints, constraint?.id);
     renderFixedSlots(constraint);
     renderBoostedCharacters(constraint);
@@ -1039,8 +991,8 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     cancelButton.hidden = !busy;
     progress.hidden = !busy;
     if (busy) {
-      progressLabel.textContent = "候補デッキを探索中";
-      progressValue.textContent = "準備中";
+      progressLabel.textContent = "環境と候補デッキを準備中";
+      progressValue.textContent = "調査データを読み込み中";
       progressBar.style.width = "0%";
     } else {
       renderBoostedCharacters(selectedConstraint());
@@ -1053,11 +1005,17 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     event?.preventDefault();
     if (abortController) return;
     displayedPrecomputedConstraintId = null;
+    const baseConstraint = sourceConstraint();
+    if (!baseConstraint) {
+      renderMetagameSimulatorMessage(resultRoot, "選択した属性縛りの調査データが見つかりません。画面を再読み込みしてから選び直してください。", true);
+      return;
+    }
+    const resolvedConstraint = selectedConstraint();
     abortController = new AbortController();
     setBusy(true);
-    renderMetagameSimulatorMessage(resultRoot, "合法デッキを組み合わせ、調査済み環境で再対戦しています。");
+    renderMetagameSimulatorMessage(resultRoot, `${resolvedConstraint.label}の候補を組み、調査済み環境で再対戦しています。進捗はこの下に表示します。`);
     try {
-      const searchResult = await findBestMetagameDeck(data, select.value, activeCharacters, {
+      const searchResult = await findBestMetagameDeck(data, baseConstraint.id, activeCharacters, {
         signal: abortController.signal,
         totalCost: Number(totalCostInput.value),
         fixedSlots: fixedSlotValues(),
@@ -1083,10 +1041,16 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
             const slotTotal = Number(slots) || 5;
             const checkedCount = Number(checked) || 0;
             const stageCount = Number(stageTotal) || 0;
-            progressLabel.textContent = `候補デッキを探索中（${slotNumber}/${slotTotal}枠）`;
-            progressValue.textContent = stageCount
-              ? `${checkedCount.toLocaleString("ja-JP")} / ${stageCount.toLocaleString("ja-JP")} 通り・候補 ${Number(retained || valid || 0).toLocaleString("ja-JP")}`
-              : "探索準備中";
+            const candidateCount = Number(retained || valid || 0).toLocaleString("ja-JP");
+            const completedCandidateStage = Number(completed) >= Number(total) && stageCount > 0;
+            progressLabel.textContent = completedCandidateStage
+              ? "候補デッキの絞り込み完了"
+              : `候補デッキを探索中（${slotNumber}/${slotTotal}枠）`;
+            progressValue.textContent = completedCandidateStage
+              ? `${candidateCount}候補を確定。代表環境との最終対戦へ進みます。`
+              : stageCount
+                ? `${checkedCount.toLocaleString("ja-JP")} / ${stageCount.toLocaleString("ja-JP")} 通り・候補 ${candidateCount}`
+                : "環境データと候補プールを準備中";
             progressBar.style.width = `${Math.round(Math.min(1, Math.max(0, ratio)) * 30)}%`;
             return;
           }
