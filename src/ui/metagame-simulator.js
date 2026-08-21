@@ -3,6 +3,7 @@ import {
   findBestMetagameDeck,
   inspectMetagameDeckEvidence,
   matchesMetagameFixedConstraint,
+  resolveMetagameConstraint,
 } from "../core/metagame-deck.js";
 import { isSkillTurnAllowedAtPosition } from "../core/filter.js";
 import { createCharacterSearchIndex, searchCharacters } from "../core/character-search.js";
@@ -481,9 +482,8 @@ function metagameUiEvidence(result, constraint, characters) {
         boostedCharacterIds: result.boostedCharacterIds,
         boostedScenarioCount: result.boostedScenarioCount,
         interactiveScenarioCount: result.interactiveScenarioCount,
-        additionalCharacterIds: result.additionalCharacterIds,
-        interactiveCharacterIds: result.interactiveCharacterIds,
-        includeAdditionalInEnvironment: result.includeAdditionalInEnvironment,
+        automaticCharacterIds: result.automaticCharacterIds,
+        automaticEnvironmentCharacterIds: result.automaticEnvironmentCharacterIds,
         onScenarioCompleted: ({ completed, total }) => {
           output.replaceChildren(metagameUiElement(
             "p",
@@ -588,15 +588,20 @@ function renderMetagameSimulatorResult(container, searchResult, characters) {
       `補正時の対戦は提示環境から均等抽出した${searchResult.boostedScenarioCount ?? searchResult.scenarioCount}盤面${searchResult.scenarioCount > (searchResult.boostedScenarioCount ?? searchResult.scenarioCount) ? "と追加環境" : ""}で再評価`,
     ));
   }
-  const additionalIds = new Set((searchResult.additionalCharacterIds ?? []).map(String));
-  if (additionalIds.size) {
-    const names = characters
-      .filter((character) => additionalIds.has(String(character.id)))
-      .map((character) => character.name);
+  const automaticIds = new Set((searchResult.automaticEnvironmentCharacterIds ?? []).map(String));
+  if (automaticIds.size) {
     overview.append(metagameUiElement(
       "span",
       "metagame-boost-badge",
-      `追加検証: ${names.join(" / ")}・${searchResult.includeAdditionalInEnvironment ? "相手環境にも追加" : "候補デッキのみ"}`,
+      `自動再検証: 補正・管理DB・枠別高評価など ${automaticIds.size}体を候補と相手環境へ反映`,
+    ));
+  }
+  if (searchResult.constraint.interpolation?.kind === "between") {
+    const { lowerCost, upperCost, requestedCost } = searchResult.constraint.interpolation;
+    overview.append(metagameUiElement(
+      "span",
+      "metagame-boost-badge",
+      `環境コスト${requestedCost}: コスト${lowerCost}・${upperCost}の調査済み環境を併用`,
     ));
   }
   container.append(overview, metagameUiEnvironmentAudit(searchResult.constraint));
@@ -606,6 +611,10 @@ function renderMetagameSimulatorResult(container, searchResult, characters) {
   const note = metagameUiElement("p", "metagame-result-note");
   note.textContent = "採用根拠は、そのキャラを対象枠へ固定した30盤面での差分です。完成デッキは別途環境へ再投入して比較しています。引き分けは0.5、12ターンで未決着の場合は残数と残HPから盤面評価値を算出します。";
   container.append(note);
+}
+
+function metagameUiConstraintAttributeKey(constraint) {
+  return String(constraint?.attributeKey ?? [...new Set(constraint?.allowedAttributes ?? [])].sort().join("-"));
 }
 
 function renderSurveyedMetagameConstraints(container, constraints, selectedId) {
@@ -623,6 +632,8 @@ function renderSurveyedMetagameConstraints(container, constraints, selectedId) {
     );
     button.type = "button";
     button.dataset.metagameSurveyedConstraint = constraint.id;
+    button.dataset.metagameSurveyedAttribute = metagameUiConstraintAttributeKey(constraint);
+    button.dataset.metagameSurveyedCost = String(constraint.totalCost);
     button.setAttribute("aria-pressed", String(constraint.id === selectedId));
     const environmentCount = constraint.slots[0]?.environment.length ?? 0;
     button.append(
@@ -653,11 +664,10 @@ function renderMetagameSimulatorMessage(container, message, error = false) {
   ));
 }
 
-export function initializeMetagameSimulator(root, data, characters) {
+export function initializeMetagameSimulator(root, data, characters, initialOptions = {}) {
   const form = root.querySelector("[data-metagame-form]");
   const select = form.elements.metagameConstraint;
   const totalCostInput = form.querySelector("[data-metagame-total-cost]");
-  const costModeSelect = form.querySelector("[data-metagame-cost-mode]");
   const submitButton = form.querySelector("[data-metagame-submit]");
   const cancelButton = form.querySelector("[data-metagame-cancel]");
   const status = root.querySelector("[data-metagame-data-status]");
@@ -683,36 +693,36 @@ export function initializeMetagameSimulator(root, data, characters) {
   const boostedQuery = form.querySelector("[data-metagame-boosted-query]");
   const boostedSearchButton = form.querySelector("[data-metagame-boosted-search]");
   const boostedResults = form.querySelector("[data-metagame-boosted-results]");
-  const additionalList = form.querySelector("[data-metagame-additional-list]");
-  const additionalClearButton = form.querySelector("[data-metagame-additional-clear]");
-  const additionalEnvironment = form.querySelector("[data-metagame-additional-environment]");
   const interactiveScenarioSelect = form.querySelector("[data-metagame-interactive-scenarios]");
-  const additionalQuery = form.querySelector("[data-metagame-additional-query]");
-  const additionalSearchButton = form.querySelector("[data-metagame-additional-search]");
-  const additionalResults = form.querySelector("[data-metagame-additional-results]");
   let activeCharacters = [...characters];
+  let automaticCharacterIds = new Set((initialOptions.automaticCharacterIds ?? []).map(String));
   let fixedSlots = new Map();
   let boostedCharacters = new Map();
-  let additionalCharacters = new Map();
   let fixedPickerPosition = null;
   let fixedPickerIndex = createCharacterSearchIndex([]);
   let fixedPickerSearchTimer = null;
   let boostedPickerIndex = createCharacterSearchIndex([]);
   let boostedSearchTimer = null;
-  let additionalPickerIndex = createCharacterSearchIndex([]);
-  let additionalSearchTimer = null;
   let abortController = null;
 
   select.replaceChildren();
+  const constraintByAttribute = new Map();
   for (const constraint of data.constraints) {
+    const attributeKey = metagameUiConstraintAttributeKey(constraint);
+    const current = constraintByAttribute.get(attributeKey);
+    if (!current || Number(constraint.totalCost) < Number(current.totalCost)) {
+      constraintByAttribute.set(attributeKey, constraint);
+    }
+  }
+  for (const [attributeKey, constraint] of constraintByAttribute) {
     const option = document.createElement("option");
-    option.value = constraint.id;
-    option.textContent = constraint.label;
+    option.value = attributeKey;
+    option.textContent = String(constraint.label).replace(/[・\s]*コスト\s*\d+.*$/, "");
     select.append(option);
   }
   // Keep the initial selection valid when a browser restores an old form state
   // after newly published constraint data has been deployed.
-  if (data.constraints[0]) select.value = data.constraints[0].id;
+  if (data.constraints[0]) select.value = metagameUiConstraintAttributeKey(data.constraints[0]);
   const sourceLabel = metagameUiModelLabel(data);
   status.textContent = data.constraints.length
     ? `利用可能 ${data.constraints.length}条件 / 評価完了 ${data.sourceCompletedRuns}/${data.sourceTotalRuns} / ${sourceLabel}`
@@ -723,14 +733,12 @@ export function initializeMetagameSimulator(root, data, characters) {
     [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
   );
   const boostedCharacterIds = () => [...boostedCharacters.keys()];
-  const sourceConstraint = () => data.constraints.find((entry) => entry.id === select.value);
+  const sourceConstraint = () => constraintByAttribute.get(select.value);
   const selectedConstraint = () => {
     const constraint = sourceConstraint();
     if (!constraint) return constraint;
     const totalCost = Number(totalCostInput.value);
-    return Number.isFinite(totalCost) && totalCost >= 1
-      ? { ...constraint, totalCost: Math.floor(totalCost), costMode: costModeSelect.value }
-      : { ...constraint, costMode: costModeSelect.value };
+    return resolveMetagameConstraint(data, constraint.id, totalCost);
   };
   const syncTotalCostFromConstraint = () => {
     const constraint = sourceConstraint();
@@ -741,14 +749,13 @@ export function initializeMetagameSimulator(root, data, characters) {
   const renderAvailablePrecomputedDeck = () => {
     const constraint = selectedConstraint();
     const hasV8Decks = String(constraint?.modelVersion ?? "").startsWith("team-battle-v8");
-    if (!showPublishedV8Cache || !hasV8Decks || fixedSlots.size || boostedCharacters.size || additionalCharacters.size) return false;
+    if (!showPublishedV8Cache || !hasV8Decks || constraint.interpolation || fixedSlots.size || boostedCharacters.size || automaticCharacterIds.size) return false;
 
     const constraintId = constraint.id;
     displayedPrecomputedConstraintId = constraintId;
     renderMetagameSimulatorMessage(resultRoot, "計算済みの推奨デッキを表示しています。");
     void findBestMetagameDeck(data, constraintId, activeCharacters, {
       totalCost: Number(totalCostInput.value),
-      costMode: costModeSelect.value,
       usePublishedV8Cache: true,
     }).then((searchResult) => {
       // A prior selection must not overwrite the current selection or a
@@ -845,78 +852,6 @@ export function initializeMetagameSimulator(root, data, characters) {
     }
     boostedResults.replaceChildren(list);
   };
-  const additionalCharacterIds = () => [...additionalCharacters.keys()];
-  const additionalCharacterCandidates = (constraint) => boostedCharacterCandidates(constraint);
-  const renderAdditionalPickerMessage = (message) => {
-    additionalResults.replaceChildren(metagameUiElement("p", "metagame-boosted-message", message));
-  };
-  const renderAdditionalCharacters = (constraint) => {
-    const allowedIds = new Set(additionalCharacterCandidates(constraint).map((character) => String(character.id)));
-    for (const id of additionalCharacters.keys()) {
-      if (!allowedIds.has(String(id))) additionalCharacters.delete(id);
-    }
-    additionalList.replaceChildren();
-    if (!additionalCharacters.size) {
-      additionalList.append(metagameUiElement("span", "metagame-boosted-empty", "追加候補は未選択です。図鑑・管理者追加のキャラも検索して検証できます。"));
-      return;
-    }
-    for (const character of additionalCharacters.values()) {
-      const chip = metagameUiElement("span", "metagame-boosted-chip");
-      chip.append(
-        metagameUiElement("strong", "", character.name),
-        metagameUiElement("span", "", `cost ${character.cost}`),
-      );
-      const remove = metagameUiElement("button", "", "×");
-      remove.type = "button";
-      remove.setAttribute("aria-label", `${character.name}を追加候補から解除`);
-      remove.disabled = Boolean(abortController);
-      remove.addEventListener("click", () => {
-        additionalCharacters.delete(String(character.id));
-        renderAdditionalCharacters(selectedConstraint());
-        renderAdditionalPickerResults();
-        renderMetagameSimulatorMessage(resultRoot, "追加候補を更新しました。計算ボタンで環境を含む5対5検証を実行します。");
-      });
-      chip.append(remove);
-      additionalList.append(chip);
-    }
-  };
-  const renderAdditionalPickerResults = () => {
-    const constraint = selectedConstraint();
-    const candidates = additionalCharacterCandidates(constraint);
-    additionalPickerIndex = createCharacterSearchIndex(candidates);
-    const query = additionalQuery.value.trim();
-    if (!query) {
-      renderAdditionalPickerMessage(`${candidates.length.toLocaleString("ja-JP")}件から、デッキ候補・必要なら相手環境にも加えるキャラを検索できます。`);
-      return;
-    }
-    const response = searchCharacters(additionalPickerIndex, query, { limit: 24 });
-    if (!response.total) {
-      renderAdditionalPickerMessage("条件に合うキャラがありません。属性・コスト・配置・スキルターンの条件を確認してください。");
-      return;
-    }
-    const list = metagameUiElement("div", "metagame-boosted-results");
-    for (const result of response.results) {
-      const character = result.character;
-      const card = metagameUiElement("article", "metagame-boosted-result");
-      card.append(
-        metagameUiElement("strong", "", character.name),
-        metagameUiElement("small", "", `${attributeClassLabel(character.attributes)}・${character.rarity}・cost ${character.cost}・HP ${character.hp}・攻撃 ${character.pow}`),
-      );
-      const selected = additionalCharacters.has(String(character.id));
-      const choose = metagameUiElement("button", "", selected ? "追加済み" : "候補に追加");
-      choose.type = "button";
-      choose.disabled = selected || Boolean(abortController);
-      choose.addEventListener("click", () => {
-        additionalCharacters.set(String(character.id), character);
-        renderAdditionalCharacters(selectedConstraint());
-        renderAdditionalPickerResults();
-        renderMetagameSimulatorMessage(resultRoot, "追加キャラを候補へ入れました。計算ボタンで環境を含む5対5検証を実行します。");
-      });
-      card.append(choose);
-      list.append(card);
-    }
-    additionalResults.replaceChildren(list);
-  };
   const renderFixedPickerMessage = (message) => {
     fixedPickerResults.replaceChildren(metagameUiElement("p", "metagame-fixed-picker-message", message));
   };
@@ -1010,26 +945,27 @@ export function initializeMetagameSimulator(root, data, characters) {
   };
   const updateEnvironmentPreview = () => {
     const constraint = selectedConstraint();
+    const interpolationLabel = constraint?.interpolation?.kind === "between"
+      ? `・${constraint.interpolation.lowerCost}/${constraint.interpolation.upperCost}帯を併用`
+      : constraint?.interpolation?.kind === "nearest"
+        ? `・${constraint.interpolation.sourceCost}帯を参照`
+        : "";
     previewStatus.textContent = constraint
-      ? `${constraint.scenarioCount}盤面・各枠の予測使用率 上位10体${boostedCharacters.size ? `・補正 ${boostedCharacters.size}体を再評価` : ""}`
+      ? `${constraint.scenarioCount}盤面${interpolationLabel}${boostedCharacters.size ? `・補正 ${boostedCharacters.size}体を再評価` : ""}${automaticCharacterIds.size ? `・管理DB ${automaticCharacterIds.size}体を自動反映` : ""}`
       : "調査済み環境なし";
     renderMetagameEnvironmentPreview(previewContent, constraint);
     renderSurveyedMetagameConstraints(surveyedConstraints, data.constraints, constraint?.id);
     renderFixedSlots(constraint);
     renderBoostedCharacters(constraint);
     renderBoostedPickerResults();
-    renderAdditionalCharacters(constraint);
-    renderAdditionalPickerResults();
     if (!renderAvailablePrecomputedDeck()) displayedPrecomputedConstraintId = null;
   };
   syncTotalCostFromConstraint();
   updateEnvironmentPreview();
   select.addEventListener("change", () => {
-    syncTotalCostFromConstraint();
     updateEnvironmentPreview();
   });
   totalCostInput.addEventListener("input", updateEnvironmentPreview);
-  costModeSelect.addEventListener("change", updateEnvironmentPreview);
   fixedClearButton.addEventListener("click", () => {
     fixedSlots.clear();
     closeFixedPicker();
@@ -1066,27 +1002,15 @@ export function initializeMetagameSimulator(root, data, characters) {
     clearTimeout(boostedSearchTimer);
     boostedSearchTimer = setTimeout(renderBoostedPickerResults, 120);
   });
-  additionalClearButton.addEventListener("click", () => {
-    additionalCharacters.clear();
-    additionalQuery.value = "";
-    renderAdditionalCharacters(selectedConstraint());
-    renderAdditionalPickerResults();
-    renderMetagameSimulatorMessage(resultRoot, "追加候補を解除しました。");
-  });
-  additionalSearchButton.addEventListener("click", renderAdditionalPickerResults);
-  additionalQuery.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    renderAdditionalPickerResults();
-  });
-  additionalQuery.addEventListener("input", () => {
-    clearTimeout(additionalSearchTimer);
-    additionalSearchTimer = setTimeout(renderAdditionalPickerResults, 120);
+  interactiveScenarioSelect.addEventListener("change", () => {
+    displayedPrecomputedConstraintId = null;
+    renderMetagameSimulatorMessage(resultRoot, "自動追加環境を含む再検証数を変更しました。計算ボタンで反映します。");
   });
   surveyedConstraints.addEventListener("click", (event) => {
     const button = event.target.closest("[data-metagame-surveyed-constraint]");
     if (!button || button.disabled) return;
-    select.value = button.dataset.metagameSurveyedConstraint;
+    select.value = button.dataset.metagameSurveyedAttribute;
+    totalCostInput.value = button.dataset.metagameSurveyedCost;
     updateEnvironmentPreview();
   });
   if (!data.constraints.length) {
@@ -1097,7 +1021,6 @@ export function initializeMetagameSimulator(root, data, characters) {
     submitButton.disabled = busy || data.constraints.length === 0;
     select.disabled = busy;
     totalCostInput.disabled = busy;
-    costModeSelect.disabled = busy;
     fixedSlotList.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
     fixedClearButton.disabled = busy;
     fixedPickerCloseButton.disabled = busy;
@@ -1108,13 +1031,7 @@ export function initializeMetagameSimulator(root, data, characters) {
     boostedQuery.disabled = busy;
     boostedList.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
     boostedResults.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
-    additionalClearButton.disabled = busy;
-    additionalEnvironment.disabled = busy;
     interactiveScenarioSelect.disabled = busy;
-    additionalSearchButton.disabled = busy;
-    additionalQuery.disabled = busy;
-    additionalList.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
-    additionalResults.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
     if (busy) closeFixedPicker();
     surveyedConstraints.querySelectorAll("[data-metagame-surveyed-constraint]").forEach((button) => {
       button.disabled = busy;
@@ -1128,8 +1045,6 @@ export function initializeMetagameSimulator(root, data, characters) {
     } else {
       renderBoostedCharacters(selectedConstraint());
       renderBoostedPickerResults();
-      renderAdditionalCharacters(selectedConstraint());
-      renderAdditionalPickerResults();
     }
   };
 
@@ -1145,11 +1060,9 @@ export function initializeMetagameSimulator(root, data, characters) {
       const searchResult = await findBestMetagameDeck(data, select.value, activeCharacters, {
         signal: abortController.signal,
         totalCost: Number(totalCostInput.value),
-        costMode: costModeSelect.value,
         fixedSlots: fixedSlotValues(),
         boostedCharacterIds: boostedCharacterIds(),
-        additionalCharacterIds: additionalCharacterIds(),
-        includeAdditionalInEnvironment: additionalEnvironment.checked,
+        automaticCharacterIds: [...automaticCharacterIds],
         interactiveScenarioCount: Number(interactiveScenarioSelect.value),
         onProgress: ({
           phase,
@@ -1207,8 +1120,9 @@ export function initializeMetagameSimulator(root, data, characters) {
   form.addEventListener("submit", startCalculation);
   submitButton.addEventListener("click", startCalculation);
   return {
-    setCharacters(nextCharacters) {
+    setCharacters(nextCharacters, options = {}) {
       activeCharacters = Array.isArray(nextCharacters) ? [...nextCharacters] : [];
+      automaticCharacterIds = new Set((options.automaticCharacterIds ?? []).map(String));
       updateEnvironmentPreview();
     },
   };

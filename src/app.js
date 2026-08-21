@@ -68,6 +68,11 @@ function bootstrap() {
   let characterDatabaseRevision = 0;
   let administratorAccess = false;
 
+  // Database records are either additions or overrides made from this app.
+  // The metagame evaluator must treat them as live data instead of silently
+  // falling back to a bundle that was rated before the edit existed.
+  const metagameAutomaticCharacterIds = () => databaseCharacters.map((character) => String(character.id));
+
   const refreshData = () => {
     hydrateCharacterOptions(form, characters);
     const databaseLabel = databaseCharacters.length ? ` + 管理DB${databaseCharacters.length.toLocaleString("ja-JP")}体` : "";
@@ -75,7 +80,9 @@ function bootstrap() {
     characterSearchController?.setCharacters(characters);
     lightestController?.setCharacters(characters);
     deckCharacterPickerController?.setCharacters(characters);
-    metagameController?.setCharacters(characters);
+    metagameController?.setCharacters(characters, {
+      automaticCharacterIds: metagameAutomaticCharacterIds(),
+    });
   };
 
   const tabsController = initializeAppTabs(document, { initialAccess: { lightest: false } });
@@ -153,7 +160,9 @@ function bootstrap() {
     onEditCharacter: (character) => characterEditorController?.openForEdit(character),
     onAddCharacterAtPosition: (anchor, position) => characterEditorController?.openAtPosition(anchor, position),
   });
-  metagameController = initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, characters);
+  metagameController = initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, characters, {
+    automaticCharacterIds: metagameAutomaticCharacterIds(),
+  });
   characterEditorController = initializeCharacterEditor(characterEditor, {
     getExistingIds: () => characters.map((character) => character.id),
     isAllowed: () => administratorAccess,

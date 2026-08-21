@@ -14,6 +14,108 @@ export function normalizeMetagameBoostedCharacterIds(values) {
     .filter(Boolean));
 }
 
+function metagameConstraintAttributeKey(constraint) {
+  if (constraint?.attributeKey) return String(constraint.attributeKey);
+  return [...new Set(constraint?.allowedAttributes ?? [])].sort().join("-");
+}
+
+function metagameConstraintLabelWithoutCost(constraint) {
+  return String(constraint?.label ?? "環境")
+    .replace(/[・\s]*コスト\s*\d+.*$/, "")
+    .trim();
+}
+
+function metagameMergeEnvironmentSlot(lowerSlot, upperSlot, position) {
+  const entries = [
+    ...(lowerSlot?.environment ?? []),
+    ...(upperSlot?.environment ?? []),
+  ];
+  const byId = new Map();
+  for (const entry of entries) {
+    const id = String(entry?.id ?? "");
+    if (!id) continue;
+    const current = byId.get(id);
+    const share = Math.max(0, Number(entry.projectedUsageShare) || 0);
+    if (!current || share > (Number(current.projectedUsageShare) || 0)) {
+      byId.set(id, { ...entry, projectedUsageShare: share });
+    }
+  }
+  return {
+    position: Number(lowerSlot?.position ?? upperSlot?.position ?? position),
+    environment: [...byId.values()].sort((left, right) => (
+      (Number(right.projectedUsageShare) || 0) - (Number(left.projectedUsageShare) || 0) ||
+      String(left.id).localeCompare(String(right.id))
+    )),
+  };
+}
+
+/**
+ * Resolves the requested cost as an environment condition, rather than
+ * treating it as an exact-spend request inside whichever saved condition was
+ * selected first.  A value between two surveyed bands deliberately carries
+ * both bands' decks and scenarios into the later real battle verification.
+ */
+export function resolveMetagameConstraint(data, constraintId, requestedTotalCost) {
+  const source = data?.constraints?.find((entry) => entry.id === constraintId);
+  if (!source) throw new Error("選択した縛りの調査データがありません。");
+  const requested = Number(requestedTotalCost);
+  if (!Number.isFinite(requested) || requested < 1) return source;
+  const totalCost = Math.floor(requested);
+  const attributeKey = metagameConstraintAttributeKey(source);
+  const related = (data?.constraints ?? [])
+    .filter((entry) => metagameConstraintAttributeKey(entry) === attributeKey)
+    .sort((left, right) => (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0));
+  const exact = related.find((entry) => Number(entry.totalCost) === totalCost);
+  if (exact) return exact;
+
+  const lower = [...related].reverse().find((entry) => Number(entry.totalCost) < totalCost);
+  const upper = related.find((entry) => Number(entry.totalCost) > totalCost);
+  const nearest = lower ?? upper ?? source;
+  const interpolation = lower && upper
+    ? {
+      kind: "between",
+      lowerId: lower.id,
+      lowerCost: Number(lower.totalCost),
+      upperId: upper.id,
+      upperCost: Number(upper.totalCost),
+      requestedCost: totalCost,
+    }
+    : {
+      kind: "nearest",
+      sourceId: nearest.id,
+      sourceCost: Number(nearest.totalCost),
+      requestedCost: totalCost,
+    };
+  if (!lower || !upper) {
+    return {
+      ...nearest,
+      id: `${attributeKey}:${totalCost}:nearest-${nearest.totalCost}`,
+      label: `${metagameConstraintLabelWithoutCost(nearest)}・コスト${totalCost}（${nearest.totalCost}帯を参照）`,
+      totalCost,
+      interpolation,
+    };
+  }
+
+  const slotCount = Math.max(lower.slots?.length ?? 0, upper.slots?.length ?? 0, 5);
+  return {
+    ...source,
+    id: `${attributeKey}:${totalCost}:between-${lower.totalCost}-${upper.totalCost}`,
+    label: `${metagameConstraintLabelWithoutCost(source)}・コスト${totalCost}（${lower.totalCost}/${upper.totalCost}帯を補間）`,
+    totalCost,
+    turns: Math.max(Number(lower.turns) || 0, Number(upper.turns) || 0),
+    scenarioCount: (lower.teamScenarios?.length ?? lower.scenarioCount ?? 0) +
+      (upper.teamScenarios?.length ?? upper.scenarioCount ?? 0),
+    reportGeneratedAt: [lower.reportGeneratedAt, upper.reportGeneratedAt].filter(Boolean).join(" / "),
+    slots: Array.from({ length: slotCount }, (_, index) => (
+      metagameMergeEnvironmentSlot(lower.slots?.[index], upper.slots?.[index], index + 1)
+    )),
+    precomputedDecks: [...(lower.precomputedDecks ?? []), ...(upper.precomputedDecks ?? [])],
+    teamScenarios: [...(lower.teamScenarios ?? []), ...(upper.teamScenarios ?? [])],
+    environmentScenarios: [...(lower.environmentScenarios ?? []), ...(upper.environmentScenarios ?? [])],
+    interpolation,
+  };
+}
+
 /**
  * Returns a non-mutating battle copy for a character affected by the current
  * event bonus.  The base catalog must remain intact because the user may turn
@@ -997,19 +1099,31 @@ function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds
     : Array.from({ length: baseCount }, (_, index) => (
       allScenarios[Math.floor(index * allScenarios.length / baseCount)]
     ));
-  const additions = metagameBoostedEnvironmentDecks(constraint, charactersById, environmentCharacterIds);
+  // A representative enemy deck is inserted into the sampled scenarios for
+  // every explicitly changed character first, then the strongest
+  // published/unlisted candidates.  Replacing a sampled opponent rather than
+  // appending another whole scenario keeps the default browser calculation
+  // bounded while still making those characters real opposing teams.
+  const maximumAdditions = Math.max(1, Number(options.maxAdditionalEnvironmentDecks) || 14);
+  const additions = metagameBoostedEnvironmentDecks(constraint, charactersById, environmentCharacterIds)
+    .slice(0, maximumAdditions);
   additions.forEach(({ id, deck }, index) => {
-    const source = scenarios[index % Math.max(1, scenarios.length)];
+    const scenarioIndex = index % Math.max(1, scenarios.length);
+    const source = scenarios[scenarioIndex];
     if (!source) return;
     const enemyDecks = [...source.enemyDecks];
-    enemyDecks[index % enemyDecks.length] = deck;
-    scenarios.push({
+    const enemyIndex = Math.floor(index / Math.max(1, scenarios.length)) % enemyDecks.length;
+    enemyDecks[enemyIndex] = deck;
+    scenarios[scenarioIndex] = {
+      ...source,
       source: "interactive-character-environment",
-      scenarioIndex: scenarios.length,
-      boostedEnvironmentCharacterId: id,
+      automaticEnvironmentCharacterIds: [
+        ...(source.automaticEnvironmentCharacterIds ?? []),
+        id,
+      ],
       allyDecks: source.allyDecks,
       enemyDecks,
-    });
+    };
   });
   return scenarios;
 }
@@ -1022,17 +1136,15 @@ function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds
 export async function inspectMetagameDeckEvidence(deck, constraint, characters, options = {}) {
   if (!Array.isArray(deck) || deck.length !== 5) throw new Error("再生する候補デッキは5体必要です。");
   const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
-  const additionalIds = normalizeMetagameBoostedCharacterIds(options.additionalCharacterIds);
+  const automaticIds = normalizeMetagameBoostedCharacterIds(
+    options.automaticEnvironmentCharacterIds ?? options.automaticCharacterIds,
+  );
   const charactersById = metagameCharactersById(characters, boostedIds);
-  const interactiveIds = new Set([
-    ...boostedIds,
-    ...additionalIds,
-    ...normalizeMetagameBoostedCharacterIds(options.interactiveCharacterIds),
-  ]);
   const boostedDeck = deck.map((character) => applyMetagameStatBoost(character, boostedIds));
   const scenarios = metagameBattleScenarios(constraint, charactersById, boostedIds, {
     maxBaseScenarios: options.interactiveScenarioCount ?? options.boostedScenarioCount,
-    environmentCharacterIds: options.includeAdditionalInEnvironment === false ? boostedIds : interactiveIds,
+    environmentCharacterIds: automaticIds,
+    maxAdditionalEnvironmentDecks: options.maxAdditionalEnvironmentDecks,
   });
   const scenarioCount = scenarios.length;
   if (!scenarioCount) throw new Error("この評価には再生可能な環境対戦データがありません。");
@@ -1190,6 +1302,85 @@ function metagameV8PrecomputedResults(constraint, characters, fixedSlots) {
   ));
 }
 
+function metagameCompactRatingPriority(compactRating) {
+  const breakdown = compactRating?.b ?? compactRating?.roleBreakdown ?? {};
+  const individual = Math.max(0, Number(compactRating?.i ?? compactRating?.individualScore) || 0);
+  const roleFit = Math.max(0, Number(compactRating?.f ?? compactRating?.roleFit) || 0);
+  const board = Math.max(0, Number(breakdown.a ?? breakdown.boardCoverage) || 0);
+  const hardTarget = Math.max(0, Number(breakdown.h ?? breakdown.highDurabilityCoverage) || 0);
+  const defense = Math.max(0, Number(breakdown.d ?? breakdown.defenseMatchup) || 0);
+  return individual * 0.52 + roleFit * 0.28 + board * 0.10 + hardTarget * 0.06 + defense * 0.04;
+}
+
+function metagameAutomaticallyRelevantCharacterIds(constraint, characters, boostedIds, configuredIds) {
+  const charactersById = new Map((characters ?? []).map((character) => [String(character.id), character]));
+  const ids = new Set();
+  const addIfUsable = (id) => {
+    const character = charactersById.get(String(id));
+    if (!character) return;
+    if (![1, 2, 3, 4, 5].some((position) => (
+      matchesMetagamePositionConstraint(character, constraint, position)
+    ))) return;
+    ids.add(String(id));
+  };
+
+  // A stat boost and every catalogue/database edit are always worthy of a
+  // real battle.  They are not hidden behind a second, manual "add" field.
+  [...boostedIds, ...configuredIds]
+    .forEach(addIfUsable);
+  (characters ?? [])
+    .filter((character) => String(character.id).startsWith("manual-"))
+    .forEach((character) => addIfUsable(character.id));
+
+  // Keep strong characters that were already identified by the published
+  // individual/role evaluation in the candidate and opposing environment,
+  // even if they were not part of one of the final precomputed decks.
+  const publishedByPosition = Array.from({ length: 5 }, () => new Map());
+  for (const raw of constraint.precomputedDecks ?? []) {
+    const deckIds = raw?.i ?? raw?.ids;
+    const compactRatings = raw?.r ?? raw?.ratings ?? [];
+    if (!Array.isArray(deckIds) || deckIds.length !== 5) continue;
+    deckIds.forEach((id, index) => {
+      const character = charactersById.get(String(id));
+      const position = index + 1;
+      if (!character || !matchesMetagamePositionConstraint(character, constraint, position)) return;
+      const score = metagameCompactRatingPriority(compactRatings[index]);
+      const current = publishedByPosition[index].get(String(id));
+      if (!current || score > current.score) publishedByPosition[index].set(String(id), { id: String(id), score });
+    });
+  }
+  for (const entries of publishedByPosition) {
+    [...entries.values()]
+      .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+      .slice(0, 8)
+      .forEach((entry) => addIfUsable(entry.id));
+  }
+
+  // Published decks cannot cover every catalogue entry.  Select the leading
+  // stat/skill candidates at each position, and preserve one leading member
+  // of each role so a sturdy guard, recovery, or revive is not crowded out by
+  // raw attackers before the full 5v5 simulation can judge it.
+  for (let position = 1; position <= 5; position += 1) {
+    const ranked = (characters ?? [])
+      .filter((character) => matchesMetagamePositionConstraint(character, constraint, position))
+      .sort((left, right) => (
+        metagameAdaptiveCandidateScore(right, position, constraint) - metagameAdaptiveCandidateScore(left, position, constraint) ||
+        String(left.id).localeCompare(String(right.id))
+      ));
+    ranked.slice(0, 8).forEach((character) => addIfUsable(character.id));
+    const bestByRole = new Map();
+    for (const character of ranked) {
+      const role = metagameDeckRole({
+        skillType: character.skill?.type ?? "none",
+        skillTarget: character.skill?.target ?? "self",
+      });
+      if (!bestByRole.has(role)) bestByRole.set(role, character);
+    }
+    [...bestByRole.values()].forEach((character) => addIfUsable(character.id));
+  }
+  return ids;
+}
+
 function metagameV8AdaptiveSeedResults(constraint, characters, fixedSlots) {
   let states = [{ deck: [] }];
   for (let position = 1; position <= 5; position += 1) {
@@ -1301,7 +1492,7 @@ function metagameAdaptiveCandidateScore(character, position, constraint) {
   return metagameCandidateScore(metagameAdaptiveRoleRating(character, position, constraint));
 }
 
-function metagameCandidateFromBoostedV8Deck(base, deck, interactiveIds, constraint) {
+function metagameCandidateFromBoostedV8Deck(base, deck, priorityIds, constraint) {
   const ratings = deck.map((character, index) => (
     String(character.id) === String(base.deck[index]?.id)
       ? base.ratings[index] ?? metagameBoostedFallbackRating(character)
@@ -1315,7 +1506,7 @@ function metagameCandidateFromBoostedV8Deck(base, deck, interactiveIds, constrai
   const boostedStats = deck.reduce((total, character) => (
     total + Math.max(0, Number(character.hp) || 0) + Math.max(0, Number(character.pow) || 0)
   ), 0);
-  const boostedCount = deck.filter((character) => interactiveIds.has(String(character.id))).length;
+  const boostedCount = deck.filter((character) => priorityIds.has(String(character.id))).length;
   const statGain = Math.max(0, boostedStats / Math.max(1, baseStats) - 1);
   const synergyScore = calculateMetagameDeckSynergy(deck, ratings);
   return {
@@ -1323,8 +1514,8 @@ function metagameCandidateFromBoostedV8Deck(base, deck, interactiveIds, constrai
     ratings,
     totalCost: deck.reduce((total, character) => total + Math.max(0, Number(character.cost) || 0), 0),
     // This score is used only to narrow the on-demand search.  The actual
-    // order is decided by the 5v5 battle results below, so every selected
-    // boosted character is also reserved a finalist slot.
+    // order is decided by the 5v5 battle results below, so edited and boosted
+    // characters are also reserved a finalist slot.
     proxyScore: (Number(base.proxyScore) || 0) + boostedCount * 0.035 + statGain * 0.09 + synergyScore,
     synergyScore,
     handoffRisk: 0,
@@ -1334,19 +1525,20 @@ function metagameCandidateFromBoostedV8Deck(base, deck, interactiveIds, constrai
     roleCounts,
     attackCommitment,
     firepowerSurplus: metagameDeckFirepowerSurplus(attackCommitment, roleCounts),
-    interactiveCharacterIds: [...interactiveIds],
+    priorityCharacterIds: [...priorityIds],
   };
 }
 
-function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSlots, additionalIds = new Set()) {
+function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSlots, options = {}) {
   const charactersById = new Map((characters ?? []).map((character) => [String(character.id), character]));
-  const interactiveIds = new Set([
+  const configuredIds = normalizeMetagameBoostedCharacterIds(options.automaticCharacterIds);
+  const requiredIds = new Set([
     ...boostedIds,
-    ...additionalIds,
+    ...configuredIds,
     ...(characters ?? []).filter((character) => String(character.id).startsWith("manual-")).map((character) => String(character.id)),
   ]);
-  const boostedCharacters = [...interactiveIds].map((id) => charactersById.get(id)).filter(Boolean);
-  if (boostedCharacters.length !== interactiveIds.size) {
+  const boostedCharacters = [...boostedIds].map((id) => charactersById.get(id)).filter(Boolean);
+  if (boostedCharacters.length !== boostedIds.size) {
     throw new Error("指定した補正キャラの一部がキャラクターデータにありません。");
   }
   for (const character of boostedCharacters) {
@@ -1357,6 +1549,13 @@ function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSl
       throw new Error(`${character.name} はスキルターン・配置制限により、どの枠にも配置できません。`);
     }
   }
+  const automaticIds = metagameAutomaticallyRelevantCharacterIds(
+    constraint,
+    characters,
+    boostedIds,
+    configuredIds,
+  );
+  const automaticCharacters = [...automaticIds].map((id) => charactersById.get(id)).filter(Boolean);
 
   const precomputedBases = metagameV8PrecomputedResults(constraint, characters, fixedSlots);
   const bases = (precomputedBases.length ? precomputedBases : metagameV8AdaptiveSeedResults(
@@ -1373,9 +1572,10 @@ function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSl
         metagameAdaptiveCandidateScore(right, position, constraint) - metagameAdaptiveCandidateScore(left, position, constraint)
       ))
       // Keep the on-demand browser search bounded. Explicitly selected and
-      // manually added characters are appended below and are never cut here.
+      // automatically relevant characters are appended below and are never
+      // cut here.
       .slice(0, 16);
-    const selectedCandidates = boostedCharacters.filter((character) => (
+    const selectedCandidates = automaticCharacters.filter((character) => (
       matchesMetagamePositionConstraint(character, constraint, position)
       && (!fixedId || String(character.id) === String(fixedId))
     ));
@@ -1387,7 +1587,7 @@ function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSl
   const candidates = new Map();
   const addCandidate = (base, deck) => {
     if (!metagameDeckIsLegal(deck, constraint, fixedSlots)) return;
-    const candidate = metagameCandidateFromBoostedV8Deck(base, deck, interactiveIds, constraint);
+    const candidate = metagameCandidateFromBoostedV8Deck(base, deck, requiredIds, constraint);
     const key = deck.map((character) => String(character.id)).join("|");
     const current = candidates.get(key);
     if (!current || candidate.proxyScore > current.proxyScore) candidates.set(key, candidate);
@@ -1418,8 +1618,8 @@ function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSl
       // Keep the published environment decks as anchors, while making room
       // for strong unlisted catalogue entries and every explicit addition.
       states.sort((left, right) => {
-        const leftBoosted = left.deck.filter((character) => interactiveIds.has(String(character.id))).length;
-        const rightBoosted = right.deck.filter((character) => interactiveIds.has(String(character.id))).length;
+        const leftBoosted = left.deck.filter((character) => requiredIds.has(String(character.id))).length;
+        const rightBoosted = right.deck.filter((character) => requiredIds.has(String(character.id))).length;
         const leftCost = left.deck.reduce((total, character) => total + (Number(character.cost) || 0), 0);
         const rightCost = right.deck.reduce((total, character) => total + (Number(character.cost) || 0), 0);
         const leftScore = left.deck.reduce((total, character, index) => (
@@ -1435,23 +1635,23 @@ function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSl
     states.forEach((state) => addCandidate(base, state.deck));
   }
   if (!candidates.size) {
-    throw new Error("補正キャラを含めて総コスト・スキルターン条件を満たすデッキを構成できませんでした。");
+    throw new Error("環境候補を含めて総コスト・スキルターン条件を満たすデッキを構成できませんでした。");
   }
-  return [...candidates.values()].sort((left, right) => (
+  return {
+    candidates: [...candidates.values()].sort((left, right) => (
     right.proxyScore - left.proxyScore || left.totalCost - right.totalCost
-  ));
+    )),
+    automaticIds,
+    requiredIds,
+  };
 }
 
 export async function findBestMetagameDeck(data, constraintId, characters, options = {}) {
-  const sourceConstraint = data?.constraints?.find((entry) => entry.id === constraintId);
-  if (!sourceConstraint) throw new Error("選択した縛りの調査データがありません。");
   const requestedTotalCost = Number(options.totalCost);
   const costMode = options.costMode === "exact" ? "exact" : "at_most";
-  const constraint = Number.isFinite(requestedTotalCost) && requestedTotalCost >= 1
-    ? { ...sourceConstraint, totalCost: Math.floor(requestedTotalCost), costMode }
-    : { ...sourceConstraint, costMode };
+  const constraint = { ...resolveMetagameConstraint(data, constraintId, requestedTotalCost), costMode };
   const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
-  const additionalIds = normalizeMetagameBoostedCharacterIds(options.additionalCharacterIds);
+  const configuredAutomaticIds = normalizeMetagameBoostedCharacterIds(options.automaticCharacterIds);
   const charactersById = metagameCharactersById(characters, boostedIds);
   options.onProgress?.({
     phase: "candidate",
@@ -1465,7 +1665,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
   });
   if (String(constraint.modelVersion ?? "").startsWith("team-battle-v8")) {
     const fixedSlots = metagameFixedSlots(options.fixedSlots);
-    if (options.usePublishedV8Cache === true && !boostedIds.size && !additionalIds.size) {
+    if (options.usePublishedV8Cache === true && !boostedIds.size && !configuredAutomaticIds.size && !constraint.interpolation) {
       const precomputed = metagameV8PrecomputedResults(constraint, characters, fixedSlots);
       if (!precomputed.length) {
         throw new Error("選択した固定キャラを同時に含むV8事前評価済みデッキがありません。");
@@ -1481,26 +1681,25 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     }
 
     const interactiveCharacters = [...charactersById.values()];
-    const interactiveIds = new Set([
-      ...boostedIds,
-      ...additionalIds,
-      ...interactiveCharacters.filter((character) => String(character.id).startsWith("manual-")).map((character) => String(character.id)),
-    ]);
-    const candidates = metagameV8BoostedCandidates(
+    const generated = metagameV8BoostedCandidates(
       constraint,
       interactiveCharacters,
       boostedIds,
       fixedSlots,
-      additionalIds,
+      { automaticCharacterIds: configuredAutomaticIds },
     );
-    const finalists = metagameSelectFinalistsWithBoosts(candidates, options.finalistCount ?? 8, interactiveIds);
+    const candidates = generated.candidates;
+    const automaticIds = generated.automaticIds;
+    const requiredIds = generated.requiredIds;
+    const finalists = metagameSelectFinalistsWithBoosts(candidates, options.finalistCount ?? 8, requiredIds);
     const requestedScenarioCount = Number(options.interactiveScenarioCount ?? options.boostedScenarioCount);
     const boostedScenarioCount = requestedScenarioCount === 0
       ? undefined
-      : Math.max(1, requestedScenarioCount || 8);
+      : Math.max(1, requestedScenarioCount || 4);
     const scenarios = metagameBattleScenarios(constraint, charactersById, boostedIds, {
       maxBaseScenarios: boostedScenarioCount,
-      environmentCharacterIds: options.includeAdditionalInEnvironment === false ? boostedIds : interactiveIds,
+      environmentCharacterIds: automaticIds,
+      maxAdditionalEnvironmentDecks: options.maxAdditionalEnvironmentDecks,
     });
     const evaluated = [];
     let completedSimulations = 0;
@@ -1540,17 +1739,15 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
       simulatedDeckCount: finalists.length,
       scenarioCount: scenarios.length,
       boostedCharacterIds: [...boostedIds],
-      additionalCharacterIds: [...additionalIds],
-      interactiveCharacterIds: [...interactiveIds],
-      includeAdditionalInEnvironment: options.includeAdditionalInEnvironment !== false,
+      automaticCharacterIds: [...automaticIds],
+      automaticEnvironmentCharacterIds: [...automaticIds],
       boostedScenarioCount,
       interactiveScenarioCount: requestedScenarioCount,
       results: evaluated.slice(0, 3).map((candidate) => ({
         ...candidate,
         boostedCharacterIds: [...boostedIds],
-        additionalCharacterIds: [...additionalIds],
-        interactiveCharacterIds: [...interactiveIds],
-        includeAdditionalInEnvironment: options.includeAdditionalInEnvironment !== false,
+        automaticCharacterIds: [...automaticIds],
+        automaticEnvironmentCharacterIds: [...automaticIds],
         boostedScenarioCount,
         interactiveScenarioCount: requestedScenarioCount,
       })),

@@ -5,7 +5,9 @@ import {
   buildMetagameDeckCandidates,
   calculateMetagameDeckSynergy,
   findBestMetagameDeck,
+  inspectMetagameDeckEvidence,
   matchesMetagameFixedConstraint,
+  resolveMetagameConstraint,
 } from "../src/core/metagame-deck.js";
 
 function metagameTestCharacter(id, cost, rarity = "R", power = 100) {
@@ -193,6 +195,39 @@ test("metagame simulator can require an exact entered total cost", async () => {
   assert.ok(result.results.every((candidate) => candidate.totalCost === 44));
 });
 
+test("中間の環境コスト縛りは両側の調査済み帯を併用する", () => {
+  const fixture = metagameTestFixture();
+  const lower = {
+    ...fixture.constraint,
+    id: "fire:100",
+    attributeKey: "fire",
+    totalCost: 100,
+    label: "火・コスト100",
+    teamScenarios: [],
+  };
+  const upper = {
+    ...fixture.constraint,
+    id: "fire:200",
+    attributeKey: "fire",
+    totalCost: 200,
+    label: "火・コスト200",
+    teamScenarios: [],
+    environmentScenarios: [...fixture.constraint.environmentScenarios, ...fixture.constraint.environmentScenarios],
+  };
+  const resolved = resolveMetagameConstraint(
+    { constraints: [lower, upper] },
+    lower.id,
+    150,
+  );
+
+  assert.equal(resolved.totalCost, 150);
+  assert.equal(resolved.interpolation.kind, "between");
+  assert.equal(resolved.interpolation.lowerCost, 100);
+  assert.equal(resolved.interpolation.upperCost, 200);
+  assert.equal(resolved.environmentScenarios.length, 3);
+  assert.match(resolved.label, /100\/200/);
+});
+
 test("metagame simulator reports candidate and battle progress", async () => {
   const fixture = metagameTestFixture();
   const progress = [];
@@ -227,7 +262,7 @@ test("補正キャラは元データを変えずHP・攻撃力を1.5倍にする
   assert.equal(boosted.metagameStatBoost.multiplier, 1.5);
 });
 
-test("V8では補正キャラを候補と追加環境の両方へ入れて再対戦する", async () => {
+test("V8では補正キャラを候補と代表環境の両方へ入れて再対戦する", async () => {
   const character = (id, position, power) => ({
     ...metagameTestCharacter(id, 10, "R", power),
     hp: 100,
@@ -267,11 +302,17 @@ test("V8では補正キャラを候補と追加環境の両方へ入れて再対
     finalistCount: 4,
   });
 
-  assert.equal(result.scenarioCount, 2, "元の環境に加えて補正キャラ入り環境を評価する");
+  assert.equal(result.scenarioCount, 1, "補正キャラ入りデッキを代表環境へ差し込んで評価する");
   assert.ok(result.simulatedDeckCount > 0);
   assert.ok(result.results.some((candidate) => (
     candidate.deck.some((entry) => entry.id === boosted.id && entry.hp === 150 && entry.pow === 750)
   )));
+  const evidence = await inspectMetagameDeckEvidence(result.results[0].deck, result.constraint, [...baseDeck, boosted], {
+    boostedCharacterIds: [boosted.id],
+    automaticEnvironmentCharacterIds: result.automaticEnvironmentCharacterIds,
+    interactiveScenarioCount: 1,
+  });
+  assert.ok(evidence.samples.some((sample) => sample.enemyDecks.flat().some((entry) => entry.id === boosted.id)));
 });
 
 test("継続する全体バフは条件を満たす後続アタッカーとの相性を得る", () => {
@@ -498,7 +539,7 @@ test("a self-targeted continuous buff uses handoff likelihood", () => {
   assert.ok(durableSourceScore > 0);
 });
 
-test("V8 interactive search evaluates an added catalogue character in both deck candidates and environment", async () => {
+test("V8 search automatically evaluates an edited catalogue character in both deck candidates and environment", async () => {
   const character = (id, position, power) => ({
     ...metagameTestCharacter(id, 10, "R", power),
     hp: 100,
@@ -525,12 +566,18 @@ test("V8 interactive search evaluates an added catalogue character in both deck 
   };
   const data = { generatedAt: "2026-01-01T00:00:00.000Z", constraints: [constraint] };
   const result = await findBestMetagameDeck(data, constraint.id, [...baseDeck, added], {
-    additionalCharacterIds: [added.id],
+    automaticCharacterIds: [added.id],
     finalistCount: 4,
     interactiveScenarioCount: 1,
   });
 
-  assert.equal(result.scenarioCount, 2);
+  assert.equal(result.scenarioCount, 1);
   assert.ok(result.results.some((candidate) => candidate.deck.some((entry) => entry.id === added.id)));
-  assert.deepEqual(result.additionalCharacterIds, [added.id]);
+  assert.ok(result.automaticCharacterIds.includes(added.id));
+  assert.ok(result.automaticEnvironmentCharacterIds.includes(added.id));
+  const evidence = await inspectMetagameDeckEvidence(result.results[0].deck, result.constraint, [...baseDeck, added], {
+    automaticEnvironmentCharacterIds: result.automaticEnvironmentCharacterIds,
+    interactiveScenarioCount: 1,
+  });
+  assert.ok(evidence.samples.some((sample) => sample.enemyDecks.flat().some((entry) => entry.id === added.id)));
 });
