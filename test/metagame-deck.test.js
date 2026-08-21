@@ -165,6 +165,34 @@ test("metagame simulator ranks complete decks by simulated win value", async () 
   assert.ok(result.results[0].expectedWinRate >= 0 && result.results[0].expectedWinRate <= 1);
 });
 
+test("metagame simulator applies a requested total-cost cap to generation and validation", async () => {
+  const fixture = metagameTestFixture();
+  const result = await findBestMetagameDeck(
+    fixture.data,
+    fixture.constraint.id,
+    fixture.characters,
+    { beamWidth: 100, finalistCount: 10, totalCost: 45 },
+  );
+
+  assert.equal(result.constraint.totalCost, 45);
+  assert.ok(result.results.length > 0);
+  assert.ok(result.results.every((candidate) => candidate.totalCost <= 45));
+});
+
+test("metagame simulator can require an exact entered total cost", async () => {
+  const fixture = metagameTestFixture();
+  const result = await findBestMetagameDeck(
+    fixture.data,
+    fixture.constraint.id,
+    fixture.characters,
+    { beamWidth: 100, finalistCount: 10, totalCost: 44, costMode: "exact" },
+  );
+
+  assert.equal(result.constraint.costMode, "exact");
+  assert.ok(result.results.length > 0);
+  assert.ok(result.results.every((candidate) => candidate.totalCost === 44));
+});
+
 test("metagame simulator reports candidate and battle progress", async () => {
   const fixture = metagameTestFixture();
   const progress = [];
@@ -468,4 +496,41 @@ test("a self-targeted continuous buff uses handoff likelihood", () => {
 
   assert.ok(fragileSourceScore > durableSourceScore);
   assert.ok(durableSourceScore > 0);
+});
+
+test("V8 interactive search evaluates an added catalogue character in both deck candidates and environment", async () => {
+  const character = (id, position, power) => ({
+    ...metagameTestCharacter(id, 10, "R", power),
+    hp: 100,
+    allowedPositions: [position],
+    skillTurn: position - 1,
+  });
+  const baseDeck = [1, 2, 3, 4, 5].map((position) => character(`base-${position}`, position, 20));
+  const added = character("manual-added-3", 3, 900);
+  const deckIds = baseDeck.map((entry) => entry.id);
+  const constraint = {
+    id: "fire:100",
+    modelVersion: "team-battle-v8.6-combat-corrections",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    turns: 1,
+    scenarioCount: 1,
+    slots: [1, 2, 3, 4, 5].map((position) => ({ position, candidates: [] })),
+    precomputedDecks: [{ i: deckIds, c: 50, p: 0.6, w: 0.5, l: 0.45, s: 1, r: [] }],
+    teamScenarios: [{
+      a: Array.from({ length: 4 }, () => deckIds),
+      e: Array.from({ length: 5 }, () => deckIds),
+    }],
+    environmentScenarios: [],
+  };
+  const data = { generatedAt: "2026-01-01T00:00:00.000Z", constraints: [constraint] };
+  const result = await findBestMetagameDeck(data, constraint.id, [...baseDeck, added], {
+    additionalCharacterIds: [added.id],
+    finalistCount: 4,
+    interactiveScenarioCount: 1,
+  });
+
+  assert.equal(result.scenarioCount, 2);
+  assert.ok(result.results.some((candidate) => candidate.deck.some((entry) => entry.id === added.id)));
+  assert.deepEqual(result.additionalCharacterIds, [added.id]);
 });

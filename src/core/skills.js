@@ -193,7 +193,10 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
       factors: damage.factors,
       continuation: {
         attackSources: continuationEffectSources(
-          [...attackEffects, ...actor.buffs.filter((effect) => ["aoe_attack", "multi_hit_attack", "attribute_change"].includes(effect.type))],
+          [...attackEffects, ...actor.buffs.filter((effect) => (
+            ["aoe_attack", "multi_hit_attack", "attribute_change"].includes(effect.type)
+            && effectApplies(effect, actor.attributes, defender.attributes)
+          ))],
           actor.activeCharacterId,
           ["attack_buff", "aoe_attack", "multi_hit_attack", "attribute_change"],
         ),

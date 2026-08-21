@@ -70,6 +70,14 @@
           <span>調査済みの属性・コスト縛り</span>
           <select name="metagameConstraint" aria-label="調査済み縛り"></select>
         </label>
+        <label class="field">
+          <span>指定する総コスト</span>
+          <input type="number" min="1" step="1" data-metagame-total-cost aria-label="指定する総コスト">
+        </label>
+        <label class="field">
+          <span>コスト条件</span>
+          <select data-metagame-cost-mode aria-label="コスト条件"><option value="exact">ちょうど</option><option value="at_most">以下</option></select>
+        </label>
         <button class="button button-search" type="button" data-metagame-submit><span>候補デッキを評価</span><b>→</b></button>
         <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
         <section class="metagame-fixed-slots" data-metagame-fixed-slots>
@@ -92,6 +100,17 @@
           <div class="metagame-boosted-controls"><input type="search" name="metagameBoostedQuery" data-metagame-boosted-query placeholder="補正するキャラを名前・属性・スキルで検索"><button type="button" data-metagame-boosted-search>検索</button></div>
           <div class="metagame-boosted-selected" data-metagame-boosted-list></div>
           <div class="metagame-boosted-results" data-metagame-boosted-results></div>
+        </section>
+        <section class="metagame-boosted-characters metagame-additional-characters" data-metagame-additional-characters>
+          <div class="metagame-boosted-heading">
+            <div><strong>追加して検証するキャラ</strong><small>図鑑・管理者追加キャラ・未所持キャラをその場で候補に入れます。公開済みの環境評価を土台にしつつ、追加キャラを含む候補デッキを実際に5対5で検証します。</small></div>
+            <button type="button" data-metagame-additional-clear>すべて解除</button>
+          </div>
+          <label class="metagame-additional-environment"><input type="checkbox" data-metagame-additional-environment checked> <span>追加キャラを相手環境にも加えて検証する</span></label>
+          <label class="metagame-additional-environment">環境の検証数 <select data-metagame-interactive-scenarios><option value="8">8盤面（速い）</option><option value="24">24盤面（標準）</option><option value="0">すべての盤面（詳細）</option></select></label>
+          <div class="metagame-boosted-controls"><input type="search" name="metagameAdditionalQuery" data-metagame-additional-query placeholder="候補へ追加するキャラを名前・属性・スキルで検索"><button type="button" data-metagame-additional-search>検索</button></div>
+          <div class="metagame-boosted-selected" data-metagame-additional-list></div>
+          <div class="metagame-boosted-results" data-metagame-additional-results></div>
         </section>
       </form>
       <section class="metagame-surveyed-constraints" data-metagame-surveyed-constraints aria-label="実装済みの環境"></section>

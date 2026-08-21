@@ -87,6 +87,36 @@ test("支援スキルを攻撃前に発動し、選択理由と攻撃を別々�
   assert.equal(hit.attribute.multiplier, 1);
 });
 
+test("属性条件付きの全体攻撃付与は、条件を満たす味方だけが攻撃時に有効になる", () => {
+  const windOnlyAoe = {
+    type: "aoe_attack",
+    multiplier: 1,
+    target: "ally_all",
+    duration: 1,
+    hits: 1,
+    conditions: [{ type: "ally_attribute", attribute: "wind" }],
+  };
+  const state = createBattleState(
+    [
+      character("source", { pow: 0, skillTurn: 0, skill: windOnlyAoe }),
+      character("wind-attacker", { attributes: ["wind"], pow: 100 }),
+      character("fire-attacker", { attributes: ["fire"], pow: 100 }),
+    ],
+    [
+      character("enemy-a", { hp: 1000, pow: 0 }),
+      character("enemy-b", { hp: 1000, pow: 0 }),
+    ],
+  );
+  const result = simulateBattle(state, simpleRules, { turns: 1 });
+  const windAttack = result.history[0].actions.find(({ actorName }) => actorName === "wind-attacker");
+  const fireAttack = result.history[0].actions.find(({ actorName }) => actorName === "fire-attacker");
+
+  assert.equal(windAttack.skillType, "aoe_attack");
+  assert.equal(windAttack.hits.length, 2);
+  assert.equal(fireAttack.skillType, "single_attack");
+  assert.equal(fireAttack.hits.length, 1);
+});
+
 test("ターン開始後に交代した控えキャラは同じターンに行動しない", () => {
   const state = createBattleState(
     [character("attacker", { pow: 1000 })],

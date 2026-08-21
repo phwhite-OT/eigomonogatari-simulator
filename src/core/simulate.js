@@ -350,8 +350,17 @@ function skillDecision(state, side, actorIndex, rules, options) {
   return { use: true, reason: "有効な支援効果を先に適用するため使用" };
 }
 
-function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK) {
-  const modeEffects = actor.isGhost ? [] : actor.buffs.filter((effect) => ATTACK_MODE_TYPES.has(effect.type));
+function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK, defender) {
+  // Attack modes are stored on every potential recipient so that a later
+  // attribute change can make an already-applied effect valid. They must be
+  // checked again when the recipient actually attacks.
+  const modeEffects = actor.isGhost ? [] : actor.buffs.filter((effect) => (
+    ATTACK_MODE_TYPES.has(effect.type) && effectApplies(
+      effect,
+      actor.attributes,
+      defender?.attributes ?? [],
+    )
+  ));
   const aoe = baseSkill.type === "aoe_attack" || modeEffects.some((effect) => effect.type === "aoe_attack");
   const baseHits = baseSkill.type === "multi_hit_attack" ? Math.max(1, Number(baseSkill.hits) || 1) : 1;
   const extraHits = modeEffects.filter((effect) => effect.type === "multi_hit_attack").reduce((sum, effect) => (
@@ -366,8 +375,8 @@ function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK) {
 }
 
 function projectedSkillDamage(state, side, actor, skill, rules, options = {}) {
-  const effectiveSkill = options.effective ? skill : attackSkillWithEffects(actor, skill);
   const targets = state[opponentSide(side)].filter((combatant) => combatant.alive && !combatant.isGhost);
+  const effectiveSkill = options.effective ? skill : attackSkillWithEffects(actor, skill, targets[0]);
   const damages = targets.map((target) => estimateDamage(actor, target, effectiveSkill, rules));
   if (effectiveSkill.type === "aoe_attack") {
     return damages.reduce((sum, damage) => sum + damage * Math.max(1, effectiveSkill.hits), 0);
@@ -736,7 +745,10 @@ function attackIntents(state, selectedSkills, rules, options) {
       : isAttackSkill(selectedSkill)
         ? selectedSkill
         : BASIC_ATTACK;
-    const skill = attackSkillWithEffects(token.actor, baseSkill);
+    const referenceTarget = state[opponentSide(side)].find((combatant) => (
+      combatant.alive && !combatant.isGhost
+    ));
+    const skill = attackSkillWithEffects(token.actor, baseSkill, referenceTarget);
     return {
       ...token,
       skill,

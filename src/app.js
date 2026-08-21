@@ -63,6 +63,7 @@ function bootstrap() {
   let characterEditorController = null;
   let lightestController = null;
   let deckCharacterPickerController = null;
+  let metagameController = null;
   let databaseClient = null;
   let characterDatabaseRevision = 0;
   let administratorAccess = false;
@@ -74,6 +75,7 @@ function bootstrap() {
     characterSearchController?.setCharacters(characters);
     lightestController?.setCharacters(characters);
     deckCharacterPickerController?.setCharacters(characters);
+    metagameController?.setCharacters(characters);
   };
 
   const tabsController = initializeAppTabs(document, { initialAccess: { lightest: false } });
@@ -151,7 +153,7 @@ function bootstrap() {
     onEditCharacter: (character) => characterEditorController?.openForEdit(character),
     onAddCharacterAtPosition: (anchor, position) => characterEditorController?.openAtPosition(anchor, position),
   });
-  initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, CHARACTER_CATALOG);
+  metagameController = initializeMetagameSimulator(metagameRoot, METAGAME_SIMULATOR_DATA, characters);
   characterEditorController = initializeCharacterEditor(characterEditor, {
     getExistingIds: () => characters.map((character) => character.id),
     isAllowed: () => administratorAccess,

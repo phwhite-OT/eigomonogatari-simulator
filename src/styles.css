@@ -416,6 +416,16 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-boosted-result strong { font-size: 10px; }
 .metagame-boosted-result small { color: #82765c; font-size: 8px; }
 .metagame-boosted-result button { padding: 6px; border: 0; border-radius: 7px; background: #8a6d25; color: #fff; font: inherit; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-additional-characters { border-color: #b9d9d1; background: linear-gradient(135deg, rgba(239,252,249,.92), rgba(248,253,250,.84)); }
+.metagame-additional-characters .metagame-boosted-heading strong { color: #286b60; }
+.metagame-additional-characters .metagame-boosted-heading small, .metagame-additional-environment { color: #52786f; }
+.metagame-additional-characters .metagame-boosted-heading button { border-color: #a7d0c6; color: #286b60; background: #f9fffd; }
+.metagame-additional-characters .metagame-boosted-controls input { border-color: #b9d9d1; }
+.metagame-additional-characters .metagame-boosted-controls button, .metagame-additional-characters .metagame-boosted-result button { background: #2f796d; }
+.metagame-additional-characters .metagame-boosted-chip { border-color: #9dcfc3; background: #e8f8f3; color: #286b60; }
+.metagame-additional-characters .metagame-boosted-chip button { background: #9dcfc3; color: #164840; }
+.metagame-additional-environment { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 9px; font-weight: 800; cursor: pointer; }
+.metagame-additional-environment select { padding: 4px 6px; border: 1px solid #a7d0c6; border-radius: 6px; background: #fff; color: #286b60; font: inherit; font-weight: 800; }
 .metagame-boost-badge { color: #81631b; font-weight: 900; }
 .metagame-surveyed-constraints { margin-top: 16px; padding: 14px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
 .metagame-surveyed-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
@@ -467,6 +477,9 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-slot-copy p { margin: 8px 0 5px; color: #52605b; font-size: 9px; }
 .metagame-slot-copy small { display: block; color: #697671; font-size: 8px; line-height: 1.55; }
 .metagame-slot-rating { margin-top: 7px; color: #5c7120 !important; font-weight: 700; }
+.metagame-concrete-matchups { display: grid; gap: 6px; margin-top: 10px; padding: 9px; border: 1px solid #cddfd7; border-radius: 9px; background: #f2faf7; }
+.metagame-concrete-matchups strong { color: #286b60; font-size: 8px; line-height: 1.4; }
+.metagame-concrete-matchups ul { display: grid; gap: 5px; margin: 0; padding-left: 14px; color: #46665e; font-size: 8px; line-height: 1.55; }
 .metagame-result-note { margin: 2px 2px 0; color: var(--ink-soft); font-size: 10px; line-height: 1.7; }
 .metagame-evidence { margin: 0 14px 14px; border: 1px solid #d7e2bf; border-radius: 13px; background: #f8fbee; }
 .metagame-evidence > summary { padding: 12px 14px; color: #526a24; cursor: pointer; font-size: 10px; font-weight: 900; }
