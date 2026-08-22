@@ -543,6 +543,13 @@ function renderMetagameSimulatorResult(container, searchResult, characters) {
     ),
     metagameUiElement("span", "", `評価モデル ${searchResult.constraint.modelVersion ?? "unknown"}`),
   );
+  if (Number(searchResult.excludedScenarioCount) > 0) {
+    overview.append(metagameUiElement(
+      "span",
+      "metagame-boost-badge",
+      `現在のキャラデータで配置・スキルターン条件を満たさない環境 ${searchResult.excludedScenarioCount} 件を除外しました。`,
+    ));
+  }
   const boostedIds = new Set((searchResult.boostedCharacterIds ?? []).map(String));
   if (boostedIds.size) {
     const names = characters
@@ -729,8 +736,9 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     });
     return true;
   };
-  const fixedSlotCandidates = (constraint) => activeCharacters.filter((character) => (
+  const fixedSlotCandidates = (constraint, position = fixedPickerPosition) => activeCharacters.filter((character) => (
     matchesMetagameFixedConstraint(character, constraint)
+      && (!position || isSkillTurnAllowedAtPosition(character, position))
   ));
   const boostedCharacterCandidates = (constraint) => activeCharacters.filter((character) => {
     if (!matchesMetagameFixedConstraint(character, constraint)) return false;
@@ -862,7 +870,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     fixedPickerResults.replaceChildren(list);
   };
   const openFixedPicker = (position) => {
-    const candidates = fixedSlotCandidates(selectedConstraint());
+    const candidates = fixedSlotCandidates(selectedConstraint(), position);
     if (!candidates.length) return;
     fixedPickerPosition = position;
     fixedPickerIndex = createCharacterSearchIndex(candidates);
@@ -874,7 +882,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   };
   const renderFixedSlots = (constraint) => {
     for (const [position, character] of fixedSlots) {
-      if (!fixedSlotCandidates(constraint).some((entry) => String(entry.id) === String(character.id))) {
+      if (!fixedSlotCandidates(constraint, position).some((entry) => String(entry.id) === String(character.id))) {
         fixedSlots.delete(position);
       }
     }
@@ -896,7 +904,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
       }
       const action = metagameUiElement("button", "", character ? "キャラを変更" : "キャラ検索");
       action.type = "button";
-      action.disabled = !fixedSlotCandidates(constraint).length || Boolean(abortController);
+      action.disabled = !fixedSlotCandidates(constraint, position).length || Boolean(abortController);
       action.addEventListener("click", () => {
         openFixedPicker(position);
       });

@@ -68,15 +68,19 @@ function metagameTestFixture() {
       300,
     );
     const second = metagameTestCharacter(`candidate-${position}-b`, 8, "R", 240);
+    first.skillTurn = Math.max(0, position - 1);
+    second.skillTurn = Math.max(0, position - 1);
     candidateCharacters.push(first, second);
     slots.push({
       position,
       candidates: [metagameTestRating(first, 1), metagameTestRating(second, 2)],
     });
   }
-  const environmentCharacters = [1, 2, 3, 4, 5].map((position) => (
-    metagameTestCharacter(`environment-${position}`, 5, "N", 100)
-  ));
+  const environmentCharacters = [1, 2, 3, 4, 5].map((position) => {
+    const character = metagameTestCharacter(`environment-${position}`, 5, "N", 100);
+    character.skillTurn = Math.max(0, position - 1);
+    return character;
+  });
   const environmentDeck = environmentCharacters.map((character) => character.id);
   const constraint = {
     id: "fire:60",
@@ -136,7 +140,7 @@ test("fixed slots remain in generated metagame decks", async () => {
 
 test("fixed slots accept every character matching the metagame attribute and cost constraint", () => {
   const fixture = metagameTestFixture();
-  const fixedCharacter = fixture.characters.find((character) => character.id === "environment-1");
+  const fixedCharacter = fixture.characters.find((character) => character.id === "environment-3");
   assert.ok(matchesMetagameFixedConstraint(fixedCharacter, fixture.constraint));
 
   const candidates = buildMetagameDeckCandidates(
@@ -318,6 +322,88 @@ test("V8では補正キャラを候補と代表環境の両方へ入れて再対
     interactiveScenarioCount: 1,
   });
   assert.ok(evidence.samples.some((sample) => sample.enemyDecks.flat().some((entry) => entry.id === boosted.id)));
+});
+
+test("V8環境はキャラ編集後も各枠のスキルターンを再検査する", async () => {
+  const character = (id, position) => ({
+    ...metagameTestCharacter(id, 10, "R", 100),
+    allowedPositions: [position],
+    skillTurn: position - 1,
+  });
+  const deck = [1, 2, 3, 4, 5].map((position) => character(`live-${position}`, position));
+  const ids = deck.map((entry) => entry.id);
+  const constraint = {
+    id: "fire:100",
+    label: "火・コスト100",
+    modelVersion: "team-battle-v8.6-combat-corrections",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    turns: 1,
+    scenarioCount: 1,
+    slots: [1, 2, 3, 4, 5].map((position) => ({ position, candidates: [] })),
+    precomputedDecks: [],
+    teamScenarios: [{
+      a: Array.from({ length: 4 }, () => ids),
+      e: Array.from({ length: 5 }, () => ids),
+    }],
+  };
+  const editedCharacters = deck.map((entry) => (
+    entry.id === "live-2" ? { ...entry, skillTurn: 4 } : entry
+  ));
+
+  await assert.rejects(
+    () => inspectMetagameDeckEvidence(deck, constraint, editedCharacters),
+    /スキルターン・配置・属性・コスト条件と矛盾/,
+  );
+});
+
+test("未検証キャラはHP・攻撃が高くても自動で対戦相手に混ぜない", async () => {
+  const character = (id, position) => ({
+    ...metagameTestCharacter(id, 10, "R", 100),
+    allowedPositions: [position],
+    skillTurn: position - 1,
+  });
+  const deck = [1, 2, 3, 4, 5].map((position) => character(`base-${position}`, position));
+  const ids = deck.map((entry) => entry.id);
+  const rawStatOnlyCharacter = {
+    ...character("raw-stat-only", 2),
+    hp: 100_000,
+    pow: 100_000,
+  };
+  const constraint = {
+    id: "fire:100",
+    label: "火・コスト100",
+    modelVersion: "team-battle-v8.6-combat-corrections",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    turns: 1,
+    scenarioCount: 1,
+    slots: [1, 2, 3, 4, 5].map((position) => ({ position, candidates: [] })),
+    precomputedDecks: [{
+      i: ids,
+      c: 50,
+      p: 0.6,
+      w: 0.5,
+      l: 0.45,
+      s: 1,
+      r: deck.map(() => ({ k: "neutral", i: 0.5, f: 0.5, b: {} })),
+    }],
+    teamScenarios: [{
+      a: Array.from({ length: 4 }, () => ids),
+      e: Array.from({ length: 5 }, () => ids),
+    }],
+  };
+  const data = { generatedAt: "2026-01-01T00:00:00.000Z", constraints: [constraint] };
+  const result = await findBestMetagameDeck(data, constraint.id, [...deck, rawStatOnlyCharacter], {
+    finalistCount: 1,
+    interactiveScenarioCount: 1,
+  });
+
+  assert.equal(result.candidateDeckCount, 1);
+  assert.equal(result.automaticCharacterIds.includes(rawStatOnlyCharacter.id), false);
+  assert.ok(result.results.every((candidate) => (
+    candidate.deck.every((entry) => entry.id !== rawStatOnlyCharacter.id)
+  )));
 });
 
 test("継続する全体バフは条件を満たす後続アタッカーとの相性を得る", () => {

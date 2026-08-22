@@ -100,9 +100,9 @@
         </section>
         <section class="metagame-boosted-characters metagame-additional-characters" data-metagame-automatic-environment>
           <div class="metagame-boosted-heading">
-            <div><strong>自動環境再検証</strong><small>補正キャラ、管理者が追加・編集したキャラ、事前評価で各枠の上位に入るキャラを自動で候補と相手環境へ加えます。手入力で追加する必要はありません。</small></div>
+            <div><strong>自動環境再検証</strong><small>通常の相手は実戦評価済みの5対5環境だけを使います。補正キャラと管理者が追加・編集したキャラだけは、スキルターン・配置・属性・コストを満たす場合に実戦対戦へ加えます。HPや攻撃の単純順位で相手を追加することはありません。</small></div>
           </div>
-          <label class="metagame-additional-environment">再検証する代表環境数 <select data-metagame-interactive-scenarios><option value="4">4環境（標準）</option><option value="8">8環境（高精度）</option><option value="24">24環境（詳細）</option><option value="0">すべての環境（全件）</option></select></label>
+          <label class="metagame-additional-environment">再検証する環境数 <select data-metagame-interactive-scenarios><option value="4">4環境（動作確認用）</option><option value="8" selected>8環境（通常再検証）</option><option value="24">24環境（詳細）</option><option value="0">すべての環境（全件）</option></select></label>
         </section>
       </form>
       <section class="metagame-surveyed-constraints" data-metagame-surveyed-constraints aria-label="実装済みの環境"></section>
