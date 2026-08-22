@@ -18,14 +18,15 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V8_MODEL_VERSION = "team-battle-v8.6-combat-corrections";
+const METAGAME_V8_MODEL_VERSION = "team-battle-v9-marginal-contribution";
+const V9_BROWSER_POOL_LIMIT = 96;
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V8_INPUTS.map((input) => Object.freeze({
     type: "v8",
     inputId: input.id,
-    statusPath: `reports/metagame-ratings-v8.5-role-balance/${input.id.replaceAll(":", "-")}/progress.json`,
-    reportPath: `reports/metagame-ratings-v8.5-role-balance/${input.id.replaceAll(":", "-")}/report.json`,
-    reportRoot: "reports/metagame-ratings-v8.5-role-balance",
+    statusPath: `reports/metagame-ratings-v9-marginal/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v9-marginal/${input.id.replaceAll(":", "-")}/report.json`,
+    reportRoot: "reports/metagame-ratings-v9-marginal",
     requiredModelVersion: METAGAME_V8_MODEL_VERSION,
     legacy: false,
   })),
@@ -81,11 +82,10 @@ function v8CompletedRunCount(progress) {
 }
 
 function hasCompletedV8BrowserData(data) {
-  return data?.sourceStatus === "complete"
-    && data?.sourceModelCompatible === true
-    && String(data.sourceModelVersion ?? "").startsWith("team-battle-v8.")
-    && Array.isArray(data.constraints)
-    && data.constraints.length > 0;
+  // Keep the currently published dataset intact until a complete V9 dataset
+  // exists. A partial or missing local report must never erase the browser's
+  // usable data during the long recalculation.
+  return Array.isArray(data?.constraints) && data.constraints.length > 0;
 }
 
 async function readMetagameV8Source(projectRoot, source) {
@@ -233,6 +233,9 @@ function compactMetagameV8Candidate(entry, character) {
   const duration = Math.max(1, Number(skill.duration) || 1);
   const defenseTypes = new Set(["damage_reduction", "guard", "attribute_guard", "heal", "revive"]);
   const attackTypes = new Set(["single_attack", "aoe_attack", "attack_buff", "multi_hit_attack"]);
+  const individualScore = Number(entry.individualScore) || 0;
+  const marginalWinGain = Number(entry.marginalWinGain) || 0;
+  const marginalWinGainLowerBound = Number(entry.marginalWinGainLowerBound) || 0;
   return {
     id: String(entry.id),
     name: entry.name,
@@ -244,15 +247,23 @@ function compactMetagameV8Candidate(entry, character) {
     skillTarget: entry.skillTarget ?? skill.target ?? "self",
     skillName: entry.skillName,
     overallRank: entry.rank ?? null,
-    scenarioCount: entry.bestDeck?.scenarioCount ?? 0,
-    expectedWinRate: entry.bestDeck?.expectedWinRate ?? 0,
-    expectedWinLowerBound: entry.bestDeck?.expectedWinLowerBound ?? 0,
-    baselineExpectedWinRate: entry.bestDeck?.expectedWinRate ?? 0,
-    skillWinGain: 0,
+    role: entry.role ?? "neutral",
+    roleFit: Number(entry.roleFit) || 0,
+    roleBreakdown: entry.roleBreakdown ?? {},
+    scenarioCount: entry.contributionProbeCount ?? entry.bestDeck?.scenarioCount ?? 0,
+    // These fields intentionally contain the controlled individual result,
+    // never the result of the strongest completed deck containing the entry.
+    expectedWinRate: individualScore,
+    expectedWinLowerBound: Math.min(1, Math.max(0, 0.5 + marginalWinGainLowerBound)),
+    baselineExpectedWinRate: Number(entry.benchmarkExpectedWinRate) || 0,
+    candidateExpectedWinRate: Number(entry.candidateExpectedWinRate) || 0,
+    marginalWinGain,
+    marginalWinGainLowerBound,
+    skillWinGain: marginalWinGain,
     allyRetentionRate: 0,
     enemyPressureRate: 0,
     balancedContribution: 0,
-    practicalValue: entry.bestDeck?.expectedWinRate ?? 0,
+    practicalValue: Number(entry.v7Score) || individualScore,
     practicalSkillReliability: skill.type && skill.type !== "none" ? 1 : 0,
     powerPreference: 0,
     combinationPotential: duration > 1 ? Math.min(1, (duration - 1) / 4) : 0,
@@ -402,9 +413,18 @@ export function buildMetagameV8Constraint(report, charactersById) {
       || 0,
     modelVersion: report.model?.version ?? "unknown",
     reportGeneratedAt: report.generatedAt ?? null,
-    slots: [1, 2, 3, 4, 5].map((position) => ({
-      position,
-      environment: (pools[position - 1] ?? []).map((entry) => {
+    slots: [1, 2, 3, 4, 5].map((position) => {
+      const ranking = rankings.get(position)?.characters ?? [];
+      const compactCandidates = ranking.slice(0, V9_BROWSER_POOL_LIMIT).map((entry) => (
+        compactMetagameV8Candidate(entry, charactersById.get(String(entry.id)))
+      ));
+      return {
+        position,
+        // Keep a broad, battle-measured pool for browser-side deck assembly.
+        // The short debug ranking below is deliberately separate from it.
+        candidates: compactCandidates,
+        debugRankings: compactCandidates.slice(0, 12),
+        environment: (pools[position - 1] ?? []).map((entry) => {
         const character = charactersById.get(String(entry.id));
         return {
           id: String(entry.id),
@@ -417,7 +437,8 @@ export function buildMetagameV8Constraint(report, charactersById) {
           projectedUsageShare: 1 / Math.max(1, (pools[position - 1] ?? []).length),
         };
       }),
-    })),
+      };
+    }),
     precomputedDecks,
     // Preserve the exact 4+5 team split used by the cloud evaluator.  The
     // previous flat nine-deck representation is useful for legacy reports,

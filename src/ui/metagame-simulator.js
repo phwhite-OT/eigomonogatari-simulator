@@ -754,6 +754,53 @@ function renderSurveyedMetagameConstraints(container, constraints, selectedId) {
   });
   container.append(heading, list);
 }
+
+function renderMetagameDebugRankings(container, constraint) {
+  container.replaceChildren();
+  const rankings = (constraint?.slots ?? []).map((slot) => (
+    slot.debugRankings ?? slot.candidates?.slice(0, 12) ?? []
+  ));
+  if (!rankings.some((entries) => entries.length)) {
+    container.append(
+      metagameUiElement("strong", "", "枠別の事前評価デバッグ"),
+      metagameUiElement("p", "", "V9の個体差分評価データを計算中です。旧データの完成デッキ勝率はここに表示しません。"),
+    );
+    return;
+  }
+  const heading = metagameUiElement("div", "metagame-debug-rankings-heading");
+  heading.append(
+    metagameUiElement("strong", "", "枠別の事前評価デバッグ"),
+    metagameUiElement(
+      "small",
+      "",
+      "同じ4人・同じ相手に対する『評価用空枠』との差分で順位付け。完成デッキ勝率は個体順位に使いません。",
+    ),
+  );
+  const grid = metagameUiElement("div", "metagame-debug-ranking-grid");
+  rankings.forEach((entries, index) => {
+    const card = metagameUiElement("section", "metagame-debug-ranking-slot");
+    card.append(metagameUiElement("h3", "", `${index + 1}枠目 上位`));
+    const list = metagameUiElement("ol", "metagame-debug-ranking-list");
+    entries.forEach((entry) => {
+      const row = metagameUiElement("li", "");
+      const delta = Number(entry.marginalWinGain);
+      const lower = Number(entry.marginalWinGainLowerBound);
+      const deltaText = Number.isFinite(delta)
+        ? `空枠比 ${metagameUiSigned(delta * 100)}pt / 下限 ${metagameUiSigned((Number.isFinite(lower) ? lower : delta) * 100)}pt`
+        : "個体差分は未計算";
+      row.append(
+        metagameUiElement("strong", "", entry.name ?? entry.id),
+        metagameUiElement("span", "", `${attributeClassLabel(entry.attributes)}・C${entry.cost}・${entry.skillTurn}T`),
+        metagameUiElement("small", "", `${deltaText} / 個体値 ${metagameUiPercent(entry.individualScore ?? entry.expectedWinRate)}`),
+      );
+      list.append(row);
+    });
+    card.append(list);
+    grid.append(card);
+  });
+  container.append(heading, grid);
+}
+
 function renderMetagameSimulatorMessage(container, message, error = false) {
   container.replaceChildren(metagameUiElement(
     "section",
@@ -776,6 +823,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   const resultRoot = root.querySelector("[data-metagame-result]");
   const calculationStatus = root.querySelector("[data-metagame-calculation-status]");
   const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
+  const debugRankings = root.querySelector("[data-metagame-debug-rankings]");
   const fixedSlotList = form.querySelector("[data-metagame-fixed-slot-list]");
   const fixedClearButton = form.querySelector("[data-metagame-fixed-clear]");
   const fixedPicker = form.querySelector("[data-metagame-fixed-picker]");
@@ -1043,6 +1091,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   const updateEnvironmentPreview = () => {
     const constraint = selectedConstraint();
     renderSurveyedMetagameConstraints(surveyedConstraints, data.constraints, constraint?.id);
+    renderMetagameDebugRankings(debugRankings, constraint);
     renderFixedSlots(constraint);
     renderBoostedCharacters(constraint);
     renderBoostedPickerResults();

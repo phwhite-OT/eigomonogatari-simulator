@@ -40,12 +40,30 @@ function metagameMergeEnvironmentSlot(lowerSlot, upperSlot, position) {
       byId.set(id, { ...entry, projectedUsageShare: share });
     }
   }
+  const candidatesById = new Map();
+  for (const entry of [...(lowerSlot?.candidates ?? []), ...(upperSlot?.candidates ?? [])]) {
+    const id = String(entry?.id ?? "");
+    if (!id) continue;
+    const current = candidatesById.get(id);
+    const score = Number(entry?.marginalWinGainLowerBound ?? entry?.expectedWinLowerBound) || 0;
+    const currentScore = Number(current?.marginalWinGainLowerBound ?? current?.expectedWinLowerBound) || 0;
+    if (!current || score > currentScore) candidatesById.set(id, entry);
+  }
+  const candidates = [...candidatesById.values()].sort((left, right) => (
+    (Number(right.marginalWinGainLowerBound ?? right.expectedWinLowerBound) || 0) -
+      (Number(left.marginalWinGainLowerBound ?? left.expectedWinLowerBound) || 0) ||
+    (Number(right.marginalWinGain ?? right.expectedWinRate) || 0) -
+      (Number(left.marginalWinGain ?? left.expectedWinRate) || 0) ||
+    Number(left.cost) - Number(right.cost)
+  ));
   return {
     position: Number(lowerSlot?.position ?? upperSlot?.position ?? position),
     environment: [...byId.values()].sort((left, right) => (
       (Number(right.projectedUsageShare) || 0) - (Number(left.projectedUsageShare) || 0) ||
       String(left.id).localeCompare(String(right.id))
     )),
+    candidates,
+    debugRankings: candidates.slice(0, 12),
   };
 }
 
@@ -152,6 +170,16 @@ function metagameDeckClampUnit(value) {
 }
 
 function metagameCandidateScore(rating) {
+  const marginalLowerBound = Number(rating.marginalWinGainLowerBound);
+  const marginalWinGain = Number(rating.marginalWinGain);
+  if (Number.isFinite(marginalLowerBound) || Number.isFinite(marginalWinGain)) {
+    const individualLowerBound = metagameDeckClampUnit(0.5 + (Number.isFinite(marginalLowerBound) ? marginalLowerBound : marginalWinGain));
+    const individualMean = metagameDeckClampUnit(Number(rating.individualScore ?? rating.expectedWinRate));
+    const costEfficiency = metagameDeckClampUnit(rating.roleBreakdown?.costEfficiency);
+    // V9 rows are controlled, per-character battle deltas. Do not blend an
+    // old team win rate or a role proxy back into the search ordering.
+    return individualLowerBound * 0.72 + individualMean * 0.23 + costEfficiency * 0.05;
+  }
   const advantage = Math.min(1, Math.max(0, Number(rating.advantageCreation) || 0) / 2);
   const counter = Math.min(1, Math.max(0, Number(rating.counteraction) || 0) / 2);
   const practicalValue = metagameDeckClampUnit(rating.practicalValue ?? rating.practical?.practicalValue);
@@ -1117,21 +1145,17 @@ function metagameV8EnvironmentStrengths(constraint, charactersById) {
     new Map(),
   );
   const deckScores = new Map();
-  const characterScores = new Map();
   for (const candidate of published) {
     const score = Number(candidate.expectedWinLowerBound) || Number(candidate.expectedWinRate) || 0;
     const key = metagameDeckKey(candidate.deck);
     deckScores.set(key, Math.max(deckScores.get(key) ?? 0, score));
-    for (const character of candidate.deck) {
-      const id = String(character.id);
-      characterScores.set(id, Math.max(characterScores.get(id) ?? 0, score));
-    }
   }
   const scoreDeck = (deck) => {
     const exact = deckScores.get(metagameDeckKey(deck));
-    if (Number.isFinite(exact)) return exact;
-    const scores = (deck ?? []).map((character) => characterScores.get(String(character?.id)) ?? 0);
-    return scores.reduce((sum, score) => sum + score, 0) / Math.max(1, scores.length);
+    // A complete team's result is valid evidence for that exact complete team
+    // only. Never infer a character's environmental strength from the best
+    // team it happened to appear in.
+    return Number.isFinite(exact) ? exact : 0;
   };
   return { published, scoreDeck };
 }

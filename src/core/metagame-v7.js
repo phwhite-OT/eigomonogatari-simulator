@@ -18,7 +18,10 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // Combat resolution changed for attack-skill timing and guarded area attacks.
 // Keep prior reports visible as historical data, but never mix them into this
 // corrected evaluation pass.
-export const METAGAME_V8_MODEL_VERSION = "team-battle-v8.6-combat-corrections";
+// V9 deliberately separates a character's own battle contribution from the
+// result of the four allies that happened to be paired with it. Any report
+// made with an earlier model must therefore be treated as incompatible input.
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v9-marginal-contribution";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
 // decide whether a report is compatible.
@@ -289,19 +292,12 @@ export function resolveMetagameV7Input(input, characters) {
   };
 }
 
-function environmentStrengths(pools, rules) {
-  const all = pools.flat();
-  const maxHp = Math.max(1, ...all.map((character) => Number(character.hp) || 0));
-  const maxPow = Math.max(1, ...all.map((character) => Number(character.pow) || 0));
-  return new Map(pools.flatMap((pool, index) => pool.map((character) => {
-    const skill = clampUnit(estimateSkillPotency(character, all, index + 1, rules) / 4);
-    const value = clampUnit(
-      Number(character.pow) / maxPow * 0.44 +
-      Number(character.hp) / maxHp * 0.36 +
-      skill * 0.20,
-    );
-    return [String(character.id), value];
-  })));
+function environmentStrengths(pools) {
+  // The first V9 pass establishes full-team evidence. Do not decide that a
+  // supplied opponent is common or strong from HP, power, or a hand-written
+  // skill proxy before that battle evidence exists. Every supplied pivot is
+  // represented; later browser samples weight only measured complete decks.
+  return new Map(pools.flatMap((pool) => pool.map((character) => [String(character.id), 0])));
 }
 
 function buildStrongEnvironmentDeck(pools, fixedByPosition, input, strengths, variant = 0, usageCounts = new Map()) {
@@ -379,8 +375,7 @@ function buildStrongEnvironmentDeck(pools, fixedByPosition, input, strengths, va
  */
 export function createMetagameV7EnvironmentDecks(resolvedInput, options = {}) {
   const pools = resolvedInput.environmentPools;
-  const rules = options.rules ?? DEFAULT_RULES;
-  const strengths = environmentStrengths(pools, rules);
+  const strengths = environmentStrengths(pools);
   const requiredPivots = pools.flatMap((pool, position) => (
     pool.map((character) => ({ position, character }))
   ));
@@ -872,59 +867,49 @@ export function buildMetagameV7CandidatePools(resolvedInput, characters, options
     resolvedInput.examplePatterns.map((deck) => deck[index]).filter(Boolean).map((character) => String(character.id)),
   ));
   const partnerRatingsByPosition = ratingsByPosition.map((ratings, index) => {
+    // These are only *partners used to probe a character*.  Do not put the
+    // old HP / power / proxy ranking back into this gate: doing so made a
+    // character look good merely because it was tested next to a strong team.
+    // Instead, cover the legal cost range and every tactical role evenly.
     const listed = [...ratings.values()].sort((left, right) => (
-      right.practicalValue - left.practicalValue ||
       left.cost - right.cost ||
+      left.skillTurn - right.skillTurn ||
       left.id.localeCompare(right.id)
     ));
     const exampleRatings = [...exampleIdsByPosition[index]].map((id) => ratings.get(id)).filter(Boolean);
-    const remainingLimit = Math.max(1, partnerLimit - exampleRatings.length);
-    const strengthLimit = Math.max(1, Math.ceil(remainingLimit * 0.35));
-    const costLimit = Math.max(1, Math.ceil(remainingLimit * 0.20));
-    const efficiencyLimit = Math.max(6, Math.ceil(remainingLimit * 0.25));
-    const utilityLimit = Math.max(6, remainingLimit - strengthLimit - costLimit - efficiencyLimit);
     const selected = new Map();
-    listed.slice(0, strengthLimit).forEach((rating) => selected.set(rating.id, rating));
-    listed.sort((left, right) => (
-      (right.practicalValue - right.cost / Math.max(1, resolvedInput.totalCost) * 0.24) -
-        (left.practicalValue - left.cost / Math.max(1, resolvedInput.totalCost) * 0.24) ||
-      left.cost - right.cost
-    )).slice(0, costLimit).forEach((rating) => selected.set(rating.id, rating));
-    listed.sort((left, right) => (
-      v7CostEfficiency(right) - v7CostEfficiency(left) ||
-      right.practicalValue - left.practicalValue ||
-      left.id.localeCompare(right.id)
-    )).slice(0, efficiencyLimit).forEach((rating) => selected.set(rating.id, rating));
-    listed.filter((rating) => rating.skillType !== "none").sort((left, right) => (
-      (Number(right.tacticalUpside) + Number(right.combinationPotential) + Number(right.advantageCreation)) -
-        (Number(left.tacticalUpside) + Number(left.combinationPotential) + Number(left.advantageCreation)) ||
-      right.practicalValue - left.practicalValue ||
-      left.cost - right.cost
-    )).slice(0, utilityLimit).forEach((rating) => selected.set(rating.id, rating));
-    // Keep at least one strong representative of every practical role. This
-    // prevents a broad high-stat proxy cut from erasing revivers, defenders,
-    // precision attackers, or board-clear attackers before deck generation.
-    ["precision_attack", "sweep_attack", "defense", "revive", "recovery", "support"].forEach((role) => {
-      const representative = listed.filter((rating) => rating.role === role).sort((left, right) => (
-        Number(right.roleFit) - Number(left.roleFit) ||
-        right.practicalValue - left.practicalValue ||
-        left.cost - right.cost
-      ))[0];
-      if (representative) selected.set(representative.id, representative);
-    });
     exampleRatings.forEach((rating) => selected.set(rating.id, rating));
+    const capacity = Math.max(0, partnerLimit - selected.size);
+    const addEvenly = (entries, count) => {
+      const sorted = [...entries].sort((left, right) => (
+        left.cost - right.cost ||
+        left.skillTurn - right.skillTurn ||
+        left.id.localeCompare(right.id)
+      ));
+      const take = Math.min(sorted.length, Math.max(0, count));
+      for (let pick = 0; pick < take && selected.size < partnerLimit; pick += 1) {
+        const entry = sorted[Math.min(sorted.length - 1, Math.floor((pick + 0.5) * sorted.length / take))];
+        selected.set(entry.id, entry);
+      }
+    };
+    const roles = ["precision_attack", "sweep_attack", "defense", "revive", "recovery", "support"];
+    const perRole = Math.max(1, Math.floor(capacity * 0.5 / roles.length));
+    roles.forEach((role) => addEvenly(listed.filter((rating) => rating.role === role), perRole));
+    // Fill the remaining places from evenly-spaced cost bands, rather than
+    // always choosing the cheapest end of the table.
+    addEvenly(listed.filter((rating) => !selected.has(rating.id)), partnerLimit - selected.size);
     return [...selected.values()];
   });
   const anchorRatingsByPosition = partnerRatingsByPosition.map((ratings) => {
     const selected = new Map();
     [...ratings].sort((left, right) => (
-      v7CostEfficiency(right) - v7CostEfficiency(left) ||
-      right.practicalValue - left.practicalValue
+      left.cost - right.cost ||
+      left.id.localeCompare(right.id)
     )).slice(0, 1).forEach((rating) => selected.set(rating.id, rating));
     [...ratings].filter((rating) => rating.skillType !== "none").sort((left, right) => (
-      (Number(right.tacticalUpside) + Number(right.combinationPotential) + Number(right.advantageCreation)) -
-        (Number(left.tacticalUpside) + Number(left.combinationPotential) + Number(left.advantageCreation)) ||
-      right.practicalValue - left.practicalValue
+      left.skillTurn - right.skillTurn ||
+      left.cost - right.cost ||
+      left.id.localeCompare(right.id)
     )).slice(0, 1).forEach((rating) => selected.set(rating.id, rating));
     return [...selected.values()];
   });
@@ -1163,11 +1148,47 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     [key, rounded(value)]
   )));
   const deckCandidates = buildMetagameV7DeckCandidates(character, position, resolvedInput, candidatePools, options);
-  const evaluatedDecks = deckCandidates.map((candidate) => ({
-    ...candidate,
-    totalCost: candidate.deck.reduce((sum, entry) => sum + (Number(entry.cost) || 0), 0),
-    result: evaluateMetagameV7Deck(candidate.deck, teamScenarios, options),
-  })).sort((left, right) => (
+  // Compare every evaluated deck with the exact same four allies and an inert
+  // fifth member. This is the measured marginal value of the candidate; the
+  // full team's result must not be attributed to one character.
+  const benchmark = {
+    id: `metagame-v9-empty-slot-${position}`,
+    name: "評価用空枠",
+    attributes: [],
+    rarity: "N",
+    cost: 0,
+    hp: 1,
+    pow: 1,
+    skillTurn: 0,
+    maxUses: 0,
+    allowedPositions: [position],
+    skillName: "",
+    skill: {
+      type: "none",
+      multiplier: 1,
+      hits: 1,
+      amount: 0,
+      target: "self",
+      targetCount: 1,
+      duration: 1,
+      priority: "normal",
+      conditions: [],
+      effects: [],
+    },
+  };
+  const evaluatedDecks = deckCandidates.map((candidate) => {
+    const deck = candidate.deck;
+    const result = evaluateMetagameV7Deck(deck, teamScenarios, options);
+    const benchmarkDeck = deck.map((entry, index) => (index === position - 1 ? benchmark : entry));
+    const benchmarkResult = evaluateMetagameV7Deck(benchmarkDeck, teamScenarios, options);
+    return {
+      ...candidate,
+      totalCost: deck.reduce((sum, entry) => sum + (Number(entry.cost) || 0), 0),
+      result,
+      benchmarkResult,
+      marginalWinGain: result.expectedWinRate - benchmarkResult.expectedWinRate,
+    };
+  }).sort((left, right) => (
     right.result.expectedWinLowerBound - left.result.expectedWinLowerBound ||
     right.result.expectedWinRate - left.result.expectedWinRate ||
     left.totalCost - right.totalCost ||
@@ -1188,7 +1209,7 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
       skillTarget: character.skill?.target ?? "self",
       skillName: character.skillName ?? "",
       role: individual.role ?? v8RoleForCharacter(character),
-      individualScore,
+      individualScore: 0,
       roleFit,
       roleBreakdown,
       position,
@@ -1217,7 +1238,26 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
   }
   const example = evaluatedDecks.find((entry) => entry.origin === "example");
   const deckScore = rounded(best.result.expectedWinLowerBound);
-  const individualWeight = position === 1 ? 0.3 : 0.4;
+  const marginalValues = evaluatedDecks.map((entry) => Number(entry.marginalWinGain) || 0);
+  const marginalWinGain = average(marginalValues);
+  const marginalVariance = marginalValues.length > 1
+    ? marginalValues.reduce((sum, value) => sum + (value - marginalWinGain) ** 2, 0) / (marginalValues.length - 1)
+    : 0;
+  const marginalWinGainLowerBound = marginalWinGain - 1.28 * Math.sqrt(marginalVariance / Math.max(1, marginalValues.length));
+  const individualBattleScore = clampUnit(0.5 + marginalWinGain);
+  const individualBattleLowerBound = clampUnit(0.5 + marginalWinGainLowerBound);
+  const actualCostEfficiency = clampUnit(
+    Math.max(0, marginalWinGain) * Math.max(1, Number(resolvedInput.totalCost) || 1) /
+      Math.max(1, Number(character.cost) || 1),
+  );
+  // Cost only settles close calls. The measured outcome against an otherwise
+  // identical four-member team is the dominant evidence. The first slot also
+  // receives explicit first-attack pressure from the supplied environment;
+  // a late utility skill must not outrank immediate eliminations there.
+  const firstAttackPressure = clampUnit(individual.enemyPressureRate);
+  const v9Score = rounded(position === 1
+    ? individualBattleScore * 0.63 + individualBattleLowerBound * 0.1 + firstAttackPressure * 0.22 + actualCostEfficiency * 0.05
+    : individualBattleScore * 0.85 + individualBattleLowerBound * 0.1 + actualCostEfficiency * 0.05);
   return {
     id: String(character.id),
     name: character.name,
@@ -1231,11 +1271,19 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     skillTarget: character.skill?.target ?? "self",
     skillName: character.skillName ?? "",
     role: individual.role ?? v8RoleForCharacter(character),
-    individualScore,
+    individualScore: rounded(individualBattleScore),
     roleFit,
-    roleBreakdown,
+    roleBreakdown: {
+      ...roleBreakdown,
+      costEfficiency: rounded(actualCostEfficiency),
+    },
     position,
     evaluatedDeckCount: evaluatedDecks.length,
+    contributionProbeCount: evaluatedDecks.length,
+    marginalWinGain: rounded(marginalWinGain),
+    marginalWinGainLowerBound: rounded(marginalWinGainLowerBound),
+    benchmarkExpectedWinRate: rounded(average(evaluatedDecks.map((entry) => entry.benchmarkResult.expectedWinRate))),
+    candidateExpectedWinRate: rounded(average(evaluatedDecks.map((entry) => entry.result.expectedWinRate))),
     bestDeck: {
       origin: best.origin,
       totalCost: best.totalCost,
@@ -1257,15 +1305,15 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     // First position keeps a larger stat component. From the second position
     // onward, a character's own role fit remains 40% of its ranking rather
     // than disappearing behind the single best supporting deck.
-    v7Score: rounded(deckScore * (1 - individualWeight) + individualScore * individualWeight),
+    v7Score: v9Score,
   };
 }
 
 export function rankMetagameV7Characters(ratings) {
   const ranked = [...ratings].sort((left, right) => (
     right.v7Score - left.v7Score ||
-    right.bestDeck.expectedWinRate - left.bestDeck.expectedWinRate ||
-    left.bestDeck.totalCost - right.bestDeck.totalCost ||
+    Number(right.marginalWinGainLowerBound) - Number(left.marginalWinGainLowerBound) ||
+    Number(right.marginalWinGain) - Number(left.marginalWinGain) ||
     left.cost - right.cost ||
     left.id.localeCompare(right.id)
   ));

@@ -82,7 +82,7 @@ test("v7 real environment includes every supplied candidate within the cost cap"
   }
 });
 
-test("v7 completes each environment pivot with strong feasible partners instead of cheap fillers", () => {
+test("v9 first-pass environment does not infer opponent strength from HP or power", () => {
   const characters = [1, 2, 3, 4, 5].flatMap((position) => [
     v7TestCharacter(`low-${position}`, `low-${position}`, position, { cost: 10, hp: 100, pow: 100 }),
     v7TestCharacter(`high-${position}`, `high-${position}`, position, { cost: 20, hp: 2_000, pow: 2_000 }),
@@ -101,11 +101,9 @@ test("v7 completes each environment pivot with strong feasible partners instead 
   const resolved = resolveMetagameV7Input(input, characters);
   const decks = createMetagameV7EnvironmentDecks(resolved, { count: 5 });
 
-  for (const deck of decks) {
-    const weakPivot = deck.findIndex((character) => character.id.startsWith("low-"));
-    if (weakPivot < 0) continue;
-    assert.ok(deck.every((character, index) => index === weakPivot || character.id.startsWith("high-")));
-  }
+  const lowFirstPivot = decks.find((deck) => deck[0].id === "low-1");
+  assert.ok(lowFirstPivot);
+  assert.ok(lowFirstPivot.slice(1).every((character) => character.id.startsWith("low-")));
 });
 
 test("v8.5 broad environment gives each supplied pivot multiple legal partner completions", () => {
@@ -358,13 +356,19 @@ test("v7 includes affordable partners so high-cost targets cannot stop the batch
   assert.ok(decks.every((entry) => entry.deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
 });
 
-test("v7 keeps high-efficiency affordable partners out of the early proxy cut", () => {
+test("v9 spreads probe partners across roles and cost bands without a proxy cut", () => {
   const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
   const pools = buildMetagameV7CandidatePools(resolved, CHARACTER_CATALOG, { partnerLimit: 32 });
-  const nanako = pools.partnerRatingsByPosition[0]
-    .find((rating) => rating.name === "ハリウッドナナコ師匠");
+  const partners = pools.partnerRatingsByPosition[0];
+  const costs = partners.map((rating) => rating.cost);
+  const roles = new Set(partners.map((rating) => rating.role));
 
-  assert.ok(nanako);
+  assert.ok(Math.min(...costs) <= 10);
+  assert.ok(Math.max(...costs) >= 50);
+  assert.ok(roles.has("sweep_attack"));
+  assert.ok(roles.has("defense"));
+  assert.ok(roles.has("revive"));
+  assert.ok(roles.has("recovery"));
 });
 
 test("v7 completes partial deck examples before evaluating their specified character", () => {
@@ -453,10 +457,12 @@ test("v7 records genuinely infeasible cost-100 targets without stopping the batc
 });
 
 test("completed v7 report is converted into a precomputed deck-generator constraint", async () => {
-  const characters = CHARACTER_CATALOG.slice(0, 5);
+  const characters = [1, 2, 3, 4, 5].map((position) => (
+    v7TestCharacter(`conversion-${position}`, `変換テスト${position}`, position, { cost: 10 })
+  ));
   const report = {
     generatedAt: "2026-08-09T00:00:00.000Z",
-    model: { version: "team-battle-v8.0" },
+    model: { version: "team-battle-v9-marginal-contribution" },
     context: {
       inputId: "fire:100",
       label: "火・コスト100",
@@ -520,7 +526,10 @@ test("completed v7 report is converted into a precomputed deck-generator constra
 
   assert.equal(constraint.id, "fire:100");
   assert.equal(constraint.slots.length, 5);
-  assert.equal(constraint.slots[0].candidates, undefined);
+  assert.equal(constraint.slots[0].candidates.length, 1);
+  assert.equal(constraint.slots[0].debugRankings.length, 1);
+  assert.equal(constraint.slots[0].candidates[0].expectedWinRate, 0.8);
+  assert.equal(constraint.slots[0].candidates[0].expectedWinRate, report.rankingsByPosition[0].characters[0].individualScore);
   assert.equal(constraint.precomputedDecks[0].l, 0.5);
   assert.equal(constraint.precomputedDecks[0].r[0].k, "precision_attack");
   assert.equal(constraint.precomputedDecks[0].r[0].b.h, 0.75);
@@ -534,8 +543,8 @@ test("completed v7 report is converted into a precomputed deck-generator constra
     constraint.id,
     characters,
   );
-  assert.equal(result.simulatedDeckCount, 0);
-  assert.equal(result.results[0].expectedWinRate, 0.6);
+  assert.equal(result.simulatedDeckCount, 1);
+  assert.ok(Number.isFinite(result.results[0].expectedWinRate));
   assert.equal(result.results[0].ratings[0].role, "precision_attack");
   assert.equal(result.results[0].ratings[0].roleBreakdown.highDurabilityCoverage, 0.75);
 });
