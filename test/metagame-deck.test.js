@@ -444,6 +444,11 @@ test("V8環境は指定チームを主軸にし、同じコスト帯の事前成
   assert.equal(result.environmentMix.precomputedTopDeckCount, 1);
   assert.ok(result.environmentCharacterIds.includes(suppliedDeck[0].id));
   assert.ok(publishedIds.every((id) => result.environmentCharacterIds.includes(id)));
+  assert.deepEqual(
+    [...new Set(result.environmentCombatants.map((entry) => entry.position))].sort(),
+    [1, 2, 3, 4, 5],
+    "表示用の環境相手にも実際にいた枠番号を渡す",
+  );
   assert.equal(result.environmentMix.liveEnvironmentDeckCount, 0);
 });
 

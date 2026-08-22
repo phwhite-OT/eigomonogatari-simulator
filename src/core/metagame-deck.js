@@ -1235,6 +1235,15 @@ function metagameScenarioEnvironmentCharacterIds(scenarios) {
   ));
 }
 
+function metagameScenarioEnvironmentCombatants(scenarios) {
+  return (scenarios ?? []).flatMap((scenario) => (
+    (scenario.enemyDecks ?? []).flatMap((deck) => deck.map((character, index) => ({
+      id: String(character.id),
+      position: index + 1,
+    })))
+  ));
+}
+
 function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds, options = {}) {
   const boostedIds = normalizeMetagameBoostedCharacterIds(boostedCharacterIds);
   const environmentCharacterIds = normalizeMetagameBoostedCharacterIds(
@@ -1338,6 +1347,7 @@ function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds
     precomputedTopDeckCount: publishedInsertion.inserted.length,
     liveEnvironmentDeckCount: liveInsertion.inserted.length,
     environmentCharacterIds: metagameScenarioEnvironmentCharacterIds(scenarios),
+    environmentCombatants: metagameScenarioEnvironmentCombatants(scenarios),
     publishedEnvironmentDecks: publishedInsertion.inserted.map((entry) => ({
       id: String(entry.id),
       ids: entry.deck.map((character) => String(character.id)),
@@ -1427,6 +1437,7 @@ export async function inspectMetagameDeckEvidence(deck, constraint, characters, 
     boostedCharacterIds: [...boostedIds],
     excludedScenarioCount: scenarioSet.excludedScenarioCount,
     environmentCharacterIds: scenarioSet.environmentCharacterIds,
+    environmentCombatants: scenarioSet.environmentCombatants,
     samples: representativeIndexes.map((index, labelIndex) => ({
       ...ordered[index],
       label: labels[labelIndex] ?? "対戦例",
@@ -1877,6 +1888,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
       automaticEnvironmentCharacterIds: [...automaticIds],
       automaticEnvironmentDecks: scenarioSet.liveEnvironmentDecks,
       environmentCharacterIds: scenarioSet.environmentCharacterIds,
+      environmentCombatants: scenarioSet.environmentCombatants,
       environmentMix: {
         baselineScenarioCount: scenarioSet.baselineScenarioCount,
         precomputedTopDeckCount: scenarioSet.precomputedTopDeckCount,
@@ -1893,6 +1905,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
         automaticEnvironmentCharacterIds: [...automaticIds],
         automaticEnvironmentDecks: scenarioSet.liveEnvironmentDecks,
         environmentCharacterIds: scenarioSet.environmentCharacterIds,
+        environmentCombatants: scenarioSet.environmentCombatants,
         environmentMix: {
           baselineScenarioCount: scenarioSet.baselineScenarioCount,
           precomputedTopDeckCount: scenarioSet.precomputedTopDeckCount,

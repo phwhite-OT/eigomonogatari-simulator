@@ -175,16 +175,57 @@ function metagameUiImpactReasons(character, rating, environment, deck) {
 const METAGAME_UI_BASIC_ATTACK = Object.freeze({ type: "single_attack", multiplier: 1, hits: 1 });
 const METAGAME_UI_ATTACK_TYPES = new Set(["single_attack", "aoe_attack", "multi_hit_attack"]);
 
-function metagameUiUniqueCharacters(characters) {
-  const unique = new Map();
-  for (const character of characters) {
-    if (character?.id && !unique.has(String(character.id))) unique.set(String(character.id), character);
-  }
-  return [...unique.values()];
+function metagameUiNumber(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
-function metagameUiEnvironmentCharacters(constraint, characters, environmentCharacterIds, boostedCharacterIds) {
-  const ids = environmentCharacterIds?.length ? environmentCharacterIds : [
+function metagameUiPublishedRoleMetrics(constraint) {
+  const metrics = new Map();
+  for (const publishedDeck of constraint.precomputedDecks ?? []) {
+    const ids = publishedDeck.i ?? publishedDeck.ids;
+    const ratings = publishedDeck.r ?? publishedDeck.ratings ?? [];
+    if (!Array.isArray(ids) || ids.length !== 5) continue;
+    for (let index = 0; index < ids.length; index += 1) {
+      const rating = ratings[index] ?? {};
+      const breakdown = rating.b ?? rating.roleBreakdown ?? {};
+      const role = rating.k ?? rating.role ?? "neutral";
+      const lowerBound = metagameUiNumber(
+        publishedDeck.l ?? publishedDeck.expectedWinLowerBound,
+      );
+      const readiness = metagameUiNumber(breakdown.r ?? breakdown.skillReadiness);
+      const roleFit = metagameUiNumber(rating.f ?? rating.roleFit);
+      const defenseMatchup = metagameUiNumber(breakdown.d ?? breakdown.defenseMatchup);
+      const hardTargetCoverage = metagameUiNumber(
+        breakdown.h ?? breakdown.highDurabilityCoverage,
+      );
+      const boardCoverage = metagameUiNumber(breakdown.a ?? breakdown.boardCoverage);
+      const practicalDurability = role === "defense"
+        ? defenseMatchup * (0.35 + roleFit * 0.35 + readiness * 0.3) * (0.5 + lowerBound * 0.5)
+        : 0;
+      const practicalFirepower = ["precision_attack", "sweep_attack"].includes(role)
+        ? (hardTargetCoverage * 0.55 + boardCoverage * 0.45) *
+          (0.35 + roleFit * 0.35 + readiness * 0.3) * (0.5 + lowerBound * 0.5)
+        : 0;
+      const key = `${String(ids[index])}:${index + 1}`;
+      const current = metrics.get(key) ?? { durability: 0, firepower: 0, lowerBound: 0 };
+      metrics.set(key, {
+        durability: Math.max(current.durability, practicalDurability),
+        firepower: Math.max(current.firepower, practicalFirepower),
+        lowerBound: Math.max(current.lowerBound, lowerBound),
+      });
+    }
+  }
+  return metrics;
+}
+
+function metagameUiEnvironmentCharacters(
+  constraint,
+  characters,
+  environmentCharacterIds,
+  boostedCharacterIds,
+  environmentCombatants,
+) {
+  const fallbackIds = [
     ...(constraint.teamScenarios ?? []).flatMap((scenario) => [
       ...(scenario.a ?? scenario.allyDecks ?? []).flat(),
       ...(scenario.e ?? scenario.enemyDecks ?? []).flat(),
@@ -192,14 +233,33 @@ function metagameUiEnvironmentCharacters(constraint, characters, environmentChar
     ...(constraint.environmentScenarios ?? []).flatMap((scenario) => scenario.flat()),
     ...(constraint.slots ?? []).flatMap((slot) => (slot.environment ?? []).map((entry) => entry.id)),
   ];
+  const combatants = environmentCombatants?.length
+    ? environmentCombatants
+    : (environmentCharacterIds?.length ? environmentCharacterIds : fallbackIds).map((id) => ({ id }));
   const byId = new Map((characters ?? []).map((character) => [String(character.id), character]));
   const appearances = new Map();
-  ids.forEach((id) => appearances.set(String(id), (appearances.get(String(id)) ?? 0) + 1));
-  return metagameUiUniqueCharacters(ids.map((id) => byId.get(String(id))).filter(Boolean))
-    .map((character) => ({
+  combatants.forEach(({ id }) => appearances.set(String(id), (appearances.get(String(id)) ?? 0) + 1));
+  const roleMetrics = metagameUiPublishedRoleMetrics(constraint);
+  const unique = new Map();
+  for (const combatant of combatants) {
+    const id = String(combatant.id);
+    const position = Number(combatant.position) || 0;
+    const character = byId.get(id);
+    if (!character) continue;
+    const key = `${id}:${position}`;
+    if (unique.has(key)) continue;
+    unique.set(key, {
       ...applyMetagameStatBoost(character, boostedCharacterIds),
-      metagameEnvironmentAppearances: appearances.get(String(character.id)) ?? 0,
-    }));
+      metagameEnvironmentAppearances: appearances.get(id) ?? 0,
+      metagameEnvironmentPosition: position || undefined,
+      metagamePracticalRoleMetrics: roleMetrics.get(key) ?? {
+        durability: 0,
+        firepower: 0,
+        lowerBound: 0,
+      },
+    });
+  }
+  return [...unique.values()];
 }
 
 function metagameUiConditionMatches(skill, ally, enemy) {
@@ -262,22 +322,35 @@ function metagameUiConcreteMatchups(
   characters,
   environmentCharacterIds,
   boostedCharacterIds,
+  environmentCombatants,
 ) {
-  // Use only the actual opponent teams sampled for this recommendation, not
-  // every historical character that happened to share this attribute filter.
+  // Use only the actual opponent teams sampled for this recommendation.  The
+  // "top" examples below are published 5v5 role evidence, never a raw HP or
+  // Power ordering (a high-Power guard is not automatically a top attacker).
   const environment = metagameUiEnvironmentCharacters(
     constraint,
     characters,
     environmentCharacterIds,
     boostedCharacterIds,
+    environmentCombatants,
   );
   if (!environment.length) return null;
-  const topDurable = [...environment].sort((left, right) => (
-    (Number(right.hp) || 0) - (Number(left.hp) || 0) || (Number(right.pow) || 0) - (Number(left.pow) || 0)
-  ));
-  const topAttackers = [...environment].sort((left, right) => (
-    (Number(right.pow) || 0) - (Number(left.pow) || 0) || (Number(right.hp) || 0) - (Number(left.hp) || 0)
-  ));
+  const topDurable = environment
+    .filter((entry) => metagameUiNumber(entry.metagamePracticalRoleMetrics?.durability) > 0)
+    .sort((left, right) => (
+      metagameUiNumber(right.metagamePracticalRoleMetrics?.durability) -
+        metagameUiNumber(left.metagamePracticalRoleMetrics?.durability) ||
+      metagameUiNumber(right.metagamePracticalRoleMetrics?.lowerBound) -
+        metagameUiNumber(left.metagamePracticalRoleMetrics?.lowerBound)
+    ));
+  const topAttackers = environment
+    .filter((entry) => metagameUiNumber(entry.metagamePracticalRoleMetrics?.firepower) > 0)
+    .sort((left, right) => (
+      metagameUiNumber(right.metagamePracticalRoleMetrics?.firepower) -
+        metagameUiNumber(left.metagamePracticalRoleMetrics?.firepower) ||
+      metagameUiNumber(right.metagamePracticalRoleMetrics?.lowerBound) -
+        metagameUiNumber(left.metagamePracticalRoleMetrics?.lowerBound)
+    ));
   const attackSkill = metagameUiAttackSkill(character, position);
   const attackExamples = topDurable.slice(0, 12).map((target) => ({
     target,
@@ -302,14 +375,14 @@ function metagameUiConcreteMatchups(
     lines.push(`火力例: ${attackSkill.label}で、今回の環境内で一撃撃破できる最大HPの${strongestDefeated.target.name}（HP ${strongestDefeated.target.hp}）へ ${strongestDefeated.damage}。確定撃破。`);
   } else if (toughestExample) {
     const remaining = Math.max(0, (Number(toughestExample.target.hp) || 0) - toughestExample.damage);
-    lines.push(`火力例: ${attackSkill.label}で、今回の環境でHP最大の${toughestExample.target.name}（HP ${toughestExample.target.hp}）へ ${toughestExample.damage}。残HP ${remaining}で、一撃では倒せません。`);
+    lines.push(`火力例: ${attackSkill.label}で、実戦の防御寄与が高い${toughestExample.target.name}（HP ${toughestExample.target.hp}）へ ${toughestExample.damage}。残HP ${remaining}で、一撃では倒せません。`);
   }
 
   if (strongestSurvived) {
     const remaining = Math.max(0, (Number(character.hp) || 0) - strongestSurvived.damage);
-    lines.push(`耐久例: 高火力上位の${strongestSurvived.attacker.name}（攻撃 ${strongestSurvived.attacker.pow}）の基本攻撃 ${strongestSurvived.damage}を耐え、残HP ${remaining}。`);
+    lines.push(`耐久例: 実戦の攻撃寄与が高い${strongestSurvived.attacker.name}（攻撃 ${strongestSurvived.attacker.pow}）の基本攻撃 ${strongestSurvived.damage}を耐え、残HP ${remaining}。`);
   } else if (biggestThreat) {
-    lines.push(`耐久例: 高火力上位の${biggestThreat.attacker.name}（攻撃 ${biggestThreat.attacker.pow}）の基本攻撃 ${biggestThreat.damage}で撃破されます。`);
+    lines.push(`耐久例: 実戦の攻撃寄与が高い${biggestThreat.attacker.name}（攻撃 ${biggestThreat.attacker.pow}）の基本攻撃 ${biggestThreat.damage}で撃破されます。`);
   }
 
   if (biggestThreat) {
@@ -333,7 +406,7 @@ function metagameUiConcreteMatchups(
       })).find(({ damage }) => damage < restoredHp);
       return rescuedThreat
         ? `${target.name}をHP ${Math.floor(restoredHp)}で復帰させ、${rescuedThreat.attacker.name}の ${rescuedThreat.damage} ダメージを耐えられる`
-        : `${target.name}をHP ${Math.floor(restoredHp)}で復帰させるが、上位火力の一撃を耐える例はありません`;
+        : `${target.name}をHP ${Math.floor(restoredHp)}で復帰させるが、実戦攻撃寄与が高い相手の一撃を耐える例はありません`;
     });
     lines.push(`蘇生例: この編成で救える対象は ${reviveTargets.length}/5体。${examples.join(" / ") || "対象条件に合う味方がいません"}。`);
   } else if (skill.type === "attack_buff") {
@@ -370,6 +443,7 @@ function metagameUiSlot(
   characters,
   environmentCharacterIds,
   boostedCharacterIds,
+  environmentCombatants,
 ) {
   const card = metagameUiElement("article", "metagame-slot-card");
   const number = metagameUiElement("span", "metagame-slot-number", String(position));
@@ -404,6 +478,7 @@ function metagameUiSlot(
     characters,
     environmentCharacterIds,
     boostedCharacterIds,
+    environmentCombatants,
   );
   const matchups = metagameUiElement("section", "metagame-concrete-matchups");
   matchups.append(metagameUiElement("strong", "", "今回の対戦環境との具体例（効果発動前）"));
@@ -569,6 +644,7 @@ function metagameUiResultCard(result, rank, constraint, characters) {
       characters,
       result.environmentCharacterIds,
       result.boostedCharacterIds,
+      result.environmentCombatants,
     ),
   ));
   card.append(header, summary, slots, metagameUiEvidence(result, constraint, characters));
