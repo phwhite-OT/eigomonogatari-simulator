@@ -916,6 +916,32 @@ function metagameSelectFinalistsWithBoosts(candidates, limit, boostedIds) {
   return [...selected.values()];
 }
 
+function metagameSelectLiveEnvironmentProbes(candidates, liveIds) {
+  // Test the best published-base replacement for every legal position of a
+  // live/boosted character.  This is deliberately much smaller than all
+  // generated candidates, but it is still a real full-team battle for every
+  // position that can change the character's practical value.
+  const selected = new Map();
+  for (const id of liveIds) {
+    const representativeByPosition = new Map();
+    for (const candidate of candidates) {
+      const positions = candidate.injectedPositions
+        ?.filter((entry) => String(entry.id) === String(id))
+        .map((entry) => Number(entry.position))
+        ?? candidate.deck.flatMap((character, index) => (
+          String(character.id) === String(id) ? [index + 1] : []
+        ));
+      for (const position of positions) {
+        if (!representativeByPosition.has(position)) representativeByPosition.set(position, candidate);
+      }
+    }
+    for (const candidate of representativeByPosition.values()) {
+      selected.set(metagameDeckKey(candidate.deck), candidate);
+    }
+  }
+  return [...selected.values()];
+}
+
 function metagameProjectedWinValue(result) {
   if (result.outcome === "allies") return 1;
   if (result.outcome === "draw") return 0.5;
@@ -1073,6 +1099,142 @@ function metagameBoostedEnvironmentDecks(constraint, charactersById, boostedIds)
   return added;
 }
 
+function metagameDeckKey(deck) {
+  return (deck ?? []).map((character) => String(character?.id ?? character)).join("|");
+}
+
+/**
+ * The supplied environment remains the source of truth.  Published V8 battle
+ * results are used only to decide which of those supplied teams should occur
+ * more often, and to select a small number of *complete* strong teams that
+ * were missing from it.  In particular, no raw HP/attack ordering is used
+ * here: each score originates in an already simulated five-character deck.
+ */
+function metagameV8EnvironmentStrengths(constraint, charactersById) {
+  const published = metagameV8PrecomputedResults(
+    constraint,
+    [...charactersById.values()],
+    new Map(),
+  );
+  const deckScores = new Map();
+  const characterScores = new Map();
+  for (const candidate of published) {
+    const score = Number(candidate.expectedWinLowerBound) || Number(candidate.expectedWinRate) || 0;
+    const key = metagameDeckKey(candidate.deck);
+    deckScores.set(key, Math.max(deckScores.get(key) ?? 0, score));
+    for (const character of candidate.deck) {
+      const id = String(character.id);
+      characterScores.set(id, Math.max(characterScores.get(id) ?? 0, score));
+    }
+  }
+  const scoreDeck = (deck) => {
+    const exact = deckScores.get(metagameDeckKey(deck));
+    if (Number.isFinite(exact)) return exact;
+    const scores = (deck ?? []).map((character) => characterScores.get(String(character?.id)) ?? 0);
+    return scores.reduce((sum, score) => sum + score, 0) / Math.max(1, scores.length);
+  };
+  return { published, scoreDeck };
+}
+
+function metagameSelectPrioritisedEnvironmentScenarios(scenarios, maximum, strengths) {
+  if (maximum >= scenarios.length) return [...scenarios];
+  const scored = scenarios.map((scenario) => ({
+    scenario,
+    score: (scenario.enemyDecks ?? []).reduce((sum, deck) => sum + strengths.scoreDeck(deck), 0) /
+      Math.max(1, scenario.enemyDecks?.length ?? 0),
+  })).sort((left, right) => (
+    right.score - left.score || left.scenario.scenarioIndex - right.scenario.scenarioIndex
+  ));
+  const selected = new Map();
+  const add = (entry) => {
+    if (entry) selected.set(entry.scenario.scenarioIndex, {
+      ...entry.scenario,
+      environmentStrength: entry.score,
+      environmentSelection: "user-environment-prioritised-by-v8-results",
+    });
+  };
+
+  // About three quarters of a short interactive sample is weighted towards
+  // the strongest part of the user-supplied environment.  The rest is spread
+  // through the list so a listed counter/weakness is not silently erased.
+  const priorityCount = Math.max(1, Math.ceil(maximum * 0.75));
+  const priorityWindow = Math.max(priorityCount, Math.ceil(scored.length * 0.45));
+  for (let index = 0; index < priorityCount; index += 1) {
+    add(scored[Math.floor(index * priorityWindow / priorityCount)]);
+  }
+  for (let index = 0; selected.size < maximum && index < maximum; index += 1) {
+    add(scored[Math.floor((index + 0.5) * scored.length / maximum)]);
+  }
+  for (const entry of scored) {
+    if (selected.size >= maximum) break;
+    add(entry);
+  }
+  return [...selected.values()];
+}
+
+function metagameTopPrecomputedEnvironmentDecks(constraint, strengths, scenarios, maximum) {
+  if (maximum <= 0) return [];
+  const alreadyPresent = new Set(scenarios.flatMap((scenario) => (
+    (scenario.enemyDecks ?? []).map(metagameDeckKey)
+  )));
+  const selected = [];
+  for (const candidate of strengths.published) {
+    const key = metagameDeckKey(candidate.deck);
+    if (alreadyPresent.has(key)) continue;
+    selected.push({
+      id: `published-v8-${key}`,
+      deck: candidate.deck,
+      expectedWinLowerBound: candidate.expectedWinLowerBound,
+      expectedWinRate: candidate.expectedWinRate,
+    });
+    alreadyPresent.add(key);
+    if (selected.length >= maximum) break;
+  }
+  return selected;
+}
+
+function metagameHydrateEnvironmentDeckEntries(entries, constraint, charactersById) {
+  const hydrated = [];
+  for (const entry of entries ?? []) {
+    const ids = entry?.ids ?? entry?.deck?.map((character) => character?.id ?? character);
+    if (!Array.isArray(ids) || ids.length !== 5) continue;
+    const deck = ids.map((id) => charactersById.get(String(id)));
+    if (deck.some((character) => !character) || !metagameDeckIsLegal(deck, constraint)) continue;
+    hydrated.push({ id: String(entry?.id ?? metagameDeckKey(deck)), deck });
+  }
+  return hydrated;
+}
+
+function metagameInsertEnvironmentDecks(scenarios, entries, source) {
+  const result = [...scenarios];
+  const inserted = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    if (!result.length) break;
+    const scenarioIndex = index % result.length;
+    const enemyIndex = Math.floor(index / result.length) % 5;
+    const previous = result[scenarioIndex];
+    const enemyDecks = [...previous.enemyDecks];
+    enemyDecks[enemyIndex] = entries[index].deck;
+    result[scenarioIndex] = {
+      ...previous,
+      source,
+      enemyDecks,
+      injectedEnvironmentDeckIds: [
+        ...(previous.injectedEnvironmentDeckIds ?? []),
+        String(entries[index].id),
+      ],
+    };
+    inserted.push(entries[index]);
+  }
+  return { scenarios: result, inserted };
+}
+
+function metagameScenarioEnvironmentCharacterIds(scenarios) {
+  return (scenarios ?? []).flatMap((scenario) => (
+    (scenario.enemyDecks ?? []).flatMap((deck) => deck.map((character) => String(character.id)))
+  ));
+}
+
 function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds, options = {}) {
   const boostedIds = normalizeMetagameBoostedCharacterIds(boostedCharacterIds);
   const environmentCharacterIds = normalizeMetagameBoostedCharacterIds(
@@ -1120,43 +1282,70 @@ function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds
   }
   const requestedBaseCount = Math.max(0, Number(options.maxBaseScenarios) || 0);
   const baseCount = requestedBaseCount ? Math.min(requestedBaseCount, allScenarios.length) : allScenarios.length;
-  // Evenly sample the supplied scenarios instead of taking an early prefix:
-  // adjacent V8 scenarios can share deck components, while a stride preserves
-  // the breadth of the presented environment for an interactive calculation.
-  const scenarios = baseCount >= allScenarios.length
-    ? allScenarios
-    : Array.from({ length: baseCount }, (_, index) => (
-      allScenarios[Math.floor(index * allScenarios.length / baseCount)]
-    ));
-  // A representative enemy deck is inserted only for every explicitly
-  // changed character. Replacing a sampled opponent rather than appending a
-  // whole scenario keeps the interactive calculation bounded while still
-  // making that live character a real opposing team.
-  const maximumAdditions = Math.max(1, Number(options.maxAdditionalEnvironmentDecks) || 14);
-  const additions = metagameBoostedEnvironmentDecks(constraint, charactersById, environmentCharacterIds)
-    .slice(0, maximumAdditions);
-  additions.forEach(({ id, deck }, index) => {
-    const scenarioIndex = index % Math.max(1, scenarios.length);
-    const source = scenarios[scenarioIndex];
-    if (!source) return;
-    const enemyDecks = [...source.enemyDecks];
-    const enemyIndex = Math.floor(index / Math.max(1, scenarios.length)) % enemyDecks.length;
-    enemyDecks[enemyIndex] = deck;
-    scenarios[scenarioIndex] = {
-      ...source,
-      source: "interactive-character-environment",
-      automaticEnvironmentCharacterIds: [
-        ...(source.automaticEnvironmentCharacterIds ?? []),
-        id,
-      ],
-      allyDecks: source.allyDecks,
-      enemyDecks,
-    };
-  });
+  const strengths = isV8 ? metagameV8EnvironmentStrengths(constraint, charactersById) : null;
+  // The stored team scenarios were constructed from the environment supplied
+  // by the user.  Select from that set first; published results only weight
+  // it, never replace it with a stat-ranked character list.
+  let scenarios = strengths
+    ? metagameSelectPrioritisedEnvironmentScenarios(allScenarios, baseCount, strengths)
+    : (baseCount >= allScenarios.length
+      ? [...allScenarios]
+      : Array.from({ length: baseCount }, (_, index) => (
+        allScenarios[Math.floor(index * allScenarios.length / baseCount)]
+      )));
+
+  const defaultPublishedDeckCount = Math.max(1, Math.floor(scenarios.length / 2));
+  const configuredPublishedDeckCount = Number(options.maxPrecomputedEnvironmentDecks);
+  const maximumPublishedDecks = Number.isFinite(configuredPublishedDeckCount)
+    ? Math.max(0, Math.floor(configuredPublishedDeckCount))
+    : defaultPublishedDeckCount;
+  const publishedDecks = strengths
+    ? metagameTopPrecomputedEnvironmentDecks(constraint, strengths, scenarios, maximumPublishedDecks)
+    : [];
+  const publishedInsertion = metagameInsertEnvironmentDecks(
+    scenarios,
+    publishedDecks,
+    "published-v8-top-deck-environment",
+  );
+  scenarios = publishedInsertion.scenarios;
+
+  // `liveEnvironmentDecks` is the result of a separate real-battle probe.
+  // Keep the old single-character fallback only for evidence replay calls
+  // made by an older UI; the normal search never admits it without that probe.
+  const hasProvidedLiveDecks = Array.isArray(options.liveEnvironmentDecks);
+  const providedLiveDecks = metagameHydrateEnvironmentDeckEntries(
+    options.liveEnvironmentDecks,
+    constraint,
+    charactersById,
+  );
+  const maximumLiveDecks = Math.max(1, Number(options.maxAdditionalEnvironmentDecks) || 14);
+  const fallbackLiveDecks = !hasProvidedLiveDecks && options.includeLiveFallback !== false
+    ? metagameBoostedEnvironmentDecks(constraint, charactersById, environmentCharacterIds)
+    : [];
+  const liveDecks = (providedLiveDecks.length ? providedLiveDecks : fallbackLiveDecks)
+    .slice(0, maximumLiveDecks);
+  const liveInsertion = metagameInsertEnvironmentDecks(
+    scenarios,
+    liveDecks,
+    "live-character-revalidated-environment",
+  );
+  scenarios = liveInsertion.scenarios;
   return {
     scenarios,
     excludedScenarioCount,
     availableScenarioCount: allScenarios.length,
+    baselineScenarioCount: baseCount,
+    precomputedTopDeckCount: publishedInsertion.inserted.length,
+    liveEnvironmentDeckCount: liveInsertion.inserted.length,
+    environmentCharacterIds: metagameScenarioEnvironmentCharacterIds(scenarios),
+    publishedEnvironmentDecks: publishedInsertion.inserted.map((entry) => ({
+      id: String(entry.id),
+      ids: entry.deck.map((character) => String(character.id)),
+    })),
+    liveEnvironmentDecks: liveInsertion.inserted.map((entry) => ({
+      id: String(entry.id),
+      ids: entry.deck.map((character) => String(character.id)),
+    })),
   };
 }
 
@@ -1177,6 +1366,8 @@ export async function inspectMetagameDeckEvidence(deck, constraint, characters, 
     maxBaseScenarios: options.interactiveScenarioCount ?? options.boostedScenarioCount,
     environmentCharacterIds: automaticIds,
     maxAdditionalEnvironmentDecks: options.maxAdditionalEnvironmentDecks,
+    maxPrecomputedEnvironmentDecks: options.maxPrecomputedEnvironmentDecks,
+    liveEnvironmentDecks: options.automaticEnvironmentDecks,
   });
   const scenarios = scenarioSet.scenarios;
   const scenarioCount = scenarios.length;
@@ -1235,6 +1426,7 @@ export async function inspectMetagameDeckEvidence(deck, constraint, characters, 
     ongoingRate: outcomes.ongoing / total,
     boostedCharacterIds: [...boostedIds],
     excludedScenarioCount: scenarioSet.excludedScenarioCount,
+    environmentCharacterIds: scenarioSet.environmentCharacterIds,
     samples: representativeIndexes.map((index, labelIndex) => ({
       ...ordered[index],
       label: labels[labelIndex] ?? "対戦例",
@@ -1538,10 +1730,88 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     const boostedScenarioCount = requestedScenarioCount === 0
       ? undefined
       : Math.max(1, requestedScenarioCount || 8);
+    // First construct the composite environment without unverified live
+    // entries: supplied teams are primary, published strong full decks are
+    // secondary.  Live event/edited characters are tested against this exact
+    // environment before any of them is allowed to become an opponent.
+    const baseScenarioSet = metagameBattleScenarios(constraint, charactersById, boostedIds, {
+      maxBaseScenarios: boostedScenarioCount,
+      environmentCharacterIds: automaticIds,
+      maxAdditionalEnvironmentDecks: options.maxAdditionalEnvironmentDecks,
+      maxPrecomputedEnvironmentDecks: options.maxPrecomputedEnvironmentDecks,
+      includeLiveFallback: false,
+    });
+    const liveProbes = metagameSelectLiveEnvironmentProbes(candidates, automaticIds);
+    const probeResults = [];
+    let completedProbeSimulations = 0;
+    const totalProbeSimulations = liveProbes.length * baseScenarioSet.scenarios.length;
+    if (totalProbeSimulations) {
+      options.onProgress?.({
+        phase: "environment",
+        completed: 0,
+        total: totalProbeSimulations,
+        decks: liveProbes.length,
+        scenarios: baseScenarioSet.scenarios.length,
+      });
+      for (let index = 0; index < liveProbes.length; index += 1) {
+        probeResults.push(await metagameEvaluateDeck(
+          liveProbes[index],
+          baseScenarioSet.scenarios,
+          constraint,
+          options.rules ?? DEFAULT_RULES,
+          {
+            ...options,
+            onScenarioCompleted: () => {
+              completedProbeSimulations += 1;
+              options.onProgress?.({
+                phase: "environment",
+                completed: completedProbeSimulations,
+                total: totalProbeSimulations,
+                deck: index + 1,
+                decks: liveProbes.length,
+                scenarios: baseScenarioSet.scenarios.length,
+              });
+            },
+          },
+        ));
+      }
+    }
+    const existingEnvironmentIds = new Set(baseScenarioSet.environmentCharacterIds.map(String));
+    const liveEnvironmentDecks = [];
+    const rejectedLiveEnvironmentCharacterIds = [];
+    const liveMinimumWinRate = Number.isFinite(Number(options.liveEnvironmentMinimumWinRate))
+      ? Number(options.liveEnvironmentMinimumWinRate)
+      : 0.5;
+    for (const id of automaticIds) {
+      const best = probeResults
+        .filter((candidate) => candidate.deck.some((character) => String(character.id) === String(id)))
+        .sort((left, right) => (
+          right.expectedWinLowerBound - left.expectedWinLowerBound ||
+          right.expectedWinRate - left.expectedWinRate ||
+          left.totalCost - right.totalCost
+        ))[0];
+      // An already supplied character is naturally present in the baseline
+      // with its current 1.5x stats.  A new entry needs to prove at least a
+      // non-losing practical result before it takes an opponent slot.
+      if (!best || existingEnvironmentIds.has(String(id))) continue;
+      if (best.expectedWinRate < liveMinimumWinRate) {
+        rejectedLiveEnvironmentCharacterIds.push(String(id));
+        continue;
+      }
+      liveEnvironmentDecks.push({
+        id: String(id),
+        ids: best.deck.map((character) => String(character.id)),
+        expectedWinRate: best.expectedWinRate,
+        expectedWinLowerBound: best.expectedWinLowerBound,
+      });
+    }
     const scenarioSet = metagameBattleScenarios(constraint, charactersById, boostedIds, {
       maxBaseScenarios: boostedScenarioCount,
       environmentCharacterIds: automaticIds,
       maxAdditionalEnvironmentDecks: options.maxAdditionalEnvironmentDecks,
+      maxPrecomputedEnvironmentDecks: options.maxPrecomputedEnvironmentDecks,
+      liveEnvironmentDecks,
+      includeLiveFallback: false,
     });
     const scenarios = scenarioSet.scenarios;
     options.onProgress?.({
@@ -1605,6 +1875,15 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
       boostedCharacterIds: [...boostedIds],
       automaticCharacterIds: [...automaticIds],
       automaticEnvironmentCharacterIds: [...automaticIds],
+      automaticEnvironmentDecks: scenarioSet.liveEnvironmentDecks,
+      environmentCharacterIds: scenarioSet.environmentCharacterIds,
+      environmentMix: {
+        baselineScenarioCount: scenarioSet.baselineScenarioCount,
+        precomputedTopDeckCount: scenarioSet.precomputedTopDeckCount,
+        liveEnvironmentDeckCount: scenarioSet.liveEnvironmentDeckCount,
+      },
+      liveEnvironmentProbeCount: liveProbes.length,
+      rejectedLiveEnvironmentCharacterIds,
       boostedScenarioCount,
       interactiveScenarioCount: requestedScenarioCount,
       results: evaluated.slice(0, 3).map((candidate) => ({
@@ -1612,6 +1891,15 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
         boostedCharacterIds: [...boostedIds],
         automaticCharacterIds: [...automaticIds],
         automaticEnvironmentCharacterIds: [...automaticIds],
+        automaticEnvironmentDecks: scenarioSet.liveEnvironmentDecks,
+        environmentCharacterIds: scenarioSet.environmentCharacterIds,
+        environmentMix: {
+          baselineScenarioCount: scenarioSet.baselineScenarioCount,
+          precomputedTopDeckCount: scenarioSet.precomputedTopDeckCount,
+          liveEnvironmentDeckCount: scenarioSet.liveEnvironmentDeckCount,
+        },
+        liveEnvironmentProbeCount: liveProbes.length,
+        rejectedLiveEnvironmentCharacterIds,
         boostedScenarioCount,
         interactiveScenarioCount: requestedScenarioCount,
       })),

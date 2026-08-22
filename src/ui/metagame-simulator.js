@@ -1,5 +1,6 @@
 import { attributeClassLabel } from "../data/rules.js";
 import {
+  applyMetagameStatBoost,
   findBestMetagameDeck,
   inspectMetagameDeckEvidence,
   matchesMetagameFixedConstraint,
@@ -182,8 +183,8 @@ function metagameUiUniqueCharacters(characters) {
   return [...unique.values()];
 }
 
-function metagameUiEnvironmentCharacters(constraint, characters) {
-  const ids = [
+function metagameUiEnvironmentCharacters(constraint, characters, environmentCharacterIds, boostedCharacterIds) {
+  const ids = environmentCharacterIds?.length ? environmentCharacterIds : [
     ...(constraint.teamScenarios ?? []).flatMap((scenario) => [
       ...(scenario.a ?? scenario.allyDecks ?? []).flat(),
       ...(scenario.e ?? scenario.enemyDecks ?? []).flat(),
@@ -192,7 +193,13 @@ function metagameUiEnvironmentCharacters(constraint, characters) {
     ...(constraint.slots ?? []).flatMap((slot) => (slot.environment ?? []).map((entry) => entry.id)),
   ];
   const byId = new Map((characters ?? []).map((character) => [String(character.id), character]));
-  return metagameUiUniqueCharacters(ids.map((id) => byId.get(String(id))).filter(Boolean));
+  const appearances = new Map();
+  ids.forEach((id) => appearances.set(String(id), (appearances.get(String(id)) ?? 0) + 1));
+  return metagameUiUniqueCharacters(ids.map((id) => byId.get(String(id))).filter(Boolean))
+    .map((character) => ({
+      ...applyMetagameStatBoost(character, boostedCharacterIds),
+      metagameEnvironmentAppearances: appearances.get(String(character.id)) ?? 0,
+    }));
 }
 
 function metagameUiConditionMatches(skill, ally, enemy) {
@@ -247,8 +254,23 @@ function metagameUiSupportTargets(source, position, deck, enemy) {
     .filter((target) => target && metagameUiConditionMatches(skill, target, enemy));
 }
 
-function metagameUiConcreteMatchups(character, position, constraint, deck, characters) {
-  const environment = metagameUiEnvironmentCharacters(constraint, characters);
+function metagameUiConcreteMatchups(
+  character,
+  position,
+  constraint,
+  deck,
+  characters,
+  environmentCharacterIds,
+  boostedCharacterIds,
+) {
+  // Use only the actual opponent teams sampled for this recommendation, not
+  // every historical character that happened to share this attribute filter.
+  const environment = metagameUiEnvironmentCharacters(
+    constraint,
+    characters,
+    environmentCharacterIds,
+    boostedCharacterIds,
+  );
   if (!environment.length) return null;
   const topDurable = [...environment].sort((left, right) => (
     (Number(right.hp) || 0) - (Number(left.hp) || 0) || (Number(right.pow) || 0) - (Number(left.pow) || 0)
@@ -277,10 +299,10 @@ function metagameUiConcreteMatchups(character, position, constraint, deck, chara
   const lines = [];
 
   if (strongestDefeated) {
-    lines.push(`火力例: ${attackSkill.label}で耐久上位の${strongestDefeated.target.name}（HP ${strongestDefeated.target.hp}）へ ${strongestDefeated.damage}。確定撃破。`);
+    lines.push(`火力例: ${attackSkill.label}で、今回の環境内で一撃撃破できる最大HPの${strongestDefeated.target.name}（HP ${strongestDefeated.target.hp}）へ ${strongestDefeated.damage}。確定撃破。`);
   } else if (toughestExample) {
     const remaining = Math.max(0, (Number(toughestExample.target.hp) || 0) - toughestExample.damage);
-    lines.push(`火力例: ${attackSkill.label}で耐久上位の${toughestExample.target.name}（HP ${toughestExample.target.hp}）へ ${toughestExample.damage}。残HP ${remaining}で、この耐久枠は一撃で倒せません。`);
+    lines.push(`火力例: ${attackSkill.label}で、今回の環境でHP最大の${toughestExample.target.name}（HP ${toughestExample.target.hp}）へ ${toughestExample.damage}。残HP ${remaining}で、一撃では倒せません。`);
   }
 
   if (strongestSurvived) {
@@ -338,7 +360,17 @@ function metagameUiConcreteMatchups(character, position, constraint, deck, chara
   return lines;
 }
 
-function metagameUiSlot(character, rating, position, environment, deck, constraint, characters) {
+function metagameUiSlot(
+  character,
+  rating,
+  position,
+  environment,
+  deck,
+  constraint,
+  characters,
+  environmentCharacterIds,
+  boostedCharacterIds,
+) {
   const card = metagameUiElement("article", "metagame-slot-card");
   const number = metagameUiElement("span", "metagame-slot-number", String(position));
   const copy = metagameUiElement("div", "metagame-slot-copy");
@@ -364,9 +396,17 @@ function metagameUiSlot(character, rating, position, environment, deck, constrai
     reasonList.append(metagameUiElement("li", "", reason))
   ));
   impact.append(reasonList);
-  const matchupLines = metagameUiConcreteMatchups(character, position, constraint, deck, characters);
+  const matchupLines = metagameUiConcreteMatchups(
+    character,
+    position,
+    constraint,
+    deck,
+    characters,
+    environmentCharacterIds,
+    boostedCharacterIds,
+  );
   const matchups = metagameUiElement("section", "metagame-concrete-matchups");
-  matchups.append(metagameUiElement("strong", "", "環境上位との具体例（効果発動前）"));
+  matchups.append(metagameUiElement("strong", "", "今回の対戦環境との具体例（効果発動前）"));
   const matchupList = metagameUiElement("ul", "");
   (matchupLines ?? ["環境キャラの対戦データが不足しているため、具体例を作成できません。"]).forEach((line) => {
     matchupList.append(metagameUiElement("li", "", line));
@@ -455,6 +495,8 @@ function metagameUiEvidence(result, constraint, characters) {
         interactiveScenarioCount: result.interactiveScenarioCount,
         automaticCharacterIds: result.automaticCharacterIds,
         automaticEnvironmentCharacterIds: result.automaticEnvironmentCharacterIds,
+        automaticEnvironmentDecks: result.automaticEnvironmentDecks,
+        maxPrecomputedEnvironmentDecks: result.environmentMix?.precomputedTopDeckCount,
         onScenarioCompleted: ({ completed, total }) => {
           output.replaceChildren(metagameUiElement(
             "p",
@@ -525,6 +567,8 @@ function metagameUiResultCard(result, rank, constraint, characters) {
       result.deck,
       constraint,
       characters,
+      result.environmentCharacterIds,
+      result.boostedCharacterIds,
     ),
   ));
   card.append(header, summary, slots, metagameUiEvidence(result, constraint, characters));
@@ -543,6 +587,14 @@ function renderMetagameSimulatorResult(container, searchResult, characters) {
     ),
     metagameUiElement("span", "", `評価モデル ${searchResult.constraint.modelVersion ?? "unknown"}`),
   );
+  if (searchResult.environmentMix) {
+    const mix = searchResult.environmentMix;
+    overview.append(metagameUiElement(
+      "span",
+      "metagame-environment-mix",
+      `対戦環境: 指定環境 ${mix.baselineScenarioCount}件を主軸 / 事前成績上位の完成デッキ ${mix.precomputedTopDeckCount}件 / 実戦再評価済み補正デッキ ${mix.liveEnvironmentDeckCount}件`,
+    ));
+  }
   if (Number(searchResult.excludedScenarioCount) > 0) {
     overview.append(metagameUiElement(
       "span",
@@ -1068,6 +1120,14 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
             progressLabel.textContent = `最終対戦を検証中（${deckNumber}/${deckTotal}デッキ）`;
             progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦`;
             progressBar.style.width = `${30 + Math.round(Math.min(1, Math.max(0, ratio)) * 70)}%`;
+            return;
+          }
+          if (phase === "environment") {
+            const deckNumber = Number(deck) || 1;
+            const deckTotal = Number(decks) || 1;
+            progressLabel.textContent = `補正・追加キャラを実戦再評価中（${deckNumber}/${deckTotal}デッキ）`;
+            progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦`;
+            progressBar.style.width = `${30 + Math.round(Math.min(1, Math.max(0, ratio)) * 20)}%`;
             return;
           }
           progressLabel.textContent = phase === "candidate" ? "候補デッキを生成" : "完成デッキを再対戦";

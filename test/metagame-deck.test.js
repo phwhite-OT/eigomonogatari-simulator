@@ -406,6 +406,47 @@ test("未検証キャラはHP・攻撃が高くても自動で対戦相手に混
   )));
 });
 
+test("V8環境は指定チームを主軸にし、同じコスト帯の事前成績上位は完成デッキとしてのみ加える", async () => {
+  const character = (id, position, power) => ({
+    ...metagameTestCharacter(id, 10, "R", power),
+    hp: 100,
+    allowedPositions: [position],
+    skillTurn: position - 1,
+  });
+  const suppliedDeck = [1, 2, 3, 4, 5].map((position) => character(`supplied-${position}`, position, 20));
+  const publishedTopDeck = [1, 2, 3, 4, 5].map((position) => character(`published-${position}`, position, 900));
+  const suppliedIds = suppliedDeck.map((entry) => entry.id);
+  const publishedIds = publishedTopDeck.map((entry) => entry.id);
+  const constraint = {
+    id: "fire:100",
+    modelVersion: "team-battle-v8.6-combat-corrections",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    turns: 1,
+    scenarioCount: 1,
+    slots: [1, 2, 3, 4, 5].map((position) => ({ position, candidates: [] })),
+    precomputedDecks: [
+      { i: suppliedIds, c: 50, p: 0.2, w: 0.2, l: 0.1, s: 1, r: [] },
+      { i: publishedIds, c: 50, p: 0.9, w: 0.9, l: 0.85, s: 1, r: [] },
+    ],
+    teamScenarios: [{
+      a: Array.from({ length: 4 }, () => suppliedIds),
+      e: Array.from({ length: 5 }, () => suppliedIds),
+    }],
+  };
+  const data = { generatedAt: "2026-01-01T00:00:00.000Z", constraints: [constraint] };
+  const result = await findBestMetagameDeck(data, constraint.id, [...suppliedDeck, ...publishedTopDeck], {
+    finalistCount: 2,
+    interactiveScenarioCount: 1,
+  });
+
+  assert.equal(result.environmentMix.baselineScenarioCount, 1);
+  assert.equal(result.environmentMix.precomputedTopDeckCount, 1);
+  assert.ok(result.environmentCharacterIds.includes(suppliedDeck[0].id));
+  assert.ok(publishedIds.every((id) => result.environmentCharacterIds.includes(id)));
+  assert.equal(result.environmentMix.liveEnvironmentDeckCount, 0);
+});
+
 test("継続する全体バフは条件を満たす後続アタッカーとの相性を得る", () => {
   const source = metagameTestCharacter("source", 20, "R", 100);
   source.attributes = ["water"];
@@ -666,6 +707,9 @@ test("V8 search automatically evaluates an edited catalogue character in both de
   assert.ok(result.results.some((candidate) => candidate.deck.some((entry) => entry.id === added.id)));
   assert.ok(result.automaticCharacterIds.includes(added.id));
   assert.ok(result.automaticEnvironmentCharacterIds.includes(added.id));
+  assert.equal(result.liveEnvironmentProbeCount, 1);
+  assert.equal(result.environmentMix.liveEnvironmentDeckCount, 1);
+  assert.ok(result.automaticEnvironmentDecks.some((entry) => entry.ids.includes(added.id)));
   const evidence = await inspectMetagameDeckEvidence(result.results[0].deck, result.constraint, [...baseDeck, added], {
     automaticEnvironmentCharacterIds: result.automaticEnvironmentCharacterIds,
     interactiveScenarioCount: 1,
