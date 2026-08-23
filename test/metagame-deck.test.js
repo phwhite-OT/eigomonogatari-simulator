@@ -206,6 +206,34 @@ test("metagame simulator ranks complete decks by simulated win value", async () 
   assert.ok(result.results[0].expectedWinRate >= 0 && result.results[0].expectedWinRate <= 1);
 });
 
+test("V9/V10 interactive environment count bounds full-deck replays", async () => {
+  const fixture = metagameTestFixture();
+  fixture.constraint.modelVersion = "team-battle-v10-cost-aware-marginal";
+  fixture.constraint.scenarioCount = 3;
+  fixture.constraint.environmentScenarios = Array.from(
+    { length: 3 },
+    () => fixture.constraint.environmentScenarios[0],
+  );
+
+  const normal = await findBestMetagameDeck(
+    fixture.data,
+    fixture.constraint.id,
+    fixture.characters,
+    { beamWidth: 100, finalistCount: 10, interactiveScenarioCount: 2 },
+  );
+  const complete = await findBestMetagameDeck(
+    fixture.data,
+    fixture.constraint.id,
+    fixture.characters,
+    { beamWidth: 100, finalistCount: 10, interactiveScenarioCount: 0 },
+  );
+
+  assert.equal(normal.scenarioCount, 2);
+  assert.equal(normal.interactiveScenarioCount, 2);
+  assert.equal(complete.scenarioCount, 3);
+  assert.equal(complete.interactiveScenarioCount, 0);
+});
+
 test("metagame simulator applies a requested total-cost cap to generation and validation", async () => {
   const fixture = metagameTestFixture();
   const result = await findBestMetagameDeck(

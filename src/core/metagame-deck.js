@@ -1957,8 +1957,20 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
   const boostedCharacters = characters.map((character) => applyMetagameStatBoost(character, boostedIds));
   const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, boostedCharacters, options);
   const finalists = metagameSelectFinalists(candidates, options.finalistCount);
+  // The interactive selector is the user's explicit trade-off between speed
+  // and coverage.  V9/V10 data still uses the legacy nine-deck scenario
+  // format, so it reaches this branch rather than the V8 interactive branch
+  // above.  Previously that accidentally replayed every stored scenario even
+  // when the UI said "8 environments", which turned the normal browser
+  // calculation into 36 x 72 full battles.
+  const hasInteractiveScenarioLimit = options.interactiveScenarioCount !== undefined
+    && options.interactiveScenarioCount !== null;
+  const requestedScenarioCount = Number(options.interactiveScenarioCount);
+  const maxBaseScenarios = hasInteractiveScenarioLimit
+    ? (requestedScenarioCount === 0 ? undefined : Math.max(1, requestedScenarioCount || 8))
+    : (boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 18) : undefined);
   const scenarioSet = metagameBattleScenarios(constraint, charactersById, boostedIds, {
-    maxBaseScenarios: boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 18) : undefined,
+    maxBaseScenarios,
   });
   const scenarios = scenarioSet.scenarios;
   const evaluated = [];
@@ -2003,6 +2015,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     excludedScenarioCount: scenarioSet.excludedScenarioCount,
     boostedCharacterIds: [...boostedIds],
     boostedScenarioCount: boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 18) : undefined,
+    interactiveScenarioCount: hasInteractiveScenarioLimit ? requestedScenarioCount : undefined,
     results: evaluated.slice(0, 3),
   };
 }
