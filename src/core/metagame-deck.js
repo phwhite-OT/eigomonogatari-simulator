@@ -25,6 +25,12 @@ function metagameConstraintLabelWithoutCost(constraint) {
     .trim();
 }
 
+function metagamePublishedCandidateScore(entry) {
+  const costAware = Number(entry?.costAwareScore ?? entry?.practicalValue);
+  if (Number.isFinite(costAware)) return costAware;
+  return Number(entry?.marginalWinGainLowerBound ?? entry?.expectedWinLowerBound) || 0;
+}
+
 function metagameMergeEnvironmentSlot(lowerSlot, upperSlot, position) {
   const entries = [
     ...(lowerSlot?.environment ?? []),
@@ -45,13 +51,12 @@ function metagameMergeEnvironmentSlot(lowerSlot, upperSlot, position) {
     const id = String(entry?.id ?? "");
     if (!id) continue;
     const current = candidatesById.get(id);
-    const score = Number(entry?.marginalWinGainLowerBound ?? entry?.expectedWinLowerBound) || 0;
-    const currentScore = Number(current?.marginalWinGainLowerBound ?? current?.expectedWinLowerBound) || 0;
+    const score = metagamePublishedCandidateScore(entry);
+    const currentScore = metagamePublishedCandidateScore(current);
     if (!current || score > currentScore) candidatesById.set(id, entry);
   }
   const candidates = [...candidatesById.values()].sort((left, right) => (
-    (Number(right.marginalWinGainLowerBound ?? right.expectedWinLowerBound) || 0) -
-      (Number(left.marginalWinGainLowerBound ?? left.expectedWinLowerBound) || 0) ||
+    metagamePublishedCandidateScore(right) - metagamePublishedCandidateScore(left) ||
     (Number(right.marginalWinGain ?? right.expectedWinRate) || 0) -
       (Number(left.marginalWinGain ?? left.expectedWinRate) || 0) ||
     Number(left.cost) - Number(right.cost)
@@ -169,16 +174,23 @@ function metagameDeckClampUnit(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
 }
 
-function metagameCandidateScore(rating) {
+function metagameCandidateScore(rating, totalCost) {
+  const publishedCostAwareScore = Number(rating.costAwareScore);
+  if (Number.isFinite(publishedCostAwareScore)) return metagameDeckClampUnit(publishedCostAwareScore);
   const marginalLowerBound = Number(rating.marginalWinGainLowerBound);
   const marginalWinGain = Number(rating.marginalWinGain);
   if (Number.isFinite(marginalLowerBound) || Number.isFinite(marginalWinGain)) {
-    const individualLowerBound = metagameDeckClampUnit(0.5 + (Number.isFinite(marginalLowerBound) ? marginalLowerBound : marginalWinGain));
-    const individualMean = metagameDeckClampUnit(Number(rating.individualScore ?? rating.expectedWinRate));
-    const costEfficiency = metagameDeckClampUnit(rating.roleBreakdown?.costEfficiency);
-    // V9 rows are controlled, per-character battle deltas. Do not blend an
-    // old team win rate or a role proxy back into the search ordering.
-    return individualLowerBound * 0.72 + individualMean * 0.23 + costEfficiency * 0.05;
+    const lower = Math.max(0, Number.isFinite(marginalLowerBound) ? marginalLowerBound : marginalWinGain);
+    const mean = Math.max(0, Number.isFinite(marginalWinGain) ? marginalWinGain : lower);
+    const contributionReference = 0.2;
+    const reliableContribution = metagameDeckClampUnit(lower / contributionReference);
+    const measuredContribution = metagameDeckClampUnit(mean / contributionReference);
+    const budget = Math.max(1, Number(totalCost ?? rating.evaluationCostCap) || 1);
+    const price = Math.max(1, Number(rating.cost) || 1);
+    const costEfficiency = metagameDeckClampUnit(1 - Math.exp(-1.1 * lower * budget / price));
+    // Controlled marginal evidence remains primary, while 35% of the browser
+    // candidate order is explicitly the contribution bought per cost.
+    return reliableContribution * 0.46 + measuredContribution * 0.19 + costEfficiency * 0.35;
   }
   const advantage = Math.min(1, Math.max(0, Number(rating.advantageCreation) || 0) / 2);
   const counter = Math.min(1, Math.max(0, Number(rating.counteraction) || 0) / 2);
@@ -644,7 +656,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
   const pools = (constraint?.slots ?? []).map((slot, index) => slot.candidates.map((rating) => ({
     character: charactersById.get(String(rating.id)),
     rating,
-    proxy: metagameCandidateScore(rating),
+    proxy: metagameCandidateScore(rating, totalCost),
     position: index + 1,
   })).filter((entry) => entry.character));
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
@@ -741,7 +753,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   const pools = (constraint?.slots ?? []).map((slot, index) => slot.candidates.map((rating) => ({
     character: charactersById.get(String(rating.id)),
     rating,
-    proxy: metagameCandidateScore(rating),
+    proxy: metagameCandidateScore(rating, totalCost),
     position: index + 1,
   })).filter((entry) => entry.character));
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {

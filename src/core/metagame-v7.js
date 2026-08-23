@@ -18,10 +18,11 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // Combat resolution changed for attack-skill timing and guarded area attacks.
 // Keep prior reports visible as historical data, but never mix them into this
 // corrected evaluation pass.
-// V9 deliberately separates a character's own battle contribution from the
-// result of the four allies that happened to be paired with it. Any report
+// V10 deliberately separates a character's own battle contribution from the
+// result of the four allies that happened to be paired with it, then prices
+// that measured contribution against the constrained deck budget. Any report
 // made with an earlier model must therefore be treated as incompatible input.
-export const METAGAME_V8_MODEL_VERSION = "team-battle-v9-marginal-contribution";
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v10-cost-aware-marginal";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
 // decide whether a report is compatible.
@@ -59,6 +60,25 @@ function rounded(value, digits = 4) {
 
 function average(values) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+// A 20-point win-rate swing is already decisive evidence for one slot in a
+// multi-player battle.  The transformation is deliberately capped: a very
+// expensive card can still be excellent, but it must provide materially more
+// proven value than a cheap alternative instead of winning by raw delta alone.
+const MARGINAL_CONTRIBUTION_REFERENCE = 0.2;
+
+function marginalContributionScore(value) {
+  return clampUnit(Math.max(0, Number(value) || 0) / MARGINAL_CONTRIBUTION_REFERENCE);
+}
+
+function marginalCostEfficiencyScore(value, cost, totalCost) {
+  const contribution = Math.max(0, Number(value) || 0);
+  const budget = Math.max(1, Number(totalCost) || 1);
+  const price = Math.max(1, Number(cost) || 1);
+  // Soft saturation preserves the ordering of very efficient cheap cards
+  // without allowing a tiny result on a cost-1 card to become an automatic 1.
+  return clampUnit(1 - Math.exp(-1.1 * contribution * budget / price));
 }
 
 function katakanaToHiragana(value) {
@@ -293,7 +313,7 @@ export function resolveMetagameV7Input(input, characters) {
 }
 
 function environmentStrengths(pools) {
-  // The first V9 pass establishes full-team evidence. Do not decide that a
+  // The first V10 pass establishes full-team evidence. Do not decide that a
   // supplied opponent is common or strong from HP, power, or a hand-written
   // skill proxy before that battle evidence exists. Every supplied pivot is
   // represented; later browser samples weight only measured complete decks.
@@ -1152,7 +1172,7 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
   // fifth member. This is the measured marginal value of the candidate; the
   // full team's result must not be attributed to one character.
   const benchmark = {
-    id: `metagame-v9-empty-slot-${position}`,
+    id: `metagame-v10-empty-slot-${position}`,
     name: "評価用空枠",
     attributes: [],
     rarity: "N",
@@ -1246,18 +1266,23 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
   const marginalWinGainLowerBound = marginalWinGain - 1.28 * Math.sqrt(marginalVariance / Math.max(1, marginalValues.length));
   const individualBattleScore = clampUnit(0.5 + marginalWinGain);
   const individualBattleLowerBound = clampUnit(0.5 + marginalWinGainLowerBound);
-  const actualCostEfficiency = clampUnit(
-    Math.max(0, marginalWinGain) * Math.max(1, Number(resolvedInput.totalCost) || 1) /
-      Math.max(1, Number(character.cost) || 1),
+  const measuredContribution = marginalContributionScore(marginalWinGain);
+  const reliableContribution = marginalContributionScore(marginalWinGainLowerBound);
+  const actualCostEfficiency = marginalCostEfficiencyScore(
+    marginalWinGainLowerBound,
+    character.cost,
+    resolvedInput.totalCost,
   );
-  // Cost only settles close calls. The measured outcome against an otherwise
-  // identical four-member team is the dominant evidence. The first slot also
-  // receives explicit first-attack pressure from the supplied environment;
-  // a late utility skill must not outrank immediate eliminations there.
+  // The controlled battle delta remains the dominant evidence, but the
+  // budget is a first-class part of the score.  Cost efficiency is therefore
+  // 35% of normal slots (34% for the opener): spending 60 of a 100 budget now
+  // has to buy a clearly larger, repeatable team-wide result.  This still
+  // credits an all-party shield, heal, revive, or attack buff through the
+  // actual 5v5 outcome rather than through the owner's personal HP.
   const firstAttackPressure = clampUnit(individual.enemyPressureRate);
-  const v9Score = rounded(position === 1
-    ? individualBattleScore * 0.63 + individualBattleLowerBound * 0.1 + firstAttackPressure * 0.22 + actualCostEfficiency * 0.05
-    : individualBattleScore * 0.85 + individualBattleLowerBound * 0.1 + actualCostEfficiency * 0.05);
+  const v10Score = rounded(position === 1
+    ? reliableContribution * 0.36 + measuredContribution * 0.16 + firstAttackPressure * 0.14 + actualCostEfficiency * 0.34
+    : reliableContribution * 0.46 + measuredContribution * 0.19 + actualCostEfficiency * 0.35);
   return {
     id: String(character.id),
     name: character.name,
@@ -1271,17 +1296,25 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     skillTarget: character.skill?.target ?? "self",
     skillName: character.skillName ?? "",
     role: individual.role ?? v8RoleForCharacter(character),
-    individualScore: rounded(individualBattleScore),
+    // Published as the cost-aware individual result.  The raw controlled
+    // battle score is retained below for audit/debug purposes.
+    individualScore: v10Score,
     roleFit,
     roleBreakdown: {
       ...roleBreakdown,
       costEfficiency: rounded(actualCostEfficiency),
+      measuredContribution: rounded(measuredContribution),
+      reliableContribution: rounded(reliableContribution),
     },
     position,
     evaluatedDeckCount: evaluatedDecks.length,
     contributionProbeCount: evaluatedDecks.length,
     marginalWinGain: rounded(marginalWinGain),
     marginalWinGainLowerBound: rounded(marginalWinGainLowerBound),
+    rawIndividualBattleScore: rounded(individualBattleScore),
+    rawIndividualBattleLowerBound: rounded(individualBattleLowerBound),
+    costAwareScore: v10Score,
+    evaluationCostCap: Number(resolvedInput.totalCost) || 0,
     benchmarkExpectedWinRate: rounded(average(evaluatedDecks.map((entry) => entry.benchmarkResult.expectedWinRate))),
     candidateExpectedWinRate: rounded(average(evaluatedDecks.map((entry) => entry.result.expectedWinRate))),
     bestDeck: {
@@ -1300,21 +1333,23 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
       names: example.deck.map((entry) => entry.name),
       ...Object.fromEntries(Object.entries(example.result).map(([key, value]) => [key, typeof value === "number" ? rounded(value) : value])),
     } : null,
-    // コストは単体で割らず、残り4枠を含む完成デッキの下限勝率で評価する。
+    // 完成デッキ勝率は個体順位に混ぜない。残り4枠を固定した実戦差分と、
+    // この縛りの総コストに対する効率だけを個体評価へ使う。
     deckScore,
     // First position keeps a larger stat component. From the second position
     // onward, a character's own role fit remains 40% of its ranking rather
     // than disappearing behind the single best supporting deck.
-    v7Score: v9Score,
+    v7Score: v10Score,
   };
 }
 
 export function rankMetagameV7Characters(ratings) {
   const ranked = [...ratings].sort((left, right) => (
     right.v7Score - left.v7Score ||
+    Number(right.roleBreakdown?.costEfficiency) - Number(left.roleBreakdown?.costEfficiency) ||
+    left.cost - right.cost ||
     Number(right.marginalWinGainLowerBound) - Number(left.marginalWinGainLowerBound) ||
     Number(right.marginalWinGain) - Number(left.marginalWinGain) ||
-    left.cost - right.cost ||
     left.id.localeCompare(right.id)
   ));
   return ranked.map((rating, index) => ({ ...rating, rank: index + 1 }));

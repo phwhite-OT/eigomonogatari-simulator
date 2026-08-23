@@ -99,6 +99,41 @@ function metagameTestFixture() {
   };
 }
 
+test("V10 marginal candidate ordering charges a meaningful share of the deck budget", () => {
+  const expensive = metagameTestCharacter("expensive", 60);
+  const efficient = metagameTestCharacter("efficient", 15);
+  const fillers = [2, 3, 4, 5].map((position) => metagameTestCharacter(`filler-${position}`, 10));
+  const v10Rating = (character, lower, mean) => ({
+    id: character.id,
+    name: character.name,
+    attributes: character.attributes,
+    rarity: character.rarity,
+    cost: character.cost,
+    skillTurn: character.skillTurn,
+    role: "neutral",
+    marginalWinGainLowerBound: lower,
+    marginalWinGain: mean,
+    individualScore: 0.5,
+    roleBreakdown: {},
+  });
+  const constraint = {
+    id: "fire:100-cost-aware",
+    allowedAttributes: ["fire"],
+    totalCost: 100,
+    turns: 1,
+    slots: [
+      { position: 1, candidates: [v10Rating(expensive, 0.05, 0.11), v10Rating(efficient, 0.05, 0.10)] },
+      ...fillers.map((character, index) => ({
+        position: index + 2,
+        candidates: [v10Rating(character, 0.06, 0.08)],
+      })),
+    ],
+  };
+  const decks = buildMetagameDeckCandidates(constraint, [expensive, efficient, ...fillers], { beamWidth: 20 });
+
+  assert.equal(decks[0].deck[0].id, "efficient");
+});
+
 test("metagame deck candidates obey cost, duplicate, and legend limits", () => {
   const fixture = metagameTestFixture();
   const candidates = buildMetagameDeckCandidates(fixture.constraint, fixture.characters, { beamWidth: 100 });

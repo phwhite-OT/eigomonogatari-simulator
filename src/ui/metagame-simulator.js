@@ -757,13 +757,20 @@ function renderSurveyedMetagameConstraints(container, constraints, selectedId) {
 
 function renderMetagameDebugRankings(container, constraint) {
   container.replaceChildren();
+  if (String(constraint?.modelVersion ?? "") !== "team-battle-v10-cost-aware-marginal") {
+    container.append(
+      metagameUiElement("strong", "", "枠別の事前評価デバッグ"),
+      metagameUiElement("p", "", "V10のコスト効率込み個体評価を計算中です。旧V9のコストを軽視した順位は表示しません。"),
+    );
+    return;
+  }
   const rankings = (constraint?.slots ?? []).map((slot) => (
     slot.debugRankings ?? slot.candidates?.slice(0, 12) ?? []
   ));
   if (!rankings.some((entries) => entries.length)) {
     container.append(
       metagameUiElement("strong", "", "枠別の事前評価デバッグ"),
-      metagameUiElement("p", "", "V9の個体差分評価データを計算中です。旧データの完成デッキ勝率はここに表示しません。"),
+      metagameUiElement("p", "", "V10のコスト効率込み個体評価データを計算中です。旧データの完成デッキ勝率はここに表示しません。"),
     );
     return;
   }
@@ -773,7 +780,7 @@ function renderMetagameDebugRankings(container, constraint) {
     metagameUiElement(
       "small",
       "",
-      "同じ4人・同じ相手に対する『評価用空枠』との差分で順位付け。完成デッキ勝率は個体順位に使いません。",
+      "同じ4人・同じ相手に対する『評価用空枠』との差分を、縛りコストに対する効率込みで順位付け。完成デッキ勝率は個体順位に使いません。",
     ),
   );
   const grid = metagameUiElement("div", "metagame-debug-ranking-grid");
@@ -788,10 +795,15 @@ function renderMetagameDebugRankings(container, constraint) {
       const deltaText = Number.isFinite(delta)
         ? `空枠比 ${metagameUiSigned(delta * 100)}pt / 下限 ${metagameUiSigned((Number.isFinite(lower) ? lower : delta) * 100)}pt`
         : "個体差分は未計算";
+      const costEfficiency = Number(entry.roleBreakdown?.costEfficiency);
+      const score = Number(entry.costAwareScore ?? entry.practicalValue ?? entry.individualScore);
+      const costText = Number.isFinite(costEfficiency)
+        ? `コスト効率 ${metagameUiPercent(costEfficiency)} / 総合 ${metagameUiPercent(score)}`
+        : "コスト効率は再計算中";
       row.append(
         metagameUiElement("strong", "", entry.name ?? entry.id),
         metagameUiElement("span", "", `${attributeClassLabel(entry.attributes)}・C${entry.cost}・${entry.skillTurn}T`),
-        metagameUiElement("small", "", `${deltaText} / 個体値 ${metagameUiPercent(entry.individualScore ?? entry.expectedWinRate)}`),
+        metagameUiElement("small", "", `${deltaText} / ${costText}`),
       );
       list.append(row);
     });

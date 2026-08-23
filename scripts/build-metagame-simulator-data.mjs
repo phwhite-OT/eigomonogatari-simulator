@@ -18,15 +18,15 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V8_MODEL_VERSION = "team-battle-v9-marginal-contribution";
-const V9_BROWSER_POOL_LIMIT = 96;
+const METAGAME_V8_MODEL_VERSION = "team-battle-v10-cost-aware-marginal";
+const V10_BROWSER_POOL_LIMIT = 96;
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V8_INPUTS.map((input) => Object.freeze({
     type: "v8",
     inputId: input.id,
-    statusPath: `reports/metagame-ratings-v9-marginal/${input.id.replaceAll(":", "-")}/progress.json`,
-    reportPath: `reports/metagame-ratings-v9-marginal/${input.id.replaceAll(":", "-")}/report.json`,
-    reportRoot: "reports/metagame-ratings-v9-marginal",
+    statusPath: `reports/metagame-ratings-v10-cost-aware/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v10-cost-aware/${input.id.replaceAll(":", "-")}/report.json`,
+    reportRoot: "reports/metagame-ratings-v10-cost-aware",
     requiredModelVersion: METAGAME_V8_MODEL_VERSION,
     legacy: false,
   })),
@@ -82,7 +82,7 @@ function v8CompletedRunCount(progress) {
 }
 
 function hasCompletedV8BrowserData(data) {
-  // Keep the currently published dataset intact until a complete V9 dataset
+  // Keep the currently published dataset intact until a complete V10 dataset
   // exists. A partial or missing local report must never erase the browser's
   // usable data during the long recalculation.
   return Array.isArray(data?.constraints) && data.constraints.length > 0;
@@ -250,6 +250,8 @@ function compactMetagameV8Candidate(entry, character) {
     role: entry.role ?? "neutral",
     roleFit: Number(entry.roleFit) || 0,
     roleBreakdown: entry.roleBreakdown ?? {},
+    evaluationCostCap: Number(entry.evaluationCostCap) || 0,
+    costAwareScore: Number(entry.costAwareScore ?? entry.v7Score) || 0,
     scenarioCount: entry.contributionProbeCount ?? entry.bestDeck?.scenarioCount ?? 0,
     // These fields intentionally contain the controlled individual result,
     // never the result of the strongest completed deck containing the entry.
@@ -415,7 +417,7 @@ export function buildMetagameV8Constraint(report, charactersById) {
     reportGeneratedAt: report.generatedAt ?? null,
     slots: [1, 2, 3, 4, 5].map((position) => {
       const ranking = rankings.get(position)?.characters ?? [];
-      const compactCandidates = ranking.slice(0, V9_BROWSER_POOL_LIMIT).map((entry) => (
+      const compactCandidates = ranking.slice(0, V10_BROWSER_POOL_LIMIT).map((entry) => (
         compactMetagameV8Candidate(entry, charactersById.get(String(entry.id)))
       ));
       return {

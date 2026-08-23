@@ -111,7 +111,7 @@ const candidateIndices = candidateIndicesArgument
 if (candidateIndices && !/^[1-5]$/.test(requestedPosition)) {
   throw new Error("--candidate-indices requires one explicit --position from 1 through 5");
 }
-const outputRoot = readArgument("output-root", "reports/metagame-ratings-v9-marginal");
+const outputRoot = readArgument("output-root", "reports/metagame-ratings-v10-cost-aware");
 const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds", "0")) || 0);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, "..");
@@ -277,7 +277,7 @@ const report = {
     version: METAGAME_V7_MODEL_VERSION,
     battleFormat: "5v5",
     teamScenarioCount: teamScenarios.length,
-    objective: "ユーザー提示の固定環境に対し、コスト100内で完成するデッキの下限勝率をキャラ評価へ使う。",
+    objective: "ユーザー提示の固定環境に対し、同じ4枠・評価用空枠との差分を、縛り総コストに対する効率込みでキャラ評価へ使う。",
     environment: "環境は枠別の提示候補からのみ構成し、予測使用率・所持率・自動メタ生成を使わない。",
     characterScope: "属性・コスト・配置・従来のスキルターン制限を満たす全キャラ。",
     costPolicy: "単体コストで割らず、そのキャラを固定した完成5体デッキの結果で比較する。高コストによる残り枠の弱体化、低コストによる全体強化を勝率へ反映する。",

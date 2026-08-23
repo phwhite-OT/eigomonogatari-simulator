@@ -1,4 +1,4 @@
-name: Metagame V9 marginal-contribution 5v5 evaluation
+name: Metagame V10 cost-aware marginal 5v5 evaluation
 
 on:
   # Browser fixes must deploy immediately; they must not occupy every hosted
@@ -14,7 +14,7 @@ permissions:
 # The matrix workers never write to this branch. Keep the single publish job
 # serialized so independent runs cannot overwrite one another's checkpoints.
 concurrency:
-  group: metagame-v9-marginal
+  group: metagame-v10-cost-aware
   cancel-in-progress: false
 
 jobs:
@@ -41,17 +41,17 @@ jobs:
         run: |
           # The results branch is force-updated after each segment.  Fetch it
           # into the tracking ref explicitly; `git fetch origin <branch>` only
-          # updates FETCH_HEAD and leaves origin/metagame-v9-marginal-results stale.
-          results_ref="refs/remotes/origin/metagame-v9-marginal-results"
-          remote_result="$(git ls-remote --heads origin metagame-v9-marginal-results)"
+          # updates FETCH_HEAD and leaves origin/metagame-v10-cost-aware-results stale.
+          results_ref="refs/remotes/origin/metagame-v10-cost-aware-results"
+          remote_result="$(git ls-remote --heads origin metagame-v10-cost-aware-results)"
           if [ -n "$remote_result" ]; then
-            git fetch --no-tags origin "+refs/heads/metagame-v9-marginal-results:$results_ref"
+            git fetch --no-tags origin "+refs/heads/metagame-v10-cost-aware-results:$results_ref"
           fi
           is_complete() {
             local progress_path="$1"
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
-            jq -e '.status == "complete" and .context.version == "team-battle-v9-marginal-contribution"' \
+            jq -e '.status == "complete" and .context.version == "team-battle-v10-cost-aware-marginal"' \
               <<< "$progress" >/dev/null
           }
 
@@ -64,14 +64,14 @@ jobs:
           )
           for input_id in "${input_ids[@]}"; do
             output_directory="${input_id//:/-}"
-            progress_path="reports/metagame-ratings-v9-marginal/$output_directory/progress.json"
+            progress_path="reports/metagame-ratings-v10-cost-aware/$output_directory/progress.json"
             if is_complete "$progress_path"; then
               continue
             fi
 
             targets="$(jq -c --arg input "$input_id" --arg output_directory "$output_directory" \
               '. + [{input: $input, output_directory: $output_directory}]' <<< "$targets")"
-            checkpoint_path="$RUNNER_TEMP/v9-marginal-selection/$output_directory-progress.json"
+            checkpoint_path="$RUNNER_TEMP/v10-cost-aware-selection/$output_directory-progress.json"
             mkdir -p "$(dirname "$checkpoint_path")"
             # A missing or truncated checkpoint must be treated as a fresh
             # environment.  Leaving a zero-byte file here makes failures
@@ -133,14 +133,14 @@ jobs:
       - name: Restore the canonical progress for this candidate shard
         shell: bash
         run: |
-          checkpoint_path="$RUNNER_TEMP/v9-marginal-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json"
+          checkpoint_path="$RUNNER_TEMP/v10-cost-aware-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json"
           mkdir -p "$(dirname "$checkpoint_path")"
-          results_ref="refs/remotes/origin/metagame-v9-marginal-results"
-          remote_result="$(git ls-remote --heads origin metagame-v9-marginal-results)"
+          results_ref="refs/remotes/origin/metagame-v10-cost-aware-results"
+          remote_result="$(git ls-remote --heads origin metagame-v10-cost-aware-results)"
           if [ -n "$remote_result" ]; then
-            git fetch --no-tags origin "+refs/heads/metagame-v9-marginal-results:$results_ref"
+            git fetch --no-tags origin "+refs/heads/metagame-v10-cost-aware-results:$results_ref"
           fi
-          progress_path="reports/metagame-ratings-v9-marginal/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
+          progress_path="reports/metagame-ratings-v10-cost-aware/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
           if git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null && [ -s "$checkpoint_path" ]; then
             echo "Restored canonical progress for ${METAGAME_INPUT}, position ${{ matrix.position }}, shard ${{ matrix.shard }}"
           else
@@ -156,15 +156,15 @@ jobs:
             --input="$METAGAME_INPUT" \
             --position=${{ matrix.position }} \
             --candidate-indices="${{ matrix.candidate_indices }}" \
-            --checkpoint-path="$RUNNER_TEMP/v9-marginal-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json" \
+            --checkpoint-path="$RUNNER_TEMP/v10-cost-aware-position-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json" \
             --time-budget-seconds="$METAGAME_TIME_BUDGET_SECONDS"
 
       - name: Upload candidate-shard progress
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: v9-marginal-progress-${{ matrix.output_directory }}-${{ matrix.position }}-${{ matrix.shard }}
-          path: ${{ runner.temp }}/v9-marginal-position-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
+          name: v10-cost-aware-progress-${{ matrix.output_directory }}-${{ matrix.position }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/v10-cost-aware-position-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
           if-no-files-found: warn
           retention-days: 2
 
@@ -189,13 +189,13 @@ jobs:
           node-version: 22
 
       - id: restore
-        name: Restore the V9 marginal report snapshot
+        name: Restore the V10 cost-aware report snapshot
         continue-on-error: true
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          results_branch="metagame-v9-marginal-results"
+          results_branch="metagame-v10-cost-aware-results"
           results_ref="refs/remotes/origin/$results_branch"
           remote_result="$(git ls-remote --heads origin "$results_branch")"
           if [ -n "$remote_result" ]; then
@@ -208,8 +208,8 @@ jobs:
           # stall the entire queue.  Start from this run's source revision and
           # overlay only the persisted reports instead.
           git switch --detach "${{ github.sha }}"
-          if git cat-file -e "$results_ref:reports/metagame-ratings-v9-marginal" 2>/dev/null; then
-            git checkout "$results_ref" -- reports/metagame-ratings-v9-marginal
+          if git cat-file -e "$results_ref:reports/metagame-ratings-v10-cost-aware" 2>/dev/null; then
+            git checkout "$results_ref" -- reports/metagame-ratings-v10-cost-aware
           fi
           git switch --create "$results_branch"
 
@@ -218,9 +218,9 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@v4
         with:
-          pattern: v9-marginal-progress-*
+          pattern: v10-cost-aware-progress-*
           merge-multiple: true
-          path: ${{ runner.temp }}/v9-marginal-position-progress
+          path: ${{ runner.temp }}/v10-cost-aware-position-progress
 
       - id: finalize
         name: Merge checkpoints for the selected input
@@ -234,7 +234,7 @@ jobs:
           while IFS= read -r target; do
             input="$(jq -r '.input' <<< "$target")"
             output_directory="$(jq -r '.output_directory' <<< "$target")"
-            mapfile -t checkpoint_files < <(find "$RUNNER_TEMP/v9-marginal-position-progress" -maxdepth 1 -type f \
+            mapfile -t checkpoint_files < <(find "$RUNNER_TEMP/v10-cost-aware-position-progress" -maxdepth 1 -type f \
               -name "${output_directory}-position-*-shard-*.json" -print | sort)
             if [ "${#checkpoint_files[@]}" -eq 0 ]; then
               echo "No shard checkpoints were downloaded for $input" >&2
@@ -245,7 +245,7 @@ jobs:
             node scripts/rate-metagame-v7.mjs \
               --input="$input" \
               --position=all \
-              --checkpoint-path="reports/metagame-ratings-v9-marginal/${output_directory}/progress.json" \
+              --checkpoint-path="reports/metagame-ratings-v10-cost-aware/${output_directory}/progress.json" \
               --merge-checkpoint-paths="$checkpoint_paths" \
               --finalize-only=true
             if [ "$?" -ne 0 ]; then
@@ -266,14 +266,14 @@ jobs:
           is_complete_file() {
             local progress_path="$1"
             [ -f "$progress_path" ] && jq -e \
-              '.status == "complete" and .context.version == "team-battle-v9-marginal-contribution"' \
+              '.status == "complete" and .context.version == "team-battle-v10-cost-aware-marginal"' \
               "$progress_path" >/dev/null
           }
 
           completed_any=false
           while IFS= read -r target; do
             output_directory="$(jq -r '.output_directory' <<< "$target")"
-            if is_complete_file "reports/metagame-ratings-v9-marginal/${output_directory}/progress.json"; then
+            if is_complete_file "reports/metagame-ratings-v10-cost-aware/${output_directory}/progress.json"; then
               completed_any=true
             fi
           done < <(jq -c '.[]' <<< "$TARGETS")
@@ -282,7 +282,7 @@ jobs:
           for output_directory in \
             fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100 all-100 \
             fire-200 water-200 wind-200 fire-water-200 fire-wind-200 water-wind-200 all-200; do
-            if ! is_complete_file "reports/metagame-ratings-v9-marginal/${output_directory}/progress.json"; then
+            if ! is_complete_file "reports/metagame-ratings-v10-cost-aware/${output_directory}/progress.json"; then
               all_completed=false
               break
             fi
@@ -295,7 +295,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          state_path="reports/metagame-ratings-v9-marginal/recovery.json"
+          state_path="reports/metagame-ratings-v10-cost-aware/recovery.json"
           mkdir -p "$(dirname "$state_path")"
           outcome="${{ steps.finalize.outcome }}"
           if [ "${{ steps.restore.outcome }}" != "success" ] || [ "${{ steps.download.outcome }}" != "success" ] || [ "${{ needs.evaluate.result }}" != "success" ]; then
@@ -327,16 +327,16 @@ jobs:
           fi
           echo "needs_attention=$needs_attention" >> "$GITHUB_OUTPUT"
 
-      - name: Save V9 marginal progress to the result branch
+      - name: Save V10 cost-aware progress to the result branch
         if: always() && steps.restore.outcome == 'success'
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f reports/metagame-ratings-v9-marginal
+          git add -f reports/metagame-ratings-v10-cost-aware
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m "chore: save metagame V9 marginal evaluation progress"
-          git push --force-with-lease=refs/heads/metagame-v9-marginal-results origin HEAD:metagame-v9-marginal-results
+          git commit -m "chore: save metagame V10 cost-aware evaluation progress"
+          git push --force-with-lease=refs/heads/metagame-v10-cost-aware-results origin HEAD:metagame-v10-cost-aware-results
 
       - name: Create an issue after repeated recoverable failures
         if: always() && steps.recovery.outputs.needs_attention == 'true'
@@ -344,8 +344,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          body="The V9 marginal-contribution 5v5 metagame evaluator has failed three consecutive segments. Progress and recovery state are saved on the metagame-v9-marginal-results branch, and the workflow will keep retrying automatically. Review the latest Actions run for the error log."
-          payload="$(jq -n --arg title "V9 marginal metagame evaluation needs attention" --arg body "$body" '{title: $title, body: $body}')"
+          body="The V10 cost-aware marginal 5v5 metagame evaluator has failed three consecutive segments. Progress and recovery state are saved on the metagame-v10-cost-aware-results branch, and the workflow will keep retrying automatically. Review the latest Actions run for the error log."
+          payload="$(jq -n --arg title "V10 cost-aware metagame evaluation needs attention" --arg body "$body" '{title: $title, body: $body}')"
           curl --fail-with-body --silent --show-error \
             --request POST \
             --url "${{ github.api_url }}/repos/${{ github.repository }}/issues" \
@@ -398,23 +398,23 @@ jobs:
         run: |
           echo "changed=false" >> "$GITHUB_OUTPUT"
           data_path="src/data/metagame-simulator-data.js"
-          results_ref="refs/remotes/origin/metagame-v9-marginal-results"
+          results_ref="refs/remotes/origin/metagame-v10-cost-aware-results"
 
           # The first segment has no result branch yet. Later failures must
           # not publish stale data, so always fetch the force-updated branch.
-          if ! git ls-remote --exit-code --heads origin metagame-v9-marginal-results >/dev/null; then
-            echo "No V9 marginal result branch exists yet."
+          if ! git ls-remote --exit-code --heads origin metagame-v10-cost-aware-results >/dev/null; then
+            echo "No V10 cost-aware result branch exists yet."
             exit 0
           fi
           git fetch --no-tags origin \
             "+refs/heads/master:refs/remotes/origin/master" \
-            "+refs/heads/metagame-v9-marginal-results:$results_ref"
+            "+refs/heads/metagame-v10-cost-aware-results:$results_ref"
 
           git switch --detach origin/master
-          git checkout "$results_ref" -- reports/metagame-ratings-v9-marginal
+          git checkout "$results_ref" -- reports/metagame-ratings-v10-cost-aware
           npm run build:metagame-data
           set +e
-          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; const v9 = data.constraints.filter((constraint) => constraint.modelVersion === "team-battle-v9-marginal-contribution"); if (!v9.length) { console.log("No fully completed V9 marginal-contribution constraint yet; keeping the existing public data."); process.exit(3); } if (data.sourceModelVersion !== "team-battle-v9-marginal-contribution") throw new Error("V9 marginal browser-data build used an incompatible model."); console.log(`Built ${v9.length} V9 marginal-contribution browser constraints.`);'
+          node --input-type=module -e 'import { METAGAME_SIMULATOR_DATA as data } from "./src/data/metagame-simulator-data.js"; const v10 = data.constraints.filter((constraint) => constraint.modelVersion === "team-battle-v10-cost-aware-marginal"); if (!v10.length) { console.log("No fully completed V10 cost-aware constraint yet; keeping the existing public data."); process.exit(3); } if (data.sourceModelVersion !== "team-battle-v10-cost-aware-marginal") throw new Error("V10 cost-aware browser-data build used an incompatible model."); console.log(`Built ${v10.length} V10 cost-aware browser constraints.`);'
           validation_status=$?
           set -e
           if [ "$validation_status" -eq 3 ]; then exit 0; fi
@@ -426,7 +426,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$data_path"
-          git commit --only "$data_path" -m "chore: publish completed V9 marginal metagame data"
+          git commit --only "$data_path" -m "chore: publish completed V10 cost-aware metagame data"
           git push origin HEAD:master
           echo "changed=true" >> "$GITHUB_OUTPUT"
 

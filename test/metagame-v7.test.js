@@ -82,7 +82,7 @@ test("v7 real environment includes every supplied candidate within the cost cap"
   }
 });
 
-test("v9 first-pass environment does not infer opponent strength from HP or power", () => {
+test("v10 first-pass environment does not infer opponent strength from HP or power", () => {
   const characters = [1, 2, 3, 4, 5].flatMap((position) => [
     v7TestCharacter(`low-${position}`, `low-${position}`, position, { cost: 10, hp: 100, pow: 100 }),
     v7TestCharacter(`high-${position}`, `high-${position}`, position, { cost: 20, hp: 2_000, pow: 2_000 }),
@@ -356,7 +356,7 @@ test("v7 includes affordable partners so high-cost targets cannot stop the batch
   assert.ok(decks.every((entry) => entry.deck.reduce((sum, character) => sum + character.cost, 0) <= 100));
 });
 
-test("v9 spreads probe partners across roles and cost bands without a proxy cut", () => {
+test("v10 spreads probe partners across roles and cost bands without a proxy cut", () => {
   const resolved = resolveMetagameV7Input(METAGAME_V7_INPUTS[0], CHARACTER_CATALOG);
   const pools = buildMetagameV7CandidatePools(resolved, CHARACTER_CATALOG, { partnerLimit: 32 });
   const partners = pools.partnerRatingsByPosition[0];
@@ -462,7 +462,7 @@ test("completed v7 report is converted into a precomputed deck-generator constra
   ));
   const report = {
     generatedAt: "2026-08-09T00:00:00.000Z",
-    model: { version: "team-battle-v9-marginal-contribution" },
+    model: { version: "team-battle-v10-cost-aware-marginal" },
     context: {
       inputId: "fire:100",
       label: "火・コスト100",
@@ -493,6 +493,8 @@ test("completed v7 report is converted into a precomputed deck-generator constra
         skillType: character.skill?.type ?? "none", skillName: character.skillName,
         role: index === 0 ? "precision_attack" : "defense",
         individualScore: 0.8 - index * 0.05,
+        costAwareScore: 0.8 - index * 0.05,
+        evaluationCostCap: 100,
         roleFit: 0.7 - index * 0.05,
         roleBreakdown: {
           frontline: index === 0 ? 0.9 : 0,
@@ -530,6 +532,7 @@ test("completed v7 report is converted into a precomputed deck-generator constra
   assert.equal(constraint.slots[0].debugRankings.length, 1);
   assert.equal(constraint.slots[0].candidates[0].expectedWinRate, 0.8);
   assert.equal(constraint.slots[0].candidates[0].expectedWinRate, report.rankingsByPosition[0].characters[0].individualScore);
+  assert.equal(constraint.slots[0].candidates[0].costAwareScore, 0.8);
   assert.equal(constraint.precomputedDecks[0].l, 0.5);
   assert.equal(constraint.precomputedDecks[0].r[0].k, "precision_attack");
   assert.equal(constraint.precomputedDecks[0].r[0].b.h, 0.75);
