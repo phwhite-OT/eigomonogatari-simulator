@@ -1,0 +1,47 @@
+name: Apply V12 threshold guard fix
+
+on:
+  push:
+    branches: [fix/v12-threshold-proxy]
+    paths:
+      - ".github/workflows/apply-v12-threshold-guard-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v12-threshold-proxy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fix guard capacity weighting
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          path = Path('src/core/metagame-v7.js')
+          text = path.read_text()
+          old = 'return { value: damage, weight: defenseWeights[index] };'
+          new = 'return { value: damage, weight: applies ? defenseWeights[index] : 0 };'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one guard row, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Validate V12
+        run: |
+          node --check src/core/metagame-v7.js
+          node --check src/core/metagame-v12.js
+          node --test test/metagame-v12.test.js
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/core/metagame-v7.js
+          git commit -m "fix: weight only applicable guard matchups"
+          git push origin HEAD:fix/v12-threshold-proxy
