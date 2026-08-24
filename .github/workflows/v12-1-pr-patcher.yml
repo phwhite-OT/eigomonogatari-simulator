@@ -36,7 +36,20 @@ jobs:
           end = source.index("\n          PY\n", start)
           body = source[start:end]
           lines = [line[10:] if line.startswith('          ') else line for line in body.splitlines()]
-          Path('/tmp/apply-v12-1.py').write_text('\n'.join(lines) + '\n')
+          script = '\n'.join(lines) + '\n'
+
+          # The helper workflow embeds a triple-quoted replacement whose second
+          # line picked up YAML indentation. Replace that one fragile block with
+          # a single-line anchor before executing the generated patch script.
+          bad_start_marker = '''replace(\n    "src/core/metagame-v12.js",\n    \'\'\'      includeDeckStdDev: rounded(standardDeviation(includeValues)),'''
+          next_marker = '''replace(\n    "src/core/metagame-v12.js",\n    \'\'\'      finiteOrNegativeInfinity(right.opportunityWinGain)'''
+          bad_start = script.find(bad_start_marker)
+          bad_end = script.find(next_marker, bad_start + 1) if bad_start >= 0 else -1
+          if bad_start < 0 or bad_end < 0:
+              raise SystemExit('Could not locate fragile roleBreakdown replacement in generated patch script')
+          robust_block = '''replace(\n    "src/core/metagame-v12.js",\n    "      includeDeckStdDev: rounded(standardDeviation(includeValues)),\\n",\n    "      includeDeckStdDev: rounded(standardDeviation(includeValues)),\\n"\n    "      pairedScenarioStdDev: rounded(pairedStdDev),\\n"\n    "      pairedScenarioStandardError: rounded(pairedStandardError),\\n"\n    "      pairedScenarioCount: pairedDeltas.length,\\n",\n)\n'''
+          script = script[:bad_start] + robust_block + script[bad_end:]
+          Path('/tmp/apply-v12-1.py').write_text(script)
           PY
           python /tmp/apply-v12-1.py
       - name: Validate syntax and focused tests
