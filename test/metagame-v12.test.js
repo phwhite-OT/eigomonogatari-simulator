@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { createBattleState } from "../src/core/battleState.js";
+import { canUseSkill } from "../src/core/skills.js";
 import {
   METAGAME_V12_MODEL_VERSION,
   buildMetagameV12AlternativeDecks,
@@ -19,9 +21,9 @@ function character(id, position, options = {}) {
     hp: options.hp ?? 1000,
     pow: options.pow ?? 1000,
     skillTurn: options.skillTurn ?? Math.max(0, position - 1),
-    maxUses: 0,
+    maxUses: options.maxUses ?? 0,
     allowedPositions: [position],
-    skill: { type: "none", multiplier: 1, duration: 1, target: "self", conditions: [] },
+    skill: options.skill ?? { type: "none", multiplier: 1, duration: 1, target: "self", conditions: [] },
   };
 }
 
@@ -114,11 +116,24 @@ test("V12 ranking keeps harmful team contribution below neutral instead of clipp
   assert.deepEqual(ranked.map((entry) => entry.id), ["helpful", "neutral", "harmful"]);
 });
 
-
 test("V12.1 ranking prefers paired-stable evidence when raw means are close", () => {
   const ranked = rankMetagameV12Characters([
     { id: "risky", opportunityWinGain: 0.11, robustOpportunityWinGain: 0.01, decisiveWinGain: 0, cost: 10 },
     { id: "stable", opportunityWinGain: 0.10, robustOpportunityWinGain: 0.08, decisiveWinGain: 0, cost: 10 },
   ]);
   assert.deepEqual(ranked.map((entry) => entry.id), ["stable", "risky"]);
+});
+
+test("V12.1 caps skill usage at two even if card data says three", () => {
+  const reusable = character("reusable", 1, {
+    skillTurn: 0,
+    maxUses: 3,
+    skill: { type: "attack_buff", multiplier: 2, duration: 1, target: "self", conditions: [] },
+  });
+  const enemy = character("enemy", 1);
+  const state = createBattleState([[reusable]], [[enemy]]);
+  state.allies[0].skillUses = 1;
+  assert.equal(canUseSkill(state, "allies", 0), true);
+  state.allies[0].skillUses = 2;
+  assert.equal(canUseSkill(state, "allies", 0), false);
 });
