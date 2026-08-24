@@ -35,14 +35,16 @@ test("minimum damage remains default while sampled actual damage can be higher",
   assert.equal(calculateMinimumDamage({ attacker, defender, randomMultiplier: 1, rules: r }).value, 100);
 });
 
-test("maxUses above two is respected", () => {
+test("skills are capped at two uses even when card data is higher", () => {
   const reusable = card("reusable", {
     skillTurn: 0, maxUses: 3,
     skill: { type: "attack_buff", multiplier: 2, hits: 1, duration: 1, target: "self", conditions: [], effects: [] },
   });
   const state = createBattleState([[reusable]], [[card("enemy")]]);
-  state.allies[0].skillUses = 2;
+  state.allies[0].skillUses = 1;
   assert.equal(canUseSkill(state, "allies", 0), true);
+  state.allies[0].skillUses = 2;
+  assert.equal(canUseSkill(state, "allies", 0), false);
 });
 
 test("revive reacts to cumulative guaranteed damage from multiple attackers", () => {

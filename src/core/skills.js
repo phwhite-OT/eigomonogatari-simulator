@@ -306,7 +306,7 @@ export function applySupportSkill(state, actorSide, actorIndex, skill, options =
 export function canUseSkill(state, actorSide, actorIndex) {
   const actor = state[actorSide]?.[actorIndex];
   const rawMaxUses = Number(actor?.character.maxUses);
-  const maxUses = Number.isFinite(rawMaxUses) ? Math.max(0, rawMaxUses) : 2;
+  const maxUses = Number.isFinite(rawMaxUses) ? Math.min(2, Math.max(0, rawMaxUses)) : 2;
   const skill = actor?.character.skill;
   return Boolean(
     actor?.alive &&
