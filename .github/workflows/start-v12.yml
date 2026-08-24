@@ -1,0 +1,21 @@
+name: Start Metagame V12
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/start-v12.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start V12 evaluator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run metagame-v12-cloud.yml --repo "${{ github.repository }}" --ref master
