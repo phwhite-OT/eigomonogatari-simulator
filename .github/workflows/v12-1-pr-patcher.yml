@@ -1,0 +1,63 @@
+name: V12.1 PR patch runner
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - ".v12-1-patch-trigger"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply V12.1 patch if needed
+        shell: bash
+        run: |
+          if grep -q 'team-battle-v12.1-opportunity-value' src/core/metagame-v12.js; then
+            echo "V12.1 patch already applied"
+            exit 0
+          fi
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/apply-v12-1-correctness-fixes-v2.yml').read_text()
+          marker = "          python - <<'PY'\n"
+          start = source.index(marker) + len(marker)
+          end = source.index("\n          PY\n", start)
+          body = source[start:end]
+          lines = [line[10:] if line.startswith('          ') else line for line in body.splitlines()]
+          Path('/tmp/apply-v12-1.py').write_text('\n'.join(lines) + '\n')
+          PY
+          python /tmp/apply-v12-1.py
+      - name: Validate syntax and focused tests
+        run: |
+          node --check src/core/metagame-v12.js
+          node --check src/core/metagame-v7.js
+          node --check src/core/metagame-deck.js
+          node --check src/core/simulate.js
+          node --check src/core/skills.js
+          node --check src/core/damage.js
+          node --check scripts/rate-metagame-v12.mjs
+          node --test test/metagame-v12.test.js test/v12-battle-corrections.test.js
+      - name: Commit patch back to PR
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/core/metagame-v12.js src/core/metagame-v7.js src/core/metagame-deck.js src/core/simulate.js src/core/skills.js src/core/damage.js scripts/rate-metagame-v12.mjs test/metagame-v12.test.js test/v12-battle-corrections.test.js .github/workflows/metagame-v12-cloud.yml .github/workflows/start-v12.yml
+          if git diff --cached --quiet; then
+            echo "No patch changes to commit"
+            exit 0
+          fi
+          git commit -m "fix: improve V12 team-evaluation correctness"
+          git push origin HEAD:${{ github.head_ref }}
