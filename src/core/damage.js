@@ -79,6 +79,7 @@ export function calculateMinimumDamage({
   skillMultiplier = 1,
   attackMultiplier = 1,
   defenseMultiplier = 1,
+  randomMultiplier,
   rules,
 }) {
   const attribute = resolveAttributeMultiplierDetails(
@@ -97,7 +98,9 @@ export function calculateMinimumDamage({
     attribute: attributeMultiplier,
     event: resolveEventMultiplier(attacker, rules),
     special: rules.damage.specialAttackMultiplier,
-    random: rules.damage.randomMinimum,
+    random: Number.isFinite(Number(randomMultiplier))
+        ? Math.min(1, Math.max(Number(rules.damage.randomMinimum) || 0, Number(randomMultiplier)))
+        : rules.damage.randomMinimum,
     pvp: rules.damage.pvpMultiplier,
     survival: rules.damage.survivalBaseMultiplier ** Math.max(0, Number(attacker.survivalTurns) || 0),
     defense: Number(defenseMultiplier) || 0,

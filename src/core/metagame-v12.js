@@ -4,7 +4,7 @@ import {
   evaluateMetagameV7Deck,
 } from "./metagame-v7.js";
 
-export const METAGAME_V12_MODEL_VERSION = "team-battle-v12-opportunity-value";
+export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.1-opportunity-value";
 
 const PARTIAL_SKILL_TYPES = new Set(["delay", "skill_reduction"]);
 
@@ -250,22 +250,25 @@ function selectDiverseDecks(entries, limit) {
     (Number(right.totalCost) || 0) - (Number(left.totalCost) || 0)
   ));
   if (sorted.length <= limit) return sorted;
-  const selected = [sorted[0]];
+  const selected = sorted.slice(0, Math.min(limit, 2));
   while (selected.length < limit) {
     let best = null;
     let bestScore = -Infinity;
-    for (const entry of sorted) {
+    for (const entry of sorted.slice(2, 34)) {
       if (selected.includes(entry)) continue;
       const ids = new Set(entry.deck.map((character) => String(character.id)));
       const minimumDifference = Math.min(...selected.map((chosen) => (
         chosen.deck.reduce((difference, character) => difference + (ids.has(String(character.id)) ? 0 : 1), 0)
       )));
-      const score = minimumDifference * 10 + (Number(entry.proxyScore) || 0);
+      // Max diversity bonus is only 0.025; unlike V12's x10 term it
+      // cannot make a clearly weaker proxy deck replace a near-best one.
+      const score = (Number(entry.proxyScore) || 0) + minimumDifference * 0.005;
       if (score > bestScore) {
         best = entry;
         bestScore = score;
       }
     }
+    if (!best) best = sorted.find((entry) => !selected.includes(entry));
     if (!best) break;
     selected.push(best);
   }
@@ -279,7 +282,7 @@ function selectDiverseDecks(entries, limit) {
  */
 export function buildMetagameV12AlternativeDecks(character, resolvedInput, candidatePools, options = {}) {
   const excludedId = String(character.id);
-  const alternativeDeckLimit = Math.max(1, Math.floor(Number(options.alternativeDeckLimit) || 2));
+  const alternativeDeckLimit = Math.max(1, Math.floor(Number(options.alternativeDeckLimit) || 3));
   const constraint = {
     totalCost: resolvedInput.totalCost,
     allowedAttributes: resolvedInput.allowedAttributes,
@@ -387,14 +390,18 @@ export function rateMetagameV12Character(character, position, resolvedInput, can
   const best = includeEvaluated[0];
   const baseline = alternativeEvaluated[0];
 
-  const opportunityWinGain = (Number(best.result.expectedWinRate) || 0) - (Number(baseline.result.expectedWinRate) || 0);
+  const pairedDeltas = (best.result.scenarioValues ?? []).map((value, index) => (
+    Number(value) - Number(baseline.result.scenarioValues?.[index])
+  )).filter(Number.isFinite);
+  const opportunityWinGain = pairedDeltas.length
+    ? average(pairedDeltas)
+    : (Number(best.result.expectedWinRate) || 0) - (Number(baseline.result.expectedWinRate) || 0);
   const includeValues = includeEvaluated.map((entry) => Number(entry.result.expectedWinRate) || 0);
-  const robustnessReference = Math.max(0, standardDeviation(includeValues) - 0.02);
-  // A small stability diagnostic only. It is not a role score and cannot turn
-  // a negative team contribution positive.
-  const robustOpportunityWinGain = opportunityWinGain - robustnessReference * 0.15;
+  const pairedStdDev = standardDeviation(pairedDeltas);
+  const pairedStandardError = pairedDeltas.length > 1 ? pairedStdDev / Math.sqrt(pairedDeltas.length) : 0;
+  const robustOpportunityWinGain = opportunityWinGain - 1.28 * pairedStandardError;
   const decisiveWinGain = (Number(best.result.decisiveWinRate) || 0) - (Number(baseline.result.decisiveWinRate) || 0);
-  const score = signedOpportunityScore(opportunityWinGain);
+  const score = signedOpportunityScore(robustOpportunityWinGain);
   const partialSkill = PARTIAL_SKILL_TYPES.has(character.skill?.type);
 
   return {
@@ -429,6 +436,9 @@ export function rateMetagameV12Character(character, position, resolvedInput, can
       staticRoleFitDiagnostic: rounded(staticRating.roleFit ?? 0),
       staticPracticalValueDiagnostic: rounded(staticRating.practicalValue ?? 0),
       includeDeckStdDev: rounded(standardDeviation(includeValues)),
+      pairedScenarioStdDev: rounded(pairedStdDev),
+      pairedScenarioStandardError: rounded(pairedStandardError),
+      pairedScenarioCount: pairedDeltas.length,
       partialSkillSupport: partialSkill ? 1 : 0,
     },
     evaluatedDeckCount: includeEvaluated.length,
@@ -472,8 +482,8 @@ function finiteOrNegativeInfinity(value) {
 export function rankMetagameV12Characters(ratings) {
   return [...ratings]
     .sort((left, right) => (
-      finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||
       finiteOrNegativeInfinity(right.robustOpportunityWinGain) - finiteOrNegativeInfinity(left.robustOpportunityWinGain) ||
+      finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||
       finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
       Number(left.cost) - Number(right.cost) ||
       String(left.id).localeCompare(String(right.id))

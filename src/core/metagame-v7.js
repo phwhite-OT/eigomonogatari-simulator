@@ -1214,10 +1214,13 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
   const trackedDirectDefeats = new Map();
   let trackedActivatedScenarios = 0;
   let trackedSkillUses = 0;
+  const minimumRandomMultiplier = Math.min(1, Math.max(0, Number(rules.damage?.randomMinimum) || 0.9));
+  const damageMultipliers = [minimumRandomMultiplier, (minimumRandomMultiplier + 1) / 2, 1];
   for (let index = 0; index < teamScenarios.length; index += 1) {
     const profile = V7_BATTLE_PROFILES[index % V7_BATTLE_PROFILES.length];
     const scenario = teamScenarios[index];
-    if (!Array.isArray(scenario?.allyDecks) || scenario.allyDecks.length !== 4 ||
+      const damageMultiplier = damageMultipliers[Math.floor(index / V7_BATTLE_PROFILES.length) % damageMultipliers.length];
+      if (!Array.isArray(scenario?.allyDecks) || scenario.allyDecks.length !== 4 ||
       !Array.isArray(scenario?.enemyDecks) || scenario.enemyDecks.length !== 5) {
       throw new Error("5対5環境シナリオが不正です。");
     }
@@ -1229,6 +1232,7 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
       attackOrderPolicy: profile.attackOrderPolicy,
       playStyle: profile.playStyle,
       randomSeed: index,
+      damageMultiplier,
     });
     if (trackedCharacterId !== null) {
       const tracked = v11TrackSkillEvidence(result, trackedCharacterId, index % 5);
@@ -1245,6 +1249,7 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
   return {
     expectedWinRate: average(values),
     expectedWinLowerBound: meanLowerBound(values),
+    scenarioValues: [...values],
     scenarioCount: values.length,
     decisiveWinRate: outcomes.allies / total,
     decisiveDrawRate: outcomes.draw / total,

@@ -39,7 +39,7 @@ function rating(entry, score = 0.5) {
 }
 
 test("V12 model version is separate from V11 checkpoints", () => {
-  assert.equal(METAGAME_V12_MODEL_VERSION, "team-battle-v12-opportunity-value");
+  assert.equal(METAGAME_V12_MODEL_VERSION, "team-battle-v12.1-opportunity-value");
 });
 
 test("V12 team scenarios do not suppress repeated popular characters across players", () => {
@@ -112,4 +112,13 @@ test("V12 ranking keeps harmful team contribution below neutral instead of clipp
     { id: "helpful", opportunityWinGain: 0.1, robustOpportunityWinGain: 0.1, decisiveWinGain: 0.1, cost: 10 },
   ]);
   assert.deepEqual(ranked.map((entry) => entry.id), ["helpful", "neutral", "harmful"]);
+});
+
+
+test("V12.1 ranking prefers paired-stable evidence when raw means are close", () => {
+  const ranked = rankMetagameV12Characters([
+    { id: "risky", opportunityWinGain: 0.11, robustOpportunityWinGain: 0.01, decisiveWinGain: 0, cost: 10 },
+    { id: "stable", opportunityWinGain: 0.10, robustOpportunityWinGain: 0.08, decisiveWinGain: 0, cost: 10 },
+  ]);
+  assert.deepEqual(ranked.map((entry) => entry.id), ["stable", "risky"]);
 });

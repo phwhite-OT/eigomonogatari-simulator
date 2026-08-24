@@ -401,16 +401,12 @@ function metagameDeckRoleBalance(roleCounts, deckLength, attackCommitment = 0) {
 
 function metagameDeckStateScore(state, totalCost) {
   const averageScore = state.proxyTotal / Math.max(1, state.deck.length);
-  const legacyRoleBonus = state.advantageCount > 0 && state.counterCount > 0 ? 0.008 : 0;
-  const roleBonus = legacyRoleBonus + metagameDeckRoleBalance(
-    state.roleCounts ?? {},
-    state.deck.length,
-    state.attackCommitment ?? 0,
-  );
   const deckProgress = state.deck.length / 5;
   const budgetShare = state.totalCost / Math.max(1, totalCost);
   const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
-  return averageScore + state.synergyScore + roleBonus - state.budgetStrain - state.handoffRisk - earlyBudgetPressure * 0.18;
+  // V12.1: role composition is search diversity only, never a value
+  // bonus/penalty. Actual 5v5 results decide whether role-heavy decks work.
+  return averageScore + state.synergyScore - state.budgetStrain - state.handoffRisk - earlyBudgetPressure * 0.18;
 }
 
 function metagameDeckStrategyKey(state) {
