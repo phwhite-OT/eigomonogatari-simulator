@@ -1,6 +1,6 @@
 name: Start Metagame V12
 
-# Trigger marker: 2026-08-24T15:04+09:00
+# Trigger marker: v12.2-threshold-proxy
 on:
   push:
     branches: [master]
@@ -27,7 +27,7 @@ jobs:
             [ -z "$run_id" ] && continue
             gh run cancel "$run_id" --repo "${{ github.repository }}" || true
           done
-      - name: Start corrected V12.1 evaluator
+      - name: Start corrected V12.2 evaluator
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run metagame-v12-cloud.yml --repo "${{ github.repository }}" --ref master
