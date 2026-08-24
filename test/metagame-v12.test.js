@@ -70,7 +70,7 @@ test("V12 environment builder recognizes Japanese legend rarity and keeps at mos
   assert.ok(decks.length >= 9);
   assert.ok(decks.every((deck) => deck.filter((entry) => entry.rarity === "伝").length <= 1));
   for (let position = 0; position < 5; position += 1) {
-    assert.ok(decks.some((deck) => deck[position].id === `legend-${position}`));
+    assert.ok(decks.some((deck) => deck[position].id === `legend-${position + 1}`));
   }
 });
 
