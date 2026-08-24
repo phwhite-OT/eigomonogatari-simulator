@@ -551,3 +551,51 @@ test("completed v7 report is converted into a precomputed deck-generator constra
   assert.equal(result.results[0].ratings[0].role, "precision_attack");
   assert.equal(result.results[0].ratings[0].roleBreakdown.highDurabilityCoverage, 0.75);
 });
+
+test("V11 records whether a later-slot skill actually fires", () => {
+  const opener = v7TestCharacter("fragile-opener", "fragile-opener", 1, {
+    hp: 1,
+    pow: 1,
+    skillTurn: 99,
+  });
+  const delayed = v7TestCharacter("delayed-second", "delayed-second", 2, {
+    hp: 1_000,
+    pow: 1_000,
+    skillTurn: 2,
+    skill: { type: "single_attack", multiplier: 4, hits: 1, target: "enemy_one", duration: 1, conditions: [] },
+  });
+  delayed.maxUses = 1;
+  const immediate = { ...delayed, id: "immediate-second", name: "immediate-second", skillTurn: 1 };
+  const reserves = [3, 4, 5].map((position) => v7TestCharacter(
+    `reserve-${position}`,
+    `reserve-${position}`,
+    position,
+    { hp: 1_000, pow: 1, skillTurn: 99 },
+  ));
+  const allyDecks = Array.from({ length: 4 }, (_, index) => [v7TestCharacter(
+    `ally-${index}`,
+    `ally-${index}`,
+    1,
+    { hp: 1_000, pow: 1, skillTurn: 99 },
+  )]);
+  const enemyDecks = Array.from({ length: 5 }, (_, index) => [v7TestCharacter(
+    `enemy-${index}`,
+    `enemy-${index}`,
+    1,
+    { hp: 3_000, pow: 10, skillTurn: 99 },
+  )]);
+  const scenarios = [{ allyDecks, enemyDecks }];
+
+  const delayedResult = evaluateMetagameV7Deck([opener, delayed, ...reserves], scenarios, {
+    turns: 2,
+    trackedCharacterId: delayed.id,
+  });
+  const immediateResult = evaluateMetagameV7Deck([opener, immediate, ...reserves], scenarios, {
+    turns: 2,
+    trackedCharacterId: immediate.id,
+  });
+
+  assert.equal(delayedResult.skillActivationRate, 0);
+  assert.equal(immediateResult.skillActivationRate, 1);
+  assert.ok(immediateResult.skillDefeatedTargets.length > 0);
+});

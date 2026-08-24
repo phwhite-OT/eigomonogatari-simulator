@@ -18,11 +18,13 @@ import { DEFAULT_RULES } from "../data/rules.js";
 // Combat resolution changed for attack-skill timing and guarded area attacks.
 // Keep prior reports visible as historical data, but never mix them into this
 // corrected evaluation pass.
-// V10 deliberately separates a character's own battle contribution from the
-// result of the four allies that happened to be paired with it, then prices
-// that measured contribution against the constrained deck budget. Any report
-// made with an earlier model must therefore be treated as incompatible input.
-export const METAGAME_V8_MODEL_VERSION = "team-battle-v10-cost-aware-marginal";
+// V11 deliberately separates a character's own battle contribution from the
+// result of the four allies that happened to be paired with it, prices that
+// measured contribution against the constrained deck budget, and verifies
+// that its actual skill both fires and changes the five-versus-five outcome.
+// Any report made with an earlier model must therefore be treated as
+// incompatible input.
+export const METAGAME_V8_MODEL_VERSION = "team-battle-v11-skill-execution";
 // Keep the export name while the surrounding command and input filenames are
 // migrated.  Consumers must use the model version, never the filename, to
 // decide whether a report is compatible.
@@ -313,7 +315,7 @@ export function resolveMetagameV7Input(input, characters) {
 }
 
 function environmentStrengths(pools) {
-  // The first V10 pass establishes full-team evidence. Do not decide that a
+  // The first V11 pass establishes full-team evidence. Do not decide that a
   // supplied opponent is common or strong from HP, power, or a hand-written
   // skill proxy before that battle evidence exists. Every supplied pivot is
   // represented; later browser samples weight only measured complete decks.
@@ -1123,12 +1125,95 @@ function meanLowerBound(values) {
   return clampUnit(mean - 1.96 * Math.sqrt(variance / values.length));
 }
 
+function meanSignedLowerBound(values) {
+  if (!values.length) return 0;
+  const mean = average(values);
+  if (values.length === 1) return mean;
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
+  return mean - 1.28 * Math.sqrt(variance / values.length);
+}
+
+const V11_ACTIONABLE_SKILL_TYPES = new Set([
+  "single_attack",
+  "aoe_attack",
+  "multi_hit_attack",
+  "attack_buff",
+  "damage_reduction",
+  "guard",
+  "attribute_guard",
+  "heal",
+  "revive",
+  "attribute_change",
+]);
+
+const V11_ATTACK_SKILL_TYPES = new Set(["single_attack", "aoe_attack", "multi_hit_attack"]);
+
+function v11HasActionableSkill(character) {
+  return V11_ACTIONABLE_SKILL_TYPES.has(character?.skill?.type);
+}
+
+function v11WithoutUsableSkill(character) {
+  return {
+    ...character,
+    id: `${character.id}:metagame-v11-no-skill`,
+    name: `${character.name}（スキルなし比較）`,
+    skillTurn: 99,
+    maxUses: 0,
+    roleTags: [],
+    skill: {
+      type: "none",
+      multiplier: 1,
+      hits: 1,
+      amount: 0,
+      target: "self",
+      targetCount: 1,
+      duration: 1,
+      priority: "normal",
+      conditions: [],
+      effects: [],
+    },
+  };
+}
+
+function v11TrackSkillEvidence(result, characterId, actorIndex) {
+  const id = String(characterId);
+  const directDefeats = new Map();
+  let used = false;
+  let uses = 0;
+  for (const turn of result.history ?? []) {
+    const selection = turn.phases?.find((phase) => phase.id === "skill_selection");
+    const usedThisTurn = (selection?.events ?? []).filter((event) => (
+      event.type === "skill_use" &&
+      event.side === "allies" &&
+      event.actorIndex === actorIndex &&
+      String(event.actorId) === id
+    ));
+    if (!usedThisTurn.length) continue;
+    used = true;
+    uses += usedThisTurn.length;
+    if (!usedThisTurn.some((event) => V11_ATTACK_SKILL_TYPES.has(event.skillType))) continue;
+    for (const action of turn.actions ?? []) {
+      if (action.side !== "allies" || action.actorIndex !== actorIndex || String(action.actorId) !== id) continue;
+      for (const hit of action.hits ?? []) {
+        if (!hit.defeated) continue;
+        const name = String(hit.targetName ?? "不明");
+        directDefeats.set(name, (directDefeats.get(name) ?? 0) + 1);
+      }
+    }
+  }
+  return { used, uses, directDefeats };
+}
+
 /** Evaluates a completed deck as one player within a 5v5 team battle. */
 export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
   const rules = options.rules ?? DEFAULT_RULES;
   const turns = Math.min(12, Math.max(1, Number(options.turns) || 12));
   const values = [];
   const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
+  const trackedCharacterId = options.trackedCharacterId === undefined ? null : String(options.trackedCharacterId);
+  const trackedDirectDefeats = new Map();
+  let trackedActivatedScenarios = 0;
+  let trackedSkillUses = 0;
   for (let index = 0; index < teamScenarios.length; index += 1) {
     const profile = V7_BATTLE_PROFILES[index % V7_BATTLE_PROFILES.length];
     const scenario = teamScenarios[index];
@@ -1145,6 +1230,14 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
       playStyle: profile.playStyle,
       randomSeed: index,
     });
+    if (trackedCharacterId !== null) {
+      const tracked = v11TrackSkillEvidence(result, trackedCharacterId, index % 5);
+      if (tracked.used) trackedActivatedScenarios += 1;
+      trackedSkillUses += tracked.uses;
+      for (const [name, count] of tracked.directDefeats) {
+        trackedDirectDefeats.set(name, (trackedDirectDefeats.get(name) ?? 0) + count);
+      }
+    }
     values.push(projectedWinValue(result));
     outcomes[result.outcome] += 1;
   }
@@ -1157,6 +1250,12 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
     decisiveDrawRate: outcomes.draw / total,
     decisiveLossRate: outcomes.enemies / total,
     ongoingRate: outcomes.ongoing / total,
+    skillActivationRate: trackedCharacterId === null ? undefined : trackedActivatedScenarios / total,
+    skillUsesPerScenario: trackedCharacterId === null ? undefined : trackedSkillUses / total,
+    skillDefeatedTargets: trackedCharacterId === null ? undefined : [...trackedDirectDefeats.entries()]
+      .map(([name, defeats]) => ({ name, defeats }))
+      .sort((left, right) => right.defeats - left.defeats || left.name.localeCompare(right.name))
+      .slice(0, 6),
   };
 }
 
@@ -1172,7 +1271,7 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
   // fifth member. This is the measured marginal value of the candidate; the
   // full team's result must not be attributed to one character.
   const benchmark = {
-    id: `metagame-v10-empty-slot-${position}`,
+    id: `metagame-v11-empty-slot-${position}`,
     name: "評価用空枠",
     attributes: [],
     rarity: "N",
@@ -1196,17 +1295,28 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
       effects: [],
     },
   };
+  const actionableSkill = v11HasActionableSkill(character);
   const evaluatedDecks = deckCandidates.map((candidate) => {
     const deck = candidate.deck;
-    const result = evaluateMetagameV7Deck(deck, teamScenarios, options);
+    const result = evaluateMetagameV7Deck(deck, teamScenarios, {
+      ...options,
+      trackedCharacterId: character.id,
+    });
     const benchmarkDeck = deck.map((entry, index) => (index === position - 1 ? benchmark : entry));
     const benchmarkResult = evaluateMetagameV7Deck(benchmarkDeck, teamScenarios, options);
+    const noSkillCharacter = v11WithoutUsableSkill(character);
+    const noSkillDeck = deck.map((entry, index) => (index === position - 1 ? noSkillCharacter : entry));
+    const noSkillResult = actionableSkill
+      ? evaluateMetagameV7Deck(noSkillDeck, teamScenarios, options)
+      : result;
     return {
       ...candidate,
       totalCost: deck.reduce((sum, entry) => sum + (Number(entry.cost) || 0), 0),
       result,
       benchmarkResult,
+      noSkillResult,
       marginalWinGain: result.expectedWinRate - benchmarkResult.expectedWinRate,
+      skillWinGain: actionableSkill ? result.expectedWinRate - noSkillResult.expectedWinRate : 0,
     };
   }).sort((left, right) => (
     right.result.expectedWinLowerBound - left.result.expectedWinLowerBound ||
@@ -1264,25 +1374,70 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     ? marginalValues.reduce((sum, value) => sum + (value - marginalWinGain) ** 2, 0) / (marginalValues.length - 1)
     : 0;
   const marginalWinGainLowerBound = marginalWinGain - 1.28 * Math.sqrt(marginalVariance / Math.max(1, marginalValues.length));
+  const skillWinGains = evaluatedDecks.map((entry) => Number(entry.skillWinGain) || 0);
+  const skillWinGain = average(skillWinGains);
+  const skillWinGainLowerBound = meanSignedLowerBound(skillWinGains);
+  const actualSkillActivationRate = actionableSkill
+    ? average(evaluatedDecks.map((entry) => Number(entry.result.skillActivationRate) || 0))
+    : 1;
+  const skillUsesPerScenario = actionableSkill
+    ? average(evaluatedDecks.map((entry) => Number(entry.result.skillUsesPerScenario) || 0))
+    : 0;
+  const skillDefeatCounts = new Map();
+  for (const entry of evaluatedDecks) {
+    for (const target of entry.result.skillDefeatedTargets ?? []) {
+      const name = String(target.name ?? "不明");
+      skillDefeatCounts.set(name, (skillDefeatCounts.get(name) ?? 0) + (Number(target.defeats) || 0));
+    }
+  }
+  const skillDefeatedTargets = [...skillDefeatCounts.entries()]
+    .map(([name, defeats]) => ({ name, defeats }))
+    .sort((left, right) => right.defeats - left.defeats || left.name.localeCompare(right.name))
+    .slice(0, 6);
   const individualBattleScore = clampUnit(0.5 + marginalWinGain);
   const individualBattleLowerBound = clampUnit(0.5 + marginalWinGainLowerBound);
   const measuredContribution = marginalContributionScore(marginalWinGain);
   const reliableContribution = marginalContributionScore(marginalWinGainLowerBound);
+  const skillImpact = actionableSkill
+    ? clampUnit(Math.max(0, skillWinGainLowerBound) / 0.12)
+    : 1;
+  // This is intentionally measured from the actual 5v5 logs.  A 2T skill in
+  // slot 2 is not ruled out solely by its text, but it receives almost no
+  // role credit if the selected opener causes it to die before activation.
+  const skillExecution = actionableSkill
+    ? clampUnit(actualSkillActivationRate * 0.5 + skillImpact * 0.5)
+    : 1;
+  const role = individual.role ?? v8RoleForCharacter(character);
+  const staticHardTargetCoverage = clampUnit(Number(roleBreakdown.highDurabilityCoverage) || 0);
+  // A damage skill is a finisher only if it can actually be used in this slot.
+  // Its static damage reach is retained as the definition of the hard part of
+  // the supplied environment, but an unreachable skill contributes no reach.
+  const actualHardTargetCoverage = v8RoleIsAttack(role) && actionableSkill
+    ? staticHardTargetCoverage * skillExecution
+    : staticHardTargetCoverage;
+  // Later slots are selected for a job.  For an actionable role this has to
+  // combine that job's environment coverage with measured activation and the
+  // no-skill counterfactual.  A raw-stat character remains eligible through
+  // the controlled battle contribution instead of being forced to fake a
+  // skill role.
+  const actualRoleExecution = actionableSkill
+    ? clampUnit(roleFit * skillExecution * (v8RoleIsAttack(role)
+      ? 0.55 + actualHardTargetCoverage * 0.45
+      : 1))
+    : clampUnit(roleFit);
   const actualCostEfficiency = marginalCostEfficiencyScore(
     marginalWinGainLowerBound,
     character.cost,
     resolvedInput.totalCost,
   );
   // The controlled battle delta remains the dominant evidence, but the
-  // budget is a first-class part of the score.  Cost efficiency is therefore
-  // 35% of normal slots (34% for the opener): spending 60 of a 100 budget now
-  // has to buy a clearly larger, repeatable team-wide result.  This still
-  // credits an all-party shield, heal, revive, or attack buff through the
-  // actual 5v5 outcome rather than through the owner's personal HP.
+  // budget is a first-class part of the score. From the second slot onward,
+  // the role must also be executed in combat: delayed skill text alone cannot
+  // beat a character whose skill actually fires and changes the battle.
   const firstAttackPressure = clampUnit(individual.enemyPressureRate);
-  const v10Score = rounded(position === 1
-    ? reliableContribution * 0.36 + measuredContribution * 0.16 + firstAttackPressure * 0.14 + actualCostEfficiency * 0.34
-    : reliableContribution * 0.46 + measuredContribution * 0.19 + actualCostEfficiency * 0.35);
+  const v11Score = rounded(position === 1
+    ? reliableContribution * 0.28 + measuredContribution * 0.12 + firstAttackPressure * 0.17 + actualCostEfficiency * 0.27 + actualRoleExecution * 0.16
+    : reliableContribution * 0.25 + measuredContribution * 0.10 + actualCostEfficiency * 0.22 + actualRoleExecution * 0.30 + skillExecution * 0.13);
   return {
     id: String(character.id),
     name: character.name,
@@ -1295,25 +1450,36 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     skillType: character.skill?.type ?? "none",
     skillTarget: character.skill?.target ?? "self",
     skillName: character.skillName ?? "",
-    role: individual.role ?? v8RoleForCharacter(character),
-    // Published as the cost-aware individual result.  The raw controlled
+    role,
+    // Published as the cost-aware, skill-execution result. The raw controlled
     // battle score is retained below for audit/debug purposes.
-    individualScore: v10Score,
+    individualScore: v11Score,
     roleFit,
     roleBreakdown: {
       ...roleBreakdown,
       costEfficiency: rounded(actualCostEfficiency),
       measuredContribution: rounded(measuredContribution),
       reliableContribution: rounded(reliableContribution),
+      actualSkillActivationRate: rounded(actualSkillActivationRate),
+      skillWinGain: rounded(skillWinGain),
+      skillWinGainLowerBound: rounded(skillWinGainLowerBound),
+      skillExecution: rounded(skillExecution),
+      actualRoleExecution: rounded(actualRoleExecution),
+      actualHardTargetCoverage: rounded(actualHardTargetCoverage),
     },
     position,
     evaluatedDeckCount: evaluatedDecks.length,
     contributionProbeCount: evaluatedDecks.length,
     marginalWinGain: rounded(marginalWinGain),
     marginalWinGainLowerBound: rounded(marginalWinGainLowerBound),
+    skillWinGain: rounded(skillWinGain),
+    skillWinGainLowerBound: rounded(skillWinGainLowerBound),
+    skillActivationRate: rounded(actualSkillActivationRate),
+    skillUsesPerScenario: rounded(skillUsesPerScenario),
+    skillDefeatedTargets,
     rawIndividualBattleScore: rounded(individualBattleScore),
     rawIndividualBattleLowerBound: rounded(individualBattleLowerBound),
-    costAwareScore: v10Score,
+    costAwareScore: v11Score,
     evaluationCostCap: Number(resolvedInput.totalCost) || 0,
     benchmarkExpectedWinRate: rounded(average(evaluatedDecks.map((entry) => entry.benchmarkResult.expectedWinRate))),
     candidateExpectedWinRate: rounded(average(evaluatedDecks.map((entry) => entry.result.expectedWinRate))),
@@ -1336,10 +1502,10 @@ export function rateMetagameV7Character(character, position, resolvedInput, cand
     // 完成デッキ勝率は個体順位に混ぜない。残り4枠を固定した実戦差分と、
     // この縛りの総コストに対する効率だけを個体評価へ使う。
     deckScore,
-    // First position keeps a larger stat component. From the second position
-    // onward, a character's own role fit remains 40% of its ranking rather
-    // than disappearing behind the single best supporting deck.
-    v7Score: v10Score,
+    // Later positions reserve a substantial score share for role execution
+    // verified in the actual team battle, rather than for text-only skill
+    // potential or the strongest supporting deck.
+    v7Score: v11Score,
   };
 }
 

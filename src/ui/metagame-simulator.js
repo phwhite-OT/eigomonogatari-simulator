@@ -28,6 +28,16 @@ function metagameUiSigned(value) {
   return `${number >= 0 ? "+" : ""}${number.toFixed(2)}`;
 }
 
+// A ranking is only safe to present once it contains the V11 measurement of
+// whether the selected character actually used its skill in that exact slot.
+// Older V8--V10 snapshots can rank a later-slot character even when it dies
+// before a two-turn skill becomes available.
+const METAGAME_REQUIRED_MODEL_VERSION = "team-battle-v11-skill-execution";
+
+function metagameUiHasCurrentSkillEvidence(data) {
+  return String(data?.sourceModelVersion ?? "") === METAGAME_REQUIRED_MODEL_VERSION;
+}
+
 const METAGAME_ROLE_LABELS = Object.freeze({
   precision_attack: "単体高耐久対策",
   sweep_attack: "盤面制圧攻撃",
@@ -54,11 +64,11 @@ function metagameUiModelLabel(data) {
 
 function metagameUiUsesInvalidPreV8Data(data) {
   const version = String(data.sourceModelVersion ?? "");
-  return /^fixed-environment-v7\./.test(version);
+  return /^fixed-environment-v7\./.test(version) || !metagameUiHasCurrentSkillEvidence(data);
 }
 
 function metagameUiCalculationState(data) {
-  if (metagameUiUsesInvalidPreV8Data(data)) return "V7.5 results invalid; V8 5v5 recalculating";
+  if (!metagameUiHasCurrentSkillEvidence(data)) return "V11 skill execution recalculating";
   const status = data.sourceStatus;
   return {
     complete: "完了",
@@ -137,18 +147,32 @@ function metagameUiImpactReasons(character, rating, environment, deck) {
     );
   }
   const roleBreakdown = rating.roleBreakdown ?? {};
-  if (Number.isFinite(Number(roleBreakdown.skillReadiness))) {
+  if (Number.isFinite(Number(roleBreakdown.actualSkillActivationRate))) {
+    reasons.push(
+      `実測スキル発動 ${metagameUiPercent(roleBreakdown.actualSkillActivationRate)} / スキル役割遂行 ${metagameUiPercent(roleBreakdown.actualRoleExecution)}`,
+    );
+  } else if (Number.isFinite(Number(roleBreakdown.skillReadiness))) {
     reasons.push(
       `スキル再現率 ${metagameUiPercent(roleBreakdown.skillReadiness)} / 発動待ちリスク ${metagameUiPercent(roleBreakdown.lateSkillRisk)}`,
     );
   }
-  if (Number(roleBreakdown.highDurabilityCoverage) > 0 || Number(roleBreakdown.boardCoverage) > 0) {
+  const hardTargetCoverage = Number.isFinite(Number(roleBreakdown.actualHardTargetCoverage))
+    ? roleBreakdown.actualHardTargetCoverage
+    : roleBreakdown.highDurabilityCoverage;
+  if (Number(hardTargetCoverage) > 0 || Number(roleBreakdown.boardCoverage) > 0) {
     reasons.push(
-      `攻撃適性: 高耐久への到達 ${metagameUiPercent(roleBreakdown.highDurabilityCoverage)} / 盤面制圧 ${metagameUiPercent(roleBreakdown.boardCoverage)}`,
+      `攻撃適性: 実発動込み高耐久への到達 ${metagameUiPercent(hardTargetCoverage)} / 盤面制圧 ${metagameUiPercent(roleBreakdown.boardCoverage)}`,
     );
   }
   if (["delay", "skill_reduction"].includes(character.skill?.type)) {
     reasons.push("短縮・遅延効果は今回の評価対象外です。採用された場合は、通常攻撃・耐久・他枠との組み合わせが主因です。");
+  }
+  if ((rating.skillDefeatedTargets ?? []).length) {
+    const targets = rating.skillDefeatedTargets
+      .slice(0, 3)
+      .map((target) => `${target.name}×${target.defeats}`)
+      .join("・");
+    reasons.push(`実戦でスキル撃破した相手: ${targets}`);
   }
   const enemyConditions = (character.skill?.conditions ?? [])
     .filter((condition) => condition.type === "enemy_attribute");
@@ -757,10 +781,10 @@ function renderSurveyedMetagameConstraints(container, constraints, selectedId) {
 
 function renderMetagameDebugRankings(container, constraint) {
   container.replaceChildren();
-  if (String(constraint?.modelVersion ?? "") !== "team-battle-v10-cost-aware-marginal") {
+  if (String(constraint?.modelVersion ?? "") !== "team-battle-v11-skill-execution") {
     container.append(
       metagameUiElement("strong", "", "枠別の事前評価デバッグ"),
-      metagameUiElement("p", "", "V10のコスト効率込み個体評価を計算中です。旧V9のコストを軽視した順位は表示しません。"),
+      metagameUiElement("p", "", "V11の実スキル発動込み個体評価を計算中です。発動できない後続スキルを含む旧順位は表示しません。"),
     );
     return;
   }
@@ -797,13 +821,18 @@ function renderMetagameDebugRankings(container, constraint) {
         : "個体差分は未計算";
       const costEfficiency = Number(entry.roleBreakdown?.costEfficiency);
       const score = Number(entry.costAwareScore ?? entry.practicalValue ?? entry.individualScore);
+      const skillActivation = Number(entry.skillActivationRate);
+      const skillGain = Number(entry.skillWinGain);
       const costText = Number.isFinite(costEfficiency)
         ? `コスト効率 ${metagameUiPercent(costEfficiency)} / 総合 ${metagameUiPercent(score)}`
         : "コスト効率は再計算中";
+      const skillText = Number.isFinite(skillActivation)
+        ? `実発動 ${metagameUiPercent(skillActivation)} / スキルなし比 ${metagameUiSigned((Number.isFinite(skillGain) ? skillGain : 0) * 100)}pt`
+        : "スキル実発動は未計測";
       row.append(
         metagameUiElement("strong", "", entry.name ?? entry.id),
         metagameUiElement("span", "", `${attributeClassLabel(entry.attributes)}・C${entry.cost}・${entry.skillTurn}T`),
-        metagameUiElement("small", "", `${deltaText} / ${costText}`),
+        metagameUiElement("small", "", `${deltaText} / ${skillText} / ${costText}`),
       );
       list.append(row);
     });
@@ -884,7 +913,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     ? `利用可能 ${data.constraints.length}条件 / 評価完了 ${data.sourceCompletedRuns}/${data.sourceTotalRuns} / ${sourceLabel}`
     : "利用可能な調査済み環境がありません";
   renderMetagameCalculationStatus(calculationStatus, data);
-  submitButton.disabled = data.constraints.length === 0;
+  submitButton.disabled = data.constraints.length === 0 || !metagameUiHasCurrentSkillEvidence(data);
   const fixedSlotValues = () => Object.fromEntries(
     [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
   );
@@ -1162,12 +1191,17 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     totalCostInput.value = button.dataset.metagameSurveyedCost;
     updateEnvironmentPreview();
   });
-  if (!data.constraints.length) {
+  if (!metagameUiHasCurrentSkillEvidence(data)) {
+    renderMetagameSimulatorMessage(
+      resultRoot,
+      "V11 is recalculating the environment with real skill-activation evidence. Deck recommendations are temporarily paused so older data cannot show a character whose skill never fires.",
+    );
+  } else if (!data.constraints.length) {
     renderMetagameSimulatorMessage(resultRoot, "枠別メタ環境評価が1縛り分完了すると利用できます。");
   }
 
   const setBusy = (busy) => {
-    submitButton.disabled = busy || data.constraints.length === 0;
+    submitButton.disabled = busy || data.constraints.length === 0 || !metagameUiHasCurrentSkillEvidence(data);
     select.disabled = busy;
     totalCostInput.disabled = busy;
     fixedSlotList.querySelectorAll("button").forEach((control) => { control.disabled = busy; });
@@ -1201,6 +1235,13 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   const startCalculation = async (event) => {
     event?.preventDefault();
     if (abortController) return;
+    if (!metagameUiHasCurrentSkillEvidence(data)) {
+      renderMetagameSimulatorMessage(
+        resultRoot,
+        "V11 skill-execution evaluation is still running. This intentionally blocks V10 results, because they do not prove that later-slot skills can be activated.",
+      );
+      return;
+    }
     displayedPrecomputedConstraintId = null;
     const baseConstraint = sourceConstraint();
     if (!baseConstraint) {

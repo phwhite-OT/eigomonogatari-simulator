@@ -18,15 +18,15 @@ const METAGAME_ATTRIBUTE_LABELS = Object.freeze({
 });
 const METAGAME_SCENARIO_COUNT = 60;
 const METAGAME_MODEL_VERSION = "iterative-metagame-v6-continuation-decks";
-const METAGAME_V8_MODEL_VERSION = "team-battle-v10-cost-aware-marginal";
-const V10_BROWSER_POOL_LIMIT = 96;
+const METAGAME_V8_MODEL_VERSION = "team-battle-v11-skill-execution";
+const V11_BROWSER_POOL_LIMIT = 96;
 const DEFAULT_METAGAME_SOURCES = Object.freeze([
   ...METAGAME_V8_INPUTS.map((input) => Object.freeze({
     type: "v8",
     inputId: input.id,
-    statusPath: `reports/metagame-ratings-v10-cost-aware/${input.id.replaceAll(":", "-")}/progress.json`,
-    reportPath: `reports/metagame-ratings-v10-cost-aware/${input.id.replaceAll(":", "-")}/report.json`,
-    reportRoot: "reports/metagame-ratings-v10-cost-aware",
+    statusPath: `reports/metagame-ratings-v11-skill-execution/${input.id.replaceAll(":", "-")}/progress.json`,
+    reportPath: `reports/metagame-ratings-v11-skill-execution/${input.id.replaceAll(":", "-")}/report.json`,
+    reportRoot: "reports/metagame-ratings-v11-skill-execution",
     requiredModelVersion: METAGAME_V8_MODEL_VERSION,
     legacy: false,
   })),
@@ -82,7 +82,7 @@ function v8CompletedRunCount(progress) {
 }
 
 function hasCompletedV8BrowserData(data) {
-  // Keep the currently published dataset intact until a complete V10 dataset
+  // Keep the currently published dataset intact until a complete V11 dataset
   // exists. A partial or missing local report must never erase the browser's
   // usable data during the long recalculation.
   return Array.isArray(data?.constraints) && data.constraints.length > 0;
@@ -261,16 +261,17 @@ function compactMetagameV8Candidate(entry, character) {
     candidateExpectedWinRate: Number(entry.candidateExpectedWinRate) || 0,
     marginalWinGain,
     marginalWinGainLowerBound,
-    skillWinGain: marginalWinGain,
+    skillWinGain: Number(entry.skillWinGain) || 0,
+    skillWinGainLowerBound: Number(entry.skillWinGainLowerBound) || 0,
     allyRetentionRate: 0,
     enemyPressureRate: 0,
     balancedContribution: 0,
     practicalValue: Number(entry.v7Score) || individualScore,
-    practicalSkillReliability: skill.type && skill.type !== "none" ? 1 : 0,
+    practicalSkillReliability: Number(entry.skillActivationRate) || 0,
     powerPreference: 0,
     combinationPotential: duration > 1 ? Math.min(1, (duration - 1) / 4) : 0,
     tacticalUpside: attackTypes.has(skill.type) ? 0.5 : 0,
-    tacticalRisk: 0,
+    tacticalRisk: Math.max(0, 1 - (Number(entry.skillActivationRate) || 0)),
     carriedDefenseRate: defenseTypes.has(skill.type) && duration > 1 ? 0.5 : 0,
     continuationWinGain: duration > 1 ? 0.25 : 0,
     carriedContinuationWinGain: duration > 1 ? 0.25 : 0,
@@ -279,7 +280,9 @@ function compactMetagameV8Candidate(entry, character) {
     counteraction: attackTypes.has(skill.type) ? 0.5 : 0,
     allyPreservationNet: 0,
     enemyRemovalNet: 0,
-    skillActivationRate: skill.type && skill.type !== "none" ? 1 : 0,
+    skillActivationRate: Number(entry.skillActivationRate) || 0,
+    skillUsesPerScenario: Number(entry.skillUsesPerScenario) || 0,
+    skillDefeatedTargets: entry.skillDefeatedTargets ?? [],
     v8BestDeck: entry.bestDeck ?? null,
     v8ExampleDeck: entry.exampleDeck ?? null,
   };
@@ -417,7 +420,7 @@ export function buildMetagameV8Constraint(report, charactersById) {
     reportGeneratedAt: report.generatedAt ?? null,
     slots: [1, 2, 3, 4, 5].map((position) => {
       const ranking = rankings.get(position)?.characters ?? [];
-      const compactCandidates = ranking.slice(0, V10_BROWSER_POOL_LIMIT).map((entry) => (
+      const compactCandidates = ranking.slice(0, V11_BROWSER_POOL_LIMIT).map((entry) => (
         compactMetagameV8Candidate(entry, charactersById.get(String(entry.id)))
       ));
       return {
