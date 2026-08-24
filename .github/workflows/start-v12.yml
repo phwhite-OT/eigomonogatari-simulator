@@ -1,5 +1,6 @@
 name: Start Metagame V12
 
+# Trigger marker: 2026-08-24T15:02+09:00
 on:
   push:
     branches: [master]
