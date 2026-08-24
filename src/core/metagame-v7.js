@@ -666,7 +666,7 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
     const precisionValue = concentratedCoverage * (0.2 + hardTargetDemand * 0.8);
     return {
       role,
-      roleFit: precisionValue * attackConditionCoverage,
+      roleFit: clampUnit(precisionValue * 0.30 + skill * 0.70),
       highDurabilityCoverage: concentratedCoverage,
       boardCoverage: perHitCoverage,
       boardElimination,
@@ -688,7 +688,7 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
     const boardControl = clampUnit(boardCoverage * 0.65 + boardElimination * 0.35);
     return {
       role,
-      roleFit: boardControl * attackConditionCoverage,
+      roleFit: clampUnit(boardControl * 0.30 + skill * 0.70),
       highDurabilityCoverage: skillData.type === "multi_hit_attack" ? concentratedMultiHitCoverage : concentratedCoverage,
       boardCoverage,
       boardElimination,
@@ -710,7 +710,7 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
     );
     return {
       role,
-      roleFit: defenseMatchup * 0.45 + skill * 0.55,
+      roleFit: clampUnit(defense * 0.20 + skill * 0.80),
       highDurabilityCoverage: 0,
       boardCoverage: 0,
       boardElimination: 0,
@@ -735,7 +735,7 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
   if (role === "support") {
     // A buff is not a completed win condition on its own.  Its full value is
     // added later only when a reachable successor can actually use it.
-    const standaloneSupport = skillData.target === "ally_all" ? 0.55 : 0.4;
+    const standaloneSupport = skillData.type === "attack_buff" ? 1 : skillData.target === "ally_all" ? 0.55 : 0.4;
     return {
       role,
       roleFit: skill * standaloneSupport,
@@ -759,24 +759,275 @@ function v8RoleFitness(character, environmentPool, rules, { offense, defense, sk
   };
 }
 
-function characterProxyRating(character, position, environmentPool, maxima, rules, allyCandidates = []) {
-  const directScores = environmentPool.map((enemy) => {
-    const dealt = calculateMinimumDamage({ attacker: character, defender: enemy, rules }).value;
-    const taken = calculateMinimumDamage({ attacker: enemy, defender: character, rules }).value;
+const V12_THRESHOLD_ATTACK_TYPES = new Set([
+  "single_attack",
+  "aoe_attack",
+  "multi_hit_attack",
+  "attack_buff",
+]);
+const V12_THRESHOLD_DEFENSE_TYPES = new Set([
+  "damage_reduction",
+  "guard",
+  "attribute_guard",
+]);
+
+function v12UniqueCharacters(characters = []) {
+  return [...new Map(characters.filter(Boolean).map((entry) => [String(entry.id), entry])).values()];
+}
+
+function v12ThresholdConditionApplies(skill, ally, enemy) {
+  return (skill?.conditions ?? []).every((condition) => {
+    if (condition.type === "ally_attribute") return ally?.attributes?.includes(condition.attribute);
+    if (condition.type === "enemy_attribute") return enemy?.attributes?.includes(condition.attribute);
+    return true;
+  });
+}
+
+function v12Median(values) {
+  const sorted = values.filter(Number.isFinite).sort((left, right) => left - right);
+  if (!sorted.length) return 1;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function v12WeightedAverage(entries) {
+  const weight = entries.reduce((sum, entry) => sum + Math.max(0, Number(entry.weight) || 0), 0);
+  if (!weight) return 0;
+  return entries.reduce((sum, entry) => sum + (Number(entry.value) || 0) * Math.max(0, Number(entry.weight) || 0), 0) / weight;
+}
+
+function v12AttackEnvironmentWeights(environmentPool) {
+  const medianHp = Math.max(1, v12Median(environmentPool.map((enemy) => Math.max(1, Number(enemy.hp) || 1))));
+  return environmentPool.map((enemy) => {
+    const hp = Math.max(1, Number(enemy.hp) || 1);
+    const hardness = clampUnit((hp / medianHp - 1) / 1.5);
+    const wallSkill = V12_THRESHOLD_DEFENSE_TYPES.has(enemy.skill?.type) ? 1 : 0;
+    return 1 + hardness * 0.8 + wallSkill * 0.45;
+  });
+}
+
+function v12DefenseEnvironmentWeights(environmentPool) {
+  const medianPower = Math.max(1, v12Median(environmentPool.map((enemy) => Math.max(1, Number(enemy.pow) || 1))));
+  return environmentPool.map((enemy) => {
+    const power = Math.max(1, Number(enemy.pow) || 1);
+    const pressure = clampUnit((power / medianPower - 1) / 1.5);
+    const attackSkill = ["single_attack", "aoe_attack", "multi_hit_attack", "attack_buff"].includes(enemy.skill?.type) ? 1 : 0;
+    return 1 + pressure * 0.8 + attackSkill * 0.45;
+  });
+}
+
+function v12ThresholdRecipients(character, skill, allyCandidates) {
+  if (skill?.target === "self") return [character];
+  const unique = v12UniqueCharacters(allyCandidates);
+  if (skill?.target === "leader") {
+    const leaders = unique.filter((ally) => ally.allowedPositions?.includes(1));
+    return leaders.length ? leaders : [character];
+  }
+  return unique.length ? unique : [character];
+}
+
+function v12SaturatingCount(value, reference = 1) {
+  return clampUnit(1 - Math.exp(-Math.max(0, Number(value) || 0) / Math.max(0.01, reference)));
+}
+
+export function evaluateMetagameV12SkillThresholdProxy(character, environmentPool, allyCandidates = [], rules = DEFAULT_RULES) {
+  const enemies = (environmentPool ?? []).filter(Boolean);
+  if (!character || !enemies.length) {
     return {
-      offense: clampUnit(dealt / Math.max(1, Number(enemy.hp) || 1)),
-      defense: clampUnit(1 - taken / Math.max(1, Number(character.hp) || 1)),
+      baseAttackValue: 0,
+      baseDefenseValue: 0,
+      attackImpact: 0,
+      defenseImpact: 0,
+      guaranteedEliminationGain: 0,
+      preventedDeathGain: 0,
+      wallBreakerImpact: 0,
+    };
+  }
+  const attackWeights = v12AttackEnvironmentWeights(enemies);
+  const defenseWeights = v12DefenseEnvironmentWeights(enemies);
+  const baseAttackRows = enemies.map((enemy, index) => {
+    const hp = Math.max(1, Number(enemy.hp) || 1);
+    const damage = calculateMinimumDamage({ attacker: character, defender: enemy, rules }).value;
+    return {
+      weight: attackWeights[index],
+      kill: Number(damage >= hp),
+      progress: clampUnit(damage / hp),
     };
   });
-  const offense = average(directScores.map((score) => score.offense));
-  const defense = average(directScores.map((score) => score.defense));
-  const statPower = clampUnit(Number(character.pow) / maxima.pow);
-  const statHp = clampUnit(Number(character.hp) / maxima.hp);
+  const baseDefenseRows = enemies.map((enemy, index) => {
+    const hp = Math.max(1, Number(character.hp) || 1);
+    const damage = calculateMinimumDamage({ attacker: enemy, defender: character, rules }).value;
+    return {
+      weight: defenseWeights[index],
+      survive: Number(damage < hp),
+      retention: clampUnit(1 - damage / hp),
+    };
+  });
+  const baseAttackValue = clampUnit(
+    v12WeightedAverage(baseAttackRows.map((entry) => ({ value: entry.kill, weight: entry.weight }))) * 0.72 +
+    v12WeightedAverage(baseAttackRows.map((entry) => ({ value: entry.progress, weight: entry.weight }))) * 0.28,
+  );
+  const baseDefenseValue = clampUnit(
+    v12WeightedAverage(baseDefenseRows.map((entry) => ({ value: entry.survive, weight: entry.weight }))) * 0.72 +
+    v12WeightedAverage(baseDefenseRows.map((entry) => ({ value: entry.retention, weight: entry.weight }))) * 0.28,
+  );
+
+  const skill = character.skill ?? {};
+  let attackImpact = 0;
+  let defenseImpact = 0;
+  let guaranteedEliminationGain = 0;
+  let preventedDeathGain = 0;
+  let wallBreakerImpact = 0;
+
+  if (V12_THRESHOLD_ATTACK_TYPES.has(skill.type)) {
+    const recipients = skill.type === "attack_buff"
+      ? v12ThresholdRecipients(character, skill, allyCandidates)
+      : [character];
+    const allyScope = skill.type === "attack_buff" && skill.target === "ally_all" ? 5 : 1;
+    const hits = Math.max(1, Number(skill.hits) || 1);
+    const enemyScope = skill.type === "aoe_attack"
+      ? 5
+      : skill.type === "multi_hit_attack"
+        ? Math.min(5, 1 + (hits - 1) * 0.35)
+        : 1;
+    const rows = [];
+    for (const ally of recipients) {
+      for (let index = 0; index < enemies.length; index += 1) {
+        const enemy = enemies[index];
+        const weight = attackWeights[index];
+        const hp = Math.max(1, Number(enemy.hp) || 1);
+        const applies = v12ThresholdConditionApplies(skill, ally, enemy);
+        const baseline = calculateMinimumDamage({ attacker: ally, defender: enemy, rules }).value;
+        let improved = baseline;
+        if (applies) {
+          if (skill.type === "attack_buff") {
+            improved = calculateMinimumDamage({
+              attacker: ally,
+              defender: enemy,
+              attackMultiplier: Number(skill.multiplier) || 1,
+              rules,
+            }).value;
+          } else {
+            improved = calculateMinimumDamage({
+              attacker: ally,
+              defender: enemy,
+              skillMultiplier: (Number(skill.multiplier) || 1) * hits,
+              rules,
+            }).value;
+          }
+        }
+        const newKill = Number(baseline < hp && improved >= hp);
+        const progressGain = Math.max(0, clampUnit(improved / hp) - clampUnit(baseline / hp));
+        rows.push({ weight, newKill, progressGain });
+        if (newKill) {
+          wallBreakerImpact = Math.max(wallBreakerImpact, clampUnit((weight - 1) / 0.35));
+        }
+      }
+    }
+    const meanKillGain = v12WeightedAverage(rows.map((entry) => ({ value: entry.newKill, weight: entry.weight })));
+    const meanProgressGain = v12WeightedAverage(rows.map((entry) => ({ value: entry.progressGain, weight: entry.weight })));
+    guaranteedEliminationGain = meanKillGain * allyScope * enemyScope;
+    const expectedProgressGain = meanProgressGain * allyScope * enemyScope;
+    attackImpact = clampUnit(
+      v12SaturatingCount(guaranteedEliminationGain, 0.8) * 0.55 +
+      v12SaturatingCount(expectedProgressGain, 1.5) * 0.15 +
+      wallBreakerImpact * 0.30,
+    );
+  }
+
+  if (V12_THRESHOLD_DEFENSE_TYPES.has(skill.type)) {
+    const isGuard = ["guard", "attribute_guard"].includes(skill.type);
+    const recipients = isGuard
+      ? v12UniqueCharacters(allyCandidates)
+      : v12ThresholdRecipients(character, skill, allyCandidates);
+    const protectedAllies = recipients.length ? recipients : [character];
+    const allyScope = isGuard || skill.target === "ally_all" ? 5 : 1;
+    let guardCapacity = 1;
+    if (isGuard) {
+      const guardRows = enemies.map((enemy, index) => {
+        const applies = v12ThresholdConditionApplies(skill, character, enemy);
+        const damage = applies
+          ? calculateMinimumDamage({
+            attacker: enemy,
+            defender: character,
+            defenseMultiplier: Number(skill.multiplier) || 1,
+            rules,
+          }).value
+          : 0;
+        return { value: damage, weight: applies ? defenseWeights[index] : 0 };
+      });
+      const averageGuardDamage = v12WeightedAverage(guardRows);
+      guardCapacity = averageGuardDamage > 0
+        ? clampUnit((Number(character.hp) || 0) / (averageGuardDamage * 5))
+        : 0;
+    }
+    const rows = [];
+    for (const ally of protectedAllies) {
+      for (let index = 0; index < enemies.length; index += 1) {
+        const enemy = enemies[index];
+        const weight = defenseWeights[index];
+        const allyHp = Math.max(1, Number(ally.hp) || 1);
+        const applies = v12ThresholdConditionApplies(skill, isGuard ? character : ally, enemy);
+        const baseline = calculateMinimumDamage({ attacker: enemy, defender: ally, rules }).value;
+        let improved = baseline;
+        let capacity = 1;
+        if (applies) {
+          if (isGuard) {
+            improved = 0;
+            capacity = guardCapacity;
+          } else {
+            improved = calculateMinimumDamage({
+              attacker: enemy,
+              defender: ally,
+              defenseMultiplier: Number(skill.multiplier) || 1,
+              rules,
+            }).value;
+          }
+        }
+        const prevented = applies && baseline >= allyHp && improved < allyHp ? capacity : 0;
+        const retentionGain = applies
+          ? Math.max(0, clampUnit(baseline / allyHp) - clampUnit(improved / allyHp)) * capacity
+          : 0;
+        rows.push({ weight, prevented, retentionGain });
+      }
+    }
+    const meanPrevented = v12WeightedAverage(rows.map((entry) => ({ value: entry.prevented, weight: entry.weight })));
+    const meanRetentionGain = v12WeightedAverage(rows.map((entry) => ({ value: entry.retentionGain, weight: entry.weight })));
+    preventedDeathGain = meanPrevented * allyScope;
+    const expectedRetentionGain = meanRetentionGain * allyScope;
+    defenseImpact = clampUnit(
+      v12SaturatingCount(preventedDeathGain, 0.8) * 0.78 +
+      v12SaturatingCount(expectedRetentionGain, 1.8) * 0.22,
+    );
+  }
+
+  return {
+    baseAttackValue,
+    baseDefenseValue,
+    attackImpact,
+    defenseImpact,
+    guaranteedEliminationGain,
+    preventedDeathGain,
+    wallBreakerImpact,
+  };
+}
+
+function characterProxyRating(character, position, environmentPool, maxima, rules, allyCandidates = []) {
+  const threshold = evaluateMetagameV12SkillThresholdProxy(character, environmentPool, allyCandidates, rules);
+  const offense = threshold.baseAttackValue;
+  const defense = threshold.baseDefenseValue;
   const allyCoverage = allyConditionCoverage(character, character.skill, allyCandidates);
   const enemyCoverage = attributeConditionCoverage(character.skill?.conditions, "enemy_attribute", environmentPool);
   const skillReadiness = v8SkillReadiness(character, position);
-  const skillRaw = estimateSkillPotency(character, environmentPool, position, rules) * allyCoverage * enemyCoverage * skillReadiness;
-  const skill = clampUnit(skillRaw / 4);
+  const fallbackSkillRaw = estimateSkillPotency(character, environmentPool, position, rules) * allyCoverage * enemyCoverage;
+  const fallbackSkill = clampUnit(fallbackSkillRaw / 4);
+  const skillType = character.skill?.type ?? "none";
+  const thresholdSkill = V12_THRESHOLD_ATTACK_TYPES.has(skillType)
+    ? threshold.attackImpact
+    : V12_THRESHOLD_DEFENSE_TYPES.has(skillType)
+      ? threshold.defenseImpact
+      : fallbackSkill;
+  const skill = clampUnit(thresholdSkill * skillReadiness);
   const duration = Math.max(1, Number(character.skill?.duration) || 1);
   const continuation = duration > 1 ? clampUnit((duration - 1) / 4) : 0;
   const costEfficiency = clampUnit(v7CostEfficiency(character) / Math.max(1, maxima.costEfficiency));
@@ -787,18 +1038,10 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
     allyCoverage,
     enemyCoverage,
   });
-  const frontline = clampUnit(
-    statPower * 0.3 + statHp * 0.3 + offense * 0.2 + defense * 0.14 + costEfficiency * 0.06,
-  );
-  const rawPracticalValue = position === 1
+  const frontline = clampUnit(offense * 0.40 + defense * 0.36 + skill * 0.16 + costEfficiency * 0.08);
+  const practicalValue = position === 1
     ? frontline
-    : clampUnit(
-      roleProfile.roleFit * 0.46 + skill * 0.14 + costEfficiency * 0.16 +
-      ((offense + defense) / 2) * 0.14 + continuation * 0.05 + (statPower + statHp) / 2 * 0.05,
-    );
-  // This is applied before beam pruning. A strong but delayed 2nd/3rd-slot
-  // skill must not eliminate a reproducible earlier skill from consideration.
-  const practicalValue = clampUnit(rawPracticalValue * (0.65 + skillReadiness * 0.35));
+    : clampUnit(roleProfile.roleFit * 0.50 + skill * 0.24 + costEfficiency * 0.16 + ((offense + defense) / 2) * 0.10);
   return {
     id: String(character.id),
     name: character.name,
@@ -808,7 +1051,7 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
     hp: character.hp,
     pow: character.pow,
     skillTurn: character.skillTurn,
-    skillType: character.skill?.type ?? "none",
+    skillType,
     skillTarget: character.skill?.target ?? "self",
     skillName: character.skillName ?? "",
     role: roleProfile.role,
@@ -825,26 +1068,29 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
       costEfficiency,
       skillReadiness,
       lateSkillRisk: 1 - skillReadiness,
+      guaranteedEliminationGain: threshold.guaranteedEliminationGain,
+      preventedDeathGain: threshold.preventedDeathGain,
+      wallBreakerImpact: threshold.wallBreakerImpact,
+      attackThresholdImpact: threshold.attackImpact,
+      defenseThresholdImpact: threshold.defenseImpact,
     },
     expectedWinRate: practicalValue,
     expectedWinLowerBound: practicalValue,
     balancedContribution: clampUnit((offense + defense) / 2),
     practicalValue,
-    practicalSkillReliability: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? skillReadiness : 1,
-    powerPreference: statPower,
+    practicalSkillReliability: thresholdSkill > 0 ? skillReadiness : 1,
+    powerPreference: offense,
     enemyPressureRate: offense,
     combinationPotential: continuation,
     continuationWinGain: continuation * skill * (roleProfile.role === "support" ? 0.55 : 1),
     carriedContinuationWinGain: continuation * skill * (roleProfile.role === "support" ? 0.55 : 1),
-    tacticalUpside: skill * (roleProfile.role === "support" ? 0.65 : 1),
+    tacticalUpside: skill,
     tacticalRisk: 1 - skillReadiness,
     allyRetentionRate: defense,
     carriedDefenseRate: continuation * defense,
-    advantageCreation: ["damage_reduction", "guard", "attribute_guard", "heal", "revive"].includes(character.skill?.type)
-      ? skill : 0,
-    counteraction: ["single_attack", "aoe_attack", "multi_hit_attack"].includes(character.skill?.type)
-      ? skill : 0,
-    skillActivationRate: skill > 0 && allyCoverage > 0 && enemyCoverage > 0 ? skillReadiness : 1,
+    advantageCreation: V12_THRESHOLD_DEFENSE_TYPES.has(skillType) ? threshold.defenseImpact : 0,
+    counteraction: V12_THRESHOLD_ATTACK_TYPES.has(skillType) ? threshold.attackImpact : 0,
+    skillActivationRate: thresholdSkill > 0 ? skillReadiness : 1,
     v7Proxy: {
       offense,
       defense,
@@ -857,6 +1103,9 @@ function characterProxyRating(character, position, environmentPool, maxima, rule
       role: roleProfile.role,
       roleFit: roleProfile.roleFit,
       practicalValue,
+      guaranteedEliminationGain: threshold.guaranteedEliminationGain,
+      preventedDeathGain: threshold.preventedDeathGain,
+      wallBreakerImpact: threshold.wallBreakerImpact,
     },
   };
 }
@@ -950,25 +1199,11 @@ function v7DeckKey(deck) {
 
 function selectDiverseAutomaticDecks(entries, limit) {
   const maximum = Math.max(1, Number(limit) || 1);
-  if (entries.length <= maximum) return entries;
-  const selected = [entries[0]];
-  const remaining = entries.slice(1);
-  while (selected.length < maximum && remaining.length) {
-    const bestIndex = remaining.reduce((best, entry, index) => {
-      const distinction = Math.min(...selected.map((chosen) => (
-        entry.deck.reduce((count, character, position) => (
-          count + Number(String(character.id) !== String(chosen.deck[position]?.id))
-        ), 0)
-      )));
-      const costDistance = Math.min(...selected.map((chosen) => (
-        Math.abs((entry.totalCost ?? 0) - (chosen.totalCost ?? 0)) / 10
-      )));
-      const score = distinction * 10 + Math.min(1, costDistance) + (entry.proxyScore ?? 0) * 0.001;
-      return score > best.score ? { index, score } : best;
-    }, { index: 0, score: -Infinity });
-    selected.push(remaining.splice(bestIndex.index, 1)[0]);
-  }
-  return selected;
+  return [...entries].sort((left, right) => (
+    (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0) ||
+    (Number(right.synergyScore) || 0) - (Number(left.synergyScore) || 0) ||
+    (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
+  )).slice(0, maximum);
 }
 
 function isV7DeckInfeasibility(error) {
