@@ -954,7 +954,7 @@ export function evaluateMetagameV12SkillThresholdProxy(character, environmentPoo
             rules,
           }).value
           : 0;
-        return { value: damage, weight: defenseWeights[index] };
+        return { value: damage, weight: applies ? defenseWeights[index] : 0 };
       });
       const averageGuardDamage = v12WeightedAverage(guardRows);
       guardCapacity = averageGuardDamage > 0
