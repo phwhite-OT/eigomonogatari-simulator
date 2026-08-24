@@ -1,0 +1,379 @@
+name: Apply V12.1 correctness fixes
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/apply-v12-1-correctness-fixes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply focused V12.1 fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              actual = text.count(old)
+              if actual < count:
+                  raise SystemExit(f"{path}: expected at least {count} occurrence(s), found {actual}: {old[:100]!r}")
+              text = text.replace(old, new, count)
+              p.write_text(text)
+
+          def replace_between(path, start, end, new):
+              p = Path(path)
+              text = p.read_text()
+              s = text.find(start)
+              if s < 0:
+                  raise SystemExit(f"{path}: start marker not found: {start}")
+              e = text.find(end, s)
+              if e < 0:
+                  raise SystemExit(f"{path}: end marker not found: {end}")
+              p.write_text(text[:s] + new + text[e:])
+
+          # 1) Remove hand-written role-composition bonuses/penalties from beam scoring.
+          replace_between(
+              "src/core/metagame-deck.js",
+              "function metagameDeckStateScore(state, totalCost) {",
+              "function metagameDeckStrategyKey(state) {",
+              '''function metagameDeckStateScore(state, totalCost) {
+            const averageScore = state.proxyTotal / Math.max(1, state.deck.length);
+            const deckProgress = state.deck.length / 5;
+            const budgetShare = state.totalCost / Math.max(1, totalCost);
+            const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
+            // V12.1: do not reward or punish a deck merely because it has a
+            // particular mixture/count of attack, defense, recovery or support
+            // roles. If a one-role-heavy deck is actually strong, the 5v5
+            // simulation should be what earns it a place.
+            return averageScore + state.synergyScore - state.budgetStrain - state.handoffRisk - earlyBudgetPressure * 0.18;
+          }
+
+          '''
+          )
+
+          # 2) V12.1 version + fair 3-vs-3 probing + less aggressive diversity override.
+          replace(
+              "src/core/metagame-v12.js",
+              'export const METAGAME_V12_MODEL_VERSION = "team-battle-v12-opportunity-value";',
+              'export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.1-opportunity-value";',
+          )
+          replace_between(
+              "src/core/metagame-v12.js",
+              "function selectDiverseDecks(entries, limit) {",
+              "/**\n * Re-optimizes all five slots while excluding the candidate.",
+              '''function selectDiverseDecks(entries, limit) {
+            const unique = new Map();
+            for (const entry of entries ?? []) {
+              const key = deckKey(entry.deck);
+              const current = unique.get(key);
+              if (!current || Number(entry.proxyScore) > Number(current.proxyScore)) unique.set(key, entry);
+            }
+            const sorted = [...unique.values()].sort((left, right) => (
+              (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0) ||
+              (Number(right.synergyScore) || 0) - (Number(left.synergyScore) || 0) ||
+              (Number(right.totalCost) || 0) - (Number(left.totalCost) || 0)
+            ));
+            if (sorted.length <= limit) return sorted;
+            // Always keep the two strongest search candidates. Diversity may
+            // choose only later probes, and its bonus is deliberately tiny so
+            // a substantially weaker but very different deck cannot displace
+            // a near-best deck before the real 5v5 evaluation.
+            const selected = sorted.slice(0, Math.min(limit, 2));
+            while (selected.length < limit) {
+              let best = null;
+              let bestScore = -Infinity;
+              for (const entry of sorted.slice(2, 34)) {
+                if (selected.includes(entry)) continue;
+                const ids = new Set(entry.deck.map((character) => String(character.id)));
+                const minimumDifference = Math.min(...selected.map((chosen) => (
+                  chosen.deck.reduce((difference, character) => difference + (ids.has(String(character.id)) ? 0 : 1), 0)
+                )));
+                const score = (Number(entry.proxyScore) || 0) + minimumDifference * 0.005;
+                if (score > bestScore) {
+                  best = entry;
+                  bestScore = score;
+                }
+              }
+              if (!best) best = sorted.find((entry) => !selected.includes(entry));
+              if (!best) break;
+              selected.push(best);
+            }
+            return selected;
+          }
+
+          /**
+           * Re-optimizes all five slots while excluding the candidate.'''
+          )
+          replace(
+              "src/core/metagame-v12.js",
+              "const alternativeDeckLimit = Math.max(1, Math.floor(Number(options.alternativeDeckLimit) || 2));",
+              "const alternativeDeckLimit = Math.max(1, Math.floor(Number(options.alternativeDeckLimit) || 3));",
+          )
+          replace(
+              "src/core/metagame-v12.js",
+              '''  const opportunityWinGain = (Number(best.result.expectedWinRate) || 0) - (Number(baseline.result.expectedWinRate) || 0);
+            const includeValues = includeEvaluated.map((entry) => Number(entry.result.expectedWinRate) || 0);
+            const robustnessReference = Math.max(0, standardDeviation(includeValues) - 0.02);
+            // A small stability diagnostic only. It is not a role score and cannot turn
+            // a negative team contribution positive.
+            const robustOpportunityWinGain = opportunityWinGain - robustnessReference * 0.15;
+            const decisiveWinGain = (Number(best.result.decisiveWinRate) || 0) - (Number(baseline.result.decisiveWinRate) || 0);
+            const score = signedOpportunityScore(opportunityWinGain);''',
+              '''  const pairedDeltas = (best.result.scenarioValues ?? []).map((value, index) => (
+              Number(value) - Number(baseline.result.scenarioValues?.[index])
+            )).filter(Number.isFinite);
+            const opportunityWinGain = pairedDeltas.length
+              ? average(pairedDeltas)
+              : (Number(best.result.expectedWinRate) || 0) - (Number(baseline.result.expectedWinRate) || 0);
+            const includeValues = includeEvaluated.map((entry) => Number(entry.result.expectedWinRate) || 0);
+            const pairedStdDev = standardDeviation(pairedDeltas);
+            const pairedStandardError = pairedDeltas.length > 1 ? pairedStdDev / Math.sqrt(pairedDeltas.length) : 0;
+            // One-sided ~90% paired lower bound. Candidate and baseline fight
+            // the same scenario in the same order, so scenario noise is removed
+            // before estimating reliability. This costs zero additional battles.
+            const robustOpportunityWinGain = opportunityWinGain - 1.28 * pairedStandardError;
+            const decisiveWinGain = (Number(best.result.decisiveWinRate) || 0) - (Number(baseline.result.decisiveWinRate) || 0);
+            const score = signedOpportunityScore(robustOpportunityWinGain);'''
+          )
+          replace(
+              "src/core/metagame-v12.js",
+              '''      includeDeckStdDev: rounded(standardDeviation(includeValues)),
+                  partialSkillSupport: partialSkill ? 1 : 0,''',
+              '''      includeDeckStdDev: rounded(standardDeviation(includeValues)),
+                  pairedScenarioStdDev: rounded(pairedStdDev),
+                  pairedScenarioStandardError: rounded(pairedStandardError),
+                  pairedScenarioCount: pairedDeltas.length,
+                  partialSkillSupport: partialSkill ? 1 : 0,'''
+          )
+          replace(
+              "src/core/metagame-v12.js",
+              '''      finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||
+                  finiteOrNegativeInfinity(right.robustOpportunityWinGain) - finiteOrNegativeInfinity(left.robustOpportunityWinGain) ||''',
+              '''      finiteOrNegativeInfinity(right.robustOpportunityWinGain) - finiteOrNegativeInfinity(left.robustOpportunityWinGain) ||
+                  finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||'''
+          )
+
+          # 3) Preserve per-scenario evidence and sample damage range without extra battles.
+          replace(
+              "src/core/metagame-v7.js",
+              "  let trackedSkillUses = 0;\n  for (let index = 0; index < teamScenarios.length; index += 1) {",
+              '''  let trackedSkillUses = 0;
+            const minimumRandomMultiplier = Math.min(1, Math.max(0, Number(rules.damage?.randomMinimum) || 0.9));
+            const damageMultipliers = [minimumRandomMultiplier, (minimumRandomMultiplier + 1) / 2, 1];
+            for (let index = 0; index < teamScenarios.length; index += 1) {'''
+          )
+          replace(
+              "src/core/metagame-v7.js",
+              "    const scenario = teamScenarios[index];\n",
+              '''    const scenario = teamScenarios[index];
+                // Rotate independently of the three AI profiles so every profile sees
+                // minimum/mid/high damage samples evenly. Targeting and skill-use
+                // decisions still use minimum damage, preserving guaranteed-KO value.
+                const damageMultiplier = damageMultipliers[Math.floor(index / V7_BATTLE_PROFILES.length) % damageMultipliers.length];
+            ''',
+              1,
+          )
+          replace(
+              "src/core/metagame-v7.js",
+              "      randomSeed: index,\n    });",
+              "      randomSeed: index,\n      damageMultiplier,\n    });",
+              1,
+          )
+          replace(
+              "src/core/metagame-v7.js",
+              "    expectedWinRate: average(values),\n    expectedWinLowerBound: meanLowerBound(values),",
+              "    expectedWinRate: average(values),\n    expectedWinLowerBound: meanLowerBound(values),\n    scenarioValues: [...values],",
+              1,
+          )
+
+          # 4) Actual attacks may use a sampled damage multiplier; minimum-damage
+          # calculations remain the default for guaranteed-KO decisions.
+          replace(
+              "src/core/damage.js",
+              "  defenseMultiplier = 1,\n  rules,\n}) {",
+              "  defenseMultiplier = 1,\n  randomMultiplier,\n  rules,\n}) {",
+          )
+          replace(
+              "src/core/damage.js",
+              "    random: rules.damage.randomMinimum,",
+              '''    random: Number.isFinite(Number(randomMultiplier))
+                  ? Math.min(1, Math.max(Number(rules.damage.randomMinimum) || 0, Number(randomMultiplier)))
+                  : rules.damage.randomMinimum,'''
+          )
+          replace(
+              "src/core/skills.js",
+              "      defenseMultiplier,\n      rules,",
+              "      defenseMultiplier,\n      randomMultiplier: options.damageMultiplier,\n      rules,",
+              1,
+          )
+          replace(
+              "src/core/skills.js",
+              "  const maxUses = Number.isFinite(rawMaxUses) ? Math.min(2, Math.max(0, rawMaxUses)) : 2;",
+              "  const maxUses = Number.isFinite(rawMaxUses) ? Math.max(0, rawMaxUses) : 2;",
+          )
+
+          # 5) Revive forecasting uses cumulative minimum incoming damage to the
+          # target actually chosen (including guard/AoE behavior), not only the
+          # existence of one individually lethal attacker.
+          replace_between(
+              "src/core/simulate.js",
+              "function reviveMayApply(state, side, actorIndex, skill, rules, attributeIntents = []) {",
+              "function skillDecision(state, side, actorIndex, rules, options) {",
+              '''function predictedIncomingMinimumDamage(state, side, targetIndex, rules, options = {}) {
+            const target = state[side]?.[targetIndex];
+            if (!target?.alive || target.isGhost) return 0;
+            const enemySide = opponentSide(side);
+            return state[enemySide].reduce((sum, enemy, enemyIndex) => {
+              if (!enemy.alive || enemy.isGhost) return sum;
+              const enemySkill = canUseSkill(state, enemySide, enemyIndex) && isAttackSkill(enemy.character.skill)
+                ? enemy.character.skill
+                : BASIC_ATTACK;
+              const redirected = redirectGuardForAttacker(state, enemySide, enemy);
+              const hitCount = Math.max(1, Number(enemySkill.hits) || 1);
+              if (enemySkill.type === "aoe_attack") {
+                if (redirected) {
+                  if (redirected.index !== targetIndex) return sum;
+                  const boardTargets = targetableIndexes(state[side]).length;
+                  return sum + estimateDamage(enemy, target, enemySkill, rules) * hitCount * boardTargets;
+                }
+                return sum + estimateDamage(enemy, target, enemySkill, rules) * hitCount;
+              }
+              const selectedTarget = selectPriorityTarget(state, enemySide, {
+                actor: enemy,
+                actorIndex: enemyIndex,
+                skill: enemySkill,
+                rules,
+                targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
+              });
+              const actualTarget = redirected?.index ?? selectedTarget;
+              if (actualTarget !== targetIndex) return sum;
+              return sum + estimateDamage(enemy, target, enemySkill, rules) * hitCount;
+            }, 0);
+          }
+
+          function reviveMayApply(state, side, actorIndex, skill, rules, options = {}) {
+            const allies = state[side];
+            const attributeIntents = options.plannedAttributeIntents ?? [];
+            return allies.some((target, targetIndex) => {
+              const attributes = attributesAfterPlannedChanges(state, side, targetIndex, attributeIntents);
+              if (!target.alive || !skillScopeMatches(skill, target, actorIndex, targetIndex, attributes)) return false;
+              return predictedIncomingMinimumDamage(state, side, targetIndex, rules, options) >= target.currentHp;
+            });
+          }
+
+          function actorWillBeRevivedThisTurn(state, side, actorIndex, rules, options = {}) {
+            const target = state[side][actorIndex];
+            if (!target?.alive || target.isGhost || target.reviveUsed) return false;
+            const willBeDefeated = predictedIncomingMinimumDamage(state, side, actorIndex, rules, options) >= target.currentHp;
+            if (!willBeDefeated) return false;
+            const attributes = attributesAfterPlannedChanges(
+              state,
+              side,
+              actorIndex,
+              options.plannedAttributeIntents ?? [],
+            );
+            return state[side].some((reviver, reviverIndex) => (
+              canUseSkill(state, side, reviverIndex) &&
+              reviver.character.skill?.type === "revive" &&
+              skillScopeMatches(reviver.character.skill, target, reviverIndex, actorIndex, attributes)
+            ));
+          }
+
+          function skillDecision(state, side, actorIndex, rules, options) {'''
+          )
+          replace(
+              "src/core/simulate.js",
+              "reviveMayApply(state, side, actorIndex, skill, rules)",
+              "reviveMayApply(state, side, actorIndex, skill, rules, options)",
+              2,
+          )
+          replace(
+              "src/core/simulate.js",
+              "actorWillBeRevivedThisTurn(state, side, actorIndex, rules, options.plannedAttributeIntents)",
+              "actorWillBeRevivedThisTurn(state, side, actorIndex, rules, options)",
+              2,
+          )
+          replace(
+              "src/core/simulate.js",
+              "reviveMayApply(state, intent.side, intent.actorIndex, intent.skill, rules, attributeIntents)",
+              "reviveMayApply(state, intent.side, intent.actorIndex, intent.skill, rules, { ...options, plannedAttributeIntents: attributeIntents })",
+              1,
+          )
+          replace(
+              "src/core/simulate.js",
+              "        random: options.random,\n      },",
+              "        random: options.random,\n        damageMultiplier: options.damageMultiplier,\n      },",
+              1,
+          )
+          replace(
+              "src/core/simulate.js",
+              '      "乱数は最低値で計算する",',
+              '''      options.damageMultiplier === undefined
+                    ? "乱数は最低値で計算する"
+                    : `確定撃破・AI判断は最低ダメージ、実ダメージ係数は${Number(options.damageMultiplier).toFixed(3)}で評価する` ,'''
+          )
+
+          # 6) Script defaults/report: equal probes and new version semantics.
+          replace(
+              "scripts/rate-metagame-v12.mjs",
+              'const alternativeDeckLimit = positiveInteger(readArgument("alternative-deck-limit", "2"), 2, 1);',
+              'const alternativeDeckLimit = positiveInteger(readArgument("alternative-deck-limit", "3"), 3, 1);',
+          )
+          replace(
+              "scripts/rate-metagame-v12.mjs",
+              '    performancePolicy: "候補デッキ3本+除外代替2本を既定とし、V11の候補4本×実戦/空枠/スキル無効より戦闘回数を削減する。デッキ結果はジョブ内でキャッシュする。",',
+              '    performancePolicy: "候補デッキ3本+除外代替3本を同数評価する。確定撃破判断は最低ダメージを保持し、72シナリオ内で最低/中間/最大の実ダメージ係数を均等サンプルするため追加戦闘は発生しない。デッキ結果はジョブ内でキャッシュする。",',
+          )
+
+          # 7) Update focused tests and add battle-regression tests.
+          replace(
+              "test/metagame-v12.test.js",
+              'assert.equal(METAGAME_V12_MODEL_VERSION, "team-battle-v12-opportunity-value");',
+              'assert.equal(METAGAME_V12_MODEL_VERSION, "team-battle-v12.1-opportunity-value");',
+          )
+          p = Path("test/metagame-v12.test.js")
+          text = p.read_text()
+          text += '''\n\ntest("V12.1 ranking prefers paired-stable evidence when raw means are close", () => {\n  const ranked = rankMetagameV12Characters([\n    { id: "risky", opportunityWinGain: 0.11, robustOpportunityWinGain: 0.01, decisiveWinGain: 0, cost: 10 },\n    { id: "stable", opportunityWinGain: 0.10, robustOpportunityWinGain: 0.08, decisiveWinGain: 0, cost: 10 },\n  ]);\n  assert.deepEqual(ranked.map((entry) => entry.id), ["stable", "risky"]);\n});\n'''
+          p.write_text(text)
+
+          Path("test/v12-battle-corrections.test.js").write_text('''import test from "node:test";\nimport assert from "node:assert/strict";\n\nimport { calculateMinimumDamage } from "../src/core/damage.js";\nimport { createBattleState } from "../src/core/battleState.js";\nimport { canUseSkill } from "../src/core/skills.js";\nimport { simulateBattle } from "../src/core/simulate.js";\nimport { DEFAULT_RULES } from "../src/data/rules.js";\n\nfunction rules() {\n  return {\n    ...structuredClone(DEFAULT_RULES),\n    damage: {\n      ...structuredClone(DEFAULT_RULES.damage),\n      selfMultiplier: 1, excellentMultiplier: 1, questionLevelMultiplier: 1,\n      eventBonusMultiplier: 1, specialAttackMultiplier: 1, randomMinimum: 0.9,\n      pvpMultiplier: 1, survivalBaseMultiplier: 1, rounding: "floor",\n    },\n  };\n}\n\nfunction card(id, { hp = 100, pow = 60, skill = null, skillTurn = 99, maxUses = 0 } = {}) {\n  return {\n    id, name: id, attributes: [], hp, pow, skillTurn, maxUses, allowedPositions: [1,2,3,4,5],\n    roleTags: [],\n    skill: skill ?? { type: "none", multiplier: 1, hits: 1, duration: 1, target: "self", conditions: [], effects: [] },\n  };\n}\n\ntest("minimum damage remains the default while sampled actual damage can be higher", () => {\n  const r = rules();\n  const attacker = card("a", { pow: 100 });\n  const defender = card("d", { hp: 1000 });\n  const minimum = calculateMinimumDamage({ attacker, defender, rules: r }).value;\n  const high = calculateMinimumDamage({ attacker, defender, randomMultiplier: 1, rules: r }).value;\n  assert.equal(minimum, 90);\n  assert.equal(high, 100);\n});\n\ntest("maxUses above two is respected", () => {\n  const reusable = card("reusable", {\n    skillTurn: 0, maxUses: 3,\n    skill: { type: "attack_buff", multiplier: 2, hits: 1, duration: 1, target: "self", conditions: [], effects: [] },\n  });\n  const state = createBattleState([[reusable]], [[card("enemy")]]);\n  state.allies[0].skillUses = 2;\n  assert.equal(canUseSkill(state, "allies", 0), true);\n});\n\ntest("revive reacts to cumulative guaranteed incoming damage from multiple attackers", () => {\n  const r = rules();\n  const target = card("target", { hp: 100, pow: 1 });\n  const reviver = card("reviver", {\n    hp: 1000, pow: 1, skillTurn: 0, maxUses: 1,\n    skill: { type: "revive", multiplier: 1, hits: 1, duration: 1, target: "ally_all", conditions: [], effects: [] },\n  });\n  const enemyA = card("enemy-a", { hp: 1000, pow: 60 });\n  const enemyB = card("enemy-b", { hp: 1000, pow: 60 });\n  const result = simulateBattle(createBattleState([[target], [reviver]], [[enemyA], [enemyB]]), r, { turns: 1 });\n  const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");\n  const event = selection.events.find((entry) => entry.actorName === "reviver");\n  assert.equal(event?.type, "skill_use");\n});\n''')
+          PY
+      - name: Validate syntax and focused tests
+        run: |
+          node --check src/core/metagame-v12.js
+          node --check src/core/metagame-v7.js
+          node --check src/core/metagame-deck.js
+          node --check src/core/simulate.js
+          node --check src/core/skills.js
+          node --check src/core/damage.js
+          node --check scripts/rate-metagame-v12.mjs
+          node --test test/metagame-v12.test.js test/v12-battle-corrections.test.js
+      - name: Commit fixes to master
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/core/metagame-v12.js src/core/metagame-v7.js src/core/metagame-deck.js src/core/simulate.js src/core/skills.js src/core/damage.js scripts/rate-metagame-v12.mjs test/metagame-v12.test.js test/v12-battle-corrections.test.js
+          git commit -m "fix: improve V12 team-evaluation correctness"
+          git push origin HEAD:master
+      - name: Queue corrected V12 calculation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run metagame-v12-cloud.yml --ref master
