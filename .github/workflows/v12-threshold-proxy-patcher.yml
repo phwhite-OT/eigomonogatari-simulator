@@ -1,0 +1,47 @@
+name: V12 threshold proxy patcher
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'fix/v12-threshold-proxy'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v12-threshold-proxy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply patch stored on the branch
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path('.github/workflows/apply-v12-threshold-proxy.yml').read_text()
+          marker = "python3 <<'PY'\n"
+          if marker not in workflow:
+              raise SystemExit('embedded patch script not found')
+          body = workflow.split(marker, 1)[1].split('\n          PY', 1)[0]
+          exec(compile(textwrap.dedent(body), 'v12-threshold-proxy-patch', 'exec'))
+          PY
+      - name: Validate patch
+        run: |
+          node --check src/core/metagame-v7.js
+          node --check src/core/metagame-v12.js
+          node --test test/metagame-v12.test.js
+      - name: Commit patch to PR branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/core/metagame-v7.js src/core/metagame-v12.js test/metagame-v12.test.js
+          git commit -m "fix: score V12 proxy by elimination thresholds"
+          git push origin HEAD:fix/v12-threshold-proxy
