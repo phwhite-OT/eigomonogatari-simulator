@@ -1,0 +1,555 @@
+name: Apply V12 threshold proxy patch
+
+on:
+  push:
+    branches: [fix/v12-threshold-proxy]
+    paths:
+      - ".github/workflows/apply-v12-threshold-proxy.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v12-threshold-proxy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply threshold-based proxy changes
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('src/core/metagame-v7.js')
+          text = path.read_text()
+
+          helper = r'''const V12_THRESHOLD_ATTACK_TYPES = new Set([
+            "single_attack",
+            "aoe_attack",
+            "multi_hit_attack",
+            "attack_buff",
+          ]);
+          const V12_THRESHOLD_DEFENSE_TYPES = new Set([
+            "damage_reduction",
+            "guard",
+            "attribute_guard",
+          ]);
+
+          function v12UniqueCharacters(characters = []) {
+            return [...new Map(characters.filter(Boolean).map((entry) => [String(entry.id), entry])).values()];
+          }
+
+          function v12ThresholdConditionApplies(skill, ally, enemy) {
+            return (skill?.conditions ?? []).every((condition) => {
+              if (condition.type === "ally_attribute") return ally?.attributes?.includes(condition.attribute);
+              if (condition.type === "enemy_attribute") return enemy?.attributes?.includes(condition.attribute);
+              return true;
+            });
+          }
+
+          function v12Median(values) {
+            const sorted = values.filter(Number.isFinite).sort((left, right) => left - right);
+            if (!sorted.length) return 1;
+            const middle = Math.floor(sorted.length / 2);
+            return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+          }
+
+          function v12WeightedAverage(entries) {
+            const weight = entries.reduce((sum, entry) => sum + Math.max(0, Number(entry.weight) || 0), 0);
+            if (!weight) return 0;
+            return entries.reduce((sum, entry) => sum + (Number(entry.value) || 0) * Math.max(0, Number(entry.weight) || 0), 0) / weight;
+          }
+
+          function v12AttackEnvironmentWeights(environmentPool) {
+            const medianHp = Math.max(1, v12Median(environmentPool.map((enemy) => Math.max(1, Number(enemy.hp) || 1))));
+            return environmentPool.map((enemy) => {
+              const hp = Math.max(1, Number(enemy.hp) || 1);
+              const hardness = clampUnit((hp / medianHp - 1) / 1.5);
+              const wallSkill = V12_THRESHOLD_DEFENSE_TYPES.has(enemy.skill?.type) ? 1 : 0;
+              // Every listed occurrence is sampled separately, so a frequently
+              // supplied wall automatically receives more total weight.
+              return 1 + hardness * 0.8 + wallSkill * 0.45;
+            });
+          }
+
+          function v12DefenseEnvironmentWeights(environmentPool) {
+            const medianPower = Math.max(1, v12Median(environmentPool.map((enemy) => Math.max(1, Number(enemy.pow) || 1))));
+            return environmentPool.map((enemy) => {
+              const power = Math.max(1, Number(enemy.pow) || 1);
+              const pressure = clampUnit((power / medianPower - 1) / 1.5);
+              const attackSkill = ["single_attack", "aoe_attack", "multi_hit_attack", "attack_buff"].includes(enemy.skill?.type) ? 1 : 0;
+              return 1 + pressure * 0.8 + attackSkill * 0.45;
+            });
+          }
+
+          function v12ThresholdRecipients(character, skill, allyCandidates) {
+            if (skill?.target === "self") return [character];
+            const unique = v12UniqueCharacters(allyCandidates);
+            if (skill?.target === "leader") {
+              const leaders = unique.filter((ally) => ally.allowedPositions?.includes(1));
+              return leaders.length ? leaders : [character];
+            }
+            return unique.length ? unique : [character];
+          }
+
+          function v12SaturatingCount(value, reference = 1) {
+            return clampUnit(1 - Math.exp(-Math.max(0, Number(value) || 0) / Math.max(0.01, reference)));
+          }
+
+          export function evaluateMetagameV12SkillThresholdProxy(
+            character,
+            environmentPool,
+            allyCandidates = [],
+            rules = DEFAULT_RULES,
+          ) {
+            const enemies = (environmentPool ?? []).filter(Boolean);
+            if (!character || !enemies.length) {
+              return {
+                baseAttackValue: 0,
+                baseDefenseValue: 0,
+                attackImpact: 0,
+                defenseImpact: 0,
+                guaranteedEliminationGain: 0,
+                preventedDeathGain: 0,
+                wallBreakerImpact: 0,
+              };
+            }
+            const attackWeights = v12AttackEnvironmentWeights(enemies);
+            const defenseWeights = v12DefenseEnvironmentWeights(enemies);
+            const baseAttackRows = enemies.map((enemy, index) => {
+              const hp = Math.max(1, Number(enemy.hp) || 1);
+              const damage = calculateMinimumDamage({ attacker: character, defender: enemy, rules }).value;
+              return {
+                weight: attackWeights[index],
+                kill: Number(damage >= hp),
+                progress: clampUnit(damage / hp),
+              };
+            });
+            const baseDefenseRows = enemies.map((enemy, index) => {
+              const hp = Math.max(1, Number(character.hp) || 1);
+              const damage = calculateMinimumDamage({ attacker: enemy, defender: character, rules }).value;
+              return {
+                weight: defenseWeights[index],
+                survive: Number(damage < hp),
+                retention: clampUnit(1 - damage / hp),
+              };
+            });
+            const baseAttackValue = clampUnit(
+              v12WeightedAverage(baseAttackRows.map((entry) => ({ value: entry.kill, weight: entry.weight }))) * 0.72 +
+              v12WeightedAverage(baseAttackRows.map((entry) => ({ value: entry.progress, weight: entry.weight }))) * 0.28,
+            );
+            const baseDefenseValue = clampUnit(
+              v12WeightedAverage(baseDefenseRows.map((entry) => ({ value: entry.survive, weight: entry.weight }))) * 0.72 +
+              v12WeightedAverage(baseDefenseRows.map((entry) => ({ value: entry.retention, weight: entry.weight }))) * 0.28,
+            );
+
+            const skill = character.skill ?? {};
+            let attackImpact = 0;
+            let defenseImpact = 0;
+            let guaranteedEliminationGain = 0;
+            let preventedDeathGain = 0;
+            let wallBreakerImpact = 0;
+
+            if (V12_THRESHOLD_ATTACK_TYPES.has(skill.type)) {
+              const recipients = skill.type === "attack_buff"
+                ? v12ThresholdRecipients(character, skill, allyCandidates)
+                : [character];
+              const allyScope = skill.type === "attack_buff" && skill.target === "ally_all" ? 5 : 1;
+              const hits = Math.max(1, Number(skill.hits) || 1);
+              const enemyScope = skill.type === "aoe_attack"
+                ? 5
+                : skill.type === "multi_hit_attack"
+                  ? Math.min(5, 1 + (hits - 1) * 0.35)
+                  : 1;
+              const rows = [];
+              for (const ally of recipients) {
+                for (let index = 0; index < enemies.length; index += 1) {
+                  const enemy = enemies[index];
+                  const weight = attackWeights[index];
+                  const hp = Math.max(1, Number(enemy.hp) || 1);
+                  const applies = v12ThresholdConditionApplies(skill, ally, enemy);
+                  const baseline = calculateMinimumDamage({ attacker: ally, defender: enemy, rules }).value;
+                  let improved = baseline;
+                  if (applies) {
+                    if (skill.type === "attack_buff") {
+                      improved = calculateMinimumDamage({
+                        attacker: ally,
+                        defender: enemy,
+                        attackMultiplier: Number(skill.multiplier) || 1,
+                        rules,
+                      }).value;
+                    } else {
+                      improved = calculateMinimumDamage({
+                        attacker: ally,
+                        defender: enemy,
+                        skillMultiplier: (Number(skill.multiplier) || 1) * hits,
+                        rules,
+                      }).value;
+                    }
+                  }
+                  const newKill = Number(baseline < hp && improved >= hp);
+                  const progressGain = Math.max(0, clampUnit(improved / hp) - clampUnit(baseline / hp));
+                  rows.push({ weight, newKill, progressGain });
+                  if (newKill) {
+                    wallBreakerImpact = Math.max(
+                      wallBreakerImpact,
+                      clampUnit((weight - 1) / 0.35),
+                    );
+                  }
+                }
+              }
+              const meanKillGain = v12WeightedAverage(rows.map((entry) => ({ value: entry.newKill, weight: entry.weight })));
+              const meanProgressGain = v12WeightedAverage(rows.map((entry) => ({ value: entry.progressGain, weight: entry.weight })));
+              guaranteedEliminationGain = meanKillGain * allyScope * enemyScope;
+              const expectedProgressGain = meanProgressGain * allyScope * enemyScope;
+              attackImpact = clampUnit(
+                v12SaturatingCount(guaranteedEliminationGain, 0.8) * 0.55 +
+                v12SaturatingCount(expectedProgressGain, 1.5) * 0.15 +
+                wallBreakerImpact * 0.30,
+              );
+            }
+
+            if (V12_THRESHOLD_DEFENSE_TYPES.has(skill.type)) {
+              const isGuard = ["guard", "attribute_guard"].includes(skill.type);
+              const recipients = isGuard
+                ? v12UniqueCharacters(allyCandidates)
+                : v12ThresholdRecipients(character, skill, allyCandidates);
+              const protected = recipients.length ? recipients : [character];
+              const allyScope = isGuard || skill.target === "ally_all" ? 5 : 1;
+              let guardCapacity = 1;
+              if (isGuard) {
+                const guardRows = enemies.map((enemy, index) => {
+                  const applies = v12ThresholdConditionApplies(skill, character, enemy);
+                  const damage = applies
+                    ? calculateMinimumDamage({
+                      attacker: enemy,
+                      defender: character,
+                      defenseMultiplier: Number(skill.multiplier) || 1,
+                      rules,
+                    }).value
+                    : 0;
+                  return { value: damage, weight: defenseWeights[index] };
+                });
+                const averageGuardDamage = v12WeightedAverage(guardRows);
+                guardCapacity = averageGuardDamage > 0
+                  ? clampUnit((Number(character.hp) || 0) / (averageGuardDamage * 5))
+                  : 0;
+              }
+              const rows = [];
+              for (const ally of protected) {
+                for (let index = 0; index < enemies.length; index += 1) {
+                  const enemy = enemies[index];
+                  const weight = defenseWeights[index];
+                  const allyHp = Math.max(1, Number(ally.hp) || 1);
+                  const applies = v12ThresholdConditionApplies(skill, isGuard ? character : ally, enemy);
+                  const baseline = calculateMinimumDamage({ attacker: enemy, defender: ally, rules }).value;
+                  let improved = baseline;
+                  let capacity = 1;
+                  if (applies) {
+                    if (isGuard) {
+                      improved = 0;
+                      capacity = guardCapacity;
+                    } else {
+                      improved = calculateMinimumDamage({
+                        attacker: enemy,
+                        defender: ally,
+                        defenseMultiplier: Number(skill.multiplier) || 1,
+                        rules,
+                      }).value;
+                    }
+                  }
+                  const prevented = applies && baseline >= allyHp && improved < allyHp ? capacity : 0;
+                  const retentionGain = applies
+                    ? Math.max(0, clampUnit(baseline / allyHp) - clampUnit(improved / allyHp)) * capacity
+                    : 0;
+                  rows.push({ weight, prevented, retentionGain });
+                }
+              }
+              const meanPrevented = v12WeightedAverage(rows.map((entry) => ({ value: entry.prevented, weight: entry.weight })));
+              const meanRetentionGain = v12WeightedAverage(rows.map((entry) => ({ value: entry.retentionGain, weight: entry.weight })));
+              preventedDeathGain = meanPrevented * allyScope;
+              const expectedRetentionGain = meanRetentionGain * allyScope;
+              defenseImpact = clampUnit(
+                v12SaturatingCount(preventedDeathGain, 0.8) * 0.78 +
+                v12SaturatingCount(expectedRetentionGain, 1.8) * 0.22,
+              );
+            }
+
+            return {
+              baseAttackValue,
+              baseDefenseValue,
+              attackImpact,
+              defenseImpact,
+              guaranteedEliminationGain,
+              preventedDeathGain,
+              wallBreakerImpact,
+            };
+          }
+
+          '''
+
+          marker = 'function characterProxyRating(character, position, environmentPool, maxima, rules, allyCandidates = []) {'
+          if 'evaluateMetagameV12SkillThresholdProxy' not in text:
+            text = text.replace(marker, helper + marker, 1)
+
+          start = text.index(marker)
+          end = text.index('/**\n * Full candidate coverage is retained;', start)
+          replacement = r'''function characterProxyRating(character, position, environmentPool, maxima, rules, allyCandidates = []) {
+            const threshold = evaluateMetagameV12SkillThresholdProxy(character, environmentPool, allyCandidates, rules);
+            const offense = threshold.baseAttackValue;
+            const defense = threshold.baseDefenseValue;
+            const allyCoverage = allyConditionCoverage(character, character.skill, allyCandidates);
+            const enemyCoverage = attributeConditionCoverage(character.skill?.conditions, "enemy_attribute", environmentPool);
+            const skillReadiness = v8SkillReadiness(character, position);
+            const fallbackSkillRaw = estimateSkillPotency(character, environmentPool, position, rules) * allyCoverage * enemyCoverage;
+            const fallbackSkill = clampUnit(fallbackSkillRaw / 4);
+            const skillType = character.skill?.type ?? "none";
+            const thresholdSkill = V12_THRESHOLD_ATTACK_TYPES.has(skillType)
+              ? threshold.attackImpact
+              : V12_THRESHOLD_DEFENSE_TYPES.has(skillType)
+                ? threshold.defenseImpact
+                : fallbackSkill;
+            // Readiness discounts the skill itself, not the card's raw body.
+            // A late skill should not make a naturally strong attacker or wall
+            // disappear from the beam before the 5v5 verification can test it.
+            const skill = clampUnit(thresholdSkill * skillReadiness);
+            const duration = Math.max(1, Number(character.skill?.duration) || 1);
+            const continuation = duration > 1 ? clampUnit((duration - 1) / 4) : 0;
+            const costEfficiency = clampUnit(v7CostEfficiency(character) / Math.max(1, maxima.costEfficiency));
+            const roleProfile = v8RoleFitness(character, environmentPool, rules, {
+              offense,
+              defense,
+              skill,
+              allyCoverage,
+              enemyCoverage,
+            });
+            const frontline = clampUnit(
+              offense * 0.40 + defense * 0.36 + skill * 0.16 + costEfficiency * 0.08,
+            );
+            const practicalValue = position === 1
+              ? frontline
+              : clampUnit(
+                roleProfile.roleFit * 0.50 + skill * 0.24 + costEfficiency * 0.16 +
+                ((offense + defense) / 2) * 0.10,
+              );
+            return {
+              id: String(character.id),
+              name: character.name,
+              attributes: character.attributes,
+              rarity: character.rarity,
+              cost: character.cost,
+              hp: character.hp,
+              pow: character.pow,
+              skillTurn: character.skillTurn,
+              skillType,
+              skillTarget: character.skill?.target ?? "self",
+              skillName: character.skillName ?? "",
+              role: roleProfile.role,
+              individualScore: practicalValue,
+              roleFit: roleProfile.roleFit,
+              roleBreakdown: {
+                frontline,
+                highDurabilityCoverage: roleProfile.highDurabilityCoverage,
+                boardCoverage: roleProfile.boardCoverage,
+                boardElimination: roleProfile.boardElimination,
+                hardTargetDemand: roleProfile.hardTargetDemand,
+                defenseMatchup: roleProfile.defenseMatchup,
+                reviveMatchup: roleProfile.reviveMatchup,
+                costEfficiency,
+                skillReadiness,
+                lateSkillRisk: 1 - skillReadiness,
+                guaranteedEliminationGain: threshold.guaranteedEliminationGain,
+                preventedDeathGain: threshold.preventedDeathGain,
+                wallBreakerImpact: threshold.wallBreakerImpact,
+                attackThresholdImpact: threshold.attackImpact,
+                defenseThresholdImpact: threshold.defenseImpact,
+              },
+              expectedWinRate: practicalValue,
+              expectedWinLowerBound: practicalValue,
+              balancedContribution: clampUnit((offense + defense) / 2),
+              practicalValue,
+              practicalSkillReliability: thresholdSkill > 0 ? skillReadiness : 1,
+              // Search synergy should care about actual elimination reach, not
+              // raw POW. This lets a lower-POW card with the right threshold
+              // matchup survive long enough to be battle-tested.
+              powerPreference: offense,
+              enemyPressureRate: offense,
+              combinationPotential: continuation,
+              continuationWinGain: continuation * skill * (roleProfile.role === "support" ? 0.55 : 1),
+              carriedContinuationWinGain: continuation * skill * (roleProfile.role === "support" ? 0.55 : 1),
+              tacticalUpside: skill,
+              tacticalRisk: 1 - skillReadiness,
+              allyRetentionRate: defense,
+              carriedDefenseRate: continuation * defense,
+              advantageCreation: V12_THRESHOLD_DEFENSE_TYPES.has(skillType) ? threshold.defenseImpact : 0,
+              counteraction: V12_THRESHOLD_ATTACK_TYPES.has(skillType) ? threshold.attackImpact : 0,
+              skillActivationRate: thresholdSkill > 0 ? skillReadiness : 1,
+              v7Proxy: {
+                offense,
+                defense,
+                skill,
+                continuation,
+                allyCoverage,
+                enemyCoverage,
+                skillReadiness,
+                frontline,
+                role: roleProfile.role,
+                roleFit: roleProfile.roleFit,
+                practicalValue,
+                guaranteedEliminationGain: threshold.guaranteedEliminationGain,
+                preventedDeathGain: threshold.preventedDeathGain,
+                wallBreakerImpact: threshold.wallBreakerImpact,
+              },
+            };
+          }
+
+          '''
+          text = text[:start] + replacement + text[end:]
+
+          text = text.replace(
+            'roleFit: precisionValue * attackConditionCoverage,',
+            'roleFit: clampUnit(precisionValue * 0.30 + skill * 0.70),',
+          )
+          text = text.replace(
+            'roleFit: boardControl * attackConditionCoverage,',
+            'roleFit: clampUnit(boardControl * 0.30 + skill * 0.70),',
+          )
+          text = text.replace(
+            'roleFit: defenseMatchup * 0.45 + skill * 0.55,',
+            'roleFit: clampUnit(defense * 0.20 + skill * 0.80),',
+          )
+          text = text.replace(
+            'const standaloneSupport = skillData.target === "ally_all" ? 0.55 : 0.4;',
+            'const standaloneSupport = skillData.type === "attack_buff" ? 1 : skillData.target === "ally_all" ? 0.55 : 0.4;',
+          )
+
+          diversity_start = text.index('function selectDiverseAutomaticDecks(entries, limit) {')
+          diversity_end = text.index('function isV7DeckInfeasibility(error) {', diversity_start)
+          diversity_replacement = r'''function selectDiverseAutomaticDecks(entries, limit) {
+            const maximum = Math.max(1, Number(limit) || 1);
+            // V12 performs its own small diversity probe after this function.
+            // Do not discard a near-best include deck here just because another
+            // deck differs in more slots; that old x10 diversity term made the
+            // include side asymmetric with the exclusion baseline.
+            return [...entries].sort((left, right) => (
+              (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0) ||
+              (Number(right.synergyScore) || 0) - (Number(left.synergyScore) || 0) ||
+              (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
+            )).slice(0, maximum);
+          }
+
+          '''
+          text = text[:diversity_start] + diversity_replacement + text[diversity_end:]
+          path.write_text(text)
+
+          v12_path = Path('src/core/metagame-v12.js')
+          v12 = v12_path.read_text().replace(
+            'team-battle-v12.1-opportunity-value',
+            'team-battle-v12.2-threshold-proxy',
+          )
+          v12_path.write_text(v12)
+
+          test_path = Path('test/metagame-v12.test.js')
+          tests = test_path.read_text()
+          tests = tests.replace(
+            'import { canUseSkill } from "../src/core/skills.js";\n',
+            'import { canUseSkill } from "../src/core/skills.js";\nimport { evaluateMetagameV12SkillThresholdProxy } from "../src/core/metagame-v7.js";\nimport { DEFAULT_RULES } from "../src/data/rules.js";\n',
+          )
+          tests = tests.replace(
+            'team-battle-v12.1-opportunity-value',
+            'team-battle-v12.2-threshold-proxy',
+          )
+          extra_tests = r'''
+
+          function thresholdRules() {
+            const rules = structuredClone(DEFAULT_RULES);
+            Object.assign(rules.damage, {
+              selfMultiplier: 1,
+              excellentMultiplier: 1,
+              questionLevelMultiplier: 1,
+              eventBonusMultiplier: 1,
+              specialAttackMultiplier: 1,
+              randomMinimum: 1,
+              pvpMultiplier: 1,
+              survivalBaseMultiplier: 1,
+              attributeMultipliers: Object.fromEntries(
+                Object.keys(rules.damage.attributeMultipliers).map((key) => [key, 1]),
+              ),
+            });
+            return rules;
+          }
+
+          test("V12.2 team attack buff values added team elimination reach over the same self buff", () => {
+            const rules = thresholdRules();
+            const enemies = [character("enemy-a", 1, { hp: 150, pow: 80 })];
+            const allies = [1, 2, 3, 4, 5].map((position) => character(`ally-${position}`, position, { hp: 500, pow: 100 }));
+            const selfBuff = character("self-buff", 1, {
+              hp: 500, pow: 100,
+              skill: { type: "attack_buff", multiplier: 2, duration: 1, target: "self", conditions: [] },
+            });
+            const teamBuff = { ...selfBuff, id: "team-buff", skill: { ...selfBuff.skill, target: "ally_all" } };
+            const selfValue = evaluateMetagameV12SkillThresholdProxy(selfBuff, enemies, allies, rules);
+            const teamValue = evaluateMetagameV12SkillThresholdProxy(teamBuff, enemies, allies, rules);
+            assert.ok(teamValue.guaranteedEliminationGain > selfValue.guaranteedEliminationGain);
+            assert.ok(teamValue.attackImpact > selfValue.attackImpact);
+          });
+
+          test("V12.2 self super-buff can beat a weak team buff by breaking a frequent wall", () => {
+            const rules = thresholdRules();
+            const wallSkill = { type: "guard", multiplier: 0.2, duration: 1, target: "self", conditions: [] };
+            const wall = character("wall", 1, { hp: 350, pow: 80, skill: wallSkill });
+            const enemies = [wall, { ...wall }, { ...wall }, character("ordinary", 1, { hp: 80, pow: 80 })];
+            const allies = [1, 2, 3, 4, 5].map((position) => character(`ally-wall-${position}`, position, { hp: 500, pow: 100 }));
+            const breaker = character("breaker", 1, {
+              hp: 500, pow: 100,
+              skill: { type: "attack_buff", multiplier: 4, duration: 1, target: "self", conditions: [] },
+            });
+            const weakTeam = character("weak-team", 1, {
+              hp: 500, pow: 100,
+              skill: { type: "attack_buff", multiplier: 1.2, duration: 1, target: "ally_all", conditions: [] },
+            });
+            const breakerValue = evaluateMetagameV12SkillThresholdProxy(breaker, enemies, allies, rules);
+            const weakTeamValue = evaluateMetagameV12SkillThresholdProxy(weakTeam, enemies, allies, rules);
+            assert.ok(breakerValue.wallBreakerImpact > 0);
+            assert.ok(breakerValue.attackImpact > weakTeamValue.attackImpact);
+          });
+
+          test("V12.2 team defense values prevented allied deaths over equal self-only reduction", () => {
+            const rules = thresholdRules();
+            const enemies = [character("pressure", 1, { hp: 500, pow: 150 })];
+            const allies = [1, 2, 3, 4, 5].map((position) => character(`fragile-${position}`, position, { hp: 100, pow: 50 }));
+            const selfDefense = character("self-defense", 1, {
+              hp: 100, pow: 50,
+              skill: { type: "damage_reduction", multiplier: 0.5, duration: 1, target: "self", conditions: [] },
+            });
+            const teamDefense = { ...selfDefense, id: "team-defense", skill: { ...selfDefense.skill, target: "ally_all" } };
+            const selfValue = evaluateMetagameV12SkillThresholdProxy(selfDefense, enemies, allies, rules);
+            const teamValue = evaluateMetagameV12SkillThresholdProxy(teamDefense, enemies, allies, rules);
+            assert.ok(teamValue.preventedDeathGain > selfValue.preventedDeathGain);
+            assert.ok(teamValue.defenseImpact > selfValue.defenseImpact);
+          });
+          '''
+          if 'V12.2 team attack buff values added team elimination reach' not in tests:
+            tests += extra_tests
+          test_path.write_text(tests)
+          PY
+
+      - name: Validate patch
+        run: |
+          node --check src/core/metagame-v7.js
+          node --check src/core/metagame-v12.js
+          node --test test/metagame-v12.test.js
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/core/metagame-v7.js src/core/metagame-v12.js test/metagame-v12.test.js
+          git commit -m "fix: score V12 proxy by elimination thresholds"
+          git push origin HEAD:fix/v12-threshold-proxy
