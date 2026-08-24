@@ -38,17 +38,25 @@ jobs:
           lines = [line[10:] if line.startswith('          ') else line for line in body.splitlines()]
           script = '\n'.join(lines) + '\n'
 
-          # The helper workflow embeds a triple-quoted replacement whose second
-          # line picked up YAML indentation. Replace that one fragile block with
-          # a single-line anchor before executing the generated patch script.
-          bad_start_marker = '''replace(\n    "src/core/metagame-v12.js",\n    \'\'\'      includeDeckStdDev: rounded(standardDeviation(includeValues)),'''
-          next_marker = '''replace(\n    "src/core/metagame-v12.js",\n    \'\'\'      finiteOrNegativeInfinity(right.opportunityWinGain)'''
-          bad_start = script.find(bad_start_marker)
-          bad_end = script.find(next_marker, bad_start + 1) if bad_start >= 0 else -1
-          if bad_start < 0 or bad_end < 0:
-              raise SystemExit('Could not locate fragile roleBreakdown replacement in generated patch script')
-          robust_block = '''replace(\n    "src/core/metagame-v12.js",\n    "      includeDeckStdDev: rounded(standardDeviation(includeValues)),\\n",\n    "      includeDeckStdDev: rounded(standardDeviation(includeValues)),\\n"\n    "      pairedScenarioStdDev: rounded(pairedStdDev),\\n"\n    "      pairedScenarioStandardError: rounded(pairedStandardError),\\n"\n    "      pairedScenarioCount: pairedDeltas.length,\\n",\n)\n'''
-          script = script[:bad_start] + robust_block + script[bad_end:]
+          # Two multiline replacements inherited YAML indentation in their
+          # triple-quoted old strings. Rebuild those blocks around exact line
+          # anchors so patching is independent of YAML indentation.
+          role_start_marker = '''replace(\n    "src/core/metagame-v12.js",\n    \'\'\'      includeDeckStdDev: rounded(standardDeviation(includeValues)),'''
+          rank_start_marker = '''replace(\n    "src/core/metagame-v12.js",\n    \'\'\'      finiteOrNegativeInfinity(right.opportunityWinGain)'''
+          role_start = script.find(role_start_marker)
+          rank_start = script.find(rank_start_marker, role_start + 1) if role_start >= 0 else -1
+          if role_start < 0 or rank_start < 0:
+              raise SystemExit('Could not locate fragile V12.1 replacements in generated patch script')
+          robust_role = '''replace(\n    "src/core/metagame-v12.js",\n    "      includeDeckStdDev: rounded(standardDeviation(includeValues)),\\n",\n    "      includeDeckStdDev: rounded(standardDeviation(includeValues)),\\n"\n    "      pairedScenarioStdDev: rounded(pairedStdDev),\\n"\n    "      pairedScenarioStandardError: rounded(pairedStandardError),\\n"\n    "      pairedScenarioCount: pairedDeltas.length,\\n",\n)\n'''
+          script = script[:role_start] + robust_role + script[rank_start:]
+
+          rank_start = script.find(rank_start_marker)
+          rank_end_marker = '\n# Keep guaranteed-KO logic at minimum damage'
+          rank_end = script.find(rank_end_marker, rank_start + 1) if rank_start >= 0 else -1
+          if rank_start < 0 or rank_end < 0:
+              raise SystemExit('Could not isolate fragile ranking replacement')
+          robust_rank = '''replace(\n    "src/core/metagame-v12.js",\n    "      finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||\\n"\n    "      finiteOrNegativeInfinity(right.robustOpportunityWinGain) - finiteOrNegativeInfinity(left.robustOpportunityWinGain) ||\\n",\n    "      finiteOrNegativeInfinity(right.robustOpportunityWinGain) - finiteOrNegativeInfinity(left.robustOpportunityWinGain) ||\\n"\n    "      finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||\\n",\n)\n'''
+          script = script[:rank_start] + robust_rank + script[rank_end:]
           Path('/tmp/apply-v12-1.py').write_text(script)
           PY
           python /tmp/apply-v12-1.py
