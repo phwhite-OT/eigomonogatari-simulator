@@ -95,7 +95,7 @@ const environmentCount = positiveInteger(readArgument("environment-count", "72")
 const environmentVariants = positiveInteger(readArgument("environment-variants", "2"), 2, 1);
 const partnerLimit = positiveInteger(readArgument("partner-limit", "48"), 48, 32);
 const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "3"), 3, 1);
-const alternativeDeckLimit = positiveInteger(readArgument("alternative-deck-limit", "2"), 2, 1);
+const alternativeDeckLimit = positiveInteger(readArgument("alternative-deck-limit", "3"), 3, 1);
 const anchorDeckLimit = Math.max(0, Math.floor(Number(readArgument("anchor-deck-limit", "0")) || 0));
 const beamWidth = positiveInteger(readArgument("beam-width", "500"), 500, 50);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
@@ -277,7 +277,7 @@ const report = {
     scoringPolicy: "最終順位に個人攻撃・個人耐久・役割・スキル発動の固定加点を使わない。負のチーム貢献も保持する。",
     costPolicy: "候補を外した際のコストを5枠全体で再配分するため、コスト効率は機会費用比較へ内包する。",
     environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
-    performancePolicy: "候補デッキ3本+除外代替2本を既定とし、V11の候補4本×実戦/空枠/スキル無効より戦闘回数を削減する。デッキ結果はジョブ内でキャッシュする。",
+    performancePolicy: "候補デッキ3本+除外代替3本を同数評価する。確定撃破判断は最低ダメージを保持し、72シナリオ内で最低/中間/最大の実ダメージ係数を均等サンプルするため追加戦闘は発生しない。デッキ結果はジョブ内でキャッシュする。",
   },
   context: {
     inputId: resolvedInput.id,
