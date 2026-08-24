@@ -1,6 +1,6 @@
 name: Start Metagame V12
 
-# Trigger marker: 2026-08-24T14:23+09:00
+# Trigger marker: 2026-08-24T14:29+09:00
 on:
   push:
     branches: [master]
@@ -16,7 +16,7 @@ jobs:
   start:
     runs-on: ubuntu-latest
     steps:
-      - name: Apply V12.1 correctness fixes
+      - name: Apply corrected V12.1 fixes
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run apply-v12-1-correctness-fixes.yml --repo "${{ github.repository }}" --ref master
+        run: gh workflow run apply-v12-1-correctness-fixes-v2.yml --repo "${{ github.repository }}" --ref master
