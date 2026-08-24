@@ -334,13 +334,21 @@ function compareEvaluatedDecks(left, right) {
 
 export function rateMetagameV12Character(character, position, resolvedInput, candidatePools, teamScenarios, options = {}) {
   const autoDeckLimit = Math.max(1, Math.floor(Number(options.autoDeckLimit) || 3));
-  const includeCandidates = buildMetagameV7DeckCandidates(
+  const rawIncludeCandidates = buildMetagameV7DeckCandidates(
     character,
     position,
     resolvedInput,
     candidatePools,
     { ...options, autoDeckLimit },
-  ).slice(0, autoDeckLimit);
+  );
+  const exampleCandidate = rawIncludeCandidates.find((entry) => entry.origin === "example");
+  const automaticCandidates = selectDiverseDecks(
+    rawIncludeCandidates.filter((entry) => entry !== exampleCandidate),
+    Math.max(0, autoDeckLimit - (exampleCandidate ? 1 : 0)),
+  );
+  const includeCandidates = exampleCandidate
+    ? [exampleCandidate, ...automaticCandidates]
+    : selectDiverseDecks(rawIncludeCandidates, autoDeckLimit);
   const alternativeCandidates = buildMetagameV12AlternativeDecks(character, resolvedInput, candidatePools, options);
   const staticRating = candidatePools.ratingsByPosition[position - 1]?.get(String(character.id)) ?? {};
 
@@ -456,12 +464,17 @@ export function rateMetagameV12Character(character, position, resolvedInput, can
   };
 }
 
+function finiteOrNegativeInfinity(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : -Infinity;
+}
+
 export function rankMetagameV12Characters(ratings) {
   return [...ratings]
     .sort((left, right) => (
-      (Number(right.opportunityWinGain) || -Infinity) - (Number(left.opportunityWinGain) || -Infinity) ||
-      (Number(right.robustOpportunityWinGain) || -Infinity) - (Number(left.robustOpportunityWinGain) || -Infinity) ||
-      (Number(right.decisiveWinGain) || -Infinity) - (Number(left.decisiveWinGain) || -Infinity) ||
+      finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||
+      finiteOrNegativeInfinity(right.robustOpportunityWinGain) - finiteOrNegativeInfinity(left.robustOpportunityWinGain) ||
+      finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
       Number(left.cost) - Number(right.cost) ||
       String(left.id).localeCompare(String(right.id))
     ))
