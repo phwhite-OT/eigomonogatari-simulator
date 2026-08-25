@@ -1,6 +1,6 @@
 name: Start Metagame V12
 
-# Trigger marker: v12.2-threshold-proxy
+# Trigger marker: manual-start-2026-08-25T17:29+09:00
 on:
   push:
     branches: [master]
