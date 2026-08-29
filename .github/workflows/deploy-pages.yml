@@ -29,14 +29,11 @@ jobs:
 
       - name: Prepare public site
         run: |
-          npm run build
           git fetch --depth=1 origin metagame-v12-team-opportunity-results
-          V12_RESULTS_SHA="$(git rev-parse FETCH_HEAD)"
           git checkout FETCH_HEAD -- reports/metagame-ratings-v12-team-opportunity
-          V12_RESULTS_SHA="$V12_RESULTS_SHA" node scripts/build-v12-results-page.mjs
+          npm run build
           mkdir -p _site
           cp index.html _site/index.html
-          cp v12.html _site/v12.html
           mkdir -p _site/character-images
           find character-images -maxdepth 1 -type f \
             \( -iname '*.avif' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \
