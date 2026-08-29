@@ -1,10 +1,10 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
-import { buildMetagameSimulatorData } from "./build-metagame-simulator-data.mjs";
+import { buildMetagameSimulatorDataV12 } from "./build-metagame-simulator-data-v12.mjs";
 
 const projectRoot = resolve(import.meta.dirname, "..");
 if (!process.argv.includes("--skip-metagame-data")) {
-  await buildMetagameSimulatorData();
+  await buildMetagameSimulatorDataV12();
 }
 const sourceFiles = [
   "src/data/rules.js",
@@ -32,6 +32,7 @@ const sourceFiles = [
   "src/ui/form.js",
   "src/ui/result.js",
   "src/ui/metagame-simulator.js",
+  "src/ui/metagame-v12-compat.js",
   "src/ui/lightest.js",
   "src/ui/character-search.js",
   "src/ui/character-editor.js",
