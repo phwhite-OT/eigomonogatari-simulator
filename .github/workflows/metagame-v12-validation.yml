@@ -4,9 +4,13 @@ on:
   pull_request:
     paths:
       - "src/core/metagame-v12.js"
+      - "src/core/skills.js"
+      - "src/data/character-catalog.js"
       - "scripts/rate-metagame-v12.mjs"
       - "scripts/build-metagame-v12-work-matrix.mjs"
       - "test/metagame-v12.test.js"
+      - "test/skills.test.js"
+      - "test/attack-mode-target-routing.test.js"
       - ".github/workflows/metagame-v12-*.yml"
 
 permissions:
@@ -21,10 +25,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Syntax check V12 scripts
+      - name: Syntax check battle and V12 scripts
         run: |
+          node --check src/core/skills.js
           node --check src/core/metagame-v12.js
           node --check scripts/rate-metagame-v12.mjs
           node --check scripts/build-metagame-v12-work-matrix.mjs
-      - name: Run V12 focused tests
-        run: node --test test/metagame-v12.test.js
+      - name: Run battle and V12 focused tests
+        run: node --test test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js
