@@ -38,7 +38,10 @@ jobs:
             local progress_path="$1"
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
-            jq -e '.status == "complete" and .context.version == "team-battle-v12.2-threshold-proxy" and (.evaluationCache | length) > 0' <<< "$progress" >/dev/null
+            # Completed environments no longer need their serialized cache to
+            # advance the queue. The exact shared-pool reconciliation already
+            # happened during finalization and is preserved in report.json.
+            jq -e '.status == "complete" and .context.version == "team-battle-v12.2-threshold-proxy"' <<< "$progress" >/dev/null
           }
 
           targets='[]'
@@ -202,7 +205,7 @@ jobs:
         shell: bash
         run: |
           is_complete_file() {
-            [ -f "$1" ] && jq -e '.status == "complete" and .context.version == "team-battle-v12.2-threshold-proxy" and (.evaluationCache | length) > 0' "$1" >/dev/null
+            [ -f "$1" ] && jq -e '.status == "complete" and .context.version == "team-battle-v12.2-threshold-proxy"' "$1" >/dev/null
           }
           all_completed=true
           for output_directory in fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100; do
