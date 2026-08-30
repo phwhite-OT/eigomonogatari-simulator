@@ -55,8 +55,35 @@ export const CHARACTER_SKILL_TURN_CORRECTIONS = Object.freeze({
   "em-dec390a52ee6": 2, // 英国ストヘン技師
 });
 
+const ATTACK_MODE_SKILL_TYPES = new Set(["aoe_attack", "multi_hit_attack"]);
+
+// Book1 classifies attack-mode skills by who receives the mode (自身 / リーダー /
+// 味方色 / 全員), while older generated exports stored enemy_one/enemy_all because
+// those fields originally described the eventual attack target. Convert that legacy
+// representation into the actual buff recipient before any simulator consumes it.
+function correctWorkbookAttackModeTarget(character) {
+  if (!ATTACK_MODE_SKILL_TYPES.has(character?.skill?.type)) return character;
+  const category = String(character.skillCategory ?? "");
+  let target;
+  if (category.startsWith("自身")) target = "self";
+  else if (category.startsWith("リーダー")) target = "leader";
+  else if (category.startsWith("味方色") || category.startsWith("全員")) target = "ally_all";
+  else return character;
+  const targetCount = target === "ally_all" ? 5 : 1;
+  if (character.skill.target === target && Number(character.skill.targetCount) === targetCount) return character;
+  return Object.freeze({
+    ...character,
+    skill: Object.freeze({
+      ...character.skill,
+      target,
+      targetCount,
+    }),
+  });
+}
+
 export const CHARACTER_CATALOG = Object.freeze([
-  ...WORKBOOK_CHARACTERS.map((character) => {
+  ...WORKBOOK_CHARACTERS.map((rawCharacter) => {
+    const character = correctWorkbookAttackModeTarget(rawCharacter);
     const attributes = CHARACTER_ATTRIBUTE_CORRECTIONS[character.id];
     const skillTurn = CHARACTER_SKILL_TURN_CORRECTIONS[character.id];
     if (!attributes && skillTurn === undefined) return character;
