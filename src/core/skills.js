@@ -9,6 +9,7 @@ const attackTypes = new Set(["single_attack", "aoe_attack", "multi_hit_attack"])
 const defenseTypes = new Set(["damage_reduction", "guard", "attribute_guard"]);
 const supportTypes = new Set(["attack_buff", "damage_reduction", "guard", "attribute_guard", "heal", "revive", "attribute_change"]);
 const excludedSkillTypes = new Set(["delay", "skill_reduction"]);
+const supportTargets = new Set(["self", "leader", "ally_all"]);
 
 export function isExcludedSkill(skill) {
   return excludedSkillTypes.has(skill?.type);
@@ -53,6 +54,18 @@ function supportTargetIndexes(allies, actorIndex, skill, options = {}) {
       (!applyConditions || supportConditionApplies(skill, target))
     );
   });
+}
+
+function attackModeSupportTarget(skill) {
+  if (supportTargets.has(skill?.target)) return skill.target;
+  // Backward compatibility for old hand-authored data. Current workbook data
+  // is normalized in character-catalog.js, but a conditional colour-wide AOE
+  // from an older payload can still be recognized safely here.
+  if (
+    skill?.type === "aoe_attack" &&
+    (skill.conditions ?? []).some((condition) => condition.type === "ally_attribute")
+  ) return "ally_all";
+  return "self";
 }
 
 function continuationEffectSources(effects, ownerId, types = []) {
@@ -262,12 +275,9 @@ export function applySupportSkill(state, actorSide, actorIndex, skill, options =
   const attackMode = ["aoe_attack", "multi_hit_attack"].includes(skill.type);
   if (["attack_buff", "damage_reduction", "guard", "attribute_guard", "aoe_attack", "multi_hit_attack"].includes(skill.type)) {
     const activationOrder = next.nextEffectOrder ?? 1;
-    const targetAllies = skill.type === "multi_hit_attack"
-      ? skill.target === "ally_all"
-      : skill.type === "aoe_attack"
-        ? (skill.conditions ?? []).some((condition) => condition.type === "ally_attribute")
-        : false;
-    const effectSkill = attackMode ? { ...skill, target: targetAllies ? "ally_all" : "self" } : skill;
+    const effectSkill = attackMode
+      ? { ...skill, target: attackModeSupportTarget(skill) }
+      : skill;
     next.nextEffectOrder = activationOrder + 1;
     for (const index of supportTargetIndexes(allies, actorIndex, effectSkill, { applyConditions: false })) {
       allies[index] = addEffect(allies[index], skill.type, effectSkill, activationOrder, sourceCharacterId);
