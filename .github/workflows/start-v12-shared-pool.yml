@@ -1,0 +1,32 @@
+name: Start V12 shared-pool recompute
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/start-v12-shared-pool.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  start:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel older shared-pool recompute runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh run list --workflow metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --limit 30 --json databaseId,status \
+            --jq '.[] | select(.status == "in_progress" or .status == "queued") | .databaseId' |
+          while read -r run_id; do
+            [ -z "$run_id" ] && continue
+            gh run cancel "$run_id" --repo "${{ github.repository }}" || true
+          done
+      - name: Start fresh six-environment recompute
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master
