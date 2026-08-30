@@ -1,5 +1,6 @@
 name: Start V12 shared-pool recompute
 
+# Restart marker: 2026-08-30 queue-advance-fix
 on:
   push:
     branches: [master]
@@ -26,7 +27,7 @@ jobs:
             [ -z "$run_id" ] && continue
             gh run cancel "$run_id" --repo "${{ github.repository }}" || true
           done
-      - name: Start fresh six-environment recompute
+      - name: Continue six-environment recompute
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master
