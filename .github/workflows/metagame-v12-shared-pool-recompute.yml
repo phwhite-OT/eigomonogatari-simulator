@@ -1,0 +1,232 @@
+name: Metagame V12 shared-pool full recompute
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: metagame-v12-shared-pool-recompute
+  cancel-in-progress: false
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      work_matrix: ${{ steps.next.outputs.work_matrix }}
+      targets: ${{ steps.next.outputs.targets }}
+      all_completed: ${{ steps.next.outputs.all_completed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: next
+        name: Select the next incomplete recompute environment
+        shell: bash
+        run: |
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
+            git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+          fi
+          is_complete() {
+            local progress_path="$1"
+            local progress
+            progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
+            jq -e '.status == "complete" and .context.version == "team-battle-v12.2-threshold-proxy" and (.evaluationCache | length) > 0' <<< "$progress" >/dev/null
+          }
+
+          targets='[]'
+          input_ids=(
+            "fire:100" "water:100" "wind:100"
+            "fire-water:100" "fire-wind:100" "water-wind:100"
+          )
+          checkpoint_path=""
+          for input_id in "${input_ids[@]}"; do
+            output_directory="${input_id//:/-}"
+            progress_path="reports/metagame-ratings-v12-team-opportunity/$output_directory/progress.json"
+            if is_complete "$progress_path"; then
+              continue
+            fi
+            targets="$(jq -c --arg input "$input_id" --arg output_directory "$output_directory" '. + [{input:$input,output_directory:$output_directory}]' <<< "$targets")"
+            checkpoint_path="$RUNNER_TEMP/v12-sp-selection/$output_directory-progress.json"
+            mkdir -p "$(dirname "$checkpoint_path")"
+            if ! git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null || [ ! -s "$checkpoint_path" ]; then
+              rm -f "$checkpoint_path"
+            fi
+            break
+          done
+
+          if [ "$targets" = '[]' ]; then
+            work_matrix='{"include":[]}'
+            echo "all_completed=true" >> "$GITHUB_OUTPUT"
+          else
+            input_id="$(jq -r '.[0].input' <<< "$targets")"
+            work_matrix="$(node scripts/build-metagame-v12-work-matrix.mjs --input="$input_id" --checkpoint-path="$checkpoint_path" --max-workers=20)"
+            if [ "$(jq -r '.include | length' <<< "$work_matrix")" -eq 0 ]; then
+              echo "No candidate shards selected for incomplete input $input_id" >&2
+              exit 1
+            fi
+            echo "all_completed=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "targets=$targets" >> "$GITHUB_OUTPUT"
+          echo "work_matrix=$work_matrix" >> "$GITHUB_OUTPUT"
+
+  evaluate:
+    needs: select
+    if: needs.select.outputs.all_completed != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 19
+      matrix: ${{ fromJSON(needs.select.outputs.work_matrix) }}
+    env:
+      METAGAME_TIME_BUDGET_SECONDS: "8400"
+      METAGAME_INPUT: ${{ matrix.input }}
+      METAGAME_OUTPUT_DIRECTORY: ${{ matrix.output_directory }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Restore shared-pool recompute progress
+        shell: bash
+        run: |
+          checkpoint_path="$RUNNER_TEMP/v12-sp-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json"
+          mkdir -p "$(dirname "$checkpoint_path")"
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
+            git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+          fi
+          progress_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
+          if ! git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null || [ ! -s "$checkpoint_path" ]; then
+            rm -f "$checkpoint_path"
+          fi
+      - id: rate
+        name: Recompute V12 candidate shard
+        continue-on-error: true
+        run: |
+          node scripts/rate-metagame-v12.mjs \
+            --input="$METAGAME_INPUT" \
+            --position=${{ matrix.position }} \
+            --candidate-indices="${{ matrix.candidate_indices }}" \
+            --checkpoint-path="$RUNNER_TEMP/v12-sp-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json" \
+            --time-budget-seconds="$METAGAME_TIME_BUDGET_SECONDS"
+      - name: Upload recompute shard progress
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v12-sp-progress-${{ matrix.output_directory }}-${{ matrix.position }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/v12-sp-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 2
+      - name: Propagate evaluation failure after checkpoint upload
+        if: always() && steps.rate.outcome == 'failure'
+        run: exit 1
+
+  publish:
+    needs: [select, evaluate]
+    if: always() && needs.select.outputs.all_completed != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Restore isolated recompute snapshot
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
+            git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+          fi
+          git switch --detach "${{ github.sha }}"
+          if git cat-file -e "$results_ref:reports/metagame-ratings-v12-team-opportunity" 2>/dev/null; then
+            git checkout "$results_ref" -- reports/metagame-ratings-v12-team-opportunity
+          fi
+          git switch --create "$results_branch"
+      - name: Download recompute shard checkpoints
+        uses: actions/download-artifact@v4
+        with:
+          pattern: v12-sp-progress-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/v12-sp-progress
+      - name: Merge selected environment checkpoints
+        shell: bash
+        env:
+          TARGETS: ${{ needs.select.outputs.targets }}
+        run: |
+          while IFS= read -r target; do
+            input="$(jq -r '.input' <<< "$target")"
+            output_directory="$(jq -r '.output_directory' <<< "$target")"
+            mapfile -t checkpoint_files < <(find "$RUNNER_TEMP/v12-sp-progress" -maxdepth 1 -type f -name "${output_directory}-position-*-shard-*.json" -print | sort)
+            if [ "${#checkpoint_files[@]}" -eq 0 ]; then
+              echo "No V12 recompute checkpoints downloaded for $input" >&2
+              exit 1
+            fi
+            checkpoint_paths="$(IFS=,; echo "${checkpoint_files[*]}")"
+            node scripts/rate-metagame-v12.mjs \
+              --input="$input" \
+              --position=all \
+              --checkpoint-path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json" \
+              --merge-checkpoint-paths="$checkpoint_paths" \
+              --finalize-only=true
+          done < <(jq -c '.[]' <<< "$TARGETS")
+      - name: Record recompute provenance
+        shell: bash
+        run: |
+          mkdir -p reports/metagame-ratings-v12-team-opportunity
+          jq -n \
+            --arg source_commit "${{ github.sha }}" \
+            --arg source_ref "${{ github.ref_name }}" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{strategy:"shared-evaluated-deck-pool-full-recompute",sourceCommit:$source_commit,sourceRef:$source_ref,generatedAt:$generated_at,scope:["fire:100","water:100","wind:100","fire-water:100","fire-wind:100","water-wind:100"]}' \
+            > reports/metagame-ratings-v12-team-opportunity/recompute-provenance.json
+      - id: status
+        name: Check six-environment recompute completion
+        shell: bash
+        run: |
+          is_complete_file() {
+            [ -f "$1" ] && jq -e '.status == "complete" and .context.version == "team-battle-v12.2-threshold-proxy" and (.evaluationCache | length) > 0' "$1" >/dev/null
+          }
+          all_completed=true
+          for output_directory in fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100; do
+            if ! is_complete_file "reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"; then
+              all_completed=false
+              break
+            fi
+          done
+          echo "all_completed=$all_completed" >> "$GITHUB_OUTPUT"
+      - name: Save isolated recompute progress
+        shell: bash
+        run: |
+          results_branch="metagame-v12-shared-pool-results"
+          git add -f reports/metagame-ratings-v12-team-opportunity
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: save V12 shared-pool recompute progress"
+            if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
+              git push --force-with-lease=refs/heads/$results_branch origin HEAD:$results_branch
+            else
+              git push origin HEAD:$results_branch
+            fi
+          fi
+      - name: Continue with the next recompute segment
+        if: steps.status.outputs.all_completed != 'true' && needs.evaluate.result == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master
