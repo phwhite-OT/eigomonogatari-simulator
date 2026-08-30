@@ -15,6 +15,13 @@ import {
   rankMetagameV12Characters,
   rateMetagameV12Character,
 } from "../src/core/metagame-v12.js";
+import {
+  METAGAME_V12_SHARED_POOL_VERSION,
+  buildMetagameV12SharedDeckPool,
+  hydrateMetagameV12EvaluationCache,
+  reconcileMetagameV12RatingsByPosition,
+  serializeMetagameV12EvaluationCache,
+} from "../src/core/metagame-v12-shared-pool.js";
 
 function readArgument(name, fallback) {
   const prefix = `--${name}=`;
@@ -172,6 +179,8 @@ const loadedCheckpoint = await readCheckpoint(checkpointPath, checkpointContext)
 const resultsByPosition = [0, 1, 2, 3, 4].map((index) => (
   new Map((loadedCheckpoint?.resultsByPosition?.[index] ?? []).map((rating) => [String(rating.id), rating]))
 ));
+const evaluationCache = new Map();
+hydrateMetagameV12EvaluationCache(evaluationCache, loadedCheckpoint?.evaluatedDeckPool);
 const mergedCheckpoints = await Promise.all(mergeCheckpointPaths.map((entry) => readCheckpoint(entry, checkpointContext)));
 for (const checkpoint of mergedCheckpoints) {
   if (!checkpoint) continue;
@@ -179,18 +188,20 @@ for (const checkpoint of mergedCheckpoints) {
     if (!resultsByPosition[index]) continue;
     for (const rating of ratings ?? []) resultsByPosition[index].set(String(rating.id), rating);
   }
+  hydrateMetagameV12EvaluationCache(evaluationCache, checkpoint.evaluatedDeckPool);
 }
 
 const deadline = timeBudgetSeconds ? Date.now() + timeBudgetSeconds * 1000 : Infinity;
 let stoppedEarly = false;
-const evaluationCache = new Map();
 
 async function saveProgress(status = "in_progress") {
   await writeCheckpoint(checkpointPath, {
     status,
     updatedAt: new Date().toISOString(),
     context: checkpointContext,
+    sharedPoolVersion: METAGAME_V12_SHARED_POOL_VERSION,
     resultsByPosition: resultsByPosition.map((ratings) => [...ratings.values()]),
+    evaluatedDeckPool: serializeMetagameV12EvaluationCache(evaluationCache),
   });
 }
 
@@ -239,8 +250,8 @@ if (!finalizeOnly) {
       );
       if (rating) results.set(String(rating.id), rating);
       processedWork += 1;
-      // V11 saved every five characters. V12 checkpoints every character so a
-      // timeout can lose at most the character currently being evaluated.
+      // Save both the rating and every completed deck result. On resume, those
+      // 72-scenario battles can be reused instead of being repeated.
       await saveProgress();
       if (processedWork % 10 === 0 || processedWork === selectedWork.length) {
         console.log(`  ${processedWork}/${selectedWork.length} (global index ${index}, eval cache ${evaluationCache.size})`);
@@ -262,22 +273,40 @@ if (stoppedEarly || !allRatingsComplete) {
   process.exit(0);
 }
 
+// Zero-simulation second pass: every deck already evaluated by any candidate
+// or shard becomes evidence for every character that occupies the same slot.
+// Likewise, any evaluated deck that excludes a character can serve as that
+// character's opportunity-cost baseline. Exact scenarioValues are retained,
+// so the paired robustness correction is recomputed rather than estimated.
+const sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
+const reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, {
+  totalCost: resolvedInput.totalCost,
+});
+for (const [index, ratings] of reconciledByPosition.entries()) {
+  resultsByPosition[index].clear();
+  for (const rating of ratings) resultsByPosition[index].set(String(rating.id), rating);
+}
 await saveProgress("complete");
+
 const rankingsByPosition = resultsByPosition.map((ratings, index) => ({
   position: index + 1,
   characters: rankMetagameV12Characters([...ratings.values()]),
 }));
 
+const sharedPoolImprovementCount = rankingsByPosition.reduce((sum, slot) => (
+  sum + slot.characters.filter((character) => character.sharedPoolImprovedCandidate || character.sharedPoolImprovedBaseline).length
+), 0);
 const report = {
   generatedAt: new Date().toISOString(),
   model: {
     version: METAGAME_V12_MODEL_VERSION,
+    sharedPoolVersion: METAGAME_V12_SHARED_POOL_VERSION,
     battleFormat: "5v5",
     objective: "候補キャラ入りの最善デッキと、そのキャラを禁止して同じ総コスト上限で再最適化した最善デッキを比較し、チーム勝率差をキャラ価値とする。",
     scoringPolicy: "最終順位に個人攻撃・個人耐久・役割・スキル発動の固定加点を使わない。負のチーム貢献も保持する。",
     costPolicy: "候補を外した際のコストを5枠全体で再配分するため、コスト効率は機会費用比較へ内包する。",
     environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
-    performancePolicy: "候補デッキ3本+除外代替3本を同数評価する。確定撃破判断は最低ダメージを保持し、72シナリオ内で最低/中間/最大の実ダメージ係数を均等サンプルするため追加戦闘は発生しない。デッキ結果はジョブ内でキャッシュする。",
+    performancePolicy: "各候補の直接探索は候補デッキ3本+除外代替3本のまま増やさない。全候補・全shardの計算後、既に72シナリオ評価済みのデッキを共有プール化して全カードを再集計するため、共有処理による追加戦闘は0。checkpointにも評価済みデッキを保存し、再開時の重複戦闘を避ける。",
   },
   context: {
     inputId: resolvedInput.id,
@@ -293,6 +322,8 @@ const report = {
     autoDeckLimit,
     alternativeDeckLimit,
     beamWidth,
+    sharedEvaluatedDeckCount: sharedDeckPool.length,
+    sharedPoolImprovementCount,
     eligibleCandidateCountByPosition: candidatePools.allByPosition.map((pool) => pool.length),
   },
   inputAudit: {
@@ -306,4 +337,5 @@ const report = {
 
 await fs.writeFile(path.join(outputDirectory, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 await fs.writeFile(path.join(outputDirectory, "ranking.csv"), csvReport(report), "utf8");
+console.log(`V12 shared pool: ${sharedDeckPool.length} evaluated decks / ${sharedPoolImprovementCount} ratings changed.`);
 console.log(`V12 report: ${path.relative(projectRoot, outputDirectory)}`);
