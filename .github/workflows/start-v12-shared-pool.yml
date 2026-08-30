@@ -1,6 +1,6 @@
 name: Start V12 shared-pool recompute
 
-# Restart marker: 2026-08-30 queue-advance-fix
+# Restart marker: 2026-08-30 attack-mode-target-fix
 on:
   push:
     branches: [master]
@@ -10,7 +10,7 @@ on:
 
 permissions:
   actions: write
-  contents: read
+  contents: write
 
 jobs:
   start:
@@ -27,7 +27,20 @@ jobs:
             [ -z "$run_id" ] && continue
             gh run cancel "$run_id" --repo "${{ github.repository }}" || true
           done
-      - name: Continue six-environment recompute
+      - name: Drop stale pre-fix shared-pool results
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          # The attack-mode recipient fix changes battle semantics. Reusing any
+          # checkpoint/evaluation cache produced before it would mix old and new
+          # battles, so the isolated recompute branch must start completely fresh.
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${{ github.repository }}/git/refs/heads/metagame-v12-shared-pool-results" \
+            || true
+      - name: Start fresh six-environment recompute
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master
