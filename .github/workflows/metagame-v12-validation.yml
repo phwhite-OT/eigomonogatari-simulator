@@ -7,9 +7,11 @@ on:
       - "src/core/skills.js"
       - "src/data/character-catalog.js"
       - "src/ui/metagame-v12-compat.js"
+      - "src/ui/metagame-v12-precomputed-first.js"
       - "scripts/rate-metagame-v12.mjs"
       - "scripts/build-metagame-v12-work-matrix.mjs"
       - "scripts/build-metagame-simulator-data-v12.mjs"
+      - "scripts/build-final.mjs"
       - "test/metagame-v12.test.js"
       - "test/metagame-v12-browser-cache.test.js"
       - "test/skills.test.js"
@@ -33,8 +35,12 @@ jobs:
           node --check src/core/skills.js
           node --check src/core/metagame-v12.js
           node --check src/ui/metagame-v12-compat.js
+          node --check src/ui/metagame-v12-precomputed-first.js
           node --check scripts/rate-metagame-v12.mjs
           node --check scripts/build-metagame-v12-work-matrix.mjs
           node --check scripts/build-metagame-simulator-data-v12.mjs
+          node --check scripts/build-final.mjs
+      - name: Verify public bundle builds with cache policy
+        run: node scripts/build-final.mjs --skip-metagame-data
       - name: Run battle, V12 and browser cache focused tests
         run: node --test test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js
