@@ -69,9 +69,22 @@ def first_attribute(text):
 
 
 def skill_conditions(text):
+    text = text or ""
     conditions = []
-    ally_attributes = re.findall(r"([火水風])属性の味方", text or "")
-    enemy_attributes = re.findall(r"([火水風])属性の(?:敵|攻撃)", text or "")
+    ally_attributes = []
+    enemy_attributes = []
+    for pattern in (
+        r"([火水風])属性の味方",
+        r"([火水風])の味方",
+        r"味方の([火水風])属性",
+    ):
+        ally_attributes.extend(re.findall(pattern, text))
+    for pattern in (
+        r"([火水風])属性の(?:敵|攻撃)",
+        r"([火水風])の(?:敵|攻撃)",
+        r"(?:敵|攻撃)の([火水風])属性",
+    ):
+        enemy_attributes.extend(re.findall(pattern, text))
     for japanese in dict.fromkeys(ally_attributes):
         conditions.append({"type": "ally_attribute", "attribute": JAPANESE_ATTRIBUTES[japanese]})
     for japanese in dict.fromkeys(enemy_attributes):
