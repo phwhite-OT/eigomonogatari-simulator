@@ -75,6 +75,47 @@ function compactV12Candidate(entry, character) {
   };
 }
 
+function compactV12PrecomputedDeck(deck, origin) {
+  const ids = (deck?.ids ?? []).map(String);
+  if (ids.length !== 5) return null;
+  return {
+    i: ids,
+    c: Number(deck.totalCost) || 0,
+    p: Number(deck.proxyScore) || 0,
+    y: Number(deck.synergyScore) || 0,
+    w: Number(deck.expectedWinRate) || 0,
+    l: Number(deck.expectedWinLowerBound) || 0,
+    s: Number(deck.scenarioCount) || 0,
+    a: Number(deck.decisiveWinRate) || 0,
+    d: Number(deck.decisiveDrawRate) || 0,
+    e: Number(deck.decisiveLossRate) || 0,
+    o: Number(deck.ongoingRate) || 0,
+    x: origin,
+  };
+}
+
+function compactV12PrecomputedDecks(rankings) {
+  const unique = new Map();
+  const add = (deck, origin) => {
+    const compact = compactV12PrecomputedDeck(deck, origin);
+    if (!compact) return;
+    const key = compact.i.join("|");
+    const current = unique.get(key);
+    if (!current || compact.l > current.l || (compact.l === current.l && compact.w > current.w)) {
+      unique.set(key, compact);
+    }
+  };
+  for (const entries of rankings.values()) {
+    for (const entry of entries ?? []) {
+      add(entry.bestDeck, "v12-best");
+      add(entry.baselineDeck, "v12-baseline");
+    }
+  }
+  return [...unique.values()].sort((left, right) => (
+    right.l - left.l || right.w - left.w || left.c - right.c || left.i.join("|").localeCompare(right.i.join("|"))
+  ));
+}
+
 function compactTeamScenarios(scenarios) {
   return scenarios.map((scenario) => ({
     a: scenario.allyDecks.map((deck) => deck.map((character) => String(character.id))),
@@ -136,6 +177,7 @@ async function buildConstraint(input, projectRoot, charactersById) {
     count: teamScenarioCount,
   });
   const rankings = new Map((report.rankingsByPosition ?? []).map((slot) => [Number(slot.position), slot.characters ?? []]));
+  const precomputedDecks = compactV12PrecomputedDecks(rankings);
 
   return {
     id: report.context?.inputId ?? input.id,
@@ -158,6 +200,7 @@ async function buildConstraint(input, projectRoot, charactersById) {
         environment: compactEnvironmentPool(resolvedInput.environmentPools[position - 1] ?? []),
       };
     }),
+    precomputedDecks,
     teamScenarios: compactTeamScenarios(teamScenarios),
     environmentScenarios: compactEnvironmentScenarios(environmentDecks),
     v12Context: {
@@ -168,6 +211,7 @@ async function buildConstraint(input, projectRoot, charactersById) {
       autoDeckLimit: Number(report.context?.autoDeckLimit ?? progress.context?.autoDeckLimit) || null,
       alternativeDeckLimit: Number(report.context?.alternativeDeckLimit ?? progress.context?.alternativeDeckLimit) || null,
       beamWidth: Number(report.context?.beamWidth ?? progress.context?.beamWidth) || null,
+      precomputedDeckCount: precomputedDecks.length,
     },
   };
 }
