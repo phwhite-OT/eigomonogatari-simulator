@@ -12,6 +12,7 @@ on:
       - "src/styles.css"
       - "src/eigomonogatari-theme.css"
       - "src/index.template.html"
+      - "src/ui/eigomonogatari-ui.js"
       - "src/ui/metagame-v12-compat.js"
       - "src/ui/metagame-v12-precomputed-first.js"
       - "scripts/rate-metagame-v12.mjs"
@@ -46,6 +47,7 @@ jobs:
           node --check src/core/metagame-v12.js
           node --check src/data/metagame-v8-inputs.js
           node --check src/data/metagame-v12-sweep-inputs.js
+          node --check src/ui/eigomonogatari-ui.js
           node --check src/ui/metagame-v12-compat.js
           node --check src/ui/metagame-v12-precomputed-first.js
           node --check scripts/rate-metagame-v12.mjs
