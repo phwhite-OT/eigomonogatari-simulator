@@ -1,4 +1,5 @@
-import { METAGAME_V8_INPUTS } from "./metagame-v8-inputs.js";
+import { METAGAME_V7_INPUTS } from "./metagame-v7-inputs.js";
+import { METAGAME_V8_COST_200_INPUTS } from "./metagame-v8-cost-200-inputs.js";
 
 export const METAGAME_V12_SWEEP_MIN_COST = 100;
 export const METAGAME_V12_SWEEP_MAX_COST = 200;
@@ -12,6 +13,11 @@ export const METAGAME_V12_SWEEP_ATTRIBUTE_GROUPS = Object.freeze([
   Object.freeze(["fire", "wind"]),
   Object.freeze(["water", "wind"]),
   Object.freeze(["fire", "water", "wind"]),
+]);
+
+export const METAGAME_V12_REPRESENTATIVE_INPUTS = Object.freeze([
+  ...METAGAME_V7_INPUTS,
+  ...METAGAME_V8_COST_200_INPUTS,
 ]);
 
 const ATTRIBUTE_ORDER = Object.freeze(["fire", "water", "wind"]);
@@ -41,7 +47,7 @@ function parseSweepInputId(inputId) {
 }
 
 function anchorsFor(attributeKey) {
-  return METAGAME_V8_INPUTS
+  return METAGAME_V12_REPRESENTATIVE_INPUTS
     .filter((entry) => metagameV12SweepAttributeKey(entry.allowedAttributes) === attributeKey)
     .sort((left, right) => Number(left.totalCost) - Number(right.totalCost));
 }
@@ -56,6 +62,8 @@ function nearestEnvironmentAnchor(attributeKey, totalCost) {
     const candidateDistance = Math.abs(Number(candidate.totalCost) - totalCost);
     const bestDistance = Math.abs(Number(best.totalCost) - totalCost);
     if (candidateDistance !== bestDistance) return candidateDistance < bestDistance ? candidate : best;
+    // At the exact midpoint, keep the lower-cost environment until the higher
+    // representative environment becomes closer. This avoids jumping early.
     return Number(candidate.totalCost) < Number(best.totalCost) ? candidate : best;
   }, null);
 }
@@ -71,7 +79,7 @@ export function resolveMetagameV12SweepInput(inputId) {
   );
   if (!supported) return null;
 
-  const exact = METAGAME_V8_INPUTS.find((entry) => (
+  const exact = METAGAME_V12_REPRESENTATIVE_INPUTS.find((entry) => (
     Number(entry.totalCost) === parsed.totalCost
     && metagameV12SweepAttributeKey(entry.allowedAttributes) === parsed.attributeKey
   ));
