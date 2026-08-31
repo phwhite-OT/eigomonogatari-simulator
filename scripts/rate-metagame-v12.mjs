@@ -158,8 +158,11 @@ const selectedCandidatesByPosition = [1, 2, 3, 4, 5].map((position) => {
   return maxCandidates ? candidates.slice(0, maxCandidates) : candidates;
 });
 
+const METAGAME_V12_BATTLE_SEMANTICS_VERSION = "skill-target-revive-v2";
+
 const checkpointContext = {
   version: METAGAME_V12_MODEL_VERSION,
+  battleSemantics: METAGAME_V12_BATTLE_SEMANTICS_VERSION,
   inputId,
   environmentCount,
   environmentVariants,
