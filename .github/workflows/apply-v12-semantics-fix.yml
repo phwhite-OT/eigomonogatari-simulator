@@ -1,0 +1,34 @@
+name: Apply V12 semantics invalidation
+
+on:
+  push:
+    branches:
+      - fix/v12-battle-semantics-cache-invalidation
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/v12-battle-semantics-cache-invalidation
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply cache invalidation marker
+        run: node scripts/apply-v12-semantics-fix.mjs
+      - name: Validate syntax and marker
+        run: |
+          node --check scripts/rate-metagame-v12.mjs
+          grep -q 'battleSemantics: METAGAME_V12_BATTLE_SEMANTICS_VERSION' scripts/rate-metagame-v12.mjs
+          test "$(grep -c 'context.battleSemantics == \"skill-target-revive-v2\"' .github/workflows/metagame-v12-shared-pool-recompute.yml)" -eq 2
+      - name: Commit final changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: invalidate V12 checkpoints after battle semantics change"
+          git push origin HEAD:fix/v12-battle-semantics-cache-invalidation
