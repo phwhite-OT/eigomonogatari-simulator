@@ -32,6 +32,7 @@ const sourceFiles = [
   "src/ui/form.js",
   "src/ui/result.js",
   "src/ui/metagame-simulator.js",
+  "src/ui/eigomonogatari-ui.js",
   "src/ui/metagame-v12-compat.js",
   "src/ui/metagame-v12-precomputed-first.js",
   "src/ui/lightest.js",
