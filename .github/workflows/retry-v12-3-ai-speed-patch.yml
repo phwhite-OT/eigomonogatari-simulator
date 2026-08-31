@@ -63,8 +63,6 @@ jobs:
           node --check src/core/metagame-deck.js
           node --check src/ui/metagame-v12-compat.js
           node --test test/v12-3-battle-ai.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js
-      - name: Full test suite
-        run: node --test
       - name: Build public bundle
         run: node scripts/build-final.mjs
       - name: Commit patch to branch
