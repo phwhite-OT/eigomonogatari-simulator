@@ -107,7 +107,7 @@ function redirectGuardForAttacker(state, actorSide, actor) {
   for (const [index, combatant] of state[opponentSide(actorSide)].entries()) {
     if (!combatant.alive || combatant.isGhost) continue;
     for (const effect of combatant.buffs) {
-      if (!['guard', 'attribute_guard'].includes(effect.type)) continue;
+      if (!["guard", "attribute_guard"].includes(effect.type)) continue;
       if (!effectApplies(effect, combatant.attributes, actor.attributes)) continue;
       const activationOrder = Number(effect.activationOrder) || 0;
       if (!selected || activationOrder >= selected.activationOrder) {
@@ -120,17 +120,17 @@ function redirectGuardForAttacker(state, actorSide, actor) {
 
 function guardBreakTargetForAttacker(state, actorSide, actor) {
   const redirected = redirectGuardForAttacker(state, actorSide, actor);
-  if (redirected) return { ...redirected, mode: 'redirected' };
+  if (redirected) return { ...redirected, mode: "redirected" };
 
   let selected;
   for (const [index, combatant] of state[opponentSide(actorSide)].entries()) {
     if (!combatant.alive || combatant.isGhost) continue;
     for (const effect of combatant.buffs) {
-      if (effect.type !== 'attribute_guard') continue;
+      if (effect.type !== "attribute_guard") continue;
       if (effectApplies(effect, combatant.attributes, actor.attributes)) continue;
       const activationOrder = Number(effect.activationOrder) || 0;
       if (!selected || activationOrder >= selected.activationOrder) {
-        selected = { index, combatant, effect, activationOrder, mode: 'bypass' };
+        selected = { index, combatant, effect, activationOrder, mode: "bypass" };
       }
     }
   }
@@ -150,17 +150,6 @@ function compareDamageEfficiency(left, right, killablePool) {
 }
 
 function compareTargetCandidates(left, right, policy, killablePool) {
-  if (policy === TARGET_POLICIES.BALANCE || policy === TARGET_POLICIES.EXPERT) {
-    return (
-      right.remaining - left.remaining ||
-      Number(right.killable) - Number(left.killable) ||
-      compareDamageEfficiency(left, right, left.killable && right.killable) ||
-      left.skillTurnsRemaining - right.skillTurnsRemaining ||
-      right.survivalTurns - left.survivalTurns ||
-      right.threat - left.threat ||
-      left.index - right.index
-    );
-  }
   if (policy === TARGET_POLICIES.SKILL_THREAT) {
     return (
       right.remaining - left.remaining ||
@@ -183,11 +172,9 @@ function compareTargetCandidates(left, right, policy, killablePool) {
   );
 }
 
-export function targetPolicyReason(policy = TARGET_POLICIES.KILL_CONFIRM) {
-  if (policy === TARGET_POLICIES.EXPERT) return "残数平準化を最優先に、撃破効率・発動間近のスキル・長期生存を統合して判断";
-  if (policy === TARGET_POLICIES.BALANCE) return "敵の残りキャラ数の平準化を最優先";
-  if (policy === TARGET_POLICIES.SKILL_THREAT) return "残数平準化後、発動が近い敵を優先";
-  return "敵の残りキャラ数を最優先し、同数なら確実に倒せる敵を優先";
+export function targetPolicyReason(policy = TARGET_POLICIES.EXPERT) {
+  if (policy === TARGET_POLICIES.SKILL_THREAT) return "残数の多い相手を軸に、発動間近のスキルも警戒して割り振る";
+  return "敵の残りキャラ数を最優先にし、低火力側から攻撃して高火力を後詰めに残す";
 }
 
 export function selectPriorityTarget(state, actorSide, options = {}) {
@@ -197,7 +184,9 @@ export function selectPriorityTarget(state, actorSide, options = {}) {
   const targets = state[opponentSide(actorSide)];
   const candidates = targetableIndexes(targets).map((index) => {
     const target = targets[index];
-    const damage = actor && rules ? estimateDamage(actor, target, skill, rules) : 0;
+    const perHitDamage = actor && rules ? estimateDamage(actor, target, skill, rules) : 0;
+    const hitCount = skill.type === "multi_hit_attack" ? Math.max(1, Number(skill.hits) || 1) : 1;
+    const damage = perHitDamage * hitCount;
     return {
       index,
       damage,
@@ -216,23 +205,28 @@ export function selectPriorityTarget(state, actorSide, options = {}) {
     const selectedIndex = typeof selected === "object" ? selected?.index : selected;
     if (candidates.some((candidate) => candidate.index === selectedIndex)) return selectedIndex;
   }
-  // 攻撃属性が色かばうの対象外なら、かばう役を直接倒して他の攻撃を通す。
-  // 通常のかばう、または対象属性の攻撃は攻撃処理でかばう役へリダイレクトされる。
+
+  // 色かばうの対象外なら、かばう役を直接崩して後続の攻撃を通す。
   const guardBreakTarget = guardBreakTargetForAttacker(state, actorSide, actor);
-  if (guardBreakTarget?.mode === 'bypass' && candidates.some(({ index }) => index === guardBreakTarget.index)) {
+  if (guardBreakTarget?.mode === "bypass" && candidates.some(({ index }) => index === guardBreakTarget.index)) {
     return guardBreakTarget.index;
   }
+
   const policy = Object.values(TARGET_POLICIES).includes(options.targetPolicy)
     ? options.targetPolicy
-    : TARGET_POLICIES.KILL_CONFIRM;
-  const killable = candidates.filter((candidate) => candidate.killable);
-  candidates.sort((left, right) => compareTargetCandidates(
+    : TARGET_POLICIES.EXPERT;
+  const maximumRemaining = Math.max(...candidates.map((candidate) => candidate.remaining));
+  const pool = candidates.filter((candidate) => candidate.remaining === maximumRemaining);
+
+  // 残数最大の敵から外れることはしない。同じ残数の中だけで、今の攻撃で
+  // 倒せるか・無駄打ちが少ないか・スキル脅威などを使って優先順位を決める。
+  pool.sort((left, right) => compareTargetCandidates(
     left,
     right,
     policy,
-    killable.length > 0,
+    pool.some((candidate) => candidate.killable),
   ));
-  return candidates[0].index;
+  return pool[0].index;
 }
 
 function activeTokens(state, side) {
@@ -277,9 +271,9 @@ function predictedIncomingMinimumDamage(state, side, targetIndex, rules, options
   const enemySide = opponentSide(side);
   return state[enemySide].reduce((sum, enemy, enemyIndex) => {
     if (!enemy.alive || enemy.isGhost) return sum;
-    const enemySkill = canUseSkill(state, enemySide, enemyIndex) && isAttackSkill(enemy.character.skill)
+    const enemySkill = canUseSkill(state, enemySide, enemyIndex) && enemy.character.skill?.type === "single_attack"
       ? enemy.character.skill
-      : BASIC_ATTACK;
+      : attackSkillWithEffects(enemy, BASIC_ATTACK, target);
     const redirected = redirectGuardForAttacker(state, enemySide, enemy);
     const hitCount = Math.max(1, Number(enemySkill.hits) || 1);
     if (enemySkill.type === "aoe_attack") {
@@ -372,9 +366,6 @@ function skillDecision(state, side, actorIndex, rules, options) {
 }
 
 function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK, defender) {
-  // Attack modes are stored on every potential recipient so that a later
-  // attribute change can make an already-applied effect valid. They must be
-  // checked again when the recipient actually attacks.
   const modeEffects = actor.isGhost ? [] : actor.buffs.filter((effect) => (
     ATTACK_MODE_TYPES.has(effect.type) && effectApplies(
       effect,
@@ -424,8 +415,6 @@ function resolvedAttackDamage(state, side, actorIndex, skill, rules, targetPolic
     targetIndex,
     deferReplacement: true,
     consumeSkill: false,
-    // 連撃で撃破後に生じる余剰ヒット先だけは乱数だが、温存判定では
-    // 常に同じ見積りにして選択を再現可能にする。
     random: () => 0,
   });
   return action.hits.reduce((sum, hit) => sum + hit.damage, 0);
@@ -442,24 +431,26 @@ function immediateAttackBenefit(state, side, actorIndex, skill, rules, options =
     rules,
     options.targetPolicy,
   );
-  // 連撃・全体攻撃は支援フェーズで攻撃形態の継続効果として付与される。
-  // 実際の攻撃と同じ順序で付与後の盤面から見積もることで、攻撃範囲と
-  // ヒット数を落とさずに通常攻撃と比較する。
-  const after = applySupportSkill(state, side, actorIndex, skill, { consumeSkill: false });
-  const actingAfter = after[side][actorIndex];
-  const baseSkill = skill.type === "multi_hit_attack"
-    ? { ...skill, hits: 1 }
-    : skill;
-  const effectiveSkill = attackSkillWithEffects(actingAfter, baseSkill);
   const skillDamage = resolvedAttackDamage(
-    after,
+    state,
     side,
     actorIndex,
-    effectiveSkill,
+    skill,
     rules,
     options.targetPolicy,
   );
   return { normalDamage, skillDamage, gain: skillDamage - normalDamage };
+}
+
+function projectedTeamAttackDamage(state, attackingSide, rules) {
+  const referenceTarget = state[opponentSide(attackingSide)].find((target) => target.alive && !target.isGhost);
+  if (!referenceTarget) return 0;
+  return state[attackingSide]
+    .filter((actor) => actor.alive && !actor.isGhost)
+    .reduce((sum, actor) => {
+      const effectiveSkill = attackSkillWithEffects(actor, BASIC_ATTACK, referenceTarget);
+      return sum + projectedSkillDamage(state, attackingSide, actor, effectiveSkill, rules, { effective: true });
+    }, 0);
 }
 
 function crossTeamDamage(state, attackingSide, rules) {
@@ -477,7 +468,7 @@ function totalCurrentHp(state, side) {
 
 function expertSupportBenefit(state, side, actorIndex, skill, rules) {
   const after = applySupportSkill(state, side, actorIndex, skill, { consumeSkill: false });
-  const outgoingGain = crossTeamDamage(after, side, rules) - crossTeamDamage(state, side, rules);
+  const outgoingGain = projectedTeamAttackDamage(after, side, rules) - projectedTeamAttackDamage(state, side, rules);
   const preventedDamage = crossTeamDamage(state, opponentSide(side), rules) - crossTeamDamage(after, opponentSide(side), rules);
   const healingGain = totalCurrentHp(after, side) - totalCurrentHp(state, side);
   return { after, outgoingGain, preventedDamage, healingGain };
@@ -508,7 +499,19 @@ function expertSkillDecision(state, side, actorIndex, rules, options = {}) {
       ? { use: false, reason: "このターンに自身が蘇生対象になるため温存" }
       : { use: true, reason: "現在ターンの実回復量があるため使用" };
   }
-  if (isAttackSkill(skill)) {
+  if (ATTACK_MODE_TYPES.has(skill.type)) {
+    const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
+    return benefit.outgoingGain > 0
+      ? {
+          use: true,
+          reason: `対象味方の今ターン総与ダメージが${benefit.outgoingGain}増えるため使用`,
+        }
+      : {
+          use: false,
+          reason: "対象味方の攻撃形態が実際には改善しないため温存",
+        };
+  }
+  if (skill.type === "single_attack") {
     const benefit = immediateAttackBenefit(state, side, actorIndex, skill, rules, options);
     return benefit.gain > 0
       ? {
@@ -568,17 +571,15 @@ function chooseSkills(state, rules, options) {
       intent.reason = decision.reason;
     }
   }
-  const events = candidates.map((intent) => (
-    {
-        type: intent.use ? "skill_use" : "skill_hold",
-        side: intent.side,
-        actorIndex: intent.actorIndex,
-        actorId: intent.actorId,
-        actorName: intent.actorName,
-        skillType: intent.skill.type,
-        reason: intent.reason,
-    }
-  ));
+  const events = candidates.map((intent) => ({
+    type: intent.use ? "skill_use" : "skill_hold",
+    side: intent.side,
+    actorIndex: intent.actorIndex,
+    actorId: intent.actorId,
+    actorName: intent.actorName,
+    skillType: intent.skill.type,
+    reason: intent.reason,
+  }));
   const intents = candidates.filter((intent) => intent.use);
   return { intents, events };
 }
@@ -655,29 +656,24 @@ function projectedAttackDamage(intent, state, rules) {
   return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules, { effective: true });
 }
 
-function tacticalAttackIntentScore(intent, state, rules, options) {
-  const targetIndex = selectPriorityTarget(state, intent.side, {
-    actor: intent.actor,
-    actorIndex: intent.actorIndex,
-    skill: intent.skill,
-    rules,
-    targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
+function attackAllocationProfile(intent, state, rules) {
+  const targets = state[opponentSide(intent.side)].filter((entry) => entry.alive && !entry.isGhost);
+  if (!targets.length) return { highStockKillable: 0, killable: 0, projected: 0 };
+  const maximumRemaining = Math.max(...targets.map(remainingCharacterCount));
+  const rows = targets.map((target) => {
+    const perHit = estimateDamage(intent.actor, target, intent.skill, rules);
+    const hitCount = intent.skill.type === "multi_hit_attack" ? Math.max(1, Number(intent.skill.hits) || 1) : 1;
+    const damage = perHit * hitCount;
+    return {
+      remaining: remainingCharacterCount(target),
+      killable: damage >= target.currentHp,
+    };
   });
-  const target = state[opponentSide(intent.side)][targetIndex];
-  if (!target) return 0;
-  const damage = estimateDamage(intent.actor, target, intent.skill, rules);
-  const defeated = intent.skill.type === "aoe_attack"
-    ? state[opponentSide(intent.side)].filter((entry) => entry.alive && !entry.isGhost).filter((entry) => (
-      estimateDamage(intent.actor, entry, intent.skill, rules) >= entry.currentHp
-    )).length
-    : Number(damage >= target.currentHp);
-  return (
-    defeated * 1_000_000 +
-    remainingCharacterCount(target) * 10_000 +
-    Number(damage >= target.currentHp) * 1_000 +
-    Math.min(999, damage / Math.max(1, target.currentHp)) * 10 +
-    projectedAttackDamage(intent, state, rules) / 1_000
-  );
+  return {
+    highStockKillable: rows.filter((row) => row.remaining === maximumRemaining && row.killable).length,
+    killable: rows.filter((row) => row.killable).length,
+    projected: projectedAttackDamage(intent, state, rules),
+  };
 }
 
 function guardBreakAssessment(intent, state, rules) {
@@ -685,8 +681,6 @@ function guardBreakAssessment(intent, state, rules) {
   if (!guard) return undefined;
   const perHitDamage = estimateDamage(intent.actor, guard.combatant, intent.skill, rules);
   const hitCount = Math.max(1, Number(intent.skill.hits) || 1);
-  // 全体攻撃がかばわれる場合は、元々の生存対象すべてへの一発ずつが
-  // かばう役へ集まる。その総量で、かばう役を崩す攻撃順を比較する。
   const targetCount = intent.skill.type === "aoe_attack"
     ? targetableIndexes(state[opponentSide(intent.side)]).length
     : 1;
@@ -703,8 +697,8 @@ function compareGuardBreakOrder(left, right, state, rules) {
   if (!leftGuard) return 1;
   if (!rightGuard) return -1;
 
-  const leftPriority = leftGuard.mode === 'bypass' ? 2 : 1;
-  const rightPriority = rightGuard.mode === 'bypass' ? 2 : 1;
+  const leftPriority = leftGuard.mode === "bypass" ? 2 : 1;
+  const rightPriority = rightGuard.mode === "bypass" ? 2 : 1;
   if (leftPriority !== rightPriority) return rightPriority - leftPriority;
 
   if (leftGuard.index !== rightGuard.index) {
@@ -721,6 +715,19 @@ function compareGuardBreakOrder(left, right, state, rules) {
   return rightGuard.damage - leftGuard.damage;
 }
 
+function compareTeamEfficientAttackOrder(left, right, state, rules) {
+  const guardOrder = compareGuardBreakOrder(left, right, state, rules);
+  if (guardOrder) return guardOrder;
+  const leftProfile = attackAllocationProfile(left, state, rules);
+  const rightProfile = attackAllocationProfile(right, state, rules);
+  return (
+    leftProfile.highStockKillable - rightProfile.highStockKillable ||
+    leftProfile.killable - rightProfile.killable ||
+    leftProfile.projected - rightProfile.projected ||
+    left.actorIndex - right.actorIndex
+  );
+}
+
 function orderAttackIntents(intents, side, state, rules, options) {
   const requestedOrder = options.attackOrder?.[side];
   if (Array.isArray(requestedOrder)) {
@@ -730,12 +737,8 @@ function orderAttackIntents(intents, side, state, rules, options) {
       (order.get(right.actorIndex) ?? Number.MAX_SAFE_INTEGER)
     ));
   }
-  if (options.attackOrderPolicy === ATTACK_ORDER_POLICIES.TACTICAL) {
-    return intents.sort((left, right) => (
-      compareGuardBreakOrder(left, right, state, rules) ||
-      tacticalAttackIntentScore(right, state, rules, options) - tacticalAttackIntentScore(left, state, rules, options) ||
-      left.actorIndex - right.actorIndex
-    ));
+  if (options.playStyle === PLAY_STYLES.EXPERT || options.attackOrderPolicy === ATTACK_ORDER_POLICIES.TACTICAL) {
+    return intents.sort((left, right) => compareTeamEfficientAttackOrder(left, right, state, rules));
   }
   if (options.attackOrderPolicy === ATTACK_ORDER_POLICIES.STRONGEST_FIRST) {
     return intents.sort((left, right) => (
@@ -755,17 +758,9 @@ function attackIntents(state, selectedSkills, rules, options) {
   };
   return ["allies", "enemies"].flatMap((side) => orderAttackIntents(tokens[side].map((token) => {
     const selectedSkill = selected.get(`${side}:${token.actorIndex}`)?.skill;
-    // A selected attack skill changes this turn's attack.  Support skills have
-    // already been applied in their own phases, so their owner still makes a
-    // normal attack (possibly modified by the resulting continuous effects).
-    // A multi-hit skill is already added as a continuous attack-mode effect in
-    // the support phase. Start it from one hit here so the new effect changes
-    // 1 -> N, rather than adding its N hits a second time (N -> 2N - 1).
-    const baseSkill = selectedSkill?.type === "multi_hit_attack"
-      ? { ...selectedSkill, hits: 1 }
-      : isAttackSkill(selectedSkill)
-        ? selectedSkill
-        : BASIC_ATTACK;
+    // 単体攻撃だけが使用者本人の直接攻撃。全体化・連撃化は支援フェーズで
+    // 正しい対象へ付与済みなので、本人を含む各攻撃者は付与された効果だけを参照する。
+    const baseSkill = selectedSkill?.type === "single_attack" ? selectedSkill : BASIC_ATTACK;
     const referenceTarget = state[opponentSide(side)].find((combatant) => (
       combatant.alive && !combatant.isGhost
     ));
@@ -803,7 +798,8 @@ function resolveAttacks(state, intents, rules, options) {
         deferReplacement: true,
         consumeSkill: false,
         random: options.random,
-        damageMultiplier: options.damageMultiplier,
+        // 実戦評価は常に最低乱数。0.95/1.00の別ダメージ帯は使わない。
+        damageMultiplier: undefined,
       },
     );
     next = result.state;
@@ -816,7 +812,7 @@ function resolveAttacks(state, intents, rules, options) {
       actorName: intent.actorName,
       skillType: intent.skill.type,
       targetIndex,
-      targetPolicy: options.targetPolicy ?? TARGET_POLICIES.KILL_CONFIRM,
+      targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
       targetReason: targetPolicyReason(options.targetPolicy),
       hits: result.hits,
     });
@@ -998,14 +994,14 @@ export function simulateBattle(initialState, rules, options = {}) {
     attackModel: "simultaneous",
     assumptions: [
       "両チームの攻撃者は攻撃フェーズ開始時に確定し、途中で倒されても攻撃する",
-      options.attackOrderPolicy === ATTACK_ORDER_POLICIES.STRONGEST_FIRST
-        ? "チーム内は推定ダメージが高いキャラから攻撃する"
-        : "チーム内の攻撃順は指定がなければ左から順に処理する",
+      options.playStyle === PLAY_STYLES.EXPERT || options.attackOrderPolicy === ATTACK_ORDER_POLICIES.TACTICAL
+        ? "チーム内は倒せる相手が少ない・火力が低い攻撃者から処理し、高火力を後詰めに残す"
+        : options.attackOrderPolicy === ATTACK_ORDER_POLICIES.STRONGEST_FIRST
+          ? "チーム内は推定ダメージが高いキャラから攻撃する"
+          : "チーム内の攻撃順は指定がなければ左から順に処理する",
       targetPolicyReason(options.targetPolicy),
       "短縮・遅延スキルの効果は使用しない",
-      options.damageMultiplier === undefined
-          ? "乱数は最低値で計算する"
-          : `確定撃破・AI判断は最低ダメージ、実ダメージ係数は${Number(options.damageMultiplier).toFixed(3)}で評価する` ,
+      "ダメージ乱数は最低値のみで計算する",
     ],
     outcome: outcomeOf(state),
     initial,

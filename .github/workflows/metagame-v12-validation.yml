@@ -3,6 +3,7 @@ name: Validate Metagame V12
 on:
   pull_request:
     paths:
+      - "src/core/simulate.js"
       - "src/core/metagame-v12.js"
       - "src/core/skills.js"
       - "src/data/character-catalog.js"
@@ -12,6 +13,8 @@ on:
       - "scripts/build-metagame-v12-work-matrix.mjs"
       - "scripts/build-metagame-simulator-data-v12.mjs"
       - "scripts/build-final.mjs"
+      - "test/team-battle-ai-regression.test.js"
+      - "test/simulate.test.js"
       - "test/metagame-v12.test.js"
       - "test/metagame-v12-browser-cache.test.js"
       - "test/skills.test.js"
@@ -32,6 +35,7 @@ jobs:
           node-version: 22
       - name: Syntax check battle, V12 and browser cache scripts
         run: |
+          node --check src/core/simulate.js
           node --check src/core/skills.js
           node --check src/core/metagame-v12.js
           node --check src/ui/metagame-v12-compat.js
@@ -43,4 +47,4 @@ jobs:
       - name: Verify public bundle builds with cache policy
         run: node scripts/build-final.mjs --skip-metagame-data
       - name: Run battle, V12 and browser cache focused tests
-        run: node --test test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js
+        run: node --test test/team-battle-ai-regression.test.js test/simulate.test.js test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js
