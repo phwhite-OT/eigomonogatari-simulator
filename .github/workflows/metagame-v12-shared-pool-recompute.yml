@@ -2,6 +2,15 @@ name: Metagame V12 shared-pool full recompute
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - "src/core/simulate.js"
+      - "src/core/skills.js"
+      - "src/core/metagame-v7.js"
+      - "src/core/metagame-v12.js"
+      - ".github/workflows/metagame-v12-shared-pool-recompute.yml"
 
 permissions:
   actions: write
@@ -129,7 +138,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: v12-sp-progress-${{ matrix.output_directory }}-${{ matrix.position }}-${{ matrix.shard }}
-          path: ${{ runner.temp }}/v12-sp-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
+          path: ${{ runner.temp }}/v12-sp-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
           if-no-files-found: error
           retention-days: 2
       - name: Propagate evaluation failure after checkpoint upload
