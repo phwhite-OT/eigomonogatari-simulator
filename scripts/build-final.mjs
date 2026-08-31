@@ -33,6 +33,7 @@ const sourceFiles = [
   "src/ui/result.js",
   "src/ui/metagame-simulator.js",
   "src/ui/metagame-v12-compat.js",
+  "src/ui/metagame-v12-precomputed-first.js",
   "src/ui/lightest.js",
   "src/ui/character-search.js",
   "src/ui/character-editor.js",
