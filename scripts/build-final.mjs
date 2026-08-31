@@ -52,9 +52,10 @@ function stripModuleSyntax(source, fileName) {
     .concat(`\n  //# sourceURL=${fileName}\n`);
 }
 
-const [template, styles, ...sources] = await Promise.all([
+const [template, styles, themeStyles, ...sources] = await Promise.all([
   readFile(resolve(projectRoot, "src/index.template.html"), "utf8"),
   readFile(resolve(projectRoot, "src/styles.css"), "utf8"),
+  readFile(resolve(projectRoot, "src/eigomonogatari-theme.css"), "utf8"),
   ...sourceFiles.map((fileName) => readFile(resolve(projectRoot, fileName), "utf8")),
 ]);
 
@@ -80,7 +81,7 @@ const script = `(function () {\n  "use strict";\n${sources
   .map((source, index) => stripModuleSyntax(source, sourceFiles[index]))
   .join("\n")}\n})();`;
 const output = template
-  .replace("/*__INLINE_STYLES__*/", () => styles)
+  .replace("/*__INLINE_STYLES__*/", () => `${styles}\n\n${themeStyles}`)
   .replace("//__INLINE_SCRIPT__", () => script);
 
 await writeFile(resolve(projectRoot, "index.html"), output, "utf8");
