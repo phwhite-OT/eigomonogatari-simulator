@@ -1,0 +1,242 @@
+name: Apply V12.3 AI and speed patch
+
+on:
+  push:
+    branches:
+      - fix/v13-team-ai-speed
+    paths:
+      - ".github/workflows/apply-v12-3-ai-speed-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/v13-team-ai-speed
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply V12.3 battle and search changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"patch anchor not found: {label} in {path}")
+              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          # 1) Every V12 battle profile uses team-efficient allocation.  The target
+          # policy can still vary, but no profile blindly attacks strongest-first.
+          replace_once(
+              "src/core/metagame-v7.js",
+              '''  Object.freeze({\n    id: "priority-finish",\n    targetPolicy: TARGET_POLICIES.KILL_CONFIRM,\n    attackOrderPolicy: ATTACK_ORDER_POLICIES.STRONGEST_FIRST,\n    playStyle: PLAY_STYLES.EXPERT,\n  }),''',
+              '''  Object.freeze({\n    id: "priority-finish",\n    targetPolicy: TARGET_POLICIES.KILL_CONFIRM,\n    // Target assignment is still decided from low-flexibility attackers first,\n    // but actual action order may promote a guard breaker when that prevents\n    // weaker attacks from being absorbed. Never force raw strongest-first play.\n    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,\n    playStyle: PLAY_STYLES.EXPERT,\n  }),''',
+              "V12 battle profile",
+          )
+
+          # 2) Partner pools are the actual upper-ranked proxy candidates.  Only the
+          # infeasibility fallback may broaden beyond them.
+          replace_once(
+              "src/core/metagame-v7.js",
+              '''  const exampleIdsByPosition = [0, 1, 2, 3, 4].map((index) => new Set(\n    resolvedInput.examplePatterns.map((deck) => deck[index]).filter(Boolean).map((character) => String(character.id)),\n  ));\n  const partnerRatingsByPosition = ratingsByPosition.map((ratings, index) => {\n    // These are only *partners used to probe a character*.  Do not put the\n    // old HP / power / proxy ranking back into this gate: doing so made a\n    // character look good merely because it was tested next to a strong team.\n    // Instead, cover the legal cost range and every tactical role evenly.\n    const listed = [...ratings.values()].sort((left, right) => (\n      left.cost - right.cost ||\n      left.skillTurn - right.skillTurn ||\n      left.id.localeCompare(right.id)\n    ));\n    const exampleRatings = [...exampleIdsByPosition[index]].map((id) => ratings.get(id)).filter(Boolean);\n    const selected = new Map();\n    exampleRatings.forEach((rating) => selected.set(rating.id, rating));\n    const capacity = Math.max(0, partnerLimit - selected.size);\n    const addEvenly = (entries, count) => {\n      const sorted = [...entries].sort((left, right) => (\n        left.cost - right.cost ||\n        left.skillTurn - right.skillTurn ||\n        left.id.localeCompare(right.id)\n      ));\n      const take = Math.min(sorted.length, Math.max(0, count));\n      for (let pick = 0; pick < take && selected.size < partnerLimit; pick += 1) {\n        const entry = sorted[Math.min(sorted.length - 1, Math.floor((pick + 0.5) * sorted.length / take))];\n        selected.set(entry.id, entry);\n      }\n    };\n    const roles = ["precision_attack", "sweep_attack", "defense", "revive", "recovery", "support"];\n    const perRole = Math.max(1, Math.floor(capacity * 0.5 / roles.length));\n    roles.forEach((role) => addEvenly(listed.filter((rating) => rating.role === role), perRole));\n    // Fill the remaining places from evenly-spaced cost bands, rather than\n    // always choosing the cheapest end of the table.\n    addEvenly(listed.filter((rating) => !selected.has(rating.id)), partnerLimit - selected.size);\n    return [...selected.values()];\n  });''',
+              '''  const partnerRatingsByPosition = ratingsByPosition.map((ratings) => (\n    [...ratings.values()]\n      .sort((left, right) => (\n        (Number(right.practicalValue) || 0) - (Number(left.practicalValue) || 0) ||\n        (Number(right.roleFit) || 0) - (Number(left.roleFit) || 0) ||\n        (Number(right.roleBreakdown?.frontline) || 0) - (Number(left.roleBreakdown?.frontline) || 0) ||\n        Number(left.cost) - Number(right.cost) ||\n        left.id.localeCompare(right.id)\n      ))\n      .slice(0, partnerLimit)\n  ));''',
+              "top-ranked partner pool",
+          )
+          replace_once(
+              "src/core/metagame-v7.js",
+              '''        : [...ratings.values()].sort((left, right) => (\n          left.cost - right.cost || right.practicalValue - left.practicalValue || left.id.localeCompare(right.id)\n        )).slice(0, fallbackPartnerLimit),''',
+              '''        : [...ratings.values()].sort((left, right) => (\n          (Number(right.practicalValue) || 0) - (Number(left.practicalValue) || 0) ||\n          (Number(right.roleFit) || 0) - (Number(left.roleFit) || 0) ||\n          Number(left.cost) - Number(right.cost) ||\n          left.id.localeCompare(right.id)\n        )).slice(0, fallbackPartnerLimit),''',
+              "partner fallback ranking",
+          )
+
+          # 3) Remove the obsolete 0.95/1.00 V12 damage-band plumbing completely.
+          replace_once(
+              "src/core/metagame-v7.js",
+              '''  const minimumRandomMultiplier = Math.min(1, Math.max(0, Number(rules.damage?.randomMinimum) || 0.9));\n  const damageMultipliers = [minimumRandomMultiplier, (minimumRandomMultiplier + 1) / 2, 1];\n''',
+              '''  // V12.3 evaluates every battle at the minimum PvP damage roll only.\n''',
+              "obsolete damage multipliers",
+          )
+          replace_once(
+              "src/core/metagame-v7.js",
+              '''      const damageMultiplier = damageMultipliers[Math.floor(index / V7_BATTLE_PROFILES.length) % damageMultipliers.length];\n''',
+              '''''',
+              "per-scenario damage multiplier",
+          )
+          replace_once(
+              "src/core/metagame-v7.js",
+              '''      damageMultiplier,\n''',
+              '''''',
+              "simulate damage multiplier option",
+          )
+
+          # 4) Guard breaking is an action-order exception.  Prefer an attacker that
+          # can remove the guard immediately; among multiple finishers, spend the
+          # least excess damage so the strongest attacker remains available later.
+          replace_once(
+              "src/core/simulate.js",
+              '''  const guardHp = Math.max(1, Number(leftGuard.combatant.currentHp) || 0);\n  const guardMaxHp = Math.max(1, Number(leftGuard.combatant.maxHp) || guardHp);\n  const leftFinishes = leftGuard.damage >= guardHp;\n  const rightFinishes = rightGuard.damage >= guardHp;\n  const nearDefeat = guardHp <= guardMaxHp * 0.35;\n  if (nearDefeat && leftFinishes !== rightFinishes) return Number(rightFinishes) - Number(leftFinishes);\n  if (nearDefeat && leftFinishes && rightFinishes) return leftGuard.damage - rightGuard.damage;\n  return rightGuard.damage - leftGuard.damage;''',
+              '''  const guardHp = Math.max(1, Number(leftGuard.combatant.currentHp) || 0);\n  const leftFinishes = leftGuard.damage >= guardHp;\n  const rightFinishes = rightGuard.damage >= guardHp;\n  if (leftFinishes !== rightFinishes) return Number(rightFinishes) - Number(leftFinishes);\n  if (leftFinishes && rightFinishes) {\n    const leftOverkill = Math.max(0, leftGuard.damage - guardHp);\n    const rightOverkill = Math.max(0, rightGuard.damage - guardHp);\n    return leftOverkill - rightOverkill || left.actorIndex - right.actorIndex;\n  }\n  return rightGuard.damage - leftGuard.damage || left.actorIndex - right.actorIndex;''',
+              "guard breaker action order",
+          )
+
+          # 5) Damage used for tactical decisions is capped by actual HP.  Kills are
+          # lexicographically more important than effective damage; overkill is zero value.
+          replace_once(
+              "src/core/simulate.js",
+              '''function resolvedAttackDamage(state, side, actorIndex, skill, rules, targetPolicy) {\n  const actor = state[side][actorIndex];\n  if (!actor?.alive || actor.isGhost) return 0;\n  const targetIndex = selectPriorityTarget(state, side, {\n    actor,\n    actorIndex,\n    skill,\n    rules,\n    targetPolicy,\n  });\n  if (targetIndex === undefined) return 0;\n  const action = resolveAttackAction(state, side, actorIndex, rules, skill, {\n    actorSnapshot: actor,\n    targetIndex,\n    deferReplacement: true,\n    consumeSkill: false,\n    random: () => 0,\n  });\n  return action.hits.reduce((sum, hit) => sum + hit.damage, 0);\n}\n\nfunction immediateAttackBenefit(state, side, actorIndex, skill, rules, options = {}) {\n  const actor = state[side][actorIndex];\n  const normalSkill = attackSkillWithEffects(actor, BASIC_ATTACK);\n  const normalDamage = resolvedAttackDamage(\n    state,\n    side,\n    actorIndex,\n    normalSkill,\n    rules,\n    options.targetPolicy,\n  );\n  const skillDamage = resolvedAttackDamage(\n    state,\n    side,\n    actorIndex,\n    skill,\n    rules,\n    options.targetPolicy,\n  );\n  return { normalDamage, skillDamage, gain: skillDamage - normalDamage };\n}\n\nfunction projectedTeamAttackDamage(state, attackingSide, rules) {\n  const referenceTarget = state[opponentSide(attackingSide)].find((target) => target.alive && !target.isGhost);\n  if (!referenceTarget) return 0;\n  return state[attackingSide]\n    .filter((actor) => actor.alive && !actor.isGhost)\n    .reduce((sum, actor) => {\n      const effectiveSkill = attackSkillWithEffects(actor, BASIC_ATTACK, referenceTarget);\n      return sum + projectedSkillDamage(state, attackingSide, actor, effectiveSkill, rules, { effective: true });\n    }, 0);\n}\n\nfunction crossTeamDamage(state, attackingSide, rules) {\n  const defendingSide = opponentSide(attackingSide);\n  return state[attackingSide].filter((combatant) => combatant.alive && !combatant.isGhost).reduce((sum, actor) => (\n    sum + state[defendingSide].filter((target) => target.alive && !target.isGhost).reduce((damageSum, target) => (\n      damageSum + estimateDamage(actor, target, BASIC_ATTACK, rules)\n    ), 0)\n  ), 0);\n}\n\nfunction totalCurrentHp(state, side) {\n  return state[side].reduce((sum, combatant) => sum + (combatant.alive && !combatant.isGhost ? combatant.currentHp : 0), 0);\n}\n\nfunction expertSupportBenefit(state, side, actorIndex, skill, rules) {\n  const after = applySupportSkill(state, side, actorIndex, skill, { consumeSkill: false });\n  const outgoingGain = projectedTeamAttackDamage(after, side, rules) - projectedTeamAttackDamage(state, side, rules);\n  const preventedDamage = crossTeamDamage(state, opponentSide(side), rules) - crossTeamDamage(after, opponentSide(side), rules);\n  const healingGain = totalCurrentHp(after, side) - totalCurrentHp(state, side);\n  return { after, outgoingGain, preventedDamage, healingGain };\n}''',
+              '''function summarizeAttackActions(actions = []) {\n  return actions.reduce((summary, action) => {\n    for (const hit of action.hits ?? []) {\n      summary.effectiveDamage += Math.min(\n        Math.max(0, Number(hit.damage) || 0),\n        Math.max(0, Number(hit.hpBefore) || 0),\n      );\n      if (hit.defeated) summary.defeats += 1;\n    }\n    return summary;\n  }, { defeats: 0, effectiveDamage: 0 });\n}\n\nfunction resolvedAttackOutcome(state, side, actorIndex, skill, rules, targetPolicy) {\n  const actor = state[side][actorIndex];\n  if (!actor?.alive || actor.isGhost) return { defeats: 0, effectiveDamage: 0 };\n  const targetIndex = selectPriorityTarget(state, side, {\n    actor,\n    actorIndex,\n    skill,\n    rules,\n    targetPolicy,\n  });\n  if (targetIndex === undefined) return { defeats: 0, effectiveDamage: 0 };\n  const action = resolveAttackAction(state, side, actorIndex, rules, skill, {\n    actorSnapshot: actor,\n    targetIndex,\n    deferReplacement: true,\n    consumeSkill: false,\n    random: () => 0,\n  });\n  return summarizeAttackActions([action]);\n}\n\nfunction immediateAttackBenefit(state, side, actorIndex, skill, rules, options = {}) {\n  const actor = state[side][actorIndex];\n  const normalSkill = attackSkillWithEffects(actor, BASIC_ATTACK);\n  const normal = resolvedAttackOutcome(state, side, actorIndex, normalSkill, rules, options.targetPolicy);\n  const improved = resolvedAttackOutcome(state, side, actorIndex, skill, rules, options.targetPolicy);\n  return {\n    normal,\n    improved,\n    defeatGain: improved.defeats - normal.defeats,\n    effectiveDamageGain: improved.effectiveDamage - normal.effectiveDamage,\n  };\n}\n\nfunction projectedTeamAttackOutcome(state, attackingSide, rules, options = {}) {\n  const intents = attackIntents(state, [], rules, {\n    ...options,\n    playStyle: PLAY_STYLES.EXPERT,\n    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,\n  }).filter((intent) => intent.side === attackingSide);\n  const resolved = resolveAttacks(state, intents, rules, {\n    ...options,\n    targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,\n    random: () => 0,\n  });\n  return summarizeAttackActions(resolved.actions);\n}\n\nfunction totalCurrentHp(state, side) {\n  return state[side].reduce((sum, combatant) => sum + (combatant.alive && !combatant.isGhost ? combatant.currentHp : 0), 0);\n}\n\nfunction expertSupportBenefit(state, side, actorIndex, skill, rules, options = {}) {\n  const after = applySupportSkill(state, side, actorIndex, skill, { consumeSkill: false });\n  const outgoingBefore = projectedTeamAttackOutcome(state, side, rules, options);\n  const outgoingAfter = projectedTeamAttackOutcome(after, side, rules, options);\n  const incomingBefore = projectedTeamAttackOutcome(state, opponentSide(side), rules, options);\n  const incomingAfter = projectedTeamAttackOutcome(after, opponentSide(side), rules, options);\n  const healingGain = totalCurrentHp(after, side) - totalCurrentHp(state, side);\n  return {\n    after,\n    outgoingDefeatGain: outgoingAfter.defeats - outgoingBefore.defeats,\n    outgoingEffectiveDamageGain: outgoingAfter.effectiveDamage - outgoingBefore.effectiveDamage,\n    preventedDefeats: incomingBefore.defeats - incomingAfter.defeats,\n    preventedDamage: incomingBefore.effectiveDamage - incomingAfter.effectiveDamage,\n    healingGain,\n  };\n}''',
+              "kill-first skill benefit model",
+          )
+
+          # Update skill decisions to compare kills first, then capped effective damage.
+          replace_once(
+              "src/core/simulate.js",
+              '''    const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);\n    return benefit.outgoingGain > 0\n      ? {\n          use: true,\n          reason: `対象味方の今ターン総与ダメージが${benefit.outgoingGain}増えるため使用`,\n        }\n      : {\n          use: false,\n          reason: "対象味方の攻撃形態が実際には改善しないため温存",\n        };''',
+              '''    const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules, options);\n    return benefit.outgoingDefeatGain > 0 || benefit.outgoingEffectiveDamageGain > 0\n      ? {\n          use: true,\n          reason: benefit.outgoingDefeatGain > 0\n            ? `対象味方の今ターン撃破数が${benefit.outgoingDefeatGain}増えるため使用`\n            : `オーバーキルを除いた有効与ダメージが${benefit.outgoingEffectiveDamageGain}増えるため使用`,\n        }\n      : {\n          use: false,\n          reason: "撃破数も有効与ダメージも改善しないため温存",\n        };''',
+              "attack-mode skill decision",
+          )
+          replace_once(
+              "src/core/simulate.js",
+              '''    return benefit.gain > 0\n      ? {\n          use: true,\n          reason: `通常攻撃より今ターンの実与ダメージが${benefit.gain}増えるため使用`,\n        }\n      : {\n          use: false,\n          reason: "通常攻撃を上回る今ターンの実与ダメージがないため温存",\n        };''',
+              '''    return benefit.defeatGain > 0 || benefit.effectiveDamageGain > 0\n      ? {\n          use: true,\n          reason: benefit.defeatGain > 0\n            ? `通常攻撃より今ターン撃破数が${benefit.defeatGain}増えるため使用`\n            : `オーバーキルを除いた有効与ダメージが${benefit.effectiveDamageGain}増えるため使用`,\n        }\n      : {\n          use: false,\n          reason: "通常攻撃と撃破数・有効与ダメージが同じため温存",\n        };''',
+              "single attack skill decision",
+          )
+          replace_once(
+              "src/core/simulate.js",
+              '''  const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);\n  const useful = skill.type === "heal"\n    ? benefit.healingGain > 0\n    : benefit.outgoingGain > 0 || benefit.preventedDamage > 0;\n  return useful\n    ? { use: true, reason: "このターン以降の与ダメージ増加または被ダメージ軽減に寄与するため使用" }\n    : { use: false, reason: "適用対象・属性条件・盤面効果が不足するため温存" };''',
+              '''  const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules, options);\n  const useful = skill.type === "heal"\n    ? benefit.healingGain > 0\n    : benefit.outgoingDefeatGain > 0 ||\n      benefit.preventedDefeats > 0 ||\n      benefit.outgoingEffectiveDamageGain > 0 ||\n      benefit.preventedDamage > 0;\n  return useful\n    ? {\n        use: true,\n        reason: benefit.outgoingDefeatGain > 0 || benefit.preventedDefeats > 0\n          ? "このターンの撃破数または味方生存数を改善するため使用"\n          : "オーバーキルを除いた有効ダメージ収支を改善するため使用",\n      }\n    : { use: false, reason: "撃破数・生存数・有効ダメージのいずれも改善しないため温存" };''',
+              "support skill decision",
+          )
+          # heal calls use the richer support estimator too.
+          replace_once(
+              "src/core/simulate.js",
+              '''  const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);''',
+              '''  const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules, options);''',
+              "heal decision support estimator",
+          )
+          replace_once(
+              "src/core/simulate.js",
+              '''    const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);''',
+              '''    const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules, options);''',
+              "expert heal support estimator",
+          )
+
+          # Tactical action-order tertiary metric is capped effective damage, not raw overkill.
+          replace_once(
+              "src/core/simulate.js",
+              '''function projectedAttackDamage(intent, state, rules) {\n  return projectedSkillDamage(state, intent.side, intent.actor, intent.skill, rules, { effective: true });\n}''',
+              '''function projectedAttackDamage(intent, state, rules) {\n  const outcome = resolvedAttackOutcome(\n    state,\n    intent.side,\n    intent.actorIndex,\n    intent.skill,\n    rules,\n    TARGET_POLICIES.EXPERT,\n  );\n  return outcome.effectiveDamage;\n}''',
+              "effective tactical damage",
+          )
+
+          # 6) Revive/death prediction replays the actual planned same-turn support
+          # and attack intents, including attack buffs, attack-mode buffs and attribute changes.
+          replace_once(
+              "src/core/simulate.js",
+              '''function predictedIncomingMinimumDamage(state, side, targetIndex, rules, options = {}) {\n  const target = state[side]?.[targetIndex];\n  if (!target?.alive || target.isGhost) return 0;''',
+              '''function projectedPlannedAttackPhase(state, plannedIntents, rules, options = {}) {\n  let projected = structuredClone(state);\n  for (const skillTypes of [\n    ["attribute_change"],\n    ["heal"],\n    ["attack_buff", "aoe_attack", "multi_hit_attack"],\n    ["damage_reduction", "guard", "attribute_guard"],\n  ]) {\n    projected = applySupportPhase(projected, plannedIntents, skillTypes).state;\n  }\n  const scheduled = attackIntents(projected, plannedIntents, rules, {\n    ...options,\n    playStyle: PLAY_STYLES.EXPERT,\n    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,\n  });\n  return resolveAttacks(projected, scheduled, rules, {\n    ...options,\n    random: () => 0,\n  }).state;\n}\n\nfunction predictedIncomingMinimumDamage(state, side, targetIndex, rules, options = {}) {\n  const target = state[side]?.[targetIndex];\n  if (!target?.alive || target.isGhost) return 0;\n  if (Array.isArray(options.plannedIntents)) {\n    const after = projectedPlannedAttackPhase(state, options.plannedIntents, rules, options);\n    const afterTarget = after[side]?.[targetIndex];\n    return Math.max(0, target.currentHp - Math.max(0, Number(afterTarget?.currentHp) || 0));\n  }''',
+              "planned attack phase prediction",
+          )
+          replace_once(
+              "src/core/simulate.js",
+              '''  const attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");\n  for (const intent of candidates) {''',
+              '''  const attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");\n  const plannedIntents = candidates.filter(({ use, skill }) => use && skill.type !== "revive");\n  for (const intent of candidates) {''',
+              "planned intents collection",
+          )
+          replace_once(
+              "src/core/simulate.js",
+              '''      const use = reviveMayApply(state, intent.side, intent.actorIndex, intent.skill, rules, { ...options, plannedAttributeIntents: attributeIntents });''',
+              '''      const use = reviveMayApply(state, intent.side, intent.actorIndex, intent.skill, rules, {\n        ...options,\n        plannedAttributeIntents: attributeIntents,\n        plannedIntents,\n      });''',
+              "revive exact planned prediction",
+          )
+          replace_once(
+              "src/core/simulate.js",
+              '''          plannedAttributeIntents: attributeIntents,\n        })''',
+              '''          plannedAttributeIntents: attributeIntents,\n          plannedIntents,\n        })''',
+              "expert heal planned prediction",
+          )
+          replace_once(
+              "src/core/simulate.js",
+              '''          plannedAttributeIntents: attributeIntents,\n        });''',
+              '''          plannedAttributeIntents: attributeIntents,\n          plannedIntents,\n        });''',
+              "default heal planned prediction",
+          )
+
+          # 7) Browser fallback search: seed each slot from already battle-proven
+          # precomputed decks, then fill only with the highest published slot ratings.
+          marker = 'async function buildMetagameDeckCandidatesWithProgress(constraint, characters, options = {}) {'
+          p = Path("src/core/metagame-deck.js")
+          text = p.read_text(encoding="utf-8")
+          if marker not in text:
+              raise SystemExit("patch anchor not found: browser candidate builder")
+          helper = '''function metagameInteractiveSlotRatings(slot, position, constraint, totalCost, options = {}) {\n  const limit = Math.max(0, Math.floor(Number(options.candidatePoolLimit) || 0));\n  const candidates = [...(slot?.candidates ?? [])];\n  if (!limit || candidates.length <= limit) return candidates;\n  const byId = new Map(candidates.map((rating) => [String(rating.id), rating]));\n  const selected = new Map();\n  for (const raw of constraint?.precomputedDecks ?? []) {\n    const ids = raw?.i ?? raw?.ids;\n    const id = Array.isArray(ids) ? String(ids[position] ?? "") : "";\n    const rating = byId.get(id);\n    if (rating) selected.set(id, rating);\n    if (selected.size >= Math.ceil(limit * 0.5)) break;\n  }\n  const ranked = candidates.sort((left, right) => (\n    metagameCandidateScore(right, totalCost) - metagameCandidateScore(left, totalCost) ||\n    Number(left.cost) - Number(right.cost) ||\n    String(left.id).localeCompare(String(right.id))\n  ));\n  for (const rating of ranked) {\n    if (selected.size >= limit) break;\n    selected.set(String(rating.id), rating);\n  }\n  return [...selected.values()];\n}\n\n'''
+          text = text.replace(marker, helper + marker, 1)
+          async_start = text.index(marker)
+          old_pool = '''  const pools = (constraint?.slots ?? []).map((slot, index) => slot.candidates.map((rating) => ({\n    character: charactersById.get(String(rating.id)),\n    rating,\n    proxy: metagameCandidateScore(rating, totalCost),\n    position: index + 1,\n  })).filter((entry) => entry.character));'''
+          new_pool = '''  const pools = (constraint?.slots ?? []).map((slot, index) => metagameInteractiveSlotRatings(\n    slot,\n    index,\n    constraint,\n    totalCost,\n    options,\n  ).map((rating) => ({\n    character: charactersById.get(String(rating.id)),\n    rating,\n    proxy: metagameCandidateScore(rating, totalCost),\n    position: index + 1,\n  })).filter((entry) => entry.character));'''
+          pos = text.find(old_pool, async_start)
+          if pos < 0:
+              raise SystemExit("patch anchor not found: async candidate pools")
+          text = text[:pos] + new_pool + text[pos + len(old_pool):]
+          p.write_text(text, encoding="utf-8")
+
+          # 8) V12.3 non-exact/live browser calculations use a bounded, seeded
+          # verification search instead of falling back to the legacy huge search.
+          replace_once(
+              "src/ui/metagame-v12-compat.js",
+              '''  return findBestMetagameDeckBeforeV12Cache(data, constraintId, characters, options);\n};''',
+              '''  if (String(constraint?.modelVersion ?? "") === METAGAME_V12_UI_MODEL_VERSION) {\n    return findBestMetagameDeckBeforeV12Cache(data, constraintId, characters, {\n      ...options,\n      // Reuse the strongest region discovered by cloud V12: keep characters\n      // from precomputed winning decks, add only top slot ratings, then verify\n      // the finalists with real 5v5 battles.\n      candidatePoolLimit: options.candidatePoolLimit ?? 32,\n      beamWidth: options.beamWidth ?? 1200,\n      finalistCount: options.finalistCount ?? 16,\n      interactiveScenarioCount: options.interactiveScenarioCount ?? 12,\n    });\n  }\n  return findBestMetagameDeckBeforeV12Cache(data, constraintId, characters, options);\n};''',
+              "V12 seeded live browser search",
+          )
+
+          # 9) Semantic model bump. Old checkpoints/reports become incompatible
+          # automatically, preventing mixed V12.2/V12.3 evidence.
+          old_version = "team-battle-v12.2-threshold-proxy"
+          new_version = "team-battle-v12.3-kill-allocation"
+          for root in [Path("src"), Path("scripts"), Path("test"), Path(".github/workflows")]:
+              if not root.exists():
+                  continue
+              for file in root.rglob("*"):
+                  if not file.is_file() or file.suffix not in {".js", ".mjs", ".yml", ".yaml", ".json", ".md"}:
+                      continue
+                  content = file.read_text(encoding="utf-8")
+                  changed = content.replace(old_version, new_version)
+                  if changed != content:
+                      file.write_text(changed, encoding="utf-8")
+          # Human-facing labels in current V12 UI/docs move with the model.
+          for file in [Path("src/ui/metagame-v12-compat.js")]:
+              content = file.read_text(encoding="utf-8")
+              file.write_text(content.replace("V12.2", "V12.3"), encoding="utf-8")
+
+          # Regression coverage focused on the newly requested behavior.
+          Path("test/v12-3-battle-ai.test.js").write_text(r'''import test from "node:test";\nimport assert from "node:assert/strict";\n\nimport { createBattleState } from "../src/core/battleState.js";\nimport { PLAY_STYLES, ATTACK_ORDER_POLICIES, TARGET_POLICIES, simulateBattle } from "../src/core/simulate.js";\nimport { DEFAULT_RULES } from "../src/data/rules.js";\n\nfunction character(name, { hp = 3000, pow = 1000, skillTurn = 99, skill = null } = {}) {\n  return {\n    id: name, name, hp, pow, attributes: ["fire"], cost: 10, rarity: "N",\n    skillTurn, maxUses: 2, allowedPositions: [1,2,3,4,5], roleTags: [],\n    skill: skill ?? { type: "none", multiplier: 1, hits: 1, duration: 1, target: "self", conditions: [], effects: [] },\n  };\n}\n\nconst expert = {\n  turns: 1,\n  playStyle: PLAY_STYLES.EXPERT,\n  attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,\n  targetPolicy: TARGET_POLICIES.EXPERT,\n  randomSeed: 1,\n};\n\ntest("expert holds a single-target skill when it only adds overkill", () => {\n  const attacker = character("attacker", {\n    pow: 2000, skillTurn: 0,\n    skill: { type: "single_attack", multiplier: 3, hits: 1, duration: 1, target: "enemy_one", conditions: [], effects: [] },\n  });\n  const target = character("target", { hp: 300, pow: 0 });\n  const result = simulateBattle(createBattleState([attacker], [target]), DEFAULT_RULES, expert);\n  const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");\n  const event = selection.events.find((entry) => entry.actorName === "attacker");\n  assert.equal(event.type, "skill_hold");\n  assert.match(event.reason, /撃破数|有効与ダメージ/);\n});\n\ntest("a guard finisher may attack before a weaker ally", () => {\n  const weak = character("weak", { pow: 500 });\n  const strong = character("strong", { pow: 4000 });\n  const guard = character("guard", {\n    hp: 2500, pow: 0, skillTurn: 0,\n    skill: { type: "guard", multiplier: 0.2, hits: 1, duration: 1, target: "self", conditions: [], effects: [] },\n  });\n  const victim = character("victim", { hp: 5000, pow: 0 });\n  const result = simulateBattle(createBattleState([weak, strong], [guard, victim]), DEFAULT_RULES, expert);\n  const attacks = result.history[0].actions.filter((entry) => entry.side === "allies");\n  assert.equal(attacks[0].actorName, "strong");\n});\n\ntest("revive prediction includes same-turn enemy attack buffs", () => {\n  const reviver = character("reviver", {\n    hp: 9000, pow: 0, skillTurn: 0,\n    skill: { type: "revive", multiplier: 1, hits: 1, duration: 1, target: "ally_all", conditions: [], effects: [] },\n  });\n  const fragile = character("fragile", { hp: 2600, pow: 0 });\n  const buffer = character("buffer", {\n    hp: 9000, pow: 0, skillTurn: 0,\n    skill: { type: "attack_buff", multiplier: 2, hits: 1, duration: 1, target: "ally_all", conditions: [], effects: [] },\n  });\n  const hitter = character("hitter", { hp: 9000, pow: 1000 });\n  const result = simulateBattle(\n    createBattleState([reviver, fragile], [buffer, hitter]),\n    DEFAULT_RULES,\n    expert,\n  );\n  const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");\n  const revive = selection.events.find((entry) => entry.actorName === "reviver");\n  assert.equal(revive.type, "skill_use");\n});\n\ntest("V12 live-search policy stays bounded and seeded", async () => {\n  const source = await import("node:fs/promises").then((fs) => fs.readFile("src/ui/metagame-v12-compat.js", "utf8"));\n  assert.match(source, /candidatePoolLimit: options\.candidatePoolLimit \?\? 32/);\n  assert.match(source, /beamWidth: options\.beamWidth \?\? 1200/);\n  assert.match(source, /finalistCount: options\.finalistCount \?\? 16/);\n  assert.match(source, /interactiveScenarioCount: options\.interactiveScenarioCount \?\? 12/);\n});\n''', encoding="utf-8")
+          PY
+      - name: Syntax and focused regression tests
+        run: |
+          node --check src/core/simulate.js
+          node --check src/core/metagame-v7.js
+          node --check src/core/metagame-deck.js
+          node --check src/ui/metagame-v12-compat.js
+          node --test test/v12-3-battle-ai.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js
+      - name: Full test suite
+        run: node --test
+      - name: Build public bundle
+        run: node scripts/build-final.mjs
+      - name: Commit patch to branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-v12-3-ai-speed-patch.yml
+          git add src scripts test .github/workflows
+          git commit -m "fix: make V12.3 kill-aware and speed live searches"
+          git push origin HEAD:fix/v13-team-ai-speed
