@@ -1,0 +1,14 @@
+{
+  "strategy": "shared-evaluated-deck-pool-full-recompute",
+  "sourceCommit": "17e2eb3121436a8be26401bcc0fcbc04b7d25ae2",
+  "sourceRef": "master",
+  "generatedAt": "2026-08-31T00:58:12Z",
+  "scope": [
+    "fire:100",
+    "water:100",
+    "wind:100",
+    "fire-water:100",
+    "fire-wind:100",
+    "water-wind:100"
+  ]
+}
