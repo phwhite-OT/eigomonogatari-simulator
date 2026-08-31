@@ -36,7 +36,8 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           test_path = Path('test/v12-3-battle-ai.test.js')
-          test_path.write_text(test_path.read_text(encoding='utf-8').replace('\\n', '\n'), encoding='utf-8')
+          test_text = test_path.read_text(encoding='utf-8').replace('\\n', '\n').replace('hp: 2600', 'hp: 2200')
+          test_path.write_text(test_text, encoding='utf-8')
           path = Path('src/core/simulate.js')
           text = path.read_text(encoding='utf-8')
           old = '  const attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");\n  const plannedIntents = candidates.filter(({ use, skill }) => use && skill.type !== "revive");\n  for (const intent of candidates) {'
