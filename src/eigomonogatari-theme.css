@@ -1,0 +1,589 @@
+/*
+ * 英語物語-inspired fan theme.
+ * Visual language only: no official logos, art, or copied UI assets.
+ * Loaded after the base stylesheet so the simulator logic/DOM can stay intact.
+ */
+
+:root {
+  --ink: #3a2b21;
+  --ink-soft: #6f5c4d;
+  --paper: #fff6d9;
+  --panel: #fffdf3;
+  --line: #d5b56b;
+  --lime: #ffd94d;
+  --lime-dark: #d9a719;
+  --coral: #e8523c;
+  --blue: #2d8dd0;
+  --gold: #e8a92e;
+  --yuru-red: #d94b3b;
+  --yuru-red-dark: #9f2f2a;
+  --yuru-water: #2788ce;
+  --yuru-wind: #43a05c;
+  --yuru-cream: #fff9e9;
+  --yuru-brown: #5b3f2b;
+  --yuru-brown-dark: #342317;
+  --yuru-gold: #f2bc3d;
+  --yuru-gold-dark: #b87c19;
+  --yuru-sky: #cdeff2;
+  --yuru-pink: #f8c9bc;
+  --shadow: 0 12px 0 rgba(111, 71, 28, .08), 0 24px 50px rgba(79, 46, 20, .13);
+  --radius: 22px;
+  font-family: "Hiragino Maru Gothic ProN", "BIZ UDPGothic", "Yu Gothic", Meiryo, sans-serif;
+}
+
+html {
+  background: #f7dca0;
+}
+
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 9% 7%, rgba(255,255,255,.92) 0 54px, transparent 55px),
+    radial-gradient(circle at 15% 8%, rgba(255,255,255,.75) 0 36px, transparent 37px),
+    radial-gradient(circle at 88% 15%, rgba(255,255,255,.78) 0 44px, transparent 45px),
+    radial-gradient(circle at 93% 16%, rgba(255,255,255,.62) 0 30px, transparent 31px),
+    linear-gradient(180deg, #dff4ed 0, #fff4cf 280px, #f8dfab 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  opacity: .4;
+  background-image:
+    radial-gradient(circle at 0 100%, transparent 18px, rgba(171,116,46,.13) 19px 20px, transparent 21px),
+    radial-gradient(circle at 28px 100%, transparent 18px, rgba(171,116,46,.11) 19px 20px, transparent 21px);
+  background-size: 56px 28px;
+  background-position: 0 100%, 0 100%;
+  mask-image: linear-gradient(to top, black 0 36%, transparent 72%);
+}
+
+.page-grid {
+  opacity: .2;
+  background-image:
+    radial-gradient(circle at 25% 50%, transparent 13px, rgba(112,72,35,.2) 14px 15px, transparent 16px),
+    radial-gradient(circle at 75% 50%, transparent 13px, rgba(112,72,35,.16) 14px 15px, transparent 16px);
+  background-size: 48px 24px;
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), transparent 72%);
+}
+
+.site-header {
+  width: min(1500px, calc(100% - 34px));
+  min-height: 76px;
+  margin-top: 10px;
+  padding: 8px 14px;
+  border: 2px solid #a56d28;
+  border-bottom-width: 5px;
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.18), transparent 45%),
+    linear-gradient(135deg, #75482a, #4f321f 58%, #684126);
+  box-shadow: 0 5px 0 #3b281c, 0 14px 28px rgba(76,43,20,.2);
+}
+
+.brand { gap: 11px; color: #fff9e6; }
+.brand-mark {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border: 3px solid #ffe18a;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #ff8a62, #d94b3b 58%, #9f2f2a);
+  color: transparent;
+  box-shadow: inset 0 -4px 0 rgba(95,31,26,.25), 0 2px 0 #2d1b13;
+}
+.brand-mark::after {
+  content: "英";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff9df;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 25px;
+  font-weight: 900;
+  text-shadow: 0 2px 0 #8a2d27;
+}
+.brand strong {
+  color: transparent;
+  font-size: 0;
+  letter-spacing: 0;
+}
+.brand strong::after {
+  content: "英語物語 デッキ指南所";
+  color: #fff7dc;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-shadow: 0 2px 0 rgba(0,0,0,.32);
+}
+.brand small {
+  color: transparent;
+  font-size: 0;
+}
+.brand small::after {
+  content: "非公式・対戦シミュレーター";
+  color: #f3dba6;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+
+.version-badge,
+.auth-button {
+  border: 2px solid #d5ad61;
+  background: #fff1c8;
+  color: #694827;
+  box-shadow: inset 0 -2px 0 rgba(139,91,28,.14);
+}
+.version-badge i { background: #61ad54; box-shadow: 0 0 0 4px rgba(97,173,84,.2); }
+.auth-status { color: #f4ddb1; }
+.auth-button:hover { background: #fff8df; }
+.auth-button-logout { background: #f7e6c2; color: #765c43; }
+
+main, footer { width: min(1500px, calc(100% - 34px)); }
+
+.app-tabs {
+  gap: 6px;
+  margin: 24px auto 18px;
+  padding: 7px;
+  border: 2px solid #b77b2a;
+  border-bottom-width: 5px;
+  border-radius: 18px;
+  background: linear-gradient(#8b5a32, #684126);
+  box-shadow: 0 4px 0 #4a2e1b, 0 12px 28px rgba(76,43,20,.16);
+}
+.app-tab {
+  min-height: 46px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  color: #f8e7bd;
+  font-size: 12px;
+  letter-spacing: .04em;
+  text-shadow: 0 1px 0 #3c2516;
+  transition: transform .14s ease, background .14s ease, box-shadow .14s ease;
+}
+.app-tab:hover { background: rgba(255,255,255,.1); }
+.app-tab.is-active {
+  border-color: #fff0a9;
+  background: linear-gradient(180deg, #ef6a4d, #ce4338);
+  color: white;
+  box-shadow: inset 0 -4px 0 rgba(112,28,26,.22), 0 3px 0 #4b291b;
+  transform: translateY(-1px);
+}
+
+.hero {
+  position: relative;
+  min-height: 315px;
+  margin: 18px 0 24px;
+  padding: 42px 44px 38px;
+  overflow: hidden;
+  align-items: center;
+  border: 3px solid #c28a34;
+  border-bottom-width: 7px;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 83% 22%, rgba(255,255,255,.92) 0 58px, transparent 59px),
+    radial-gradient(circle at 91% 28%, rgba(255,255,255,.75) 0 42px, transparent 43px),
+    linear-gradient(135deg, rgba(255,253,233,.97), rgba(255,226,163,.95));
+  box-shadow: 0 7px 0 #8f5d24, 0 22px 45px rgba(98,54,22,.16);
+}
+.hero::before {
+  content: "対戦";
+  position: absolute;
+  top: -23px;
+  right: 44px;
+  width: 118px;
+  height: 118px;
+  display: grid;
+  place-items: end center;
+  padding-bottom: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff8265, #da4b3d 65%, #a52f2c);
+  color: #fff8dd;
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 25px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-indent: .12em;
+  text-shadow: 0 2px 0 #7a211f;
+  box-shadow: inset 0 -7px 0 rgba(97,26,23,.2), 0 4px 0 #8b5b25;
+  transform: rotate(7deg);
+}
+.hero::after {
+  content: "FIRE   WATER   WIND";
+  position: absolute;
+  right: 42px;
+  bottom: 15px;
+  color: rgba(92,57,29,.34);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .42em;
+}
+.eyebrow {
+  color: #9a6630;
+  font-size: 10px;
+  letter-spacing: .18em;
+}
+.hero h1 {
+  color: #4a3122;
+  font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+  font-size: clamp(38px, 5vw, 70px);
+  font-weight: 900;
+  letter-spacing: -.05em;
+  text-shadow: 0 2px 0 white;
+}
+.hero h1 em { color: #c84235; }
+.hero h1 em::after {
+  height: .22em;
+  bottom: -.01em;
+  background: #ffd64a;
+  box-shadow: 0 2px 0 rgba(151,94,20,.18);
+}
+.hero-copy p { color: #6e523e; font-weight: 600; }
+
+.hero-flow {
+  position: relative;
+  z-index: 1;
+  padding: 17px;
+  border: 3px solid #c18a3c;
+  border-bottom-width: 6px;
+  border-radius: 19px;
+  background: rgba(255,250,229,.94);
+  box-shadow: 0 5px 0 rgba(105,65,27,.18), 0 14px 28px rgba(86,48,19,.1);
+}
+.hero-flow div { padding: 7px 4px; border-radius: 12px; }
+.hero-flow div:nth-of-type(1) { background: #fff0e9; }
+.hero-flow div:nth-of-type(2) { background: #e9f4ff; }
+.hero-flow div:nth-of-type(3) { background: #ebf8ed; }
+.hero-flow div span { color: #c64032; }
+.hero-flow div strong { color: #4c3526; }
+.hero-flow i { background: #bd945e; }
+.hero-flow i::after { border-left-color: #bd945e; }
+
+.assumption-banner {
+  border: 2px solid #d3a444;
+  border-left-width: 7px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #fff4c9, #fffaf0);
+  color: #6b4a1e;
+  box-shadow: 0 4px 0 rgba(158,102,24,.1);
+}
+.assumption-icon {
+  background: #f1b536;
+  color: white;
+  box-shadow: inset 0 -3px 0 rgba(129,82,19,.18);
+}
+
+.metagame-simulator,
+.control-panel,
+.results-panel,
+.lightest-panel,
+.character-search-panel,
+.character-editor-panel {
+  border: 3px solid #c29148;
+  border-bottom-width: 7px;
+  background: rgba(255,253,239,.96);
+  box-shadow: 0 7px 0 rgba(108,68,30,.16), 0 22px 44px rgba(75,44,20,.12);
+}
+
+.metagame-simulator {
+  position: relative;
+  overflow: hidden;
+  padding: 31px;
+  border-radius: 27px;
+  background:
+    linear-gradient(90deg, rgba(217,75,59,.06), transparent 24%, transparent 76%, rgba(45,141,208,.06)),
+    rgba(255,253,239,.97);
+}
+.metagame-simulator::before {
+  content: "対戦シミュレーター";
+  position: absolute;
+  top: 0;
+  right: 28px;
+  padding: 7px 17px 8px;
+  border-radius: 0 0 12px 12px;
+  background: linear-gradient(180deg, #6e4328, #4d301e);
+  color: #ffe59a;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .09em;
+  box-shadow: 0 3px 0 rgba(55,31,17,.25);
+}
+.metagame-simulator-heading h2,
+.panel-heading h2,
+.lightest-hero h1,
+.character-search-heading h2 {
+  color: #4a3020;
+  font-weight: 900;
+}
+.metagame-simulator-heading h2 { padding-right: 150px; }
+.metagame-simulator-heading p { color: #715c49; }
+.metagame-data-status {
+  border: 2px solid #85ad54;
+  background: #edf7d5;
+  color: #557032;
+  box-shadow: inset 0 -2px 0 rgba(83,112,43,.1);
+}
+.metagame-calculation-status {
+  border: 2px solid #d3b061;
+  background: linear-gradient(135deg, #fff7d8, #fffdf2);
+  box-shadow: inset 0 0 0 3px rgba(255,255,255,.48);
+}
+.metagame-calculation-heading strong,
+.metagame-fixed-slots-heading strong,
+.metagame-boosted-heading strong,
+.metagame-surveyed-heading strong { color: #754b26; }
+.metagame-calculation-methodology { border-top-color: #e5c985; color: #80683d; }
+
+.metagame-fixed-slots,
+.metagame-boosted-characters,
+.metagame-environment-preview,
+.metagame-surveyed-constraints,
+.metagame-debug-rankings,
+.sub-settings,
+.data-card,
+.deck-character-selection-target,
+.deck-fixed-position,
+.rules-settings,
+.search-summary {
+  border-color: #d8bd7d;
+  background: rgba(255,249,229,.86);
+}
+
+.field input,
+.field select,
+.field textarea,
+.rules-settings textarea,
+.metagame-fixed-picker-form input,
+.metagame-boosted-controls input,
+.character-search-form input,
+.character-search-form select {
+  border: 2px solid #cfb67d;
+  background: #fffdf5;
+  color: #493426;
+  box-shadow: inset 0 2px 0 rgba(115,79,39,.04);
+}
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: #e39c3d;
+  box-shadow: 0 0 0 3px rgba(239,175,61,.18);
+}
+.field > span,
+.field-group legend { color: #765b43; }
+
+.button {
+  min-height: 42px;
+  border: 2px solid #6d4528;
+  border-bottom-width: 5px;
+  border-radius: 12px;
+  box-shadow: none;
+  transition: transform .11s ease, filter .11s ease, border-bottom-width .11s ease;
+}
+.button:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.04); }
+.button:active:not(:disabled) { transform: translateY(2px); border-bottom-width: 2px; }
+.button-primary,
+.button-search {
+  border-color: #8d3027;
+  background: linear-gradient(180deg, #f16a4f, #cf4539);
+  color: white;
+  text-shadow: 0 1px 0 #892a26;
+}
+.button-search { box-shadow: inset 0 1px 0 rgba(255,255,255,.28); }
+.button-ghost,
+.button-cancel {
+  border-color: #ad844b;
+  background: linear-gradient(180deg, #fff9e7, #f5e5bd);
+  color: #62452f;
+}
+
+.section-title > span {
+  border: 2px solid #8b2f28;
+  border-bottom-width: 4px;
+  background: linear-gradient(180deg, #e9614b, #c83f35);
+  color: #fff5d6;
+  box-shadow: 0 2px 0 rgba(89,31,26,.15);
+}
+.section-title h3 { color: #523624; }
+.section-title p { color: #826e5c; }
+.panel-heading { border-bottom: 2px solid #ddc38a; background: linear-gradient(180deg, #fff9e8, #fff4d5); }
+.form-section { border-bottom-color: #e1c995; }
+
+.attribute-chip span {
+  border: 2px solid #d2b77d;
+  border-bottom-width: 4px;
+  background: #fffaf0;
+  color: #6a5747;
+}
+.attribute-chip input:checked + span { box-shadow: inset 0 -3px 0 rgba(0,0,0,.12), 0 2px 0 rgba(90,56,25,.12); }
+.attribute-fire input:checked + span { background: linear-gradient(#ef7157, #cf453b); border-color: #9d332e; }
+.attribute-water input:checked + span { background: linear-gradient(#5eb2e7, #287fc0); border-color: #246696; }
+.attribute-wind input:checked + span { background: linear-gradient(#74c985, #439958); border-color: #367b48; }
+.attribute-fire_water input:checked + span { background: linear-gradient(135deg, #e95f4b 0 49%, #3b99d6 51%); border-color: #735064; }
+.attribute-fire_wind input:checked + span { background: linear-gradient(135deg, #e95f4b 0 49%, #4eaa62 51%); border-color: #765c42; }
+.attribute-water_wind input:checked + span { background: linear-gradient(135deg, #3b99d6 0 49%, #4eaa62 51%); border-color: #477b79; }
+.attribute-all input:checked + span { background: linear-gradient(135deg, #e95f4b 0 33%, #3b99d6 34% 66%, #4eaa62 67%); border-color: #71614c; }
+
+.switch-row {
+  border: 2px solid #d8bf86;
+  background: #fffaf0;
+}
+.switch-row input:checked + i { background: #e4a62c; }
+
+.metagame-sim-progress > span {
+  height: 12px;
+  border: 2px solid #b98b45;
+  background: #eadbb7;
+  box-shadow: inset 0 2px 3px rgba(96,62,27,.15);
+}
+.metagame-sim-progress i {
+  background: repeating-linear-gradient(135deg, #efc242 0 12px, #ffe27a 12px 24px);
+  box-shadow: inset 0 -2px 0 rgba(143,96,23,.2);
+}
+
+.metagame-result-overview {
+  border: 2px solid #8b2f27;
+  border-bottom-width: 5px;
+  background: linear-gradient(180deg, #e75a47, #bb3933);
+  color: #fffbea;
+  box-shadow: 0 3px 0 rgba(96,39,28,.16);
+}
+.metagame-result-overview span { color: #ffdfb4; }
+.metagame-deck-result {
+  border: 2px solid #cfb06d;
+  border-bottom-width: 5px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #fffdf5, #fff6de);
+  box-shadow: 0 4px 0 rgba(117,73,29,.08), 0 10px 25px rgba(84,49,20,.08);
+}
+.metagame-deck-result.is-best {
+  border-color: #e0a92c;
+  box-shadow: 0 5px 0 #bd7e1c, 0 15px 30px rgba(163,105,22,.16);
+}
+.metagame-deck-result.is-best .metagame-result-header {
+  background: linear-gradient(90deg, #fff2b9, #fffaf0);
+}
+.metagame-result-header { border-bottom: 2px solid #ead09b; }
+
+/* Generic result/deck cards from the classic search UI. */
+.result-card,
+.deck-card,
+.candidate-card,
+.character-result,
+.character-search-result,
+.lightest-result-card {
+  border-color: #d1b16f !important;
+  background: linear-gradient(180deg, #fffdf4, #fff6de) !important;
+  box-shadow: 0 4px 0 rgba(112,68,28,.09), 0 10px 24px rgba(74,42,18,.08) !important;
+}
+
+/* Character art should feel like collectible cards without changing source images. */
+img[class*="character"],
+[class*="character"] img,
+.metagame-slot-card img,
+.lightest-deck-card img {
+  border-radius: 13px;
+}
+
+.metagame-fixed-slot,
+.metagame-slot-card,
+.metagame-surveyed-item,
+.metagame-debug-ranking-slot,
+.metagame-fixed-picker-result,
+.metagame-boosted-result {
+  border-color: #d7bc7c;
+  background: linear-gradient(180deg, #fffdf5, #fff7e2);
+  box-shadow: inset 0 1px 0 white;
+}
+
+.metagame-debug-ranking-slot { position: relative; overflow: hidden; }
+.metagame-debug-ranking-slot::after {
+  content: "";
+  position: absolute;
+  inset: auto -22px -22px auto;
+  width: 62px;
+  height: 62px;
+  border: 10px solid rgba(230,169,46,.08);
+  border-radius: 50%;
+}
+
+/* Modal / picker treatment: game window rather than admin dialog. */
+.modal-card,
+.character-editor-dialog,
+.character-search-dialog,
+.metagame-evidence-dialog {
+  border: 3px solid #c18a3d !important;
+  border-bottom-width: 7px !important;
+  border-radius: 22px !important;
+  background: #fffaf0 !important;
+  box-shadow: 0 8px 0 rgba(89,53,24,.18), 0 28px 65px rgba(46,28,15,.28) !important;
+}
+
+footer {
+  margin-top: 34px;
+  padding: 22px 18px 34px;
+  color: #7b644e;
+  border-top: 2px dashed rgba(131,89,42,.28);
+}
+
+@media (max-width: 980px) {
+  .site-header { width: min(100% - 20px, 1500px); }
+  main, footer { width: min(100% - 20px, 1500px); }
+  .hero { padding: 34px 28px; gap: 26px; }
+  .hero::before { right: 18px; width: 94px; height: 94px; font-size: 20px; }
+  .hero::after { display: none; }
+  .metagame-simulator-heading h2 { padding-right: 0; }
+}
+
+@media (max-width: 760px) {
+  .site-header { margin-top: 6px; border-radius: 14px; }
+  .brand strong::after { font-size: 12px; }
+  .brand small::after { font-size: 8px; }
+  .brand-mark { width: 42px; height: 42px; }
+  .header-actions { gap: 5px; }
+  .version-badge { display: none; }
+  .app-tabs {
+    position: sticky;
+    top: 6px;
+    z-index: 20;
+    width: 100%;
+    overflow-x: auto;
+    justify-content: stretch;
+  }
+  .app-tab { min-width: 0; flex: 1 0 auto; padding: 0 12px; }
+  .hero {
+    min-height: auto;
+    grid-template-columns: 1fr;
+    padding: 30px 20px 24px;
+    border-radius: 22px;
+  }
+  .hero::before { opacity: .15; top: -18px; right: -12px; transform: rotate(9deg) scale(1.15); }
+  .hero-flow { grid-template-columns: 1fr 22px 1fr 22px 1fr; }
+  .metagame-simulator { padding: 22px 15px; border-radius: 20px; }
+  .metagame-simulator::before { right: 14px; padding-inline: 10px; font-size: 8px; }
+}
+
+@media (max-width: 520px) {
+  body { background: linear-gradient(180deg, #e4f4ec 0, #fff3ca 220px, #f5d89e 100%); }
+  .site-header { padding-inline: 9px; }
+  .auth-status { display: none; }
+  .brand strong::after { content: "英語物語 デッキ指南所"; font-size: 11px; }
+  .brand small::after { content: "非公式シミュレーター"; }
+  .hero h1 { font-size: clamp(34px, 11vw, 48px); }
+  .hero-copy p { font-size: 13px; line-height: 1.75; }
+  .hero-flow { padding: 10px; }
+  .hero-flow div strong { font-size: 9px; }
+  .hero-flow div small { font-size: 8px; white-space: normal; }
+  .assumption-banner { grid-template-columns: 30px 1fr; padding: 12px; }
+  .button { min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .app-tab,
+  .metagame-sim-progress i { transition: none !important; }
+}
