@@ -30,7 +30,7 @@ renderMetagameCalculationStatus = function renderMetagameCalculationStatusV12(co
       : "V12.2で全5枠が完了した条件はまだありません。";
   }
   if (methodology) {
-    methodology.textContent = "V12.2: 候補キャラ入りの最善デッキと、そのキャラを禁止して全5枠を同じ総コスト上限で再最適化した最善デッキを比較。安定補正後の勝率差を枠別順位に使い、その候補から完成デッキを組んで5対5環境へ再投入します。";
+    methodology.textContent = "V12.2: 候補キャラ入りの最善デッキと、そのキャラを禁止して全5枠を同じ総コスト上限で再最適化した最善デッキを比較。安定補正後の勝率差を枠別順位に使います。通常条件では、この事前計算で実戦評価済みの完成デッキをブラウザで再利用します。";
   }
 };
 
@@ -106,8 +106,56 @@ metagameUiImpactReasons = function metagameUiImpactReasonsV12(character, rating,
   const baselineNames = rating?.baselineDeck?.names ?? [];
   if (bestNames.length === 5) reasons.push(`V12.2での候補入り最善例: ${bestNames.join(" / ")}`);
   if (baselineNames.length === 5) reasons.push(`候補禁止時の最善代替例: ${baselineNames.join(" / ")}`);
-  reasons.push("完成デッキの最終順位は、この枠別機会価値だけで決めず、画面で選んだ環境数へ5対5で再投入した結果で決定します。");
+  reasons.push("完成デッキの最終順位は、この枠別機会価値だけで決めず、実戦評価済み完成デッキの勝率も使って決定します。");
   return reasons;
+};
+
+const findBestMetagameDeckBeforeV12Cache = findBestMetagameDeck;
+findBestMetagameDeck = async function findBestMetagameDeckV12Cache(data, constraintId, characters, options = {}) {
+  const requestedTotalCost = Number(options.totalCost);
+  const costMode = options.costMode === "exact" ? "exact" : "at_most";
+  const constraint = { ...resolveMetagameConstraint(data, constraintId, requestedTotalCost), costMode };
+  if (String(constraint?.modelVersion ?? "") === METAGAME_V12_UI_MODEL_VERSION) {
+    const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
+    const automaticIds = normalizeMetagameBoostedCharacterIds(options.automaticCharacterIds);
+    const canReusePublishedDecks = !constraint.interpolation
+      && !boostedIds.size
+      && !automaticIds.size
+      && Array.isArray(constraint.precomputedDecks)
+      && constraint.precomputedDecks.length > 0;
+    if (canReusePublishedDecks) {
+      const fixedSlots = metagameFixedSlots(options.fixedSlots);
+      const precomputed = metagameV8PrecomputedResults(constraint, characters, fixedSlots);
+      if (precomputed.length) {
+        options.onProgress?.({
+          phase: "candidate",
+          completed: 5,
+          total: 5,
+          slot: 5,
+          slots: 5,
+          checked: precomputed.length,
+          stageTotal: precomputed.length,
+          retained: precomputed.length,
+          valid: precomputed.length,
+        });
+        return {
+          constraint,
+          generatedAt: data.generatedAt,
+          candidateDeckCount: precomputed.length,
+          simulatedDeckCount: 0,
+          scenarioCount: Number(precomputed[0]?.scenarioCount) || Number(constraint.scenarioCount) || 0,
+          boostedCharacterIds: [],
+          automaticCharacterIds: [],
+          usedPrecomputedDeckCache: true,
+          results: precomputed.slice(0, 3).map((candidate) => ({
+            ...candidate,
+            usedPrecomputedDeckCache: true,
+          })),
+        };
+      }
+    }
+  }
+  return findBestMetagameDeckBeforeV12Cache(data, constraintId, characters, options);
 };
 
 const renderMetagameSimulatorResultBeforeV12 = renderMetagameSimulatorResult;
@@ -116,6 +164,8 @@ renderMetagameSimulatorResult = function renderMetagameSimulatorResultV12(contai
   if (String(searchResult?.constraint?.modelVersion ?? "") !== METAGAME_V12_UI_MODEL_VERSION) return;
   const note = container.querySelector(".metagame-result-note");
   if (note) {
-    note.textContent = "V12.2の枠別順位は『そのキャラを使える最善デッキ』と『そのキャラを禁止し、空いたコストを含め全5枠を再最適化した最善代替デッキ』の勝率差で作成しています。この画面の完成デッキ順位は、そのV12.2候補を組み合わせた後、選択した4/8/24/全環境へ再投入した5対5結果で決定します。";
+    note.textContent = searchResult.usedPrecomputedDeckCache
+      ? `この結果はV12.2で既に実戦評価済みの完成デッキを再利用しています。ブラウザ側の候補ビーム探索と再対戦は行っていません（事前評価 ${searchResult.scenarioCount}環境）。補正キャラ・新規編集キャラ・未計算コスト・保存済み候補にない固定条件を指定した場合だけ再計算します。`
+      : "V12.2の枠別順位は『そのキャラを使える最善デッキ』と『そのキャラを禁止し、空いたコストを含め全5枠を再最適化した最善代替デッキ』の勝率差で作成しています。この画面の完成デッキ順位は、そのV12.2候補を組み合わせた後、選択した環境へ再投入した5対5結果で決定します。";
   }
 };
