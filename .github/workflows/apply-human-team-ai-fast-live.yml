@@ -1,0 +1,50 @@
+name: Apply human team AI and fast live search
+
+on:
+  push:
+    branches:
+      - fix/v12-human-team-ai-and-fast-live-search
+    paths:
+      - ".github/workflows/apply-human-team-ai-fast-live.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/v12-human-team-ai-and-fast-live-search
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply strategy refinement
+        run: node scripts/apply-v12-strategy-refinement.mjs
+      - name: Optimize strategic projections
+        run: node scripts/apply-v12-strategy-optimization.mjs
+      - name: Syntax checks
+        run: |
+          node --check src/core/simulate.js
+          node --check src/core/metagame-v7.js
+          node --check src/core/metagame-deck.js
+          node --check src/ui/metagame-v12-fast-live.js
+          node --check src/ui/metagame-v12-compat.js
+      - name: Focused battle and V12 tests
+        run: |
+          node --test test/metagame-v12-strategy-refinement.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js
+      - name: Full test suite
+        run: node --test
+      - name: Build public bundle
+        run: node scripts/build-final.mjs
+      - name: Commit applied implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-human-team-ai-fast-live.yml scripts/apply-v12-strategy-refinement.mjs scripts/apply-v12-strategy-optimization.mjs
+          git add src test scripts .github
+          git commit -m "fix: make V12.3 tactical and speed live searches"
+          git push origin HEAD:fix/v12-human-team-ai-and-fast-live-search
