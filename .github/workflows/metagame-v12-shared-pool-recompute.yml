@@ -10,6 +10,8 @@ on:
       - "src/core/skills.js"
       - "src/core/metagame-v7.js"
       - "src/core/metagame-v12.js"
+      - "src/data/metagame-v8-inputs.js"
+      - "src/data/metagame-v12-sweep-inputs.js"
       - ".github/workflows/metagame-v12-shared-pool-recompute.yml"
 
 permissions:
@@ -18,7 +20,9 @@ permissions:
 
 concurrency:
   group: metagame-v12-shared-pool-recompute
-  cancel-in-progress: false
+  # A source push must replace an older run that is using obsolete battle/data
+  # semantics. Self-dispatched continuation runs wait for the previous segment.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   select:
@@ -47,17 +51,22 @@ jobs:
             local progress_path="$1"
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
-            # Completed environments no longer need their serialized cache to
-            # advance the queue. The exact shared-pool reconciliation already
-            # happened during finalization and is preserved in report.json.
             jq -e '.status == "complete" and .context.version == "team-battle-v12.2-threshold-proxy" and .context.battleSemantics == "skill-target-revive-v2"' <<< "$progress" >/dev/null
           }
 
-          targets='[]'
-          input_ids=(
-            "fire:100" "water:100" "wind:100"
-            "fire-water:100" "fire-wind:100" "water-wind:100"
+          attribute_groups=(
+            "fire" "water" "wind"
+            "fire-water" "fire-wind" "water-wind" "fire-water-wind"
           )
+          input_ids=()
+          for cost in $(seq 100 200); do
+            for attribute_group in "${attribute_groups[@]}"; do
+              input_ids+=("${attribute_group}:${cost}")
+            done
+          done
+
+          echo "V12 sweep queue: ${#input_ids[@]} conditions (7 attribute groups x costs 100..200)."
+          targets='[]'
           checkpoint_path=""
           for input_id in "${input_ids[@]}"; do
             output_directory="${input_id//:/-}"
@@ -138,7 +147,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: v12-sp-progress-${{ matrix.output_directory }}-${{ matrix.position }}-${{ matrix.shard }}
-          path: ${{ runner.temp }}/v12-sp-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
+          # Action inputs do not expand shell $VARS. Use matrix expressions so
+          # the file written by rate-metagame-v12.mjs is actually uploaded.
+          path: ${{ runner.temp }}/v12-sp-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
           if-no-files-found: error
           retention-days: 2
       - name: Propagate evaluation failure after checkpoint upload
@@ -207,21 +218,36 @@ jobs:
             --arg source_commit "${{ github.sha }}" \
             --arg source_ref "${{ github.ref_name }}" \
             --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{strategy:"shared-evaluated-deck-pool-full-recompute",sourceCommit:$source_commit,sourceRef:$source_ref,generatedAt:$generated_at,scope:["fire:100","water:100","wind:100","fire-water:100","fire-wind:100","water-wind:100"]}' \
+            '{
+              strategy:"shared-evaluated-deck-pool-full-recompute",
+              sourceCommit:$source_commit,
+              sourceRef:$source_ref,
+              generatedAt:$generated_at,
+              attributeGroups:["fire","water","wind","fire-water","fire-wind","water-wind","fire-water-wind"],
+              costRange:{min:100,max:200,step:1},
+              conditionCount:707
+            }' \
             > reports/metagame-ratings-v12-team-opportunity/recompute-provenance.json
       - id: status
-        name: Check six-environment recompute completion
+        name: Check 707-condition recompute completion
         shell: bash
         run: |
           is_complete_file() {
             [ -f "$1" ] && jq -e '.status == "complete" and .context.version == "team-battle-v12.2-threshold-proxy" and .context.battleSemantics == "skill-target-revive-v2"' "$1" >/dev/null
           }
+          attribute_groups=(
+            "fire" "water" "wind"
+            "fire-water" "fire-wind" "water-wind" "fire-water-wind"
+          )
           all_completed=true
-          for output_directory in fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100; do
-            if ! is_complete_file "reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"; then
-              all_completed=false
-              break
-            fi
+          for cost in $(seq 100 200); do
+            for attribute_group in "${attribute_groups[@]}"; do
+              output_directory="${attribute_group}-${cost}"
+              if ! is_complete_file "reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"; then
+                all_completed=false
+                break 2
+              fi
+            done
           done
           echo "all_completed=$all_completed" >> "$GITHUB_OUTPUT"
       - name: Save isolated recompute progress
