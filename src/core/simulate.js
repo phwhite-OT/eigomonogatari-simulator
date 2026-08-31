@@ -554,6 +554,122 @@ function expertSupportBenefit(state, side, actorIndex, skill, rules) {
   return { after, outgoingGain, preventedDamage, healingGain };
 }
 
+function settlePredictedDefenseState(state, rules) {
+  return resolveDefeatedCombatants(state, {
+    ghostPower: rules.simulation?.ghostPower ?? 1000,
+  }).state;
+}
+
+function expertDefenseOutcomeBenefit(state, side, actorIndex, skill, rules, options = {}) {
+  if (!DEFENSE_SKILL_TYPES.has(skill.type)) {
+    return {
+      remainingCharacterGain: 0,
+      activePlayerGain: 0,
+      remainingHpGain: 0,
+      nextAttackGain: 0,
+      boardGain: 0,
+      savedAllyCount: 0,
+      sacrificedAllyCount: 0,
+    };
+  }
+
+  const plannedIntents = Array.isArray(options.plannedIntents) ? options.plannedIntents : [];
+  const withoutCandidate = plannedIntents.filter((intent) => !(
+    intent.side === side &&
+    intent.actorIndex === actorIndex &&
+    DEFENSE_SKILL_TYPES.has(intent.skill?.type)
+  ));
+  const actor = state[side]?.[actorIndex];
+  const candidateIntent = {
+    side,
+    actorIndex,
+    actorId: actor?.activeCharacterId,
+    actorName: actor?.character?.name,
+    skill: structuredClone(skill),
+    use: true,
+  };
+
+  const withoutDefense = predictedAttackPhaseState(state, side, rules, {
+    ...options,
+    plannedIntents: withoutCandidate,
+  });
+  const withDefense = predictedAttackPhaseState(state, side, rules, {
+    ...options,
+    plannedIntents: [...withoutCandidate, candidateIntent],
+  });
+  if (!withoutDefense || !withDefense) {
+    return {
+      remainingCharacterGain: 0,
+      activePlayerGain: 0,
+      remainingHpGain: 0,
+      nextAttackGain: 0,
+      boardGain: 0,
+      savedAllyCount: 0,
+      sacrificedAllyCount: 0,
+    };
+  }
+
+  let savedAllyCount = 0;
+  let sacrificedAllyCount = 0;
+  for (let index = 0; index < state[side].length; index += 1) {
+    const original = state[side][index];
+    if (!original?.alive || original.isGhost) continue;
+    const aliveWithout = Boolean(withoutDefense[side]?.[index]?.alive && !withoutDefense[side]?.[index]?.isGhost);
+    const aliveWith = Boolean(withDefense[side]?.[index]?.alive && !withDefense[side]?.[index]?.isGhost);
+    if (!aliveWithout && aliveWith) savedAllyCount += 1;
+    if (aliveWithout && !aliveWith) sacrificedAllyCount += 1;
+  }
+
+  const settledWithout = settlePredictedDefenseState(withoutDefense, rules);
+  const settledWith = settlePredictedDefenseState(withDefense, rules);
+  const teamWithout = snapshotTeam(settledWithout, side);
+  const teamWith = snapshotTeam(settledWith, side);
+  const nextWithout = advanceTurn(settledWithout);
+  const nextWith = advanceTurn(settledWith);
+
+  return {
+    remainingCharacterGain: teamWith.remainingCharacters - teamWithout.remainingCharacters,
+    activePlayerGain: teamWith.activePlayers - teamWithout.activePlayers,
+    remainingHpGain: teamWith.remainingHp - teamWithout.remainingHp,
+    nextAttackGain: projectedTeamAttackDamage(nextWith, side, rules) - projectedTeamAttackDamage(nextWithout, side, rules),
+    boardGain: evaluateBoard(nextWith, side) - evaluateBoard(nextWithout, side),
+    savedAllyCount,
+    sacrificedAllyCount,
+  };
+}
+
+function expertDefenseDecision(state, side, actorIndex, skill, rules, options = {}) {
+  const benefit = expertDefenseOutcomeBenefit(state, side, actorIndex, skill, rules, options);
+  if (benefit.remainingCharacterGain > 0) {
+    return {
+      use: true,
+      reason: `実際の敵攻撃を予行すると、防御により残りキャラを${benefit.remainingCharacterGain}体多く維持できるため使用`,
+    };
+  }
+  if (benefit.activePlayerGain > 0) {
+    return {
+      use: true,
+      reason: `実際の敵攻撃を予行すると、防御により行動可能な味方を${benefit.activePlayerGain}人多く残せるため使用`,
+    };
+  }
+  if (benefit.remainingHpGain > 0) {
+    return {
+      use: true,
+      reason: `実際の攻撃配分で味方側の残HPを${benefit.remainingHpGain}多く維持できるため使用`,
+    };
+  }
+  if (benefit.nextAttackGain > 0 || benefit.boardGain > 0) {
+    return {
+      use: true,
+      reason: `防御後の次ターン盤面が改善するため使用（盤面差${benefit.boardGain.toFixed(2)}）`,
+    };
+  }
+  return {
+    use: false,
+    reason: "実際の攻撃配分を防御あり・なしで比較しても、残数・残HP・次ターン盤面が改善しないため温存",
+  };
+}
+
 function healDecision(state, side, actorIndex, skill, rules, options = {}) {
   const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
   if (benefit.healingGain <= 0) return { use: false, reason: "回復対象に実際の回復がないため温存" };
@@ -588,6 +704,9 @@ function expertSkillDecision(state, side, actorIndex, rules, options = {}) {
       ? { use: false, reason: "このターンに自身が蘇生対象になるため温存" }
       : { use: true, reason: "現在ターンの実回復量があるため使用" };
   }
+  if (DEFENSE_SKILL_TYPES.has(skill.type)) {
+  return expertDefenseDecision(state, side, actorIndex, skill, rules, options);
+}
   if (ATTACK_MODE_TYPES.has(skill.type)) {
     const benefit = expertSupportBenefit(state, side, actorIndex, skill, rules);
     return benefit.outgoingGain > 0
@@ -649,6 +768,38 @@ function chooseSkills(state, rules, options) {
     }
   }
   attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");
+
+  // 防御系は単独の理論軽減量ではなく、同ターンに選ばれた他の支援も含めて
+  // 実際の敵攻撃を予行する。最初は全てを候補に戻し、1枚ずつ外した場合と
+  // 比較して、残数・HP・次ターン盤面に寄与しない防御だけを温存する。
+  if (options.playStyle === PLAY_STYLES.EXPERT) {
+    const defenseCandidates = candidates.filter(({ skill }) => DEFENSE_SKILL_TYPES.has(skill.type));
+    for (const intent of defenseCandidates) {
+      intent.use = skillHasApplicableTargets(
+        state,
+        intent.side,
+        intent.actorIndex,
+        intent.skill,
+        attributeIntents,
+      );
+      if (!intent.use) {
+        intent.reason = "現在の盤面に防御条件を満たす対象がいないため温存";
+      }
+    }
+    for (const intent of defenseCandidates) {
+      if (!intent.use) continue;
+      const plannedDefenseContext = candidates.filter(({ use, skill }) => (
+        use && skill.type !== "heal" && skill.type !== "revive"
+      ));
+      const decision = expertDefenseDecision(state, intent.side, intent.actorIndex, intent.skill, rules, {
+        ...options,
+        plannedAttributeIntents: attributeIntents,
+        plannedIntents: plannedDefenseContext,
+      });
+      intent.use = Boolean(decision.use);
+      intent.reason = decision.reason;
+    }
+  }
 
   const plannedNonRecoveryIntents = candidates.filter(({ use, skill }) => (
     use && skill.type !== "heal" && skill.type !== "revive"

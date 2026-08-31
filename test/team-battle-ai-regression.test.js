@@ -120,3 +120,129 @@ test("simulation always uses minimum damage even if a higher damageMultiplier is
   assert.equal(hit.damage, 90);
   assert.equal(hit.factors.random, 0.9);
 });
+
+
+test("expert evaluates all-team damage reduction by resolved defensive outcome", () => {
+  const reduction = {
+    type: "damage_reduction",
+    multiplier: 0.5,
+    duration: 1,
+    target: "ally_all",
+    conditions: [],
+  };
+  const state = createBattleState(
+    [
+      character("reducer", { hp: 80, pow: 0, skillTurn: 0, skill: reduction }),
+      character("ally-a", { hp: 80, pow: 0 }),
+      character("ally-b", { hp: 80, pow: 0 }),
+    ],
+    [
+      character("enemy-a", { hp: 10_000, pow: 100 }),
+      character("enemy-b", { hp: 10_000, pow: 100 }),
+      character("enemy-c", { hp: 10_000, pow: 100 }),
+    ],
+  );
+  const result = simulateBattle(state, rules(), {
+    turns: 1,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: PLAY_STYLES.EXPERT,
+  });
+  const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");
+  const decision = selection.events.find((event) => event.actorName === "reducer");
+
+  assert.equal(decision.type, "skill_use");
+  assert.match(decision.reason, /残りキャラ|残HP|次ターン盤面/);
+});
+
+test("expert evaluates attribute guard by the same resolved defensive outcome", () => {
+  const colorGuard = {
+    type: "attribute_guard",
+    multiplier: 1,
+    duration: 1,
+    target: "self",
+    conditions: [{ type: "enemy_attribute", attribute: "fire" }],
+  };
+  const state = createBattleState(
+    [
+      character("color-guard", { hp: 500, pow: 0, skillTurn: 0, skill: colorGuard }),
+      character("ally-a", { hp: 80, pow: 0 }),
+      character("ally-b", { hp: 80, pow: 0 }),
+      character("ally-c", { hp: 80, pow: 0 }),
+      character("ally-d", { hp: 80, pow: 0 }),
+    ],
+    [
+      character("enemy-a", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+      character("enemy-b", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+      character("enemy-c", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+      character("enemy-d", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+      character("enemy-e", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+    ],
+  );
+  const result = simulateBattle(state, rules(), {
+    turns: 1,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: PLAY_STYLES.EXPERT,
+  });
+  const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");
+  const decision = selection.events.find((event) => event.actorName === "color-guard");
+
+  assert.equal(decision.type, "skill_use");
+});
+
+test("expert treats leader-target guard (dodge) as the same defense family", () => {
+  const dodge = {
+    type: "guard",
+    multiplier: 0.5,
+    duration: 1,
+    target: "leader",
+    conditions: [],
+  };
+  const state = createBattleState(
+    [
+      character("leader", { hp: 500, pow: 0 }),
+      character("dodger", { hp: 80, pow: 0, skillTurn: 0, skill: dodge }),
+      character("ally-a", { hp: 80, pow: 0 }),
+    ],
+    [
+      character("enemy-a", { hp: 10_000, pow: 100 }),
+      character("enemy-b", { hp: 10_000, pow: 100 }),
+      character("enemy-c", { hp: 10_000, pow: 100 }),
+    ],
+  );
+  const result = simulateBattle(state, rules(), {
+    turns: 1,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: PLAY_STYLES.EXPERT,
+  });
+  const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");
+  const decision = selection.events.find((event) => event.actorName === "dodger");
+
+  assert.equal(decision.type, "skill_use");
+});
+
+test("expert holds a one-turn defense when resolved attacks gain nothing", () => {
+  const reduction = {
+    type: "damage_reduction",
+    multiplier: 0.5,
+    duration: 1,
+    target: "ally_all",
+    conditions: [],
+  };
+  const state = createBattleState(
+    [character("reducer", { hp: 1_000, pow: 0, skillTurn: 0, skill: reduction })],
+    [character("enemy", { hp: 10_000, pow: 0 })],
+  );
+  const result = simulateBattle(state, rules(), {
+    turns: 1,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: PLAY_STYLES.EXPERT,
+  });
+  const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");
+  const decision = selection.events.find((event) => event.actorName === "reducer");
+
+  assert.equal(decision.type, "skill_hold");
+});

@@ -4,7 +4,7 @@ import {
   evaluateMetagameV7Deck,
 } from "./metagame-v7.js";
 
-export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.2-threshold-proxy";
+export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.3-defense-outcome";
 
 const PARTIAL_SKILL_TYPES = new Set(["delay", "skill_reduction"]);
 
