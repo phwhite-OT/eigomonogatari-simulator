@@ -1,0 +1,403 @@
+name: One-shot all-defense outcome evaluation fix
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/one-shot-defense-outcome-v3.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply outcome-based evaluation to every defense skill
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          simulate = Path('src/core/simulate.js')
+          text = simulate.read_text()
+
+          support_anchor = '''function expertSupportBenefit(state, side, actorIndex, skill, rules) {
+            const after = applySupportSkill(state, side, actorIndex, skill, { consumeSkill: false });
+            const outgoingGain = projectedTeamAttackDamage(after, side, rules) - projectedTeamAttackDamage(state, side, rules);
+            const preventedDamage = crossTeamDamage(state, opponentSide(side), rules) - crossTeamDamage(after, opponentSide(side), rules);
+            const healingGain = totalCurrentHp(after, side) - totalCurrentHp(state, side);
+            return { after, outgoingGain, preventedDamage, healingGain };
+          }
+          '''
+
+          defense_helpers = support_anchor + '''
+          function settlePredictedDefenseState(state, rules) {
+            return resolveDefeatedCombatants(state, {
+              ghostPower: rules.simulation?.ghostPower ?? 1000,
+            }).state;
+          }
+
+          function expertDefenseOutcomeBenefit(state, side, actorIndex, skill, rules, options = {}) {
+            if (!DEFENSE_SKILL_TYPES.has(skill.type)) {
+              return {
+                remainingCharacterGain: 0,
+                activePlayerGain: 0,
+                remainingHpGain: 0,
+                nextAttackGain: 0,
+                boardGain: 0,
+                savedAllyCount: 0,
+                sacrificedAllyCount: 0,
+              };
+            }
+
+            const plannedIntents = Array.isArray(options.plannedIntents) ? options.plannedIntents : [];
+            const withoutCandidate = plannedIntents.filter((intent) => !(
+              intent.side === side &&
+              intent.actorIndex === actorIndex &&
+              DEFENSE_SKILL_TYPES.has(intent.skill?.type)
+            ));
+            const actor = state[side]?.[actorIndex];
+            const candidateIntent = {
+              side,
+              actorIndex,
+              actorId: actor?.activeCharacterId,
+              actorName: actor?.character?.name,
+              skill: structuredClone(skill),
+              use: true,
+            };
+
+            const withoutDefense = predictedAttackPhaseState(state, side, rules, {
+              ...options,
+              plannedIntents: withoutCandidate,
+            });
+            const withDefense = predictedAttackPhaseState(state, side, rules, {
+              ...options,
+              plannedIntents: [...withoutCandidate, candidateIntent],
+            });
+            if (!withoutDefense || !withDefense) {
+              return {
+                remainingCharacterGain: 0,
+                activePlayerGain: 0,
+                remainingHpGain: 0,
+                nextAttackGain: 0,
+                boardGain: 0,
+                savedAllyCount: 0,
+                sacrificedAllyCount: 0,
+              };
+            }
+
+            let savedAllyCount = 0;
+            let sacrificedAllyCount = 0;
+            for (let index = 0; index < state[side].length; index += 1) {
+              const original = state[side][index];
+              if (!original?.alive || original.isGhost) continue;
+              const aliveWithout = Boolean(withoutDefense[side]?.[index]?.alive && !withoutDefense[side]?.[index]?.isGhost);
+              const aliveWith = Boolean(withDefense[side]?.[index]?.alive && !withDefense[side]?.[index]?.isGhost);
+              if (!aliveWithout && aliveWith) savedAllyCount += 1;
+              if (aliveWithout && !aliveWith) sacrificedAllyCount += 1;
+            }
+
+            const settledWithout = settlePredictedDefenseState(withoutDefense, rules);
+            const settledWith = settlePredictedDefenseState(withDefense, rules);
+            const teamWithout = snapshotTeam(settledWithout, side);
+            const teamWith = snapshotTeam(settledWith, side);
+            const nextWithout = advanceTurn(settledWithout);
+            const nextWith = advanceTurn(settledWith);
+
+            return {
+              remainingCharacterGain: teamWith.remainingCharacters - teamWithout.remainingCharacters,
+              activePlayerGain: teamWith.activePlayers - teamWithout.activePlayers,
+              remainingHpGain: teamWith.remainingHp - teamWithout.remainingHp,
+              nextAttackGain: projectedTeamAttackDamage(nextWith, side, rules) - projectedTeamAttackDamage(nextWithout, side, rules),
+              boardGain: evaluateBoard(nextWith, side) - evaluateBoard(nextWithout, side),
+              savedAllyCount,
+              sacrificedAllyCount,
+            };
+          }
+
+          function expertDefenseDecision(state, side, actorIndex, skill, rules, options = {}) {
+            const benefit = expertDefenseOutcomeBenefit(state, side, actorIndex, skill, rules, options);
+            if (benefit.remainingCharacterGain > 0) {
+              return {
+                use: true,
+                reason: `実際の敵攻撃を予行すると、防御により残りキャラを${benefit.remainingCharacterGain}体多く維持できるため使用`,
+              };
+            }
+            if (benefit.activePlayerGain > 0) {
+              return {
+                use: true,
+                reason: `実際の敵攻撃を予行すると、防御により行動可能な味方を${benefit.activePlayerGain}人多く残せるため使用`,
+              };
+            }
+            if (benefit.remainingHpGain > 0) {
+              return {
+                use: true,
+                reason: `実際の攻撃配分で味方側の残HPを${benefit.remainingHpGain}多く維持できるため使用`,
+              };
+            }
+            if (benefit.nextAttackGain > 0 || benefit.boardGain > 0) {
+              return {
+                use: true,
+                reason: `防御後の次ターン盤面が改善するため使用（盤面差${benefit.boardGain.toFixed(2)}）`,
+              };
+            }
+            return {
+              use: false,
+              reason: "実際の攻撃配分を防御あり・なしで比較しても、残数・残HP・次ターン盤面が改善しないため温存",
+            };
+          }
+          '''
+
+          if 'function expertDefenseOutcomeBenefit' not in text:
+            if support_anchor not in text:
+              raise SystemExit('expertSupportBenefit anchor not found')
+            text = text.replace(support_anchor, defense_helpers, 1)
+
+          attack_mode_anchor = '''  if (ATTACK_MODE_TYPES.has(skill.type)) {
+          '''
+          defense_branch = '''  if (DEFENSE_SKILL_TYPES.has(skill.type)) {
+            return expertDefenseDecision(state, side, actorIndex, skill, rules, options);
+          }
+          ''' + attack_mode_anchor
+          if 'return expertDefenseDecision(state, side, actorIndex, skill, rules, options);' not in text:
+            if attack_mode_anchor not in text:
+              raise SystemExit('expert skill attack-mode anchor not found')
+            text = text.replace(attack_mode_anchor, defense_branch, 1)
+
+          choose_anchor = '''  attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");
+
+            const plannedNonRecoveryIntents = candidates.filter(({ use, skill }) => (
+          '''
+          defense_recheck = '''  attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");
+
+            // 防御系は単独の理論軽減量ではなく、同ターンに選ばれた他の支援も含めて
+            // 実際の敵攻撃を予行する。最初は全てを候補に戻し、1枚ずつ外した場合と
+            // 比較して、残数・HP・次ターン盤面に寄与しない防御だけを温存する。
+            if (options.playStyle === PLAY_STYLES.EXPERT) {
+              const defenseCandidates = candidates.filter(({ skill }) => DEFENSE_SKILL_TYPES.has(skill.type));
+              for (const intent of defenseCandidates) {
+                intent.use = skillHasApplicableTargets(
+                  state,
+                  intent.side,
+                  intent.actorIndex,
+                  intent.skill,
+                  attributeIntents,
+                );
+                if (!intent.use) {
+                  intent.reason = "現在の盤面に防御条件を満たす対象がいないため温存";
+                }
+              }
+              for (const intent of defenseCandidates) {
+                if (!intent.use) continue;
+                const plannedDefenseContext = candidates.filter(({ use, skill }) => (
+                  use && skill.type !== "heal" && skill.type !== "revive"
+                ));
+                const decision = expertDefenseDecision(state, intent.side, intent.actorIndex, intent.skill, rules, {
+                  ...options,
+                  plannedAttributeIntents: attributeIntents,
+                  plannedIntents: plannedDefenseContext,
+                });
+                intent.use = Boolean(decision.use);
+                intent.reason = decision.reason;
+              }
+            }
+
+            const plannedNonRecoveryIntents = candidates.filter(({ use, skill }) => (
+          '''
+          if 'const defenseCandidates = candidates.filter(({ skill }) => DEFENSE_SKILL_TYPES.has(skill.type));' not in text:
+            if choose_anchor not in text:
+              raise SystemExit('chooseSkills defense recheck anchor not found')
+            text = text.replace(choose_anchor, defense_recheck, 1)
+
+          simulate.write_text(text)
+
+          tests = Path('test/team-battle-ai-regression.test.js')
+          test_text = tests.read_text()
+          marker = 'expert evaluates all-team damage reduction by resolved defensive outcome'
+          if marker not in test_text:
+            test_text += r'''
+
+          test("expert evaluates all-team damage reduction by resolved defensive outcome", () => {
+            const reduction = {
+              type: "damage_reduction",
+              multiplier: 0.5,
+              duration: 1,
+              target: "ally_all",
+              conditions: [],
+            };
+            const state = createBattleState(
+              [
+                character("reducer", { hp: 80, pow: 0, skillTurn: 0, skill: reduction }),
+                character("ally-a", { hp: 80, pow: 0 }),
+                character("ally-b", { hp: 80, pow: 0 }),
+              ],
+              [
+                character("enemy-a", { hp: 10_000, pow: 100 }),
+                character("enemy-b", { hp: 10_000, pow: 100 }),
+                character("enemy-c", { hp: 10_000, pow: 100 }),
+              ],
+            );
+            const result = simulateBattle(state, rules(), {
+              turns: 1,
+              targetPolicy: TARGET_POLICIES.EXPERT,
+              attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+              playStyle: PLAY_STYLES.EXPERT,
+            });
+            const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");
+            const decision = selection.events.find((event) => event.actorName === "reducer");
+
+            assert.equal(decision.type, "skill_use");
+            assert.match(decision.reason, /残りキャラ|残HP|次ターン盤面/);
+          });
+
+          test("expert evaluates attribute guard by the same resolved defensive outcome", () => {
+            const colorGuard = {
+              type: "attribute_guard",
+              multiplier: 1,
+              duration: 1,
+              target: "self",
+              conditions: [{ type: "enemy_attribute", attribute: "fire" }],
+            };
+            const state = createBattleState(
+              [
+                character("color-guard", { hp: 500, pow: 0, skillTurn: 0, skill: colorGuard }),
+                character("ally-a", { hp: 80, pow: 0 }),
+                character("ally-b", { hp: 80, pow: 0 }),
+                character("ally-c", { hp: 80, pow: 0 }),
+                character("ally-d", { hp: 80, pow: 0 }),
+              ],
+              [
+                character("enemy-a", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+                character("enemy-b", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+                character("enemy-c", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+                character("enemy-d", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+                character("enemy-e", { attributes: ["fire"], hp: 10_000, pow: 100 }),
+              ],
+            );
+            const result = simulateBattle(state, rules(), {
+              turns: 1,
+              targetPolicy: TARGET_POLICIES.EXPERT,
+              attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+              playStyle: PLAY_STYLES.EXPERT,
+            });
+            const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");
+            const decision = selection.events.find((event) => event.actorName === "color-guard");
+
+            assert.equal(decision.type, "skill_use");
+          });
+
+          test("expert treats leader-target guard (dodge) as the same defense family", () => {
+            const dodge = {
+              type: "guard",
+              multiplier: 0.5,
+              duration: 1,
+              target: "leader",
+              conditions: [],
+            };
+            const state = createBattleState(
+              [
+                character("leader", { hp: 500, pow: 0 }),
+                character("dodger", { hp: 80, pow: 0, skillTurn: 0, skill: dodge }),
+                character("ally-a", { hp: 80, pow: 0 }),
+              ],
+              [
+                character("enemy-a", { hp: 10_000, pow: 100 }),
+                character("enemy-b", { hp: 10_000, pow: 100 }),
+                character("enemy-c", { hp: 10_000, pow: 100 }),
+              ],
+            );
+            const result = simulateBattle(state, rules(), {
+              turns: 1,
+              targetPolicy: TARGET_POLICIES.EXPERT,
+              attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+              playStyle: PLAY_STYLES.EXPERT,
+            });
+            const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");
+            const decision = selection.events.find((event) => event.actorName === "dodger");
+
+            assert.equal(decision.type, "skill_use");
+          });
+
+          test("expert holds a one-turn defense when resolved attacks gain nothing", () => {
+            const reduction = {
+              type: "damage_reduction",
+              multiplier: 0.5,
+              duration: 1,
+              target: "ally_all",
+              conditions: [],
+            };
+            const state = createBattleState(
+              [character("reducer", { hp: 1_000, pow: 0, skillTurn: 0, skill: reduction })],
+              [character("enemy", { hp: 10_000, pow: 0 })],
+            );
+            const result = simulateBattle(state, rules(), {
+              turns: 1,
+              targetPolicy: TARGET_POLICIES.EXPERT,
+              attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+              playStyle: PLAY_STYLES.EXPERT,
+            });
+            const selection = result.history[0].phases.find((phase) => phase.id === "skill_selection");
+            const decision = selection.events.find((event) => event.actorName === "reducer");
+
+            assert.equal(decision.type, "skill_hold");
+          });
+          '''
+            tests.write_text(test_text)
+
+          # This is a battle-semantics change. Old checkpoints and old published
+          # V12 data must not be mistaken for the new defensive model.
+          p = Path('scripts/rate-metagame-v12.mjs')
+          value = p.read_text()
+          value = value.replace('"skill-target-revive-v2"', '"defense-outcome-v3"')
+          p.write_text(value)
+
+          p = Path('src/core/metagame-v12.js')
+          value = p.read_text()
+          value = value.replace('"team-battle-v12.2-threshold-proxy"', '"team-battle-v12.3-defense-outcome"')
+          p.write_text(value)
+
+          p = Path('.github/workflows/metagame-v12-shared-pool-recompute.yml')
+          value = p.read_text()
+          value = value.replace('team-battle-v12.2-threshold-proxy', 'team-battle-v12.3-defense-outcome')
+          value = value.replace('skill-target-revive-v2', 'defense-outcome-v3')
+          p.write_text(value)
+          PY
+
+      - name: Run defense and battle regressions
+        run: |
+          node --test \
+            test/team-battle-ai-regression.test.js \
+            test/simulate.test.js \
+            test/skills.test.js \
+            test/skill-use-revive-regression.test.js \
+            test/v12-battle-corrections.test.js
+
+      - name: Run V12 regression suite
+        shell: bash
+        run: |
+          mapfile -t files < <(find test -maxdepth 1 -type f -name '*v12*.test.js' -print | sort)
+          if [ "${#files[@]}" -gt 0 ]; then
+            node --test "${files[@]}"
+          fi
+
+      - name: Commit tested defense model
+        shell: bash
+        run: |
+          rm -f \
+            .github/workflows/one-shot-defense-outcome-v3.yml \
+            .github/workflows/one-shot-guard-survival-fix.yml \
+            .github/workflows/commit-guard-survival-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --stat
+          git commit -m "fix: evaluate all defense skills by battle outcomes"
+          git push origin HEAD:master
