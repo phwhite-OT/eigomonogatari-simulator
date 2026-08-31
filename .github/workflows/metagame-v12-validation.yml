@@ -6,9 +6,12 @@ on:
       - "src/core/metagame-v12.js"
       - "src/core/skills.js"
       - "src/data/character-catalog.js"
+      - "src/ui/metagame-v12-compat.js"
       - "scripts/rate-metagame-v12.mjs"
       - "scripts/build-metagame-v12-work-matrix.mjs"
+      - "scripts/build-metagame-simulator-data-v12.mjs"
       - "test/metagame-v12.test.js"
+      - "test/metagame-v12-browser-cache.test.js"
       - "test/skills.test.js"
       - "test/attack-mode-target-routing.test.js"
       - ".github/workflows/metagame-v12-*.yml"
@@ -25,11 +28,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Syntax check battle and V12 scripts
+      - name: Syntax check battle, V12 and browser cache scripts
         run: |
           node --check src/core/skills.js
           node --check src/core/metagame-v12.js
+          node --check src/ui/metagame-v12-compat.js
           node --check scripts/rate-metagame-v12.mjs
           node --check scripts/build-metagame-v12-work-matrix.mjs
-      - name: Run battle and V12 focused tests
-        run: node --test test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js
+          node --check scripts/build-metagame-simulator-data-v12.mjs
+      - name: Run battle, V12 and browser cache focused tests
+        run: node --test test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js
