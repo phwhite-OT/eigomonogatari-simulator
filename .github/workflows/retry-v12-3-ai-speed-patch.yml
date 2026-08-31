@@ -35,8 +35,49 @@ jobs:
           python /tmp/apply-v12-3.py
           python - <<'PY'
           from pathlib import Path
-          path = Path('test/v12-3-battle-ai.test.js')
-          path.write_text(path.read_text(encoding='utf-8').replace('\\n', '\n'), encoding='utf-8')
+          test_path = Path('test/v12-3-battle-ai.test.js')
+          test_path.write_text(test_path.read_text(encoding='utf-8').replace('\\n', '\n'), encoding='utf-8')
+
+          path = Path('src/core/simulate.js')
+          text = path.read_text(encoding='utf-8')
+          old = '''  const attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");
+  const plannedIntents = candidates.filter(({ use, skill }) => use && skill.type !== "revive");
+  for (const intent of candidates) {'''
+          new = '''  const attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");
+  const plannedIntents = candidates.filter(({ use, skill }) => use && skill.type !== "revive");
+  const maximumThreatSkillTypes = new Set([
+    "single_attack",
+    "attack_buff",
+    "aoe_attack",
+    "multi_hit_attack",
+    "attribute_change",
+  ]);
+  const plannedIntentsForThreat = (protectedSide) => candidates.filter((candidate) => (
+    candidate.skill.type !== "revive" && (
+      candidate.use ||
+      (candidate.side === opponentSide(protectedSide) && maximumThreatSkillTypes.has(candidate.skill.type))
+    )
+  ));
+  for (const intent of candidates) {'''
+          if old not in text:
+              raise SystemExit('planned intent anchor not found')
+          text = text.replace(old, new, 1)
+          old_revive = '''        plannedIntents,
+      });
+      intent.use = use;'''
+          if old_revive not in text:
+              raise SystemExit('revive planned-intents anchor not found')
+          text = text.replace(old_revive, '''        plannedIntents: plannedIntentsForThreat(intent.side),
+      });
+      intent.use = use;''', 1)
+          # Healing survival logic gets the same conservative enemy burst prediction.
+          text = text.replace('''          plannedIntents,
+        })''', '''          plannedIntents: plannedIntentsForThreat(intent.side),
+        })''', 1)
+          text = text.replace('''          plannedIntents,
+        });''', '''          plannedIntents: plannedIntentsForThreat(intent.side),
+        });''', 1)
+          path.write_text(text, encoding='utf-8')
           PY
       - name: Syntax and focused regression tests
         run: |
@@ -54,7 +95,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/apply-v12-3-ai-speed-patch.yml .github/workflows/retry-v12-3-ai-speed-patch.yml
+          git rm .github/workflows/apply-v12-3-ai-speed-patch.yml .github/workflows/retry-v12-3-ai-speed-patch.yml .github/workflows/retry-v12-3-ai-speed-patch-v2.yml
           git add src scripts test .github/workflows
           git commit -m "fix: make V12.3 kill-aware and speed live searches"
           git push origin HEAD:fix/v13-team-ai-speed
