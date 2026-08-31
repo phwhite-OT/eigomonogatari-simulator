@@ -174,7 +174,7 @@ function compareTargetCandidates(left, right, policy, killablePool) {
 
 export function targetPolicyReason(policy = TARGET_POLICIES.EXPERT) {
   if (policy === TARGET_POLICIES.SKILL_THREAT) return "残数の多い相手を軸に、発動間近のスキルも警戒して割り振る";
-  return "敵の残りキャラ数を最優先にし、低火力側で倒せる相手を先に処理して高火力を後詰めに残す";
+  return "敵の残りキャラ数を最優先にし、低火力側から攻撃して高火力を後詰めに残す";
 }
 
 export function selectPriorityTarget(state, actorSide, options = {}) {
@@ -216,18 +216,10 @@ export function selectPriorityTarget(state, actorSide, options = {}) {
     ? options.targetPolicy
     : TARGET_POLICIES.EXPERT;
   const maximumRemaining = Math.max(...candidates.map((candidate) => candidate.remaining));
-  const maximumStock = candidates.filter((candidate) => candidate.remaining === maximumRemaining);
-  const maximumStockKillable = maximumStock.filter((candidate) => candidate.killable);
-  const anyKillable = candidates.filter((candidate) => candidate.killable);
+  const pool = candidates.filter((candidate) => candidate.remaining === maximumRemaining);
 
-  // 長期的には残数が最も多い相手を削る。ただし、その高残数帯を今の
-  // 低火力攻撃では落とせず、別の相手を確実に1枚減らせるなら、その火力を
-  // 無駄にせず確実な1枚を取る。高火力側は後から残ったHPを見て穴埋めする。
-  const pool = maximumStockKillable.length
-    ? maximumStockKillable
-    : anyKillable.length
-      ? anyKillable
-      : maximumStock;
+  // 残数最大の敵から外れることはしない。同じ残数の中だけで、今の攻撃で
+  // 倒せるか・無駄打ちが少ないか・スキル脅威などを使って優先順位を決める。
   pool.sort((left, right) => compareTargetCandidates(
     left,
     right,
