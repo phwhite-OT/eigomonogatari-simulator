@@ -28,9 +28,36 @@ jobs:
           node-version: 22
 
       - name: Prepare public site
+        shell: bash
         run: |
-          git fetch --depth=1 origin metagame-v12-shared-pool-results
-          git checkout FETCH_HEAD -- reports/metagame-ratings-v12-team-opportunity
+          set -euo pipefail
+          report_root="reports/metagame-ratings-v12-team-opportunity"
+          shared_branch="metagame-v12-shared-pool-results"
+          fallback_branch="metagame-v12-team-opportunity-results"
+          shared_ready=true
+
+          if git fetch --depth=1 origin "$shared_branch"; then
+            shared_ref="FETCH_HEAD"
+            for output_directory in fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100; do
+              progress="$(git show "$shared_ref:$report_root/$output_directory/progress.json" 2>/dev/null || true)"
+              if ! jq -e '.status == "complete" and .context.battleSemantics == "skill-target-revive-v2"' <<< "$progress" >/dev/null 2>&1; then
+                shared_ready=false
+                break
+              fi
+            done
+          else
+            shared_ready=false
+          fi
+
+          if [ "$shared_ready" = true ]; then
+            echo "Deploying corrected V12 shared-pool results."
+            git checkout "$shared_ref" -- "$report_root"
+          else
+            echo "Corrected shared-pool results are not complete yet; deploying the last complete V12 results."
+            git fetch --depth=1 origin "$fallback_branch"
+            git checkout FETCH_HEAD -- "$report_root"
+          fi
+
           npm run build
           mkdir -p _site
           cp index.html _site/index.html
