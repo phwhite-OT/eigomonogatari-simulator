@@ -1,0 +1,60 @@
+name: Retry V12.3 AI and speed patch
+
+on:
+  push:
+    branches:
+      - fix/v13-team-ai-speed
+    paths:
+      - ".github/workflows/retry-v12-3-ai-speed-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/v13-team-ai-speed
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Reapply staged patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          source = Path('.github/workflows/apply-v12-3-ai-speed-patch.yml').read_text(encoding='utf-8').splitlines()
+          start = next(i for i, line in enumerate(source) if line.strip() == "python - <<'PY'") + 1
+          end = next(i for i in range(start, len(source)) if source[i].strip() == 'PY')
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in source[start:end]) + '\n'
+          Path('/tmp/apply-v12-3.py').write_text(script, encoding='utf-8')
+          PY
+          python /tmp/apply-v12-3.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('test/v12-3-battle-ai.test.js')
+          path.write_text(path.read_text(encoding='utf-8').replace('\\n', '\n'), encoding='utf-8')
+          PY
+      - name: Syntax and focused regression tests
+        run: |
+          node --check src/core/simulate.js
+          node --check src/core/metagame-v7.js
+          node --check src/core/metagame-deck.js
+          node --check src/ui/metagame-v12-compat.js
+          node --test test/v12-3-battle-ai.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js
+      - name: Full test suite
+        run: node --test
+      - name: Build public bundle
+        run: node scripts/build-final.mjs
+      - name: Commit patch to branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-v12-3-ai-speed-patch.yml .github/workflows/retry-v12-3-ai-speed-patch.yml
+          git add src scripts test .github/workflows
+          git commit -m "fix: make V12.3 kill-aware and speed live searches"
+          git push origin HEAD:fix/v13-team-ai-speed
