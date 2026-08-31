@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 22
       - name: Apply focused fixes
-        run: node scripts/apply-skill-revive-fix.mjs
+        run: node scripts/run-skill-revive-fix.mjs
       - name: Syntax checks
         run: |
           node --check src/core/simulate.js
@@ -33,6 +33,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/core/simulate.js src/core/skills.js scripts/convert_workbook.py test/skill-use-revive-regression.test.js scripts/apply-skill-revive-fix.mjs .github/workflows/apply-skill-revive-fix.yml
+          git add -A
           git commit -m "fix: respect skill attributes and improve revive prediction"
           git push origin HEAD:fix/skill-targeting-revive-prediction
