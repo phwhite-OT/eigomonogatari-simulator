@@ -21,20 +21,32 @@ function targetableIndexes(combatants) {
   ));
 }
 
+function conditionGroupApplies(conditions, type, attributes) {
+  const requiredAttributes = (conditions ?? [])
+    .filter((condition) => condition.type === type && condition.attribute)
+    .map((condition) => condition.attribute);
+  return requiredAttributes.length === 0 || requiredAttributes.some((attribute) => (
+    (attributes ?? []).includes(attribute)
+  ));
+}
+
 function effectApplies(effect, ownerAttributes, opponentAttributes) {
-  return (effect.conditions ?? []).every((condition) => {
-    const attributes = condition.type === "ally_attribute" ? ownerAttributes : opponentAttributes;
-    return attributes.includes(condition.attribute);
-  });
+  const conditions = effect.conditions ?? [];
+  return conditionGroupApplies(conditions, "ally_attribute", ownerAttributes)
+    && conditionGroupApplies(conditions, "enemy_attribute", opponentAttributes);
 }
 
 function supportConditionApplies(skill, target) {
   // 属性条件は、戦闘中の現在属性で判定する。死亡直後も色変更の効果は
   // 蘇生フェーズまで残るため、ここで元のキャラクター属性へ戻してはいけない。
   const targetAttributes = target.attributes ?? target.character?.attributes ?? [];
-  return (skill.conditions ?? []).every((condition) => (
-    condition.type !== "ally_attribute" || targetAttributes.includes(condition.attribute)
-  ));
+  return conditionGroupApplies(skill.conditions ?? [], "ally_attribute", targetAttributes);
+}
+
+function attackSkillConditionApplies(skill, actor, target) {
+  const conditions = skill.conditions ?? [];
+  return conditionGroupApplies(conditions, "ally_attribute", actor.attributes ?? actor.character?.attributes ?? [])
+    && conditionGroupApplies(conditions, "enemy_attribute", target.attributes ?? target.character?.attributes ?? []);
 }
 
 function supportTargetIndexes(allies, actorIndex, skill, options = {}) {
@@ -144,7 +156,9 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
     return { state: next, hits, actorName: actor?.character?.name ?? "不明", skillType: skill.type };
   }
 
-  const livingTargets = () => targetableIndexes(next[targetSide]);
+  const livingTargets = () => targetableIndexes(next[targetSide]).filter((index) => (
+    attackSkillConditionApplies(skill, actor, next[targetSide][index])
+  ));
   const initialTargetIndex = preferredTargetIndex ?? livingTargets()[0];
   const random = typeof options.random === "function" ? options.random : Math.random;
   const randomLivingTargetIndex = () => {

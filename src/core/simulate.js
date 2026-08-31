@@ -73,11 +73,19 @@ function remainingCharacterCount(combatant) {
   return Math.max(0, combatant.deck.length - combatant.deckIndex);
 }
 
+function conditionGroupApplies(conditions, type, attributes) {
+  const requiredAttributes = (conditions ?? [])
+    .filter((condition) => condition.type === type && condition.attribute)
+    .map((condition) => condition.attribute);
+  return requiredAttributes.length === 0 || requiredAttributes.some((attribute) => (
+    (attributes ?? []).includes(attribute)
+  ));
+}
+
 function effectApplies(effect, ownerAttributes, opponentAttributes) {
-  return (effect.conditions ?? []).every((condition) => {
-    const attributes = condition.type === "ally_attribute" ? ownerAttributes : opponentAttributes;
-    return attributes.includes(condition.attribute);
-  });
+  const conditions = effect.conditions ?? [];
+  return conditionGroupApplies(conditions, "ally_attribute", ownerAttributes)
+    && conditionGroupApplies(conditions, "enemy_attribute", opponentAttributes);
 }
 
 function estimateDamage(actor, defender, skill, rules) {
@@ -182,7 +190,9 @@ export function selectPriorityTarget(state, actorSide, options = {}) {
   const skill = options.skill ?? BASIC_ATTACK;
   const rules = options.rules;
   const targets = state[opponentSide(actorSide)];
-  const candidates = targetableIndexes(targets).map((index) => {
+  const candidates = targetableIndexes(targets)
+    .filter((index) => conditionGroupApplies(skill.conditions ?? [], "enemy_attribute", targets[index].attributes))
+    .map((index) => {
     const target = targets[index];
     const perHitDamage = actor && rules ? estimateDamage(actor, target, skill, rules) : 0;
     const hitCount = skill.type === "multi_hit_attack" ? Math.max(1, Number(skill.hits) || 1) : 1;
@@ -244,13 +254,40 @@ function activeTokens(state, side) {
 }
 
 function skillScopeMatches(skill, combatant, actorIndex, targetIndex, attributes = combatant.attributes) {
-  if (combatant.isGhost || combatant.reviveUsed) return false;
+  if (combatant.isGhost || (skill.type === "revive" && combatant.reviveUsed)) return false;
   if (skill.target === "self" && actorIndex !== targetIndex) return false;
   if (skill.target === "leader" && targetIndex !== 0) return false;
-  return (skill.conditions ?? []).every((condition) => (
-    condition.type !== "ally_attribute" ||
-    (attributes ?? combatant.character?.attributes ?? []).includes(condition.attribute)
-  ));
+  return conditionGroupApplies(
+    skill.conditions ?? [],
+    "ally_attribute",
+    attributes ?? combatant.character?.attributes ?? [],
+  );
+}
+
+function skillHasApplicableTargets(state, side, actorIndex, skill, attributeIntents = []) {
+  const conditions = skill.conditions ?? [];
+  const allyConditions = conditions.filter((condition) => condition.type === "ally_attribute");
+  if (allyConditions.length) {
+    const hasAllyTarget = state[side].some((target, targetIndex) => {
+      if (!target?.alive || target.isGhost || (skill.type === "revive" && target.reviveUsed)) return false;
+      if (skill.target === "self" && actorIndex !== targetIndex) return false;
+      if (skill.target === "leader" && targetIndex !== 0) return false;
+      const attributes = attributesAfterPlannedChanges(state, side, targetIndex, attributeIntents);
+      return conditionGroupApplies(conditions, "ally_attribute", attributes);
+    });
+    if (!hasAllyTarget) return false;
+  }
+
+  const enemyConditions = conditions.filter((condition) => condition.type === "enemy_attribute");
+  if (enemyConditions.length) {
+    const hasEnemyTarget = state[opponentSide(side)].some((target) => (
+      target?.alive &&
+      !target.isGhost &&
+      conditionGroupApplies(conditions, "enemy_attribute", target.attributes ?? target.character?.attributes ?? [])
+    ));
+    if (!hasEnemyTarget) return false;
+  }
+  return true;
 }
 
 function attributesAfterPlannedChanges(state, side, targetIndex, attributeIntents = []) {
@@ -263,6 +300,33 @@ function attributesAfterPlannedChanges(state, side, targetIndex, attributeIntent
     if (changed.length) attributes = changed;
   }
   return attributes;
+}
+
+function predictedAttackPhaseState(state, defendingSide, rules, options = {}) {
+  const plannedIntents = options.plannedIntents;
+  if (!Array.isArray(plannedIntents)) return undefined;
+
+  let preview = structuredClone(state);
+  for (const skillTypes of [
+    ["attribute_change"],
+    ["heal"],
+    ["attack_buff", "aoe_attack", "multi_hit_attack"],
+    ["damage_reduction", "guard", "attribute_guard"],
+  ]) {
+    preview = applySupportPhase(preview, plannedIntents, skillTypes).state;
+  }
+
+  const enemySide = opponentSide(defendingSide);
+  const scheduledAttacks = attackIntents(preview, plannedIntents, rules, {
+    ...options,
+    targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: options.attackOrderPolicy ?? ATTACK_ORDER_POLICIES.TACTICAL,
+  }).filter((intent) => intent.side === enemySide);
+  return resolveAttacks(preview, scheduledAttacks, rules, {
+    ...options,
+    targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
+    random: () => 0,
+  }).state;
 }
 
 function predictedIncomingMinimumDamage(state, side, targetIndex, rules, options = {}) {
@@ -298,9 +362,11 @@ function predictedIncomingMinimumDamage(state, side, targetIndex, rules, options
 
 function reviveMayApply(state, side, actorIndex, skill, rules, options = {}) {
   const attributeIntents = options.plannedAttributeIntents ?? [];
+  const predicted = predictedAttackPhaseState(state, side, rules, options);
   return state[side].some((target, targetIndex) => {
     const attributes = attributesAfterPlannedChanges(state, side, targetIndex, attributeIntents);
     if (!target.alive || !skillScopeMatches(skill, target, actorIndex, targetIndex, attributes)) return false;
+    if (predicted) return predicted[side]?.[targetIndex]?.alive === false;
     return predictedIncomingMinimumDamage(state, side, targetIndex, rules, options) >= target.currentHp;
   });
 }
@@ -308,7 +374,11 @@ function reviveMayApply(state, side, actorIndex, skill, rules, options = {}) {
 function actorWillBeRevivedThisTurn(state, side, actorIndex, rules, options = {}) {
   const target = state[side][actorIndex];
   if (!target?.alive || target.isGhost || target.reviveUsed) return false;
-  if (predictedIncomingMinimumDamage(state, side, actorIndex, rules, options) < target.currentHp) return false;
+  const predicted = predictedAttackPhaseState(state, side, rules, options);
+  const predictedDefeat = predicted
+    ? predicted[side]?.[actorIndex]?.alive === false
+    : predictedIncomingMinimumDamage(state, side, actorIndex, rules, options) >= target.currentHp;
+  if (!predictedDefeat) return false;
   const attributes = attributesAfterPlannedChanges(
     state,
     side,
@@ -330,6 +400,15 @@ function skillDecision(state, side, actorIndex, rules, options) {
   }
   if (skill.type === "delay" || skill.type === "skill_reduction") {
     return { use: false, reason: "今回の評価では短縮・遅延効果を使用しない" };
+  }
+  if (!skillHasApplicableTargets(
+    state,
+    side,
+    actorIndex,
+    skill,
+    options.plannedAttributeIntents ?? [],
+  )) {
+    return { use: false, reason: "現在の盤面にスキル条件を満たす対象がいないため温存" };
   }
   if (options.playStyle === PLAY_STYLES.EXPERT) {
     return expertSkillDecision(state, side, actorIndex, rules, options);
@@ -383,6 +462,7 @@ function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK, defender) {
     type: aoe ? "aoe_attack" : hits > 1 ? "multi_hit_attack" : "single_attack",
     multiplier: Number(baseSkill.multiplier) || 1,
     hits,
+    conditions: structuredClone(baseSkill.conditions ?? []),
   };
 }
 
@@ -485,6 +565,15 @@ function healDecision(state, side, actorIndex, skill, rules, options = {}) {
 function expertSkillDecision(state, side, actorIndex, rules, options = {}) {
   const actor = state[side][actorIndex];
   const skill = actor.character.skill;
+  if (!skillHasApplicableTargets(
+    state,
+    side,
+    actorIndex,
+    skill,
+    options.plannedAttributeIntents ?? [],
+  )) {
+    return { use: false, reason: "現在の盤面にスキル条件を満たす対象がいないため温存" };
+  }
   if (skill.type === "revive") {
     return reviveMayApply(state, side, actorIndex, skill, rules, options)
       ? { use: true, reason: "このターンの撃破を蘇生で覆せるため使用" }
@@ -550,27 +639,49 @@ function chooseSkills(state, rules, options) {
       });
     }
   }
-  const attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");
+
+  let attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");
   for (const intent of candidates) {
-    if (intent.skill.type === "revive") {
-      const use = reviveMayApply(state, intent.side, intent.actorIndex, intent.skill, rules, { ...options, plannedAttributeIntents: attributeIntents });
-      intent.use = use;
-      intent.reason = use
-        ? "このターンの属性変更後に蘇生対象となる撃破予測があるため使用"
-        : "このターンの属性変更後に蘇生対象となる撃破予測がないため温存";
-    } else if (intent.skill.type === "heal") {
-      const decision = options.playStyle === PLAY_STYLES.EXPERT
-        ? expertSkillDecision(state, intent.side, intent.actorIndex, rules, {
-          ...options,
-          plannedAttributeIntents: attributeIntents,
-        })
-        : healDecision(state, intent.side, intent.actorIndex, intent.skill, rules, {
-          plannedAttributeIntents: attributeIntents,
-        });
-      intent.use = Boolean(decision.use);
-      intent.reason = decision.reason;
+    if (!intent.use) continue;
+    if (!skillHasApplicableTargets(state, intent.side, intent.actorIndex, intent.skill, attributeIntents)) {
+      intent.use = false;
+      intent.reason = "このターンの属性変更後もスキル条件を満たす対象がいないため温存";
     }
   }
+  attributeIntents = candidates.filter(({ use, skill }) => use && skill.type === "attribute_change");
+
+  const plannedNonRecoveryIntents = candidates.filter(({ use, skill }) => (
+    use && skill.type !== "heal" && skill.type !== "revive"
+  ));
+  for (const intent of candidates.filter(({ skill }) => skill.type === "heal")) {
+    const decision = options.playStyle === PLAY_STYLES.EXPERT
+      ? expertSkillDecision(state, intent.side, intent.actorIndex, rules, {
+        ...options,
+        plannedAttributeIntents: attributeIntents,
+        plannedIntents: plannedNonRecoveryIntents,
+      })
+      : healDecision(state, intent.side, intent.actorIndex, intent.skill, rules, {
+        ...options,
+        plannedAttributeIntents: attributeIntents,
+        plannedIntents: plannedNonRecoveryIntents,
+      });
+    intent.use = Boolean(decision.use);
+    intent.reason = decision.reason;
+  }
+
+  const plannedForRevive = candidates.filter(({ use, skill }) => use && skill.type !== "revive");
+  for (const intent of candidates.filter(({ skill }) => skill.type === "revive")) {
+    const use = reviveMayApply(state, intent.side, intent.actorIndex, intent.skill, rules, {
+      ...options,
+      plannedAttributeIntents: attributeIntents,
+      plannedIntents: plannedForRevive,
+    });
+    intent.use = use;
+    intent.reason = use
+      ? "このターンの支援・攻撃フェーズを予行すると蘇生対象が倒れるため使用"
+      : "このターンの支援・攻撃フェーズを予行しても蘇生対象が倒れないため温存";
+  }
+
   const events = candidates.map((intent) => ({
     type: intent.use ? "skill_use" : "skill_hold",
     side: intent.side,
