@@ -6,10 +6,12 @@ import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
 import {
   buildMetagameV7CandidatePools,
+  evaluateMetagameV7Deck,
   resolveMetagameV7Input,
 } from "../src/core/metagame-v7.js";
 import {
   METAGAME_V12_MODEL_VERSION,
+  buildMetagameV12GlobalBaselineDecks,
   createMetagameV12EnvironmentDecks,
   createMetagameV12TeamScenarios,
   rankMetagameV12Characters,
@@ -105,6 +107,8 @@ const autoDeckLimit = positiveInteger(readArgument("auto-deck-limit", "3"), 3, 1
 const alternativeDeckLimit = positiveInteger(readArgument("alternative-deck-limit", "3"), 3, 1);
 const anchorDeckLimit = Math.max(0, Math.floor(Number(readArgument("anchor-deck-limit", "0")) || 0));
 const beamWidth = positiveInteger(readArgument("beam-width", "500"), 500, 50);
+const baselineDeckLimit = positiveInteger(readArgument("baseline-deck-limit", "32"), 32, 8);
+const baselineBeamWidth = positiveInteger(readArgument("baseline-beam-width", "2000"), 2000, 500);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
 const requestedPosition = readArgument("position", "all").toLowerCase();
@@ -158,7 +162,7 @@ const selectedCandidatesByPosition = [1, 2, 3, 4, 5].map((position) => {
   return maxCandidates ? candidates.slice(0, maxCandidates) : candidates;
 });
 
-const METAGAME_V12_BATTLE_SEMANTICS_VERSION = "defense-outcome-v3";
+const METAGAME_V12_BATTLE_SEMANTICS_VERSION = "opportunity-baseline-v4";
 
 const checkpointContext = {
   version: METAGAME_V12_MODEL_VERSION,
@@ -172,6 +176,8 @@ const checkpointContext = {
   alternativeDeckLimit,
   anchorDeckLimit,
   beamWidth,
+  baselineDeckLimit,
+  baselineBeamWidth,
   turns,
   maxCandidates: maxCandidates || null,
   candidateIdsByPosition: selectedCandidatesByPosition.map((candidates) => candidates.map((character) => String(character.id))),
@@ -276,11 +282,24 @@ if (stoppedEarly || !allRatingsComplete) {
   process.exit(0);
 }
 
-// Zero-simulation second pass: every deck already evaluated by any candidate
-// or shard becomes evidence for every character that occupies the same slot.
-// Likewise, any evaluated deck that excludes a character can serve as that
-// character's opportunity-cost baseline. Exact scenarioValues are retained,
-// so the paired robustness correction is recomputed rather than estimated.
+// Seed a shared baseline from all legal candidates before reconciliation.
+// This search is paid once per condition, rather than once per character, so
+// cheap strong replacements cannot disappear merely because they missed the
+// bounded partner sample used by the direct per-character probes.
+const globalBaselineCandidates = buildMetagameV12GlobalBaselineDecks(
+  resolvedInput,
+  candidatePools,
+  { baselineDeckLimit, baselineBeamWidth },
+);
+let globalBaselineNewEvaluations = 0;
+for (const entry of globalBaselineCandidates) {
+  const key = `${turns}:${entry.deck.map((character) => String(character.id)).join("|")}`;
+  if (evaluationCache.has(key)) continue;
+  evaluationCache.set(key, evaluateMetagameV7Deck(entry.deck, teamScenarios, { turns }));
+  globalBaselineNewEvaluations += 1;
+}
+if (globalBaselineNewEvaluations) await saveProgress();
+
 const sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
 const reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, {
   totalCost: resolvedInput.totalCost,
@@ -307,9 +326,9 @@ const report = {
     battleFormat: "5v5",
     objective: "候補キャラ入りの最善デッキと、そのキャラを禁止して同じ総コスト上限で再最適化した最善デッキを比較し、チーム勝率差をキャラ価値とする。",
     scoringPolicy: "最終順位に個人攻撃・個人耐久・役割・スキル発動の固定加点を使わない。負のチーム貢献も保持する。",
-    costPolicy: "候補を外した際のコストを5枠全体で再配分するため、コスト効率は機会費用比較へ内包する。",
+    costPolicy: "候補を外した際のコストを5枠全体で再配分し、さらに全合法候補から作る共有基準デッキを比較対象へ追加する。高コストの機会損失を小さなパートナー候補集合だけで過小評価しない。",
     environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
-    performancePolicy: "各候補の直接探索は候補デッキ3本+除外代替3本のまま増やさない。全候補・全shardの計算後、既に72シナリオ評価済みのデッキを共有プール化して全カードを再集計するため、共有処理による追加戦闘は0。checkpointにも評価済みデッキを保存し、再開時の重複戦闘を避ける。",
+    performancePolicy: "各候補の直接探索は候補デッキ3本+除外代替3本のまま維持する。全shard統合後に各条件1回だけ全合法候補から共有基準デッキを探索・実戦評価し、そのキャッシュを全キャラの機会費用比較へ再利用する。",
   },
   context: {
     inputId: resolvedInput.id,
@@ -325,6 +344,10 @@ const report = {
     autoDeckLimit,
     alternativeDeckLimit,
     beamWidth,
+    baselineDeckLimit,
+    baselineBeamWidth,
+    globalBaselineCandidateCount: globalBaselineCandidates.length,
+    globalBaselineNewEvaluationCount: globalBaselineNewEvaluations,
     sharedEvaluatedDeckCount: sharedDeckPool.length,
     sharedPoolImprovementCount,
     eligibleCandidateCountByPosition: candidatePools.allByPosition.map((pool) => pool.length),
@@ -340,5 +363,6 @@ const report = {
 
 await fs.writeFile(path.join(outputDirectory, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 await fs.writeFile(path.join(outputDirectory, "ranking.csv"), csvReport(report), "utf8");
+console.log(`V12 full opportunity baseline: ${globalBaselineCandidates.length} decks (${globalBaselineNewEvaluations} newly evaluated).`);
 console.log(`V12 shared pool: ${sharedDeckPool.length} evaluated decks / ${sharedPoolImprovementCount} ratings changed.`);
 console.log(`V12 report: ${path.relative(projectRoot, outputDirectory)}`);

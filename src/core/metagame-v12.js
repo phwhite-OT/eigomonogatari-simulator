@@ -4,7 +4,7 @@ import {
   evaluateMetagameV7Deck,
 } from "./metagame-v7.js";
 
-export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.3-defense-outcome";
+export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.4-full-opportunity-baseline";
 
 const PARTIAL_SKILL_TYPES = new Set(["delay", "skill_reduction"]);
 
@@ -303,6 +303,71 @@ export function buildMetagameV12AlternativeDecks(character, resolvedInput, candi
     if (error instanceof Error && /cost|総コスト|valid complete/i.test(error.message)) return [];
     throw error;
   }
+}
+
+/**
+ * Build a shared opportunity-cost baseline from the complete legal candidate
+ * set, not the small per-character partner sample. This runs once per
+ * cost/attribute condition and its battle results are reused for every card.
+ */
+export function buildMetagameV12GlobalBaselineDecks(resolvedInput, candidatePools, options = {}) {
+  const baselineDeckLimit = Math.max(8, Math.floor(Number(options.baselineDeckLimit) || 32));
+  const baselineBeamWidth = Math.max(500, Math.floor(Number(options.baselineBeamWidth) || 2000));
+  const allRatingsByPosition = candidatePools?.ratingsByPosition ?? [];
+  const slots = allRatingsByPosition.map((ratings, index) => ({
+    position: index + 1,
+    candidates: [...(ratings?.values?.() ?? [])],
+  }));
+  if (slots.length !== 5 || slots.some((slot) => !slot.candidates.length)) return [];
+
+  const constraint = {
+    totalCost: resolvedInput.totalCost,
+    allowedAttributes: resolvedInput.allowedAttributes,
+    slots,
+  };
+  let candidates;
+  try {
+    candidates = buildMetagameDeckCandidates(
+      constraint,
+      [...candidatePools.charactersById.values()],
+      { beamWidth: baselineBeamWidth },
+    );
+  } catch (error) {
+    if (error instanceof Error && /cost|総コスト|valid complete|legal deck/i.test(error.message)) return [];
+    throw error;
+  }
+  if (!candidates.length) return [];
+
+  const selected = new Map();
+  const add = (entry) => selected.set(deckKey(entry.deck), entry);
+  const diverseLimit = Math.max(4, Math.ceil(baselineDeckLimit * 0.65));
+  selectDiverseDecks(candidates, diverseLimit).forEach(add);
+
+  const totalCost = Math.max(1, Number(resolvedInput.totalCost) || 1);
+  [...candidates]
+    .sort((left, right) => (
+      ((Number(right.proxyScore) || 0) - (Number(right.totalCost) || 0) / totalCost * 0.08) -
+      ((Number(left.proxyScore) || 0) - (Number(left.totalCost) || 0) / totalCost * 0.08) ||
+      (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
+    ))
+    .slice(0, Math.max(4, baselineDeckLimit - diverseLimit))
+    .forEach(add);
+
+  const protectedIds = new Set(
+    candidates.slice(0, Math.min(4, candidates.length))
+      .flatMap((entry) => entry.deck.map((character) => String(character.id))),
+  );
+  for (const id of protectedIds) {
+    const replacement = candidates.find((entry) => (
+      entry.deck.every((character) => String(character.id) !== id)
+    ));
+    if (replacement) add(replacement);
+  }
+
+  return [...selected.values()].sort((left, right) => (
+    (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0) ||
+    (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
+  ));
 }
 
 function evaluateCached(deck, teamScenarios, options) {

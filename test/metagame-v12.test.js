@@ -8,6 +8,7 @@ import { DEFAULT_RULES } from "../src/data/rules.js";
 import {
   METAGAME_V12_MODEL_VERSION,
   buildMetagameV12AlternativeDecks,
+  buildMetagameV12GlobalBaselineDecks,
   createMetagameV12EnvironmentDecks,
   createMetagameV12TeamScenarios,
   rankMetagameV12Characters,
@@ -43,7 +44,7 @@ function rating(entry, score = 0.5) {
 }
 
 test("V12 model version is separate from V11 checkpoints", () => {
-  assert.equal(METAGAME_V12_MODEL_VERSION, "team-battle-v12.3-defense-outcome");
+  assert.equal(METAGAME_V12_MODEL_VERSION, "team-battle-v12.4-full-opportunity-baseline");
 });
 
 test("V12 team scenarios do not suppress repeated popular characters across players", () => {
@@ -107,6 +108,33 @@ test("V12 alternative decks exclude the candidate and can re-optimize every slot
   assert.ok(decks.every((entry) => entry.deck.every((card) => card.id !== target.id)));
   assert.ok(decks.every((entry) => entry.totalCost <= 100));
   assert.ok(decks[0].deck.some((card) => card.id.startsWith("upgrade-")));
+});
+
+test("V12.4 global opportunity baseline searches outside the sampled partner pool", () => {
+  const sampled = character("sampled-1", 1, { cost: 40 });
+  const outside = character("outside-sample", 1, { cost: 10 });
+  const fixed = [2, 3, 4, 5].map((position) => character(`fixed-${position}`, position, { cost: 10 }));
+  const all = [sampled, outside, ...fixed];
+  const ratingsByPosition = [1, 2, 3, 4, 5].map((position) => new Map(
+    all.filter((entry) => entry.allowedPositions.includes(position)).map((entry) => [
+      entry.id,
+      rating(entry, entry.id === "outside-sample" ? 0.98 : entry.id === "sampled-1" ? 0.1 : 0.7),
+    ]),
+  ));
+  const candidatePools = {
+    ratingsByPosition,
+    partnerRatingsByPosition: ratingsByPosition.map((entries, index) => (
+      index === 0 ? [entries.get("sampled-1")] : [...entries.values()]
+    )),
+    charactersById: new Map(all.map((entry) => [entry.id, entry])),
+  };
+  const decks = buildMetagameV12GlobalBaselineDecks({
+    totalCost: 100,
+    allowedAttributes: ["fire"],
+  }, candidatePools, { baselineDeckLimit: 8, baselineBeamWidth: 500 });
+
+  assert.ok(decks.length >= 1);
+  assert.ok(decks.some((entry) => entry.deck[0].id === "outside-sample"));
 });
 
 test("V12 ranking keeps harmful team contribution below neutral instead of clipping it", () => {
