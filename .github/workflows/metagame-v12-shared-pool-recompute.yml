@@ -51,7 +51,7 @@ jobs:
             local progress_path="$1"
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
-            jq -e '.status == "complete" and .context.version == "team-battle-v12.3-defense-outcome" and .context.battleSemantics == "defense-outcome-v3"' <<< "$progress" >/dev/null
+            jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' <<< "$progress" >/dev/null
           }
 
           attribute_groups=(
@@ -233,7 +233,7 @@ jobs:
         shell: bash
         run: |
           is_complete_file() {
-            [ -f "$1" ] && jq -e '.status == "complete" and .context.version == "team-battle-v12.3-defense-outcome" and .context.battleSemantics == "defense-outcome-v3"' "$1" >/dev/null
+            [ -f "$1" ] && jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' "$1" >/dev/null
           }
           attribute_groups=(
             "fire" "water" "wind"
