@@ -1,0 +1,33 @@
+name: One-shot V12 opportunity source fix
+
+on:
+  push:
+    paths:
+      - .github/workflows/one-shot-v12-opportunity-source-only.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply fix
+        run: python scripts/apply-v12-opportunity-fix.py
+      - name: Run focused V12 regressions
+        run: node --test test/metagame-v12.test.js test/metagame-v12-shared-pool.test.js test/metagame-work-shards.test.js
+      - name: Commit source fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/apply-v12-opportunity-fix.py
+          git add src/core/metagame-v12.js scripts/rate-metagame-v12.mjs test/metagame-v12.test.js
+          git commit -m "fix: compare V12 cards against full-budget alternatives"
+          git push origin HEAD:master
