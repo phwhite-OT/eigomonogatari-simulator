@@ -58,14 +58,15 @@ jobs:
             "fire" "water" "wind"
             "fire-water" "fire-wind" "water-wind" "fire-water-wind"
           )
+          representative_costs=(100 200 300 500)
           input_ids=()
-          for cost in $(seq 100 200); do
+          for cost in "${representative_costs[@]}"; do
             for attribute_group in "${attribute_groups[@]}"; do
               input_ids+=("${attribute_group}:${cost}")
             done
           done
 
-          echo "V12 sweep queue: ${#input_ids[@]} conditions (7 attribute groups x costs 100..200)."
+          echo "V12 precompute queue: ${#input_ids[@]} conditions (7 attribute groups x representative costs 100,200,300,500)."
           targets='[]'
           checkpoint_path=""
           for input_id in "${input_ids[@]}"; do
@@ -219,17 +220,18 @@ jobs:
             --arg source_ref "${{ github.ref_name }}" \
             --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             '{
-              strategy:"shared-evaluated-deck-pool-full-recompute",
+              strategy:"shared-evaluated-deck-pool-representative-cost-precompute",
               sourceCommit:$source_commit,
               sourceRef:$source_ref,
               generatedAt:$generated_at,
               attributeGroups:["fire","water","wind","fire-water","fire-wind","water-wind","fire-water-wind"],
-              costRange:{min:100,max:200,step:1},
-              conditionCount:707
+              representativeCosts:[100,200,300,500],
+              intermediateCostPolicy:"compose from neighbouring precomputed cost bands during deck generation",
+              conditionCount:28
             }' \
             > reports/metagame-ratings-v12-team-opportunity/recompute-provenance.json
       - id: status
-        name: Check 707-condition recompute completion
+        name: Check 28-condition recompute completion
         shell: bash
         run: |
           is_complete_file() {
@@ -239,8 +241,9 @@ jobs:
             "fire" "water" "wind"
             "fire-water" "fire-wind" "water-wind" "fire-water-wind"
           )
+          representative_costs=(100 200 300 500)
           all_completed=true
-          for cost in $(seq 100 200); do
+          for cost in "${representative_costs[@]}"; do
             for attribute_group in "${attribute_groups[@]}"; do
               output_directory="${attribute_group}-${cost}"
               if ! is_complete_file "reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"; then
