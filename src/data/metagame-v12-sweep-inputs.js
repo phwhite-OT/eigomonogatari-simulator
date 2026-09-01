@@ -1,8 +1,14 @@
 import { METAGAME_V7_INPUTS } from "./metagame-v7-inputs.js";
 import { METAGAME_V8_COST_200_INPUTS } from "./metagame-v8-cost-200-inputs.js";
 
+// Only these representative cost bands are expensive precompute targets.
+// Browser deck generation resolves finer user-entered costs from the saved
+// neighbouring bands instead of recomputing every integer cost.
+export const METAGAME_V12_PRECOMPUTE_COSTS = Object.freeze([100, 200, 300, 500]);
 export const METAGAME_V12_SWEEP_MIN_COST = 100;
-export const METAGAME_V12_SWEEP_MAX_COST = 200;
+export const METAGAME_V12_SWEEP_MAX_COST = 500;
+// Kept for backwards compatibility with older imports. The precompute queue
+// must use METAGAME_V12_PRECOMPUTE_COSTS, not an integer range.
 export const METAGAME_V12_SWEEP_COST_STEP = 1;
 
 export const METAGAME_V12_SWEEP_ATTRIBUTE_GROUPS = Object.freeze([
@@ -103,11 +109,7 @@ export function resolveMetagameV12SweepInput(inputId) {
 
 export function buildMetagameV12SweepInputs() {
   const inputs = [];
-  for (
-    let totalCost = METAGAME_V12_SWEEP_MIN_COST;
-    totalCost <= METAGAME_V12_SWEEP_MAX_COST;
-    totalCost += METAGAME_V12_SWEEP_COST_STEP
-  ) {
+  for (const totalCost of METAGAME_V12_PRECOMPUTE_COSTS) {
     for (const attributes of METAGAME_V12_SWEEP_ATTRIBUTE_GROUPS) {
       const inputId = `${metagameV12SweepAttributeKey(attributes)}:${totalCost}`;
       const input = resolveMetagameV12SweepInput(inputId);
