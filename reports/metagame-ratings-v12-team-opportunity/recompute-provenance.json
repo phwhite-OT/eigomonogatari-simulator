@@ -1,0 +1,23 @@
+{
+  "strategy": "shared-evaluated-deck-pool-representative-cost-precompute",
+  "sourceCommit": "ff3b27e8da9b2ed0e05b79f150fe9839f88b90a3",
+  "sourceRef": "master",
+  "generatedAt": "2026-09-05T18:30:24Z",
+  "attributeGroups": [
+    "fire",
+    "water",
+    "wind",
+    "fire-water",
+    "fire-wind",
+    "water-wind",
+    "fire-water-wind"
+  ],
+  "representativeCosts": [
+    100,
+    200,
+    300,
+    500
+  ],
+  "intermediateCostPolicy": "compose from neighbouring precomputed cost bands during deck generation",
+  "conditionCount": 28
+}
