@@ -21,7 +21,7 @@ permissions:
 concurrency:
   group: metagame-v12-shared-pool-recompute
   # A source push must replace an older run that is using obsolete battle/data
-  # semantics. Self-dispatched continuation runs wait for the previous segment.
+  # semantics. Self-dispatched continuation/recovery runs wait for the current segment.
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
@@ -31,6 +31,8 @@ jobs:
       work_matrix: ${{ steps.next.outputs.work_matrix }}
       targets: ${{ steps.next.outputs.targets }}
       all_completed: ${{ steps.next.outputs.all_completed }}
+      recovery_only: ${{ steps.next.outputs.recovery_only }}
+      recovery_run_id: ${{ steps.next.outputs.recovery_run_id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,6 +43,8 @@ jobs:
       - id: next
         name: Select the next incomplete recompute environment
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
@@ -52,6 +56,22 @@ jobs:
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null)" || return 1
             jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' <<< "$progress" >/dev/null
+          }
+          find_recovery_run() {
+            local output_directory="$1"
+            local runs_json run_id artifacts_json prefix
+            prefix="v12-sp-progress-${output_directory}-"
+            runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/metagame-v12-shared-pool-recompute.yml/runs?per_page=30" 2>/dev/null || true)"
+            [ -n "$runs_json" ] || return 1
+            while IFS= read -r run_id; do
+              artifacts_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100" 2>/dev/null || true)"
+              [ -n "$artifacts_json" ] || continue
+              if jq -e --arg prefix "$prefix" '[.artifacts[] | select(.expired == false and (.name | startswith($prefix)))] | length > 0' <<< "$artifacts_json" >/dev/null; then
+                echo "$run_id"
+                return 0
+              fi
+            done < <(jq -r --argjson current "$GITHUB_RUN_ID" '.workflow_runs[] | select(.id != $current) | .id' <<< "$runs_json")
+            return 1
           }
 
           attribute_groups=(
@@ -69,6 +89,8 @@ jobs:
           echo "V12 precompute queue: ${#input_ids[@]} conditions (7 attribute groups x representative costs 100,200,300,500)."
           targets='[]'
           checkpoint_path=""
+          checkpoint_exists=false
+          output_directory=""
           for input_id in "${input_ids[@]}"; do
             output_directory="${input_id//:/-}"
             progress_path="reports/metagame-ratings-v12-team-opportunity/$output_directory/progress.json"
@@ -78,30 +100,48 @@ jobs:
             targets="$(jq -c --arg input "$input_id" --arg output_directory "$output_directory" '. + [{input:$input,output_directory:$output_directory}]' <<< "$targets")"
             checkpoint_path="$RUNNER_TEMP/v12-sp-selection/$output_directory-progress.json"
             mkdir -p "$(dirname "$checkpoint_path")"
-            if ! git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null || [ ! -s "$checkpoint_path" ]; then
+            if git show "$results_ref:$progress_path" > "$checkpoint_path" 2>/dev/null && [ -s "$checkpoint_path" ]; then
+              checkpoint_exists=true
+            else
               rm -f "$checkpoint_path"
             fi
             break
           done
 
+          recovery_only=false
+          recovery_run_id=""
           if [ "$targets" = '[]' ]; then
             work_matrix='{"include":[]}'
             echo "all_completed=true" >> "$GITHUB_OUTPUT"
           else
             input_id="$(jq -r '.[0].input' <<< "$targets")"
-            work_matrix="$(node scripts/build-metagame-v12-work-matrix.mjs --input="$input_id" --checkpoint-path="$checkpoint_path" --max-workers=20)"
-            if [ "$(jq -r '.include | length' <<< "$work_matrix")" -eq 0 ]; then
-              echo "No candidate shards selected for incomplete input $input_id" >&2
-              exit 1
+            # If publish died before it could persist the condition, reuse any
+            # still-live shard artifacts from a previous run instead of paying
+            # for the same candidate battles again.
+            if [ "$checkpoint_exists" != true ]; then
+              recovery_run_id="$(find_recovery_run "$output_directory" || true)"
+            fi
+            if [ -n "$recovery_run_id" ]; then
+              recovery_only=true
+              work_matrix='{"include":[]}'
+              echo "Recovering $input_id from workflow run $recovery_run_id artifacts."
+            else
+              work_matrix="$(node scripts/build-metagame-v12-work-matrix.mjs --input="$input_id" --checkpoint-path="$checkpoint_path" --max-workers=20)"
+              if [ "$(jq -r '.include | length' <<< "$work_matrix")" -eq 0 ]; then
+                echo "No candidate shards selected for incomplete input $input_id" >&2
+                exit 1
+              fi
             fi
             echo "all_completed=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "recovery_only=$recovery_only" >> "$GITHUB_OUTPUT"
+          echo "recovery_run_id=$recovery_run_id" >> "$GITHUB_OUTPUT"
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
           echo "work_matrix=$work_matrix" >> "$GITHUB_OUTPUT"
 
   evaluate:
     needs: select
-    if: needs.select.outputs.all_completed != 'true'
+    if: needs.select.outputs.all_completed != 'true' && needs.select.outputs.recovery_only != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     strategy:
@@ -152,7 +192,7 @@ jobs:
           # the file written by rate-metagame-v12.mjs is actually uploaded.
           path: ${{ runner.temp }}/v12-sp-progress/${{ matrix.output_directory }}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json
           if-no-files-found: error
-          retention-days: 2
+          retention-days: 7
       - name: Propagate evaluation failure after checkpoint upload
         if: always() && steps.rate.outcome == 'failure'
         run: exit 1
@@ -161,7 +201,9 @@ jobs:
     needs: [select, evaluate]
     if: always() && needs.select.outputs.all_completed != 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Final reconciliation evaluates the global baseline after shard work.
+    # 30 minutes was too short and killed a fully evaluated condition.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -184,12 +226,23 @@ jobs:
             git checkout "$results_ref" -- reports/metagame-ratings-v12-team-opportunity
           fi
           git switch --create "$results_branch"
-      - name: Download recompute shard checkpoints
+      - name: Download current-run shard checkpoints
+        if: needs.select.outputs.recovery_only != 'true'
         uses: actions/download-artifact@v4
         with:
           pattern: v12-sp-progress-*
           merge-multiple: true
           path: ${{ runner.temp }}/v12-sp-progress
+      - name: Recover shard checkpoints from previous run
+        if: needs.select.outputs.recovery_only == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: v12-sp-progress-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/v12-sp-progress
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.select.outputs.recovery_run_id }}
       - name: Merge selected environment checkpoints
         shell: bash
         env:
@@ -267,7 +320,20 @@ jobs:
             fi
           fi
       - name: Continue with the next recompute segment
-        if: steps.status.outputs.all_completed != 'true' && needs.evaluate.result == 'success'
+        if: steps.status.outputs.all_completed != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master
+
+  recover:
+    needs: [select, evaluate, publish]
+    if: always() && needs.select.outputs.all_completed != 'true' && (needs.publish.result == 'failure' || needs.publish.result == 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Restart recompute after publish interruption
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Publish ended as ${{ needs.publish.result }}; dispatching an automatic recovery run."
+          gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master
