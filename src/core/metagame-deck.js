@@ -175,8 +175,13 @@ function metagameDeckClampUnit(value) {
 }
 
 function metagameCandidateScore(rating, totalCost) {
+  const budget = Math.max(1, Number(totalCost ?? rating.evaluationCostCap) || 1);
+  const price = Math.max(1, Number(rating.cost) || 1);
+  const budgetShare = metagameDeckClampUnit(price / budget);
   const publishedCostAwareScore = Number(rating.costAwareScore);
-  if (Number.isFinite(publishedCostAwareScore)) return metagameDeckClampUnit(publishedCostAwareScore);
+  const budgetAdjustedPublishedScore = Number.isFinite(publishedCostAwareScore)
+    ? metagameDeckClampUnit(publishedCostAwareScore) * (1 - budgetShare * 0.65)
+    : null;
   const marginalLowerBound = Number(rating.marginalWinGainLowerBound);
   const marginalWinGain = Number(rating.marginalWinGain);
   if (Number.isFinite(marginalLowerBound) || Number.isFinite(marginalWinGain)) {
@@ -185,13 +190,16 @@ function metagameCandidateScore(rating, totalCost) {
     const contributionReference = 0.2;
     const reliableContribution = metagameDeckClampUnit(lower / contributionReference);
     const measuredContribution = metagameDeckClampUnit(mean / contributionReference);
-    const budget = Math.max(1, Number(totalCost ?? rating.evaluationCostCap) || 1);
-    const price = Math.max(1, Number(rating.cost) || 1);
     const costEfficiency = metagameDeckClampUnit(1 - Math.exp(-1.1 * lower * budget / price));
-    // Controlled marginal evidence remains primary, while 35% of the browser
-    // candidate order is explicitly the contribution bought per cost.
-    return reliableContribution * 0.46 + measuredContribution * 0.19 + costEfficiency * 0.35;
+    const marginalScore = reliableContribution * 0.46 + measuredContribution * 0.19 + costEfficiency * 0.35;
+    // V12 publishes a condition-level score, but arbitrary user caps such as
+    // 146 must be repriced against the current budget. Treat the published
+    // score as a quality prior instead of bypassing current-cost opportunity cost.
+    return budgetAdjustedPublishedScore === null
+      ? marginalScore
+      : marginalScore * 0.55 + budgetAdjustedPublishedScore * 0.45;
   }
+  if (budgetAdjustedPublishedScore !== null) return budgetAdjustedPublishedScore;
   const advantage = Math.min(1, Math.max(0, Number(rating.advantageCreation) || 0) / 2);
   const counter = Math.min(1, Math.max(0, Number(rating.counteraction) || 0) / 2);
   const practicalValue = metagameDeckClampUnit(rating.practicalValue ?? rating.practical?.practicalValue);
