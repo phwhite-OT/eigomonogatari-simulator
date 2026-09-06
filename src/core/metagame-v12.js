@@ -370,6 +370,66 @@ export function buildMetagameV12GlobalBaselineDecks(resolvedInput, candidatePool
   ));
 }
 
+/**
+ * Build local counterfactuals for a rated character's current best deck.
+ * The other four slots are frozen exactly; only the rated slot may change.
+ * This prevents a weak card from inheriting credit from four strong teammates.
+ */
+export function buildMetagameV12CounterfactualReplacementDecks(
+  rating,
+  position,
+  resolvedInput,
+  candidatePools,
+  options = {},
+) {
+  const positionIndex = Number(position) - 1;
+  const bestIds = rating?.bestDeck?.ids;
+  if (!Array.isArray(bestIds) || bestIds.length !== 5 || positionIndex < 0 || positionIndex > 4) return [];
+  if (String(bestIds[positionIndex]) !== String(rating.id)) return [];
+
+  const replacementDeckLimit = Math.max(1, Math.floor(Number(options.replacementDeckLimit) || 12));
+  const replacementBeamWidth = Math.max(500, Math.floor(Number(options.replacementBeamWidth) || 4000));
+  const ratingsByPosition = candidatePools?.ratingsByPosition ?? [];
+  const fixedIds = new Set(bestIds.filter((_, index) => index !== positionIndex).map(String));
+  const slots = bestIds.map((id, index) => {
+    const ratings = ratingsByPosition[index];
+    if (!ratings?.get || !ratings?.values) return { position: index + 1, candidates: [] };
+    if (index !== positionIndex) {
+      const fixed = ratings.get(String(id));
+      return { position: index + 1, candidates: fixed ? [fixed] : [] };
+    }
+    return {
+      position: index + 1,
+      candidates: [...ratings.values()].filter((candidate) => (
+        String(candidate.id) !== String(rating.id) && !fixedIds.has(String(candidate.id))
+      )),
+    };
+  });
+  if (slots.some((slot) => !slot.candidates.length)) return [];
+
+  const constraint = {
+    totalCost: resolvedInput.totalCost,
+    allowedAttributes: resolvedInput.allowedAttributes,
+    slots,
+  };
+  try {
+    return buildMetagameDeckCandidates(
+      constraint,
+      [...candidatePools.charactersById.values()],
+      { beamWidth: replacementBeamWidth },
+    ).filter((entry) => (
+      entry.deck.length === 5 &&
+      entry.deck.every((character, index) => (
+        index === positionIndex || String(character.id) === String(bestIds[index])
+      )) &&
+      String(entry.deck[positionIndex].id) !== String(rating.id)
+    )).slice(0, replacementDeckLimit);
+  } catch (error) {
+    if (error instanceof Error && /cost|総コスト|valid complete|legal deck/i.test(error.message)) return [];
+    throw error;
+  }
+}
+
 function evaluateCached(deck, teamScenarios, options) {
   const turns = Math.min(12, Math.max(1, Number(options.turns) || 12));
   const cache = options.evaluationCache;
@@ -559,29 +619,73 @@ function compareCompleteDeckMetric(left, right, key) {
   return rightValue > leftValue ? 1 : -1;
 }
 
+function rankingContributionEvidence(rating) {
+  const matched = rating?.counterfactualApplied === true;
+  const robust = finiteOrNegativeInfinity(
+    matched ? rating.counterfactualRobustWinGain : rating.robustOpportunityWinGain,
+  );
+  const mean = finiteOrNegativeInfinity(
+    matched ? rating.counterfactualWinGain : rating.opportunityWinGain,
+  );
+  return {
+    matched,
+    robust,
+    mean,
+    positive: Number.isFinite(robust) && robust > 0 ? 1 : 0,
+  };
+}
+
 /**
- * V12 slot rankings are recommendations for building a legal five-card team,
- * not standalone-card power rankings. Prefer the strongest already-evaluated
- * complete deck that contains the character in this exact slot. Opportunity
- * gain remains a tie-breaker/legacy fallback, so expensive cards are not
- * blindly penalized: they stay high only when the full legal team is actually
- * strong under the current cost cap.
+ * A complete deck can win despite one bad passenger. First require positive
+ * marginal evidence: preferably the exact same four teammates with only this
+ * slot replaced, otherwise the older global opportunity-cost evidence. Once
+ * two cards both have positive evidence, complete-team strength decides which
+ * one is the more useful building block. This keeps genuinely strong expensive
+ * cards while preventing a weak card from riding a strong shell to the top.
  */
 export function rankMetagameV12Characters(ratings) {
   return [...ratings]
-    .sort((left, right) => (
-      compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
-      compareCompleteDeckMetric(left, right, "expectedWinRate") ||
-      compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
-      finiteOrNegativeInfinity(right.robustOpportunityWinGain) - finiteOrNegativeInfinity(left.robustOpportunityWinGain) ||
-      finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||
-      finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
-      Number(left.cost) - Number(right.cost) ||
-      String(left.id).localeCompare(String(right.id))
-    ))
-    .map((rating, index) => ({
-      ...rating,
-      rank: index + 1,
-      rankingBasis: hasCompleteBestDeck(rating) ? "complete-deck-performance" : "opportunity-fallback",
-    }));
+    .sort((left, right) => {
+      const leftContribution = rankingContributionEvidence(left);
+      const rightContribution = rankingContributionEvidence(right);
+      const contributionTier = rightContribution.positive - leftContribution.positive;
+      if (contributionTier) return contributionTier;
+
+      if (leftContribution.positive && rightContribution.positive) {
+        return (
+          compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+          compareCompleteDeckMetric(left, right, "expectedWinRate") ||
+          compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
+          rightContribution.robust - leftContribution.robust ||
+          rightContribution.mean - leftContribution.mean ||
+          finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
+          Number(left.cost) - Number(right.cost) ||
+          String(left.id).localeCompare(String(right.id))
+        );
+      }
+
+      return (
+        rightContribution.robust - leftContribution.robust ||
+        rightContribution.mean - leftContribution.mean ||
+        compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+        compareCompleteDeckMetric(left, right, "expectedWinRate") ||
+        compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
+        finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
+        Number(left.cost) - Number(right.cost) ||
+        String(left.id).localeCompare(String(right.id))
+      );
+    })
+    .map((rating, index) => {
+      const contribution = rankingContributionEvidence(rating);
+      return {
+        ...rating,
+        rank: index + 1,
+        positiveContributionEvidence: contribution.positive === 1,
+        rankingBasis: contribution.matched
+          ? "matched-replacement-contribution"
+          : hasCompleteBestDeck(rating)
+            ? "complete-deck-performance"
+            : "opportunity-fallback",
+      };
+    });
 }

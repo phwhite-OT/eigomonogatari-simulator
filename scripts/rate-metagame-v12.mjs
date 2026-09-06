@@ -11,6 +11,7 @@ import {
 } from "../src/core/metagame-v7.js";
 import {
   METAGAME_V12_MODEL_VERSION,
+  buildMetagameV12CounterfactualReplacementDecks,
   buildMetagameV12GlobalBaselineDecks,
   createMetagameV12EnvironmentDecks,
   createMetagameV12TeamScenarios,
@@ -48,7 +49,8 @@ function csvCell(value) {
 function csvReport(report) {
   const headers = [
     "枠", "順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",
-    "機会勝率差", "安定補正後差", "候補勝率", "代替勝率", "候補デッキ", "代替デッキ", "評価状態",
+    "機会勝率差", "安定補正後差", "同一4枠差し替え勝率差", "差し替え安定補正後差",
+    "候補勝率", "代替勝率", "候補デッキ", "代替デッキ", "同一4枠差し替えデッキ", "評価状態",
   ];
   const rows = report.rankingsByPosition.flatMap((slot) => slot.characters.map((character) => [
     slot.position,
@@ -62,10 +64,13 @@ function csvReport(report) {
     character.skillType,
     character.opportunityWinGain,
     character.robustOpportunityWinGain,
+    character.counterfactualWinGain ?? "",
+    character.counterfactualRobustWinGain ?? "",
     character.candidateExpectedWinRate,
     character.benchmarkExpectedWinRate,
     character.bestDeck.names.join(" / "),
     character.baselineDeck.names.join(" / "),
+    character.counterfactualReplacementDeck?.names?.join(" / ") ?? "",
     character.evaluationStatus,
   ]));
   return `\uFEFF${[headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
@@ -109,6 +114,8 @@ const anchorDeckLimit = Math.max(0, Math.floor(Number(readArgument("anchor-deck-
 const beamWidth = positiveInteger(readArgument("beam-width", "500"), 500, 50);
 const baselineDeckLimit = positiveInteger(readArgument("baseline-deck-limit", "32"), 32, 8);
 const baselineBeamWidth = positiveInteger(readArgument("baseline-beam-width", "2000"), 2000, 500);
+const replacementDeckLimit = positiveInteger(readArgument("replacement-deck-limit", "12"), 12, 1);
+const replacementBeamWidth = positiveInteger(readArgument("replacement-beam-width", "4000"), 4000, 500);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
 const requestedPosition = readArgument("position", "all").toLowerCase();
@@ -300,13 +307,52 @@ for (const entry of globalBaselineCandidates) {
 }
 if (globalBaselineNewEvaluations) await saveProgress();
 
-const sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
-const reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, {
+let sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
+let reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, {
   totalCost: resolvedInput.totalCost,
 });
-for (const [index, ratings] of reconciledByPosition.entries()) {
-  resultsByPosition[index].clear();
-  for (const rating of ratings) resultsByPosition[index].set(String(rating.id), rating);
+function applyReconciledRatings() {
+  for (const [index, ratings] of reconciledByPosition.entries()) {
+    resultsByPosition[index].clear();
+    for (const rating of ratings) resultsByPosition[index].set(String(rating.id), rating);
+  }
+}
+applyReconciledRatings();
+
+// Audit every rated card around its strongest known complete deck. Four slots
+// are frozen exactly and only the rated slot may change. These are additional
+// targeted battles, not a replay of the expensive candidate probes already in
+// the checkpoint. The cache makes the audit resumable and deduplicates shells
+// shared by multiple ratings.
+let counterfactualNewEvaluations = 0;
+let counterfactualCandidateDeckCount = 0;
+for (const [index, ratings] of resultsByPosition.entries()) {
+  const position = index + 1;
+  for (const rating of ratings.values()) {
+    const replacements = buildMetagameV12CounterfactualReplacementDecks(
+      rating,
+      position,
+      resolvedInput,
+      candidatePools,
+      { replacementDeckLimit, replacementBeamWidth },
+    );
+    counterfactualCandidateDeckCount += replacements.length;
+    for (const entry of replacements) {
+      const key = `${turns}:${entry.deck.map((character) => String(character.id)).join("|")}`;
+      if (evaluationCache.has(key)) continue;
+      evaluationCache.set(key, evaluateMetagameV7Deck(entry.deck, teamScenarios, { turns }));
+      counterfactualNewEvaluations += 1;
+      if (counterfactualNewEvaluations % 50 === 0) await saveProgress();
+    }
+  }
+}
+if (counterfactualNewEvaluations) {
+  await saveProgress();
+  sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
+  reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, {
+    totalCost: resolvedInput.totalCost,
+  });
+  applyReconciledRatings();
 }
 await saveProgress("complete");
 
@@ -324,11 +370,11 @@ const report = {
     version: METAGAME_V12_MODEL_VERSION,
     sharedPoolVersion: METAGAME_V12_SHARED_POOL_VERSION,
     battleFormat: "5v5",
-    objective: "候補キャラ入りの最善デッキと、そのキャラを禁止して同じ総コスト上限で再最適化した最善デッキを比較し、チーム勝率差をキャラ価値とする。",
-    scoringPolicy: "最終順位に個人攻撃・個人耐久・役割・スキル発動の固定加点を使わない。負のチーム貢献も保持する。",
+    objective: "完成デッキの強さを確認した上で、他4枠を固定して対象キャラだけ差し替える反実仮想比較から、そのキャラ自身の実貢献を検証する。",
+    scoringPolicy: "同一4枠の差し替え比較を個人貢献の第一根拠にする。強い4人に運ばれたキャラは差し替え安定補正後差が正でなければ上位群へ入れない。差し替え証拠が無い場合だけ従来の全体再最適化機会費用へフォールバックする。",
     costPolicy: "候補を外した際のコストを5枠全体で再配分し、さらに全合法候補から作る共有基準デッキを比較対象へ追加する。高コストの機会損失を小さなパートナー候補集合だけで過小評価しない。",
     environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
-    performancePolicy: "各候補の直接探索は候補デッキ3本+除外代替3本のまま維持する。全shard統合後に各条件1回だけ全合法候補から共有基準デッキを探索・実戦評価し、そのキャッシュを全キャラの機会費用比較へ再利用する。",
+    performancePolicy: "各候補の直接探索と共有基準デッキは既存キャッシュを再利用する。全shard統合後、各キャラの最善完成デッキに対して他4枠固定の差し替え候補を最大12本探索し、未評価の差し替えだけ追加実戦評価する。",
   },
   context: {
     inputId: resolvedInput.id,
@@ -346,8 +392,12 @@ const report = {
     beamWidth,
     baselineDeckLimit,
     baselineBeamWidth,
+    replacementDeckLimit,
+    replacementBeamWidth,
     globalBaselineCandidateCount: globalBaselineCandidates.length,
     globalBaselineNewEvaluationCount: globalBaselineNewEvaluations,
+    counterfactualCandidateDeckCount,
+    counterfactualNewEvaluationCount: counterfactualNewEvaluations,
     sharedEvaluatedDeckCount: sharedDeckPool.length,
     sharedPoolImprovementCount,
     eligibleCandidateCountByPosition: candidatePools.allByPosition.map((pool) => pool.length),
@@ -364,5 +414,6 @@ const report = {
 await fs.writeFile(path.join(outputDirectory, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 await fs.writeFile(path.join(outputDirectory, "ranking.csv"), csvReport(report), "utf8");
 console.log(`V12 full opportunity baseline: ${globalBaselineCandidates.length} decks (${globalBaselineNewEvaluations} newly evaluated).`);
+console.log(`V12 matched-slot counterfactuals: ${counterfactualCandidateDeckCount} decks (${counterfactualNewEvaluations} newly evaluated).`);
 console.log(`V12 shared pool: ${sharedDeckPool.length} evaluated decks / ${sharedPoolImprovementCount} ratings changed.`);
 console.log(`V12 report: ${path.relative(projectRoot, outputDirectory)}`);

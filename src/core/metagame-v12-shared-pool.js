@@ -1,4 +1,4 @@
-export const METAGAME_V12_SHARED_POOL_VERSION = 1;
+export const METAGAME_V12_SHARED_POOL_VERSION = 2;
 
 function clampUnit(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
@@ -34,6 +34,12 @@ function compareEvaluatedDecks(left, right) {
 
 function sameIds(left = [], right = []) {
   return left.length === right.length && left.every((id, index) => String(id) === String(right[index]));
+}
+
+function sameOtherSlots(left = [], right = [], positionIndex) {
+  return left.length === 5 && right.length === 5 && left.every((id, index) => (
+    index === positionIndex || String(id) === String(right[index])
+  ));
 }
 
 function summarizePoolDeck(entry, totalCost, previous) {
@@ -147,7 +153,42 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
   const pairedStandardError = pairedDeltas.length > 1 ? pairedStdDev / Math.sqrt(pairedDeltas.length) : 0;
   const robustOpportunityWinGain = opportunityWinGain - 1.28 * pairedStandardError;
   const decisiveWinGain = (Number(best.result.decisiveWinRate) || 0) - (Number(baseline.result.decisiveWinRate) || 0);
-  const score = signedOpportunityScore(robustOpportunityWinGain);
+  const opportunityScore = signedOpportunityScore(robustOpportunityWinGain);
+
+  // The global exclusion baseline answers "can the whole deck be rebuilt
+  // better without this card?". For individual contribution we need the
+  // stricter causal question: keep the same four teammates and replace only
+  // this exact slot. The strongest evaluated exact replacement is deliberately
+  // used so a passenger cannot keep credit merely because one weak substitute
+  // was sampled.
+  const positionIndex = position - 1;
+  const matchedAlternatives = alternativeEvaluated
+    .filter((entry) => sameOtherSlots(best.ids, entry.ids, positionIndex))
+    .sort(compareEvaluatedDecks);
+  const counterfactualBaseline = matchedAlternatives[0] ?? null;
+  const counterfactualDeltas = counterfactualBaseline
+    ? (best.result.scenarioValues ?? []).map((value, index) => (
+      Number(value) - Number(counterfactualBaseline.result.scenarioValues?.[index])
+    )).filter(Number.isFinite)
+    : [];
+  const counterfactualWinGain = counterfactualBaseline
+    ? (counterfactualDeltas.length
+      ? average(counterfactualDeltas)
+      : (Number(best.result.expectedWinRate) || 0) - (Number(counterfactualBaseline.result.expectedWinRate) || 0))
+    : null;
+  const counterfactualStdDev = counterfactualBaseline ? standardDeviation(counterfactualDeltas) : null;
+  const counterfactualStandardError = counterfactualBaseline && counterfactualDeltas.length > 1
+    ? counterfactualStdDev / Math.sqrt(counterfactualDeltas.length)
+    : 0;
+  const counterfactualRobustWinGain = counterfactualBaseline
+    ? counterfactualWinGain - 1.28 * counterfactualStandardError
+    : null;
+  const counterfactualDecisiveWinGain = counterfactualBaseline
+    ? (Number(best.result.decisiveWinRate) || 0) - (Number(counterfactualBaseline.result.decisiveWinRate) || 0)
+    : null;
+  const primaryWinGain = counterfactualBaseline ? counterfactualWinGain : opportunityWinGain;
+  const primaryRobustWinGain = counterfactualBaseline ? counterfactualRobustWinGain : robustOpportunityWinGain;
+  const score = signedOpportunityScore(primaryRobustWinGain);
   const includeValues = includeEvaluated.map((entry) => Number(entry.result.expectedWinRate) || 0);
   const previousBest = rating.bestDeck ?? {};
   const previousBaseline = rating.baselineDeck ?? {};
@@ -157,8 +198,19 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
     opportunityWinGain: rounded(opportunityWinGain),
     robustOpportunityWinGain: rounded(robustOpportunityWinGain),
     decisiveWinGain: rounded(decisiveWinGain),
-    marginalWinGain: rounded(opportunityWinGain),
-    marginalWinGainLowerBound: rounded(robustOpportunityWinGain),
+    counterfactualApplied: Boolean(counterfactualBaseline),
+    counterfactualWinGain: counterfactualBaseline ? rounded(counterfactualWinGain) : null,
+    counterfactualRobustWinGain: counterfactualBaseline ? rounded(counterfactualRobustWinGain) : null,
+    counterfactualDecisiveWinGain: counterfactualBaseline ? rounded(counterfactualDecisiveWinGain) : null,
+    counterfactualBenchmarkExpectedWinRate: counterfactualBaseline
+      ? rounded(counterfactualBaseline.result.expectedWinRate)
+      : null,
+    counterfactualReplacementDeckCount: matchedAlternatives.length,
+    counterfactualReplacementDeck: counterfactualBaseline
+      ? summarizePoolDeck(counterfactualBaseline, totalCost, null)
+      : null,
+    marginalWinGain: rounded(primaryWinGain),
+    marginalWinGainLowerBound: rounded(primaryRobustWinGain),
     candidateExpectedWinRate: rounded(best.result.expectedWinRate),
     benchmarkExpectedWinRate: rounded(baseline.result.expectedWinRate),
     expectedWinRate: rounded(best.result.expectedWinRate),
@@ -168,11 +220,15 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
     individualScore: rounded(score),
     roleBreakdown: {
       ...(rating.roleBreakdown ?? {}),
-      opportunityCostScore: rounded(score),
+      opportunityCostScore: rounded(opportunityScore),
+      counterfactualContributionScore: counterfactualBaseline ? rounded(score) : null,
       includeDeckStdDev: rounded(standardDeviation(includeValues)),
       pairedScenarioStdDev: rounded(pairedStdDev),
       pairedScenarioStandardError: rounded(pairedStandardError),
       pairedScenarioCount: pairedDeltas.length,
+      counterfactualScenarioStdDev: counterfactualBaseline ? rounded(counterfactualStdDev) : null,
+      counterfactualScenarioStandardError: counterfactualBaseline ? rounded(counterfactualStandardError) : null,
+      counterfactualScenarioCount: counterfactualDeltas.length,
     },
     // Keep direct-evaluation counters intact. These fields describe how much
     // zero-cost evidence was additionally considered in the second pass.
