@@ -24,7 +24,12 @@ jobs:
         with:
           node-version: 22
       - name: Apply guarded source edits
-        run: python3 scripts/apply-v12-counterfactual-fix.py
+        shell: bash
+        run: |
+          python3 scripts/apply-v12-counterfactual-fix.py
+          # GITHUB_TOKEN cannot update workflow files. Keep production workflow
+          # edits for the connector commit after the validated source commit.
+          git checkout -- .github/workflows/metagame-v12-shared-pool-recompute.yml .github/workflows/deploy-pages.yml
       - name: Run focused V12 tests
         run: node --test test/metagame-v12-counterfactual-contribution.test.js test/metagame-v12-shared-pool.test.js test/metagame-v12-deck-first-ranking.test.js test/metagame-v12-dynamic-cost.test.js
       - name: Build public app
@@ -34,7 +39,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f scripts/apply-v12-counterfactual-fix.py patches/v12-counterfactual-contribution.patch .github/workflows/apply-v12-counterfactual-fix.yml
+          rm -f scripts/apply-v12-counterfactual-fix.py patches/v12-counterfactual-contribution.patch
           git add -A
           git commit -m "fix: audit V12 characters with matched-slot replacements"
           git push origin HEAD:fix/v12-counterfactual-contribution
