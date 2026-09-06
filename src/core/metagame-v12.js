@@ -544,14 +544,44 @@ function finiteOrNegativeInfinity(value) {
   return Number.isFinite(number) ? number : -Infinity;
 }
 
+function hasCompleteBestDeck(rating) {
+  return Array.isArray(rating?.bestDeck?.ids) && rating.bestDeck.ids.length === 5;
+}
+
+function compareCompleteDeckMetric(left, right, key) {
+  const leftValue = hasCompleteBestDeck(left)
+    ? finiteOrNegativeInfinity(left.bestDeck?.[key] ?? left[key])
+    : -Infinity;
+  const rightValue = hasCompleteBestDeck(right)
+    ? finiteOrNegativeInfinity(right.bestDeck?.[key] ?? right[key])
+    : -Infinity;
+  if (leftValue === rightValue) return 0;
+  return rightValue > leftValue ? 1 : -1;
+}
+
+/**
+ * V12 slot rankings are recommendations for building a legal five-card team,
+ * not standalone-card power rankings. Prefer the strongest already-evaluated
+ * complete deck that contains the character in this exact slot. Opportunity
+ * gain remains a tie-breaker/legacy fallback, so expensive cards are not
+ * blindly penalized: they stay high only when the full legal team is actually
+ * strong under the current cost cap.
+ */
 export function rankMetagameV12Characters(ratings) {
   return [...ratings]
     .sort((left, right) => (
+      compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+      compareCompleteDeckMetric(left, right, "expectedWinRate") ||
+      compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
       finiteOrNegativeInfinity(right.robustOpportunityWinGain) - finiteOrNegativeInfinity(left.robustOpportunityWinGain) ||
       finiteOrNegativeInfinity(right.opportunityWinGain) - finiteOrNegativeInfinity(left.opportunityWinGain) ||
       finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
       Number(left.cost) - Number(right.cost) ||
       String(left.id).localeCompare(String(right.id))
     ))
-    .map((rating, index) => ({ ...rating, rank: index + 1 }));
+    .map((rating, index) => ({
+      ...rating,
+      rank: index + 1,
+      rankingBasis: hasCompleteBestDeck(rating) ? "complete-deck-performance" : "opportunity-fallback",
+    }));
 }
