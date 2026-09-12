@@ -33,16 +33,18 @@ jobs:
           node --check src/core/metagame-v12.js
           node --test test/metagame-v12-counterfactual-contribution.test.js test/metagame-v12-deck-first-ranking.test.js test/metagame-v12-recompute-resilience.test.js
           npm run build
-      - name: Commit validated source patch
+      - name: Commit validated source and workflow blob
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # GitHub blocks GITHUB_TOKEN from updating workflow files. The workflow
-          # patch is validated above and is applied separately through the repo API.
-          git add scripts/rate-metagame-v12.mjs src/core/metagame-v12.js
+          # GitHub blocks GITHUB_TOKEN from updating workflow files. Save the exact
+          # validated workflow bytes at a normal path; the repo API later promotes
+          # this blob to .github/workflows without re-generating it.
+          cp .github/workflows/metagame-v12-shared-pool-recompute.yml scripts/metagame-v12-shared-pool-recompute.patched.yml
+          git add scripts/rate-metagame-v12.mjs src/core/metagame-v12.js scripts/metagame-v12-shared-pool-recompute.patched.yml
           if git diff --cached --quiet; then
-            echo "No source patch changes to commit."
+            echo "No validated patch changes to commit."
             exit 0
           fi
           git commit -m "fix: make V12 finalization resumable and broaden exploration"
