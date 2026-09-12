@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
+// Wrapper for the two finalize command shapes in the production workflow.
 const originalPath = "scripts/apply-v12-resilience-fix.mjs";
 let patcher = await fs.readFile(originalPath, "utf8");
 const strictNeedle = '    2,\n    "finalize time budget args",';
