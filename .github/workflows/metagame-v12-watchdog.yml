@@ -1,0 +1,113 @@
+name: Metagame V12 recompute watchdog
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17,47 * * * *"
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: metagame-v12-recompute-watchdog
+  cancel-in-progress: true
+
+jobs:
+  heal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect stalled recompute and self-heal
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          workflow="metagame-v12-shared-pool-recompute.yml"
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          ranking_policy="matched-slot-counterfactual-v3-resumable"
+
+          if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
+            git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+          else
+            echo "Results branch does not exist; dispatching recompute."
+            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref master
+            exit 0
+          fi
+
+          attribute_groups=(
+            "fire" "water" "wind"
+            "fire-water" "fire-wind" "water-wind" "fire-water-wind"
+          )
+          representative_costs=(100 200 300 500)
+          incomplete=0
+          first_incomplete=""
+          for cost in "${representative_costs[@]}"; do
+            for attribute_group in "${attribute_groups[@]}"; do
+              output_directory="${attribute_group}-${cost}"
+              progress_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"
+              marker_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/ranking-policy.txt"
+              progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
+              marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
+              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' <<< "$progress" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
+                incomplete=$((incomplete + 1))
+                [ -n "$first_incomplete" ] || first_incomplete="${attribute_group}:${cost}"
+              fi
+            done
+          done
+
+          if [ "$incomplete" -eq 0 ]; then
+            echo "All 28 V12 conditions are complete under $ranking_policy."
+            exit 0
+          fi
+          echo "$incomplete/28 conditions incomplete; first=$first_incomplete"
+
+          runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?per_page=30")"
+          mapfile -t active_ids < <(jq -r '.workflow_runs[] | select(.status == "in_progress" or .status == "queued") | .id' <<< "$runs_json")
+
+          # Concurrency should normally leave only one. If GitHub ever queues duplicates,
+          # keep the newest and cancel the rest before they burn compute.
+          if [ "${#active_ids[@]}" -gt 1 ]; then
+            newest="${active_ids[0]}"
+            for run_id in "${active_ids[@]:1}"; do
+              echo "Cancelling duplicate V12 recompute run $run_id (keeping $newest)."
+              gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null || true
+            done
+            active_ids=("$newest")
+          fi
+
+          now_epoch="$(date -u +%s)"
+          results_epoch="$(git show -s --format=%ct "$results_ref" 2>/dev/null || echo 0)"
+          progress_age_minutes=$(( (now_epoch - results_epoch) / 60 ))
+
+          if [ "${#active_ids[@]}" -eq 1 ]; then
+            run_id="${active_ids[0]}"
+            run_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}")"
+            started_at="$(jq -r '.run_started_at // .created_at' <<< "$run_json")"
+            started_epoch="$(date -u -d "$started_at" +%s)"
+            run_age_minutes=$(( (now_epoch - started_epoch) / 60 ))
+            echo "Active run=$run_id age=${run_age_minutes}m; results-branch age=${progress_age_minutes}m."
+
+            # Normal finalize chunks have a 120-minute compute budget plus a large
+            # push margin. Anything beyond 155 minutes is not a healthy chunk.
+            # Also break silent restart loops: a fresh run gets a 35-minute grace
+            # period, but after that a results branch untouched for 6 hours is stale.
+            if [ "$run_age_minutes" -le 155 ] && ! { [ "$run_age_minutes" -gt 35 ] && [ "$progress_age_minutes" -gt 360 ]; }; then
+              echo "Recompute is active and within the healthy window."
+              exit 0
+            fi
+
+            echo "Stalled recompute detected; cancelling run $run_id."
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null || true
+            sleep 5
+          else
+            echo "No active recompute run found."
+          fi
+
+          echo "Dispatching self-healing V12 recompute continuation."
+          gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref master
