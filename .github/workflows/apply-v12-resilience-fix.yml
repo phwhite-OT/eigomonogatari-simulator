@@ -33,15 +33,17 @@ jobs:
           node --check src/core/metagame-v12.js
           node --test test/metagame-v12-counterfactual-contribution.test.js test/metagame-v12-deck-first-ranking.test.js test/metagame-v12-recompute-resilience.test.js
           npm run build
-      - name: Commit validated patch
+      - name: Commit validated source patch
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scripts/rate-metagame-v12.mjs src/core/metagame-v12.js .github/workflows/metagame-v12-shared-pool-recompute.yml
+          # GitHub blocks GITHUB_TOKEN from updating workflow files. The workflow
+          # patch is validated above and is applied separately through the repo API.
+          git add scripts/rate-metagame-v12.mjs src/core/metagame-v12.js
           if git diff --cached --quiet; then
-            echo "No patch changes to commit."
+            echo "No source patch changes to commit."
             exit 0
           fi
-          git commit -m "fix: make V12 recompute resumable and self-healing"
+          git commit -m "fix: make V12 finalization resumable and broaden exploration"
           git push origin HEAD:fix/v12-resumable-self-healing
