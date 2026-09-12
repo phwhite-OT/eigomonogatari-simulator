@@ -387,7 +387,7 @@ export function buildMetagameV12CounterfactualReplacementDecks(
   if (!Array.isArray(bestIds) || bestIds.length !== 5 || positionIndex < 0 || positionIndex > 4) return [];
   if (String(bestIds[positionIndex]) !== String(rating.id)) return [];
 
-  const replacementDeckLimit = Math.max(1, Math.floor(Number(options.replacementDeckLimit) || 12));
+  const replacementDeckLimit = Math.max(1, Math.floor(Number(options.replacementDeckLimit) || 24));
   const replacementBeamWidth = Math.max(500, Math.floor(Number(options.replacementBeamWidth) || 4000));
   const ratingsByPosition = candidatePools?.ratingsByPosition ?? [];
   const fixedIds = new Set(bestIds.filter((_, index) => index !== positionIndex).map(String));
@@ -413,7 +413,7 @@ export function buildMetagameV12CounterfactualReplacementDecks(
     slots,
   };
   try {
-    return buildMetagameDeckCandidates(
+    const legal = buildMetagameDeckCandidates(
       constraint,
       [...candidatePools.charactersById.values()],
       { beamWidth: replacementBeamWidth },
@@ -423,7 +423,40 @@ export function buildMetagameV12CounterfactualReplacementDecks(
         index === positionIndex || String(character.id) === String(bestIds[index])
       )) &&
       String(entry.deck[positionIndex].id) !== String(rating.id)
-    )).slice(0, replacementDeckLimit);
+    ));
+    if (legal.length <= replacementDeckLimit) return legal;
+
+    const selected = new Map();
+    const add = (entry) => selected.set(deckKey(entry.deck), entry);
+    // Keep the strongest proxy half, then deliberately spend the other half on
+    // role and cost coverage so a wrongly low proxy cannot disappear forever.
+    legal.slice(0, Math.max(1, Math.ceil(replacementDeckLimit * 0.5))).forEach(add);
+
+    const slotRatings = candidatePools.ratingsByPosition[positionIndex];
+    const roles = ["precision_attack", "sweep_attack", "defense", "revive", "recovery", "support", "neutral"];
+    for (const role of roles) {
+      if (selected.size >= replacementDeckLimit) break;
+      const entry = legal.find((candidate) => {
+        const replacement = candidate.deck[positionIndex];
+        return !selected.has(deckKey(candidate.deck)) && (slotRatings.get(String(replacement.id))?.role ?? "neutral") === role;
+      });
+      if (entry) add(entry);
+    }
+
+    const byCost = [...legal].sort((left, right) => (
+      (Number(left.deck[positionIndex]?.cost) || 0) - (Number(right.deck[positionIndex]?.cost) || 0) ||
+      (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0)
+    ));
+    while (selected.size < replacementDeckLimit) {
+      const remaining = byCost.filter((entry) => !selected.has(deckKey(entry.deck)));
+      if (!remaining.length) break;
+      const slotsLeft = replacementDeckLimit - selected.size;
+      for (let pick = 0; pick < Math.min(slotsLeft, remaining.length); pick += 1) {
+        const index = Math.min(remaining.length - 1, Math.floor((pick + 0.5) * remaining.length / Math.min(slotsLeft, remaining.length)));
+        add(remaining[index]);
+      }
+    }
+    return [...selected.values()].slice(0, replacementDeckLimit);
   } catch (error) {
     if (error instanceof Error && /cost|総コスト|valid complete|legal deck/i.test(error.message)) return [];
     throw error;

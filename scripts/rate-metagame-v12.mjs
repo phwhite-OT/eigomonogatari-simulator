@@ -114,8 +114,9 @@ const anchorDeckLimit = Math.max(0, Math.floor(Number(readArgument("anchor-deck-
 const beamWidth = positiveInteger(readArgument("beam-width", "500"), 500, 50);
 const baselineDeckLimit = positiveInteger(readArgument("baseline-deck-limit", "32"), 32, 8);
 const baselineBeamWidth = positiveInteger(readArgument("baseline-beam-width", "2000"), 2000, 500);
-const replacementDeckLimit = positiveInteger(readArgument("replacement-deck-limit", "12"), 12, 1);
+const replacementDeckLimit = positiveInteger(readArgument("replacement-deck-limit", "24"), 24, 1);
 const replacementBeamWidth = positiveInteger(readArgument("replacement-beam-width", "4000"), 4000, 500);
+const counterfactualAnchorLimit = positiveInteger(readArgument("counterfactual-anchor-limit", "3"), 3, 1);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
 const requestedPosition = readArgument("position", "all").toLowerCase();
@@ -208,6 +209,7 @@ for (const checkpoint of mergedCheckpoints) {
 }
 
 const deadline = timeBudgetSeconds ? Date.now() + timeBudgetSeconds * 1000 : Infinity;
+const finalizationDeadlineReached = (guardMs = 15000) => Number.isFinite(deadline) && Date.now() + guardMs >= deadline;
 let stoppedEarly = false;
 
 async function saveProgress(status = "in_progress") {
@@ -289,6 +291,11 @@ if (stoppedEarly || !allRatingsComplete) {
   process.exit(0);
 }
 
+// Candidate battles are complete. From here on the checkpoint deliberately
+// remains resumable: a workflow chunk may stop before GitHub kills the runner,
+// persist the evaluated-deck cache, and continue in the next run.
+await saveProgress("finalizing");
+
 // Seed a shared baseline from all legal candidates before reconciliation.
 // This search is paid once per condition, rather than once per character, so
 // cheap strong replacements cannot disappear merely because they missed the
@@ -302,10 +309,20 @@ let globalBaselineNewEvaluations = 0;
 for (const entry of globalBaselineCandidates) {
   const key = `${turns}:${entry.deck.map((character) => String(character.id)).join("|")}`;
   if (evaluationCache.has(key)) continue;
+  if (finalizationDeadlineReached()) {
+    stoppedEarly = true;
+    break;
+  }
   evaluationCache.set(key, evaluateMetagameV7Deck(entry.deck, teamScenarios, { turns }));
   globalBaselineNewEvaluations += 1;
+  if (globalBaselineNewEvaluations % 5 === 0) await saveProgress("finalizing");
 }
-if (globalBaselineNewEvaluations) await saveProgress();
+if (globalBaselineNewEvaluations) await saveProgress("finalizing");
+if (stoppedEarly) {
+  await saveProgress("finalizing");
+  console.log(`V12 finalization chunk stopped safely during global baseline after ${globalBaselineNewEvaluations} new deck evaluations.`);
+  process.exit(0);
+}
 
 let sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
 let reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, {
@@ -319,32 +336,74 @@ function applyReconciledRatings() {
 }
 applyReconciledRatings();
 
-// Audit every rated card around its strongest known complete deck. Four slots
-// are frozen exactly and only the rated slot may change. These are additional
-// targeted battles, not a replay of the expensive candidate probes already in
-// the checkpoint. The cache makes the audit resumable and deduplicates shells
-// shared by multiple ratings.
+function selectCounterfactualAnchors(rating, position, pool, limit) {
+  const positionIndex = position - 1;
+  const candidateId = String(rating.id);
+  const available = (pool ?? []).filter((entry) => String(entry.ids?.[positionIndex]) === candidateId);
+  const selected = [];
+  for (const entry of available) {
+    if (!selected.length) {
+      selected.push(entry);
+    } else {
+      const minOtherSlotDifference = Math.min(...selected.map((chosen) => (
+        entry.ids.reduce((count, id, index) => (
+          index === positionIndex || String(id) === String(chosen.ids[index]) ? count : count + 1
+        ), 0)
+      )));
+      if (minOtherSlotDifference >= 2) selected.push(entry);
+    }
+    if (selected.length >= limit) break;
+  }
+  for (const entry of available) {
+    if (selected.length >= limit) break;
+    if (!selected.includes(entry)) selected.push(entry);
+  }
+  return selected;
+}
+
+// Audit several structurally different strong shells for every rated card, not
+// only one best deck. Within each shell, only the rated slot may change. This
+// catches cards that are passengers in one shell and genuinely useful in another.
 let counterfactualNewEvaluations = 0;
 let counterfactualCandidateDeckCount = 0;
+counterfactualAudit:
 for (const [index, ratings] of resultsByPosition.entries()) {
   const position = index + 1;
   for (const rating of ratings.values()) {
-    const replacements = buildMetagameV12CounterfactualReplacementDecks(
-      rating,
-      position,
-      resolvedInput,
-      candidatePools,
-      { replacementDeckLimit, replacementBeamWidth },
-    );
-    counterfactualCandidateDeckCount += replacements.length;
-    for (const entry of replacements) {
-      const key = `${turns}:${entry.deck.map((character) => String(character.id)).join("|")}`;
-      if (evaluationCache.has(key)) continue;
-      evaluationCache.set(key, evaluateMetagameV7Deck(entry.deck, teamScenarios, { turns }));
-      counterfactualNewEvaluations += 1;
-      if (counterfactualNewEvaluations % 50 === 0) await saveProgress();
+    const anchors = selectCounterfactualAnchors(rating, position, sharedDeckPool, counterfactualAnchorLimit);
+    const fallbackAnchor = rating.bestDeck?.ids?.length === 5 ? [{ ids: rating.bestDeck.ids }] : [];
+    for (const anchor of (anchors.length ? anchors : fallbackAnchor)) {
+      const anchorRating = {
+        ...rating,
+        bestDeck: { ...(rating.bestDeck ?? {}), ids: [...anchor.ids] },
+      };
+      const replacements = buildMetagameV12CounterfactualReplacementDecks(
+        anchorRating,
+        position,
+        resolvedInput,
+        candidatePools,
+        { replacementDeckLimit, replacementBeamWidth },
+      );
+      counterfactualCandidateDeckCount += replacements.length;
+      for (const entry of replacements) {
+        const key = `${turns}:${entry.deck.map((character) => String(character.id)).join("|")}`;
+        if (evaluationCache.has(key)) continue;
+        if (finalizationDeadlineReached()) {
+          stoppedEarly = true;
+          break counterfactualAudit;
+        }
+        evaluationCache.set(key, evaluateMetagameV7Deck(entry.deck, teamScenarios, { turns }));
+        counterfactualNewEvaluations += 1;
+        if (counterfactualNewEvaluations % 5 === 0) await saveProgress("finalizing");
+      }
     }
   }
+}
+if (counterfactualNewEvaluations) await saveProgress("finalizing");
+if (stoppedEarly) {
+  await saveProgress("finalizing");
+  console.log(`V12 finalization chunk stopped safely after ${counterfactualNewEvaluations} new matched-slot deck evaluations.`);
+  process.exit(0);
 }
 if (counterfactualNewEvaluations) {
   await saveProgress();
@@ -354,7 +413,6 @@ if (counterfactualNewEvaluations) {
   });
   applyReconciledRatings();
 }
-await saveProgress("complete");
 
 const rankingsByPosition = resultsByPosition.map((ratings, index) => ({
   position: index + 1,
@@ -374,7 +432,7 @@ const report = {
     scoringPolicy: "同一4枠の差し替え比較を個人貢献の第一根拠にする。強い4人に運ばれたキャラは差し替え安定補正後差が正でなければ上位群へ入れない。差し替え証拠が無い場合だけ従来の全体再最適化機会費用へフォールバックする。",
     costPolicy: "候補を外した際のコストを5枠全体で再配分し、さらに全合法候補から作る共有基準デッキを比較対象へ追加する。高コストの機会損失を小さなパートナー候補集合だけで過小評価しない。",
     environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
-    performancePolicy: "各候補の直接探索と共有基準デッキは既存キャッシュを再利用する。全shard統合後、各キャラの最善完成デッキに対して他4枠固定の差し替え候補を最大12本探索し、未評価の差し替えだけ追加実戦評価する。",
+    performancePolicy: "各候補の直接探索と共有基準デッキは既存キャッシュを再利用する。全shard統合後、各キャラについて構成の異なる強い完成デッキを最大3本監査し、各デッキで他4枠固定の差し替え候補を最大24本、proxy上位だけに偏らないよう層化して探索する。finalizeは時間予算内で必ずcheckpointを永続化して再開する。",
   },
   context: {
     inputId: resolvedInput.id,
@@ -394,6 +452,7 @@ const report = {
     baselineBeamWidth,
     replacementDeckLimit,
     replacementBeamWidth,
+    counterfactualAnchorLimit,
     globalBaselineCandidateCount: globalBaselineCandidates.length,
     globalBaselineNewEvaluationCount: globalBaselineNewEvaluations,
     counterfactualCandidateDeckCount,
@@ -413,6 +472,9 @@ const report = {
 
 await fs.writeFile(path.join(outputDirectory, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 await fs.writeFile(path.join(outputDirectory, "ranking.csv"), csvReport(report), "utf8");
+// Only a fully materialized report may be called complete. The previous order
+// allowed a runner death after progress.json said complete but before reports existed.
+await saveProgress("complete");
 console.log(`V12 full opportunity baseline: ${globalBaselineCandidates.length} decks (${globalBaselineNewEvaluations} newly evaluated).`);
 console.log(`V12 matched-slot counterfactuals: ${counterfactualCandidateDeckCount} decks (${counterfactualNewEvaluations} newly evaluated).`);
 console.log(`V12 shared pool: ${sharedDeckPool.length} evaluated decks / ${sharedPoolImprovementCount} ratings changed.`);
