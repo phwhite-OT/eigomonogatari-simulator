@@ -31,6 +31,7 @@ jobs:
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
           ranking_policy="matched-slot-counterfactual-v3-resumable"
+          source_sha="$(git rev-parse HEAD)"
 
           if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
             git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
@@ -84,6 +85,7 @@ jobs:
           now_epoch="$(date -u +%s)"
           results_epoch="$(git show -s --format=%ct "$results_ref" 2>/dev/null || echo 0)"
           progress_age_minutes=$(( (now_epoch - results_epoch) / 60 ))
+          completed_without_progress="$(jq --arg sha "$source_sha" --argjson since "$results_epoch" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed") | select((.updated_at | fromdateiso8601) > $since)] | length' <<< "$runs_json")"
 
           if [ "${#active_ids[@]}" -eq 1 ]; then
             run_id="${active_ids[0]}"
@@ -91,18 +93,17 @@ jobs:
             started_at="$(jq -r '.run_started_at // .created_at' <<< "$run_json")"
             started_epoch="$(date -u -d "$started_at" +%s)"
             run_age_minutes=$(( (now_epoch - started_epoch) / 60 ))
-            echo "Active run=$run_id age=${run_age_minutes}m; results-branch age=${progress_age_minutes}m."
+            echo "Active run=$run_id age=${run_age_minutes}m; results-branch age=${progress_age_minutes}m; same-source completed-without-progress=${completed_without_progress}."
 
-            # Normal finalize chunks have a 120-minute compute budget plus a large
-            # push margin. Anything beyond 155 minutes is not a healthy chunk.
-            # Also break silent restart loops: a fresh run gets a 35-minute grace
-            # period, but after that a results branch untouched for 6 hours is stale.
-            if [ "$run_age_minutes" -le 155 ] && ! { [ "$run_age_minutes" -gt 35 ] && [ "$progress_age_minutes" -gt 360 ]; }; then
+            # A normal finalize chunk has a 120-minute compute budget plus a large
+            # push margin. Never interrupt a healthy first chunk merely because the
+            # results branch was stale before this source revision started.
+            if [ "$run_age_minutes" -le 155 ] && ! { [ "$completed_without_progress" -ge 2 ] && [ "$progress_age_minutes" -gt 360 ] && [ "$run_age_minutes" -gt 20 ]; }; then
               echo "Recompute is active and within the healthy window."
               exit 0
             fi
 
-            echo "Stalled recompute detected; cancelling run $run_id."
+            echo "Stalled or repeated no-progress recompute detected; cancelling run $run_id."
             gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null || true
             sleep 5
           else
