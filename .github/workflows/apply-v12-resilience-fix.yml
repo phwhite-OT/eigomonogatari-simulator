@@ -6,6 +6,7 @@ on:
       - fix/v12-resumable-self-healing
     paths:
       - "scripts/apply-v12-resilience-fix.mjs"
+      - "scripts/run-v12-resilience-patcher.mjs"
       - ".github/workflows/apply-v12-resilience-fix.yml"
 
 permissions:
@@ -24,7 +25,7 @@ jobs:
         with:
           node-version: 22
       - name: Apply exact patch
-        run: node scripts/apply-v12-resilience-fix.mjs
+        run: node scripts/run-v12-resilience-patcher.mjs
       - name: Validate changed source
         run: |
           git diff --check
