@@ -376,6 +376,34 @@ jobs:
           fi
       - name: Continue with the next recompute segment
         if: steps.status.outputs.all_completed != 'true'
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master
+        run: |
+          set -euo pipefail
+          workflow="metagame-v12-shared-pool-recompute.yml"
+          output=""
+          delay=5
+          for attempt in 1 2 3 4 5; do
+            if output="$(gh workflow run "$workflow" --repo "${{ github.repository }}" --ref master 2>&1)"; then
+              echo "V12 continuation dispatch accepted on attempt $attempt."
+              exit 0
+            fi
+
+            echo "V12 continuation dispatch attempt $attempt failed: $output" >&2
+            if ! grep -Eqi 'HTTP (500|502|503|504)|Failed to run workflow dispatch|temporar|timeout|connection reset|service unavailable|bad gateway|gateway timeout' <<< "$output"; then
+              echo "::error::Continuation dispatch failed with a non-transient error."
+              exit 1
+            fi
+
+            if [ "$attempt" -lt 5 ]; then
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+
+          # The checkpoint has already been committed and pushed above. A GitHub
+          # API 5xx must not relabel a successful compute segment as a calculation
+          # failure; the watchdog will retry the continuation automatically.
+          echo "::warning::Continuation dispatch still has a transient GitHub error after 5 attempts. Progress is safe and watchdog will retry."
+          exit 0
