@@ -33,11 +33,52 @@ jobs:
           ranking_policy="matched-slot-counterfactual-v3-resumable"
           source_sha="$(git rev-parse HEAD)"
 
+          dispatch_recompute() {
+            local output=""
+            local delay=5
+            for attempt in 1 2 3 4 5; do
+              if output="$(gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref master 2>&1)"; then
+                echo "V12 recompute dispatch accepted on attempt $attempt."
+                return 0
+              fi
+
+              echo "V12 recompute dispatch attempt $attempt failed: $output" >&2
+              if ! grep -Eqi 'HTTP (500|502|503|504)|Failed to run workflow dispatch|temporar|timeout|connection reset|service unavailable|bad gateway|gateway timeout' <<< "$output"; then
+                echo "::error::V12 dispatch failed with a non-transient error; refusing to hide it."
+                return 1
+              fi
+
+              if [ "$attempt" -lt 5 ]; then
+                sleep "$delay"
+                delay=$((delay * 2))
+              fi
+            done
+
+            # The results checkpoint is already durable. Do not turn a GitHub 5xx
+            # into a deterministic V12 failure; the next watchdog run will retry.
+            echo "::warning::GitHub kept rejecting V12 dispatch with a transient error after 5 attempts. Progress is safe; watchdog will retry automatically."
+            return 0
+          }
+
+          is_recoverable_continuation_failure() {
+            local run_id="$1"
+            local jobs_json
+            jobs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" 2>/dev/null || true)"
+            [ -n "$jobs_json" ] || return 1
+            jq -e '
+              [.jobs[] | select(.name == "publish")][0] as $publish
+              | ($publish.conclusion == "failure")
+              and (([$publish.steps[]? | select(.name == "Save isolated recompute progress")][0].conclusion // "") == "success")
+              and (([$publish.steps[]? | select(.name == "Continue with the next recompute segment")][0].conclusion // "") == "failure")
+              and ([ $publish.steps[]? | select(.conclusion == "failure") ] | length == 1)
+            ' <<< "$jobs_json" >/dev/null 2>&1
+          }
+
           if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
             git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
           else
             echo "Results branch does not exist; dispatching recompute."
-            gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref master
+            dispatch_recompute
             exit 0
           fi
 
@@ -69,7 +110,7 @@ jobs:
           echo "$incomplete/28 conditions incomplete; first=$first_incomplete"
 
           runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?per_page=30")"
-          mapfile -t active_ids < <(jq -r '.workflow_runs[] | select(.status == "in_progress" or .status == "queued") | .id' <<< "$runs_json")
+          mapfile -t active_ids < <(jq -r '.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending") | .id' <<< "$runs_json")
 
           # Concurrency should normally leave only one. If GitHub ever queues duplicates,
           # keep the newest and cancel the rest before they burn compute.
@@ -85,6 +126,7 @@ jobs:
           now_epoch="$(date -u +%s)"
           results_epoch="$(git show -s --format=%ct "$results_ref" 2>/dev/null || echo 0)"
           progress_age_minutes=$(( (now_epoch - results_epoch) / 60 ))
+          latest_current_run_id="$(jq -r --arg sha "$source_sha" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed")][0].id // ""' <<< "$runs_json")"
           latest_current_conclusion="$(jq -r --arg sha "$source_sha" '[.workflow_runs[] | select(.head_sha == $sha and .status == "completed")][0].conclusion // ""' <<< "$runs_json")"
 
           if [ "${#active_ids[@]}" -eq 1 ]; then
@@ -108,15 +150,21 @@ jobs:
           else
             echo "No active recompute run found; latest current-source conclusion=${latest_current_conclusion:-none}."
 
-            # Do not turn a deterministic code/data failure into an endless retry
-            # loop. A source-code fix (new master SHA) clears this guard naturally.
-            case "$latest_current_conclusion" in
-              failure|timed_out|startup_failure)
-                echo "::error::Latest V12 recompute for current master failed (${latest_current_conclusion}). Automatic retry is intentionally stopped until the source changes or a human manually reruns it."
-                exit 1
-                ;;
-            esac
+            # A run that saved its checkpoint and failed only while asking GitHub
+            # to dispatch the next segment is recoverable. Treat that as transport
+            # failure, not as a deterministic calculation failure.
+            if [ "$latest_current_conclusion" = "failure" ] && [ -n "$latest_current_run_id" ] && is_recoverable_continuation_failure "$latest_current_run_id"; then
+              echo "Recoverable continuation-dispatch failure detected in run $latest_current_run_id; resuming from the saved checkpoint."
+            else
+              # Do not turn a real deterministic code/data failure into an endless retry loop.
+              case "$latest_current_conclusion" in
+                failure|timed_out|startup_failure)
+                  echo "::error::Latest V12 recompute for current master failed (${latest_current_conclusion}) before a safe continuation handoff. Automatic retry is stopped until the source changes or a human reruns it."
+                  exit 1
+                  ;;
+              esac
+            fi
           fi
 
           echo "Dispatching self-healing V12 recompute continuation."
-          gh workflow run "$workflow" --repo "$GITHUB_REPOSITORY" --ref master
+          dispatch_recompute
