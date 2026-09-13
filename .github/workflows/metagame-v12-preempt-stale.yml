@@ -42,15 +42,64 @@ jobs:
             exit 0
           fi
 
+          run_status() {
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/$1" --jq '.status'
+          }
+
+          wait_for_completion() {
+            local run_id="$1"
+            local attempts="$2"
+            local status
+            for ((i=1; i<=attempts; i++)); do
+              status="$(run_status "$run_id")"
+              if [ "$status" = "completed" ]; then
+                return 0
+              fi
+              sleep 5
+            done
+            return 1
+          }
+
           for run_id in "${stale_ids[@]}"; do
             echo "Cancelling stale V12 recompute run $run_id; current source is $GITHUB_SHA."
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null || {
-              # A run can finish between listing and cancellation. Re-read it and
-              # only fail when an obsolete run is still active.
-              status="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.status')"
-              if [ "$status" != "completed" ]; then
-                echo "Unable to cancel stale V12 run $run_id (status=$status)." >&2
-                exit 1
+
+            # A successful /cancel response only means GitHub accepted the request;
+            # it does not guarantee that a running process has actually stopped.
+            # Always verify termination and escalate to force-cancel if necessary.
+            if ! gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null 2>&1; then
+              status="$(run_status "$run_id")"
+              if [ "$status" = "completed" ]; then
+                echo "Stale V12 run $run_id finished before cancellation was needed."
+                continue
               fi
-            }
+              echo "Normal cancellation request for stale V12 run $run_id was not accepted (status=$status); escalating."
+            fi
+
+            if wait_for_completion "$run_id" 6; then
+              echo "Stale V12 run $run_id stopped after normal cancellation."
+              continue
+            fi
+
+            status="$(run_status "$run_id")"
+            echo "Stale V12 run $run_id is still $status after cancellation; force-cancelling it."
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/force-cancel" >/dev/null
+
+            if ! wait_for_completion "$run_id" 6; then
+              status="$(run_status "$run_id")"
+              echo "Stale V12 run $run_id survived force-cancel (status=$status). Refusing to report success." >&2
+              exit 1
+            fi
+
+            echo "Stale V12 run $run_id stopped after force-cancel."
           done
+
+          # Final invariant: no active recompute run from an obsolete source SHA
+          # may remain after this preemptor reports success.
+          remaining="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?per_page=50" \
+            --jq "[.workflow_runs[] | select(.head_sha != \"$GITHUB_SHA\") | select(.status != \"completed\")] | length")"
+          if [ "$remaining" -ne 0 ]; then
+            echo "$remaining obsolete V12 recompute run(s) are still active after preemption." >&2
+            exit 1
+          fi
+
+          echo "Verified: no obsolete V12 recompute runs remain active."
