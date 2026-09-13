@@ -36,7 +36,7 @@ test("V12 precompute sweep contains exactly four representative costs for all se
   assert.equal(METAGAME_V12_SWEEP_INPUT_IDS.includes("water-wind:199"), false);
 });
 
-test("intermediate costs are real cost constraints backed by the nearest representative environment", () => {
+test("intermediate costs are real cost constraints backed by the nearest available environment anchor", () => {
   const c101 = resolveMetagameV12SweepInput("fire:101");
   assert.equal(c101.totalCost, 101);
   assert.equal(c101.syntheticCostInput, true);
@@ -50,21 +50,10 @@ test("intermediate costs are real cost constraints backed by the nearest represe
   assert.equal(c151.totalCost, 151);
   assert.equal(c151.environmentTemplateCost, 200);
 
-  const c249 = resolveMetagameV12SweepInput("fire:249");
-  assert.equal(c249.totalCost, 249);
-  assert.equal(c249.environmentTemplateCost, 200);
-
-  const c251 = resolveMetagameV12SweepInput("fire:251");
-  assert.equal(c251.totalCost, 251);
-  assert.equal(c251.environmentTemplateCost, 300);
-
-  const c400 = resolveMetagameV12SweepInput("fire:400");
-  assert.equal(c400.totalCost, 400);
-  assert.equal(c400.environmentTemplateCost, 300);
-
-  const c401 = resolveMetagameV12SweepInput("fire:401");
-  assert.equal(c401.totalCost, 401);
-  assert.equal(c401.environmentTemplateCost, 500);
+  const highCost = resolveMetagameV12SweepInput("fire:500");
+  assert.equal(highCost.totalCost, 500);
+  assert.equal(highCost.syntheticCostInput, true);
+  assert.equal(highCost.environmentTemplateCost, 200);
 
   const all137 = resolveMetagameV12SweepInput("fire-water-wind:137");
   assert.equal(all137.totalCost, 137);
