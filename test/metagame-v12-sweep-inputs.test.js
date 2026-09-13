@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
 import {
+  METAGAME_V12_PRECOMPUTE_COSTS,
   METAGAME_V12_SWEEP_INPUTS,
   METAGAME_V12_SWEEP_INPUT_IDS,
   resolveMetagameV12SweepInput,
@@ -18,17 +19,21 @@ const GROUPS = [
   "fire-water-wind",
 ];
 
-test("V12 sweep contains every cost 100..200 for all seven attribute groups", () => {
-  assert.equal(METAGAME_V12_SWEEP_INPUTS.length, 707);
-  assert.equal(new Set(METAGAME_V12_SWEEP_INPUT_IDS).size, 707);
+const PRECOMPUTE_COSTS = [100, 200, 300, 500];
 
-  for (let cost = 100; cost <= 200; cost += 1) {
+test("V12 precompute sweep contains exactly four representative costs for all seven attribute groups", () => {
+  assert.deepEqual(METAGAME_V12_PRECOMPUTE_COSTS, PRECOMPUTE_COSTS);
+  assert.equal(METAGAME_V12_SWEEP_INPUTS.length, PRECOMPUTE_COSTS.length * GROUPS.length);
+  assert.equal(new Set(METAGAME_V12_SWEEP_INPUT_IDS).size, PRECOMPUTE_COSTS.length * GROUPS.length);
+
+  for (const cost of PRECOMPUTE_COSTS) {
     const ids = METAGAME_V12_SWEEP_INPUT_IDS.filter((id) => id.endsWith(`:${cost}`));
     assert.deepEqual(ids, GROUPS.map((group) => `${group}:${cost}`));
   }
 
   assert.equal(METAGAME_V12_SWEEP_INPUT_IDS[0], "fire:100");
-  assert.equal(METAGAME_V12_SWEEP_INPUT_IDS.at(-1), "fire-water-wind:200");
+  assert.equal(METAGAME_V12_SWEEP_INPUT_IDS.at(-1), "fire-water-wind:500");
+  assert.equal(METAGAME_V12_SWEEP_INPUT_IDS.includes("water-wind:199"), false);
 });
 
 test("intermediate costs are real cost constraints backed by the nearest representative environment", () => {
@@ -45,15 +50,33 @@ test("intermediate costs are real cost constraints backed by the nearest represe
   assert.equal(c151.totalCost, 151);
   assert.equal(c151.environmentTemplateCost, 200);
 
+  const c249 = resolveMetagameV12SweepInput("fire:249");
+  assert.equal(c249.totalCost, 249);
+  assert.equal(c249.environmentTemplateCost, 200);
+
+  const c251 = resolveMetagameV12SweepInput("fire:251");
+  assert.equal(c251.totalCost, 251);
+  assert.equal(c251.environmentTemplateCost, 300);
+
+  const c400 = resolveMetagameV12SweepInput("fire:400");
+  assert.equal(c400.totalCost, 400);
+  assert.equal(c400.environmentTemplateCost, 300);
+
+  const c401 = resolveMetagameV12SweepInput("fire:401");
+  assert.equal(c401.totalCost, 401);
+  assert.equal(c401.environmentTemplateCost, 500);
+
   const all137 = resolveMetagameV12SweepInput("fire-water-wind:137");
   assert.equal(all137.totalCost, 137);
   assert.deepEqual(all137.allowedAttributes, ["fire", "water", "wind"]);
 });
 
-test("legacy METAGAME_V8_INPUTS exposes the full sweep to existing V12 scripts", () => {
+test("legacy METAGAME_V8_INPUTS exposes every representative precompute input without materializing every integer cost", () => {
   const byId = new Map(METAGAME_V8_INPUTS.map((input) => [input.id, input]));
   for (const id of METAGAME_V12_SWEEP_INPUT_IDS) {
     assert.ok(byId.has(id), `missing ${id}`);
   }
-  assert.equal(byId.get("water-wind:199").totalCost, 199);
+  assert.equal(byId.size, PRECOMPUTE_COSTS.length * GROUPS.length);
+  assert.equal(byId.has("water-wind:199"), false);
+  assert.equal(resolveMetagameV12SweepInput("water-wind:199").totalCost, 199);
 });
