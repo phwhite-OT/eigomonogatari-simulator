@@ -10,6 +10,7 @@ on:
       - "src/core/skills.js"
       - "src/core/metagame-v7.js"
       - "src/core/metagame-v12.js"
+      - "src/core/metagame-v12-finalization.js"
       - "src/core/metagame-v12-shared-pool.js"
       - "scripts/rate-metagame-v12.mjs"
       - "src/data/metagame-v8-inputs.js"
@@ -23,7 +24,7 @@ permissions:
 concurrency:
   group: metagame-v12-shared-pool-recompute
   # A source push must replace an older run that is using obsolete battle/data
-  # semantics. Self-dispatched continuation/recovery runs wait for the current segment.
+  # semantics. Self-dispatched continuation runs wait for the current segment.
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
@@ -378,16 +379,3 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master
-
-  recover:
-    needs: [select, evaluate, publish]
-    if: always() && needs.select.outputs.all_completed != 'true' && (needs.publish.result == 'failure' || needs.publish.result == 'cancelled')
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Restart recompute after publish interruption
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          echo "Publish ended as ${{ needs.publish.result }}; dispatching an automatic recovery run."
-          gh workflow run metagame-v12-shared-pool-recompute.yml --repo "${{ github.repository }}" --ref master

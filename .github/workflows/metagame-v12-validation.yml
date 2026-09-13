@@ -5,6 +5,7 @@ on:
     paths:
       - "src/core/simulate.js"
       - "src/core/metagame-v12.js"
+      - "src/core/metagame-v12-finalization.js"
       - "src/core/skills.js"
       - "src/data/character-catalog.js"
       - "src/data/metagame-v8-inputs.js"
@@ -22,6 +23,7 @@ on:
       - "test/team-battle-ai-regression.test.js"
       - "test/simulate.test.js"
       - "test/metagame-v12.test.js"
+      - "test/metagame-v12-finalization.test.js"
       - "test/metagame-v12-browser-cache.test.js"
       - "test/metagame-v12-sweep-inputs.test.js"
       - "test/skills.test.js"
@@ -45,6 +47,7 @@ jobs:
           node --check src/core/simulate.js
           node --check src/core/skills.js
           node --check src/core/metagame-v12.js
+          node --check src/core/metagame-v12-finalization.js
           node --check src/data/metagame-v8-inputs.js
           node --check src/data/metagame-v12-sweep-inputs.js
           node --check src/ui/eigomonogatari-ui.js
@@ -57,4 +60,4 @@ jobs:
       - name: Verify public bundle builds with cache policy
         run: node scripts/build-final.mjs --skip-metagame-data
       - name: Run battle, V12, sweep and browser cache focused tests
-        run: node --test test/team-battle-ai-regression.test.js test/simulate.test.js test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-browser-cache.test.js test/metagame-v12-sweep-inputs.test.js
+        run: node --test test/team-battle-ai-regression.test.js test/simulate.test.js test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-finalization.test.js test/metagame-v12-browser-cache.test.js test/metagame-v12-sweep-inputs.test.js
