@@ -1,3 +1,4 @@
+// Re-trigger V12 shared-pool recompute after stale-run termination hardening.
 import { METAGAME_V7_INPUTS } from "./metagame-v7-inputs.js";
 import { METAGAME_V8_COST_200_INPUTS } from "./metagame-v8-cost-200-inputs.js";
 
