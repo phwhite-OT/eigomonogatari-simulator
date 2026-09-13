@@ -1,0 +1,56 @@
+name: Metagame V12 stale-run preemptor
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: metagame-v12-stale-run-preemptor
+  cancel-in-progress: true
+
+jobs:
+  preempt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Cancel V12 recompute runs from obsolete source revisions
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          workflow="metagame-v12-shared-pool-recompute.yml"
+          runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?per_page=50")"
+          mapfile -t stale_ids < <(
+            jq -r \
+              --arg source_sha "$GITHUB_SHA" \
+              '.workflow_runs[]
+               | select(.head_sha != $source_sha)
+               | select(.status != "completed")
+               | .id' \
+              <<< "$runs_json"
+          )
+
+          if [ "${#stale_ids[@]}" -eq 0 ]; then
+            echo "No stale V12 recompute run is blocking source $GITHUB_SHA."
+            exit 0
+          fi
+
+          for run_id in "${stale_ids[@]}"; do
+            echo "Cancelling stale V12 recompute run $run_id; current source is $GITHUB_SHA."
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null || {
+              # A run can finish between listing and cancellation. Re-read it and
+              # only fail when an obsolete run is still active.
+              status="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.status')"
+              if [ "$status" != "completed" ]; then
+                echo "Unable to cancel stale V12 run $run_id (status=$status)." >&2
+                exit 1
+              fi
+            }
+          done
