@@ -1,0 +1,275 @@
+name: Metagame V12 distributed finalization accelerator
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - "scripts/prefill-metagame-v12-finalization.mjs"
+      - ".github/workflows/metagame-v12-finalization-fanout.yml"
+  workflow_run:
+    workflows:
+      - "Metagame V12 shared-pool full recompute"
+    types:
+      - completed
+
+permissions:
+  actions: write
+  contents: write
+
+# Share the recompute lock. The initial source push replaces an old serial
+# finalization run; continuation fanout runs queue instead of cancelling each
+# other, so a durable checkpoint always exists between segments.
+concurrency:
+  group: metagame-v12-shared-pool-recompute
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.target.outputs.should_run }}
+      input: ${{ steps.target.outputs.input }}
+      output_directory: ${{ steps.target.outputs.output_directory }}
+      cursor: ${{ steps.target.outputs.cursor }}
+      plan_length: ${{ steps.target.outputs.plan_length }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - id: target
+        name: Select active counterfactual finalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          ranking_policy="matched-slot-counterfactual-v3-resumable"
+          echo "should_run=false" >> "$GITHUB_OUTPUT"
+          echo "input=" >> "$GITHUB_OUTPUT"
+          echo "output_directory=" >> "$GITHUB_OUTPUT"
+          echo "cursor=0" >> "$GITHUB_OUTPUT"
+          echo "plan_length=0" >> "$GITHUB_OUTPUT"
+
+          if [ -z "$(git ls-remote --heads origin "$results_branch")" ]; then
+            echo "No V12 results branch exists yet."
+            exit 0
+          fi
+          git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+
+          attribute_groups=(
+            "fire" "water" "wind"
+            "fire-water" "fire-wind" "water-wind" "fire-water-wind"
+          )
+          representative_costs=(100 200 300 500)
+          for cost in "${representative_costs[@]}"; do
+            for attribute_group in "${attribute_groups[@]}"; do
+              input="${attribute_group}:${cost}"
+              output_directory="${attribute_group}-${cost}"
+              progress_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"
+              marker_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/ranking-policy.txt"
+              progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
+              marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
+
+              if [ -n "$progress" ] && \
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' <<< "$progress" >/dev/null 2>&1 && \
+                 [ "$marker" = "$ranking_policy" ]; then
+                continue
+              fi
+
+              # Only accelerate an already-frozen counterfactual plan. Candidate
+              # evaluation and global-baseline setup remain owned by the normal
+              # recompute workflow.
+              if [ -n "$progress" ] && \
+                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
+                cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$progress")"
+                plan_length="$(jq -r '.finalizationState.plan | length' <<< "$progress")"
+                echo "should_run=true" >> "$GITHUB_OUTPUT"
+                echo "input=$input" >> "$GITHUB_OUTPUT"
+                echo "output_directory=$output_directory" >> "$GITHUB_OUTPUT"
+                echo "cursor=$cursor" >> "$GITHUB_OUTPUT"
+                echo "plan_length=$plan_length" >> "$GITHUB_OUTPUT"
+                echo "Accelerating $input from frozen plan cursor $cursor/$plan_length."
+              else
+                echo "First incomplete condition $input is not ready for distributed finalization."
+              fi
+              exit 0
+            done
+          done
+          echo "All 28 V12 conditions already have the current ranking policy."
+
+  prefill:
+    needs: select
+    if: needs.select.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 135
+    strategy:
+      fail-fast: false
+      max-parallel: 19
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+    env:
+      METAGAME_INPUT: ${{ needs.select.outputs.input }}
+      METAGAME_OUTPUT_DIRECTORY: ${{ needs.select.outputs.output_directory }}
+      PREFILL_TIME_BUDGET_SECONDS: "7200"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Restore durable finalization checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+          mkdir -p "$RUNNER_TEMP/v12-finalize-base" "$RUNNER_TEMP/v12-finalize-delta"
+          progress_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
+          git show "$results_ref:$progress_path" > "$RUNNER_TEMP/v12-finalize-base/${METAGAME_OUTPUT_DIRECTORY}.json"
+          test -s "$RUNNER_TEMP/v12-finalize-base/${METAGAME_OUTPUT_DIRECTORY}.json"
+      - id: prefill
+        name: Prefill exact counterfactual battles for shard
+        continue-on-error: true
+        shell: bash
+        run: |
+          node scripts/prefill-metagame-v12-finalization.mjs \
+            --input="$METAGAME_INPUT" \
+            --input-checkpoint="$RUNNER_TEMP/v12-finalize-base/${METAGAME_OUTPUT_DIRECTORY}.json" \
+            --output-checkpoint="$RUNNER_TEMP/v12-finalize-delta/${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-${{ matrix.shard }}.json" \
+            --shard-index=${{ matrix.shard }} \
+            --shard-count=19 \
+            --workers=4 \
+            --time-budget-seconds="$PREFILL_TIME_BUDGET_SECONDS"
+      - name: Upload finalization cache delta
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v12-finalize-cache-${{ needs.select.outputs.output_directory }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/v12-finalize-delta/${{ needs.select.outputs.output_directory }}-finalization-shard-${{ matrix.shard }}.json
+          if-no-files-found: warn
+          retention-days: 2
+      - name: Propagate prefill failure after delta upload
+        if: always() && steps.prefill.outcome == 'failure'
+        run: exit 1
+
+  merge:
+    needs: [select, prefill]
+    if: always() && needs.select.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      METAGAME_INPUT: ${{ needs.select.outputs.input }}
+      METAGAME_OUTPUT_DIRECTORY: ${{ needs.select.outputs.output_directory }}
+      FINALIZE_TIME_BUDGET_SECONDS: "2400"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Restore isolated recompute snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+          git switch --detach "origin/master"
+          if git cat-file -e "$results_ref:reports/metagame-ratings-v12-team-opportunity" 2>/dev/null; then
+            git checkout "$results_ref" -- reports/metagame-ratings-v12-team-opportunity
+          fi
+          git switch --create "$results_branch"
+      - name: Download distributed finalization cache deltas
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          pattern: v12-finalize-cache-${{ needs.select.outputs.output_directory }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/v12-finalize-delta
+      - name: Merge exact caches and advance the frozen plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}"
+          checkpoint_path="${output_path}/progress.json"
+          mapfile -t delta_files < <(find "$RUNNER_TEMP/v12-finalize-delta" -maxdepth 1 -type f -name "${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-*.json" -print 2>/dev/null | sort || true)
+          args=()
+          if [ "${#delta_files[@]}" -gt 0 ]; then
+            delta_paths="$(IFS=,; echo "${delta_files[*]}")"
+            args+=("--merge-checkpoint-paths=$delta_paths")
+            echo "Merging ${#delta_files[@]} distributed cache delta(s)."
+          else
+            echo "No distributed cache deltas were available; advancing from the durable checkpoint only."
+          fi
+
+          node scripts/rate-metagame-v12.mjs \
+            --input="$METAGAME_INPUT" \
+            --position=all \
+            --checkpoint-path="$checkpoint_path" \
+            --time-budget-seconds="$FINALIZE_TIME_BUDGET_SECONDS" \
+            --finalize-only=true \
+            "${args[@]}"
+
+          ranking_policy="matched-slot-counterfactual-v3-resumable"
+          if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
+            printf '%s\n' "$ranking_policy" > "${output_path}/ranking-policy.txt"
+            echo "Distributed finalization complete for $METAGAME_INPUT."
+          else
+            rm -f "${output_path}/ranking-policy.txt"
+            cursor="$(jq -r '.finalizationState.cursor.planIndex' "$checkpoint_path")"
+            plan_length="$(jq -r '.finalizationState.plan | length' "$checkpoint_path")"
+            echo "Distributed finalization checkpoint saved at $cursor/$plan_length."
+          fi
+      - name: Save distributed finalization progress
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          git add -f reports/metagame-ratings-v12-team-opportunity
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: save distributed V12 finalization progress"
+            git push --force-with-lease=refs/heads/$results_branch origin HEAD:$results_branch
+          fi
+      - name: Continue accelerator or normal recompute
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          checkpoint_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
+          if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
+            workflow="metagame-v12-shared-pool-recompute.yml"
+            echo "Condition complete; returning control to the normal recompute workflow."
+          else
+            workflow="metagame-v12-finalization-fanout.yml"
+            echo "Condition still finalizing; scheduling another 19-runner accelerator segment."
+          fi
+
+          output=""
+          delay=5
+          for attempt in 1 2 3 4 5; do
+            if output="$(gh workflow run "$workflow" --repo "${{ github.repository }}" --ref master 2>&1)"; then
+              echo "Continuation dispatch accepted on attempt $attempt."
+              exit 0
+            fi
+            echo "Continuation dispatch attempt $attempt failed: $output" >&2
+            if ! grep -Eqi 'HTTP (500|502|503|504)|Failed to run workflow dispatch|temporar|timeout|connection reset|service unavailable|bad gateway|gateway timeout' <<< "$output"; then
+              exit 1
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+          echo "::warning::Continuation dispatch still has a transient GitHub error after 5 attempts; durable progress is already pushed."
+          exit 0
