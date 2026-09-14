@@ -8,6 +8,7 @@ on:
     paths:
       - "scripts/plan-metagame-v12-finalization.mjs"
       - "scripts/evaluate-metagame-v12-finalization-shard.mjs"
+      - "scripts/reopen-metagame-v12-deep-search.mjs"
       - "scripts/prefill-metagame-v12-finalization.mjs"
       - "scripts/metagame-v12-evaluation-pool.mjs"
       - ".github/workflows/metagame-v12-finalization-fanout.yml"
@@ -131,6 +132,7 @@ jobs:
         run: |
           node --check scripts/plan-metagame-v12-finalization.mjs
           node --check scripts/evaluate-metagame-v12-finalization-shard.mjs
+          node --check scripts/reopen-metagame-v12-deep-search.mjs
       - name: Build globally deduplicated finalization work plan
         shell: bash
         run: |
@@ -195,7 +197,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: v12-finalize-cache-${{ needs.select.outputs.output_directory }}-${{ matrix.shard }}
-          path: ${{ runner.temp }}/v12-finalize-delta/${{ needs.select.outputs.output_directory }}-finalization-shard-${{ matrix.shard }}.json
+          path: ${{ runner.temp }}/v12-finalize-delta/${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-${{ matrix.shard }}.json
           if-no-files-found: warn
           retention-days: 2
       - name: Propagate prefill failure after delta upload
@@ -235,6 +237,11 @@ jobs:
             git checkout "$results_ref" -- reports/metagame-ratings-v12-team-opportunity
           fi
           git switch --create "$results_branch"
+      - name: Download deep-search work manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: v12-finalize-work-${{ needs.select.outputs.output_directory }}
+          path: ${{ runner.temp }}/v12-finalize-work
       - name: Download distributed finalization cache deltas
         continue-on-error: true
         uses: actions/download-artifact@v4
@@ -266,15 +273,26 @@ jobs:
             --finalize-only=true \
             "${args[@]}"
 
+          # A completed bounded counterfactual plan is not enough anymore. The
+          # elite complete-deck neighbourhood must also be fully evaluated, and
+          # if those evaluations change the elite seed set we reopen the plan
+          # and run another distributed round. This continues until stable or
+          # the safety cap is reached.
+          node scripts/reopen-metagame-v12-deep-search.mjs \
+            --checkpoint="$checkpoint_path" \
+            --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
+            --max-rounds=5
+
           ranking_policy="matched-slot-counterfactual-v3-resumable"
           if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
             printf '%s\n' "$ranking_policy" > "${output_path}/ranking-policy.txt"
-            echo "Distributed finalization complete for $METAGAME_INPUT."
+            echo "Distributed finalization complete for $METAGAME_INPUT after converged deep search."
           else
             rm -f "${output_path}/ranking-policy.txt"
             cursor="$(jq -r '.finalizationState.cursor.planIndex' "$checkpoint_path")"
             plan_length="$(jq -r '.finalizationState.plan | length' "$checkpoint_path")"
-            echo "Distributed finalization checkpoint saved at $cursor/$plan_length."
+            round="$(jq -r '.finalizationState.deepSearchRound // 1' "$checkpoint_path")"
+            echo "Distributed finalization checkpoint saved at $cursor/$plan_length, deep-search round $round."
           fi
       - name: Save distributed finalization progress
         shell: bash
