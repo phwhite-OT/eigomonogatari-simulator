@@ -48,6 +48,9 @@ function selectDeepSearchSeeds(pool, limit) {
   const available = [...(pool ?? [])];
   if (available.length <= boundedLimit) return available;
 
+  // Preserve broad recall in the frontier: keep the strongest half, then fill
+  // the other half with structurally different measured decks before falling
+  // back to the next strongest available entries.
   const strongestCount = Math.max(1, Math.ceil(boundedLimit / 2));
   const selected = available.slice(0, strongestCount);
   for (const entry of available.slice(strongestCount)) {
@@ -62,11 +65,16 @@ function selectDeepSearchSeeds(pool, limit) {
   return selected;
 }
 
+function deckSeedKey(entry) {
+  return entry.ids.map(String).join("|");
+}
+
 const inputId = readArgument("input", "fire:100");
 const inputCheckpointPath = path.resolve(readArgument("input-checkpoint"));
 const outputManifestPath = path.resolve(readArgument("output-manifest"));
 const shardCount = integerArgument("shard-count", 19, 1);
 const deepSeedCount = integerArgument("deep-seed-count", 4, 0);
+const deepFrontierCount = integerArgument("deep-frontier-count", 48, deepSeedCount);
 // Hard wall-clock guard: never hand an accidentally huge wave to the 19
 // runners. At 9,500 items, round-robin fanout is at most 500 evaluations per
 // runner. Any omitted work remains absent from the durable cache and is picked
@@ -95,6 +103,9 @@ const partnerLimit = Math.max(32, Number(context.partnerLimit) || 48);
 const replacementDeckLimit = Math.max(1, Number(checkpointFinalizationState.policy?.replacementDeckLimit) || 24);
 const replacementBeamWidth = Math.max(1, Number(checkpointFinalizationState.policy?.replacementBeamWidth) || 4000);
 const checkpointDeepSearchRound = Math.max(1, Number(checkpointFinalizationState.deepSearchRound) || 1);
+const visitedDeepSeedKeys = new Set(
+  (checkpointFinalizationState.deepSearchVisitedSeedKeys ?? []).map(String),
+);
 
 const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
@@ -107,9 +118,8 @@ const sharedDeckPool = buildMetagameV12SharedDeckPool(baseEvaluationCache, CHARA
 
 // Source changes can alter the finalization policy while a durable checkpoint
 // still contains an older frozen plan. Do not spend a whole wave evaluating
-// that obsolete plan. Rebuild the *planning view* immediately while retaining
-// every exact battle already present in the durable evaluation cache. The merge
-// step will make the same compatibility reset durable before advancing.
+// that obsolete plan. Rebuild the planning view immediately while retaining
+// every exact battle already present in the durable evaluation cache.
 let finalizationState = checkpointFinalizationState;
 let normalizedStalePolicy = false;
 if (Number(checkpointFinalizationState.policy?.counterfactualAnchorLimit) !== currentAnchorLimit) {
@@ -119,6 +129,7 @@ if (Number(checkpointFinalizationState.policy?.counterfactualAnchorLimit) !== cu
     replacementBeamWidth,
   });
   finalizationState.deepSearchRound = checkpointDeepSearchRound;
+  finalizationState.deepSearchVisitedSeedKeys = [...visitedDeepSeedKeys];
   normalizedStalePolicy = true;
   console.log(
     `V12 finalization planner normalized stale anchor policy `
@@ -187,12 +198,16 @@ for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; 
   }
 }
 
-// The normal counterfactual pass audits each character on a small number of
-// diverse shells. Team discovery is handled separately here: freeze four slots
-// around a few measured elite decks and exhaustively try every legal candidate
-// in the fifth slot, then repeat only if the measured elite set changes.
-const deepSeeds = selectDeepSearchSeeds(sharedDeckPool, deepSeedCount);
-const deepSeedKeys = deepSeeds.map((entry) => entry.ids.map(String).join("|")).sort();
+// Keep the old broad 48-deck exploration frontier, but consume it in small
+// four-seed waves. This prevents one huge run without turning deep search into
+// a top-4-only hill climb. The frontier is rebuilt from measured battle results
+// after every completed wave, so newly discovered elite/diverse shells can enter.
+const deepFrontier = selectDeepSearchSeeds(sharedDeckPool, deepFrontierCount);
+const deepFrontierKeys = deepFrontier.map(deckSeedKey);
+const deepSeeds = deepFrontier
+  .filter((entry) => !visitedDeepSeedKeys.has(deckSeedKey(entry)))
+  .slice(0, deepSeedCount);
+const deepSeedKeys = deepSeeds.map(deckSeedKey).sort();
 const charactersById = candidatePools.charactersById ?? new Map(
   CHARACTER_CATALOG.map((character) => [String(character.id), character]),
 );
@@ -265,6 +280,11 @@ await writeJsonAtomic(outputManifestPath, {
   deepSearch: {
     round: deepSearchRound,
     seedLimit: deepSeedCount,
+    frontierLimit: deepFrontierCount,
+    frontierCount: deepFrontier.length,
+    frontierKeys: deepFrontierKeys,
+    visitedSeedCount: visitedDeepSeedKeys.size,
+    visitedSeedKeys: [...visitedDeepSeedKeys].sort(),
     seedCount: deepSeeds.length,
     seedKeys: deepSeedKeys,
     replacementReferenceCount: deepReplacementReferenceCount,
@@ -278,9 +298,9 @@ await writeJsonAtomic(outputManifestPath, {
 });
 
 console.log(
-  `V12 deep neighbourhood search round ${deepSearchRound}: ${deepSeeds.length} measured seed decks, `
-  + `${deepReplacementReferenceCount} legal one-slot replacements, ${deepNewEvaluationCount} newly missing evaluations`
-  + `${deepWorkTruncated ? " (wave-capped)" : ""}.`,
+  `V12 deep neighbourhood search round ${deepSearchRound}: ${deepSeeds.length}/${deepFrontier.length} active/frontier seeds `
+  + `(${visitedDeepSeedKeys.size} previously visited), ${deepReplacementReferenceCount} legal one-slot replacements, `
+  + `${deepNewEvaluationCount} newly missing evaluations${deepWorkTruncated ? " (wave-capped)" : ""}.`,
 );
 console.log(
   `V12 finalization work plan: ${uniqueItems.length}/${maxWorkItems} max unique missing evaluations `
