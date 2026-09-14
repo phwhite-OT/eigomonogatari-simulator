@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { MetagameV12EvaluationPool } from "./metagame-v12-evaluation-pool.mjs";
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { METAGAME_V8_INPUTS } from "../src/data/metagame-v8-inputs.js";
 import {
@@ -124,6 +125,7 @@ const replacementBeamWidth = positiveInteger(readArgument("replacement-beam-widt
 const counterfactualAnchorLimit = positiveInteger(readArgument("counterfactual-anchor-limit", "3"), 3, 1);
 const finalizationCheckpointEvery = positiveInteger(readArgument("finalization-checkpoint-every", "25"), 25, 1);
 const finalizationCheckpointIntervalSeconds = positiveInteger(readArgument("finalization-checkpoint-interval-seconds", "60"), 60, 5);
+const finalizationWorkers = positiveInteger(readArgument("finalization-workers", "4"), 4, 1);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
 const requestedPosition = readArgument("position", "all").toLowerCase();
@@ -302,40 +304,59 @@ async function maybeSaveFinalizationProgress(force = false) {
 }
 
 if (finalizationState.phase !== "complete") {
-  counterfactualAudit:
-  for (let planIndex = finalizationState.cursor.planIndex; planIndex < finalizationState.plan.length; planIndex += 1) {
-    if (finalizationDeadlineReached()) { stoppedEarly = true; break; }
-    const planEntry = finalizationState.plan[planIndex];
-    const position = Number(planEntry.position);
-    const rating = resultsByPosition[position - 1]?.get(String(planEntry.ratingId));
-    if (!rating) {
+  const evaluationPool = new MetagameV12EvaluationPool({ teamScenarios, turns, workerCount: finalizationWorkers });
+  const finalizationBatchSize = Math.max(1, evaluationPool.workerCount * 2);
+  console.log(`V12 counterfactual battle pool: ${evaluationPool.workerCount} worker(s), batch size ${finalizationBatchSize}.`);
+  try {
+    counterfactualAudit:
+    for (let planIndex = finalizationState.cursor.planIndex; planIndex < finalizationState.plan.length; planIndex += 1) {
+      if (finalizationDeadlineReached()) { stoppedEarly = true; break; }
+      const planEntry = finalizationState.plan[planIndex];
+      const position = Number(planEntry.position);
+      const rating = resultsByPosition[position - 1]?.get(String(planEntry.ratingId));
+      if (!rating) {
+        finalizationState.cursor = { planIndex: planIndex + 1, replacementIndex: 0 };
+        finalizationState.lastProgressAt = new Date().toISOString();
+        await maybeSaveFinalizationProgress();
+        continue;
+      }
+      const anchorRating = { ...rating, bestDeck: { ...(rating.bestDeck ?? {}), ids: [...planEntry.anchorIds] } };
+      if (finalizationDeadlineReached()) { stoppedEarly = true; break; }
+      const replacements = buildMetagameV12CounterfactualReplacementDecks(anchorRating, position, resolvedInput, candidatePools, { replacementDeckLimit, replacementBeamWidth });
+      const startReplacementIndex = planIndex === finalizationState.cursor.planIndex ? finalizationState.cursor.replacementIndex : 0;
+      if (startReplacementIndex > replacements.length) throw new Error(`V12 finalization cursor is invalid for plan ${planIndex}: ${startReplacementIndex} > ${replacements.length}.`);
+      for (let replacementIndex = startReplacementIndex; replacementIndex < replacements.length;) {
+        if (finalizationDeadlineReached()) { stoppedEarly = true; break counterfactualAudit; }
+        const batchEnd = Math.min(replacements.length, replacementIndex + finalizationBatchSize);
+        const missingByKey = new Map();
+        for (let batchIndex = replacementIndex; batchIndex < batchEnd; batchIndex += 1) {
+          const entry = replacements[batchIndex];
+          const key = `${turns}:${entry.deck.map((character) => String(character.id)).join("|")}`;
+          if (!evaluationCache.has(key) && !missingByKey.has(key)) missingByKey.set(key, entry.deck);
+        }
+        if (missingByKey.size) {
+          const pending = [...missingByKey.entries()];
+          const evaluated = await evaluationPool.evaluateMany(pending.map(([, deck]) => deck));
+          for (let index = 0; index < pending.length; index += 1) {
+            evaluationCache.set(pending[index][0], evaluated[index]);
+          }
+          segmentCounterfactualNewEvaluations += pending.length;
+          finalizationState.newEvaluationCount = (finalizationState.newEvaluationCount ?? 0) + pending.length;
+        }
+        for (let batchIndex = replacementIndex; batchIndex < batchEnd; batchIndex += 1) {
+          finalizationState.processedCandidateDeckCount = (finalizationState.processedCandidateDeckCount ?? 0) + 1;
+          finalizationState.cursor = { planIndex, replacementIndex: batchIndex + 1 };
+          finalizationState.lastProgressAt = new Date().toISOString();
+        }
+        await maybeSaveFinalizationProgress();
+        replacementIndex = batchEnd;
+      }
       finalizationState.cursor = { planIndex: planIndex + 1, replacementIndex: 0 };
       finalizationState.lastProgressAt = new Date().toISOString();
       await maybeSaveFinalizationProgress();
-      continue;
     }
-    const anchorRating = { ...rating, bestDeck: { ...(rating.bestDeck ?? {}), ids: [...planEntry.anchorIds] } };
-    if (finalizationDeadlineReached()) { stoppedEarly = true; break; }
-    const replacements = buildMetagameV12CounterfactualReplacementDecks(anchorRating, position, resolvedInput, candidatePools, { replacementDeckLimit, replacementBeamWidth });
-    const startReplacementIndex = planIndex === finalizationState.cursor.planIndex ? finalizationState.cursor.replacementIndex : 0;
-    if (startReplacementIndex > replacements.length) throw new Error(`V12 finalization cursor is invalid for plan ${planIndex}: ${startReplacementIndex} > ${replacements.length}.`);
-    for (let replacementIndex = startReplacementIndex; replacementIndex < replacements.length; replacementIndex += 1) {
-      if (finalizationDeadlineReached()) { stoppedEarly = true; break counterfactualAudit; }
-      const entry = replacements[replacementIndex];
-      const key = `${turns}:${entry.deck.map((character) => String(character.id)).join("|")}`;
-      if (!evaluationCache.has(key)) {
-        evaluationCache.set(key, evaluateMetagameV7Deck(entry.deck, teamScenarios, { turns }));
-        segmentCounterfactualNewEvaluations += 1;
-        finalizationState.newEvaluationCount = (finalizationState.newEvaluationCount ?? 0) + 1;
-      }
-      finalizationState.processedCandidateDeckCount = (finalizationState.processedCandidateDeckCount ?? 0) + 1;
-      finalizationState.cursor = { planIndex, replacementIndex: replacementIndex + 1 };
-      finalizationState.lastProgressAt = new Date().toISOString();
-      await maybeSaveFinalizationProgress();
-    }
-    finalizationState.cursor = { planIndex: planIndex + 1, replacementIndex: 0 };
-    finalizationState.lastProgressAt = new Date().toISOString();
-    await maybeSaveFinalizationProgress();
+  } finally {
+    await evaluationPool.close();
   }
 }
 
@@ -373,7 +394,7 @@ const report = {
     scoringPolicy: "同一4枠の差し替え比較を個人貢献の第一根拠にする。強い4人に運ばれたキャラは差し替え安定補正後差が正でなければ上位群へ入れない。差し替え証拠が無い場合だけ従来の全体再最適化機会費用へフォールバックする。",
     costPolicy: "候補を外した際のコストを5枠全体で再配分し、さらに全合法候補から作る共有基準デッキを比較対象へ追加する。高コストの機会損失を小さなパートナー候補集合だけで過小評価しない。",
     environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
-    performancePolicy: "各候補の直接探索と共有基準デッキは既存キャッシュを再利用する。全shard統合後、各キャラについて構成の異なる強い完成デッキを最大3本だけ一度固定して監査し、各デッキで他4枠固定の差し替え候補を最大24本探索する。監査計画とカーソルをcheckpointへ保存し、再開時に計算範囲を増殖させず未処理位置から継続する。",
+    performancePolicy: "各候補の直接探索と共有基準デッキは既存キャッシュを再利用する。全shard統合後、各キャラについて構成の異なる強い完成デッキを最大3本だけ一度固定して監査し、各デッキで他4枠固定の差し替え候補を最大24本探索する。監査計画とカーソルをcheckpointへ保存し、再開時に計算範囲を増殖させず未処理位置から継続する。反実仮想の未評価戦闘だけをCPU数に応じたworker poolで並列実行し、評価内容とキャッシュキーは従来と同一に保つ。",
   },
   context: {
     inputId: resolvedInput.id,
@@ -394,6 +415,7 @@ const report = {
     replacementDeckLimit,
     replacementBeamWidth,
     counterfactualAnchorLimit,
+    finalizationWorkers,
     finalizationPlanLength: finalizationState.plan.length,
     finalizationSegmentCount: finalizationState.segmentCount,
     globalBaselineCandidateCount: globalBaselineCandidates.length,
