@@ -6,7 +6,10 @@ on:
     branches:
       - master
     paths:
+      - "scripts/plan-metagame-v12-finalization.mjs"
+      - "scripts/evaluate-metagame-v12-finalization-shard.mjs"
       - "scripts/prefill-metagame-v12-finalization.mjs"
+      - "scripts/metagame-v12-evaluation-pool.mjs"
       - ".github/workflows/metagame-v12-finalization-fanout.yml"
   workflow_run:
     workflows:
@@ -18,12 +21,11 @@ permissions:
   actions: write
   contents: write
 
-# Share the recompute lock. The initial source push replaces an old serial
-# finalization run; continuation fanout runs queue instead of cancelling each
-# other, so a durable checkpoint always exists between segments.
+# Never cancel an active segment. A source push should queue behind the current
+# durable segment so already-computed runner deltas are not discarded.
 concurrency:
   group: metagame-v12-shared-pool-recompute
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  cancel-in-progress: false
 
 jobs:
   select:
@@ -79,9 +81,6 @@ jobs:
                 continue
               fi
 
-              # Only accelerate an already-frozen counterfactual plan. Candidate
-              # evaluation and global-baseline setup remain owned by the normal
-              # recompute workflow.
               if [ -n "$progress" ] && \
                  jq -e '.status == "finalizing" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
                 cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$progress")"
@@ -100,9 +99,57 @@ jobs:
           done
           echo "All 28 V12 conditions already have the current ranking policy."
 
-  prefill:
+  plan:
     needs: select
     if: needs.select.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      METAGAME_INPUT: ${{ needs.select.outputs.input }}
+      METAGAME_OUTPUT_DIRECTORY: ${{ needs.select.outputs.output_directory }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Restore one durable finalization checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          git fetch --no-tags --depth=1 origin "+refs/heads/$results_branch:$results_ref"
+          mkdir -p "$RUNNER_TEMP/v12-finalize-work"
+          progress_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
+          git show "$results_ref:$progress_path" > "$RUNNER_TEMP/v12-finalize-work/checkpoint.json"
+          test -s "$RUNNER_TEMP/v12-finalize-work/checkpoint.json"
+      - name: Validate accelerator scripts
+        shell: bash
+        run: |
+          node --check scripts/plan-metagame-v12-finalization.mjs
+          node --check scripts/evaluate-metagame-v12-finalization-shard.mjs
+      - name: Build globally deduplicated finalization work plan
+        shell: bash
+        run: |
+          node scripts/plan-metagame-v12-finalization.mjs \
+            --input="$METAGAME_INPUT" \
+            --input-checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
+            --output-manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
+            --shard-count=19
+      - name: Upload shared checkpoint and work plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: v12-finalize-work-${{ needs.select.outputs.output_directory }}
+          path: ${{ runner.temp }}/v12-finalize-work
+          if-no-files-found: error
+          retention-days: 2
+
+  prefill:
+    needs: [select, plan]
+    if: needs.select.outputs.should_run == 'true' && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 135
     strategy:
@@ -118,32 +165,29 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: master
-          fetch-depth: 0
+          fetch-depth: 1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Restore durable finalization checkpoint
+      - name: Download globally deduplicated work plan
+        uses: actions/download-artifact@v4
+        with:
+          name: v12-finalize-work-${{ needs.select.outputs.output_directory }}
+          path: ${{ runner.temp }}/v12-finalize-work
+      - name: Prepare shard output directory
         shell: bash
-        run: |
-          set -euo pipefail
-          results_branch="metagame-v12-shared-pool-results"
-          results_ref="refs/remotes/origin/$results_branch"
-          git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
-          mkdir -p "$RUNNER_TEMP/v12-finalize-base" "$RUNNER_TEMP/v12-finalize-delta"
-          progress_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
-          git show "$results_ref:$progress_path" > "$RUNNER_TEMP/v12-finalize-base/${METAGAME_OUTPUT_DIRECTORY}.json"
-          test -s "$RUNNER_TEMP/v12-finalize-base/${METAGAME_OUTPUT_DIRECTORY}.json"
+        run: mkdir -p "$RUNNER_TEMP/v12-finalize-delta"
       - id: prefill
-        name: Prefill exact counterfactual battles for shard
+        name: Evaluate assigned unique counterfactual battles
         continue-on-error: true
         shell: bash
         run: |
-          node scripts/prefill-metagame-v12-finalization.mjs \
+          node scripts/evaluate-metagame-v12-finalization-shard.mjs \
             --input="$METAGAME_INPUT" \
-            --input-checkpoint="$RUNNER_TEMP/v12-finalize-base/${METAGAME_OUTPUT_DIRECTORY}.json" \
+            --input-checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
+            --work-manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
             --output-checkpoint="$RUNNER_TEMP/v12-finalize-delta/${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-${{ matrix.shard }}.json" \
             --shard-index=${{ matrix.shard }} \
-            --shard-count=19 \
             --workers=4 \
             --time-budget-seconds="$PREFILL_TIME_BUDGET_SECONDS"
       - name: Upload finalization cache delta
@@ -159,14 +203,16 @@ jobs:
         run: exit 1
 
   merge:
-    needs: [select, prefill]
-    if: always() && needs.select.outputs.should_run == 'true'
+    needs: [select, plan, prefill]
+    if: always() && needs.select.outputs.should_run == 'true' && needs.plan.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
       METAGAME_INPUT: ${{ needs.select.outputs.input }}
       METAGAME_OUTPUT_DIRECTORY: ${{ needs.select.outputs.output_directory }}
-      FINALIZE_TIME_BUDGET_SECONDS: "2400"
+      # Fanout should own expensive simulations. Keep the serial merge short;
+      # any residual cache misses are picked up by the next globally deduped plan.
+      FINALIZE_TIME_BUDGET_SECONDS: "600"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -207,7 +253,7 @@ jobs:
           if [ "${#delta_files[@]}" -gt 0 ]; then
             delta_paths="$(IFS=,; echo "${delta_files[*]}")"
             args+=("--merge-checkpoint-paths=$delta_paths")
-            echo "Merging ${#delta_files[@]} distributed cache delta(s)."
+            echo "Merging ${#delta_files[@]} globally-disjoint cache delta(s)."
           else
             echo "No distributed cache deltas were available; advancing from the durable checkpoint only."
           fi
@@ -252,7 +298,7 @@ jobs:
             echo "Condition complete; returning control to the normal recompute workflow."
           else
             workflow="metagame-v12-finalization-fanout.yml"
-            echo "Condition still finalizing; scheduling another 19-runner accelerator segment."
+            echo "Condition still finalizing; scheduling another globally deduplicated accelerator segment."
           fi
 
           output=""
