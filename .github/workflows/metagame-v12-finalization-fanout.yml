@@ -210,7 +210,7 @@ jobs:
 
   merge:
     needs: [select, plan, prefill]
-    if: always() && needs.select.outputs.should_run == 'true' && needs.plan.result == 'success'
+    if: always() && needs.select.outputs.should_run == 'true' && needs.plan.result == 'success' && needs.prefill.result != 'cancelled'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
