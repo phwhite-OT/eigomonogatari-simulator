@@ -53,13 +53,8 @@ function selectDeepSearchSeeds(pool, limit) {
   return selected;
 }
 
-function seedKeys(entries) {
-  return entries.map((entry) => entry.ids.map(String).join("|")).sort();
-}
-
-function sameStringArray(left, right) {
-  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
-  return left.every((value, index) => String(value) === String(right[index]));
+function deckSeedKey(entry) {
+  return entry.ids.map(String).join("|");
 }
 
 const checkpointArgument = readArgument("checkpoint");
@@ -69,7 +64,10 @@ if (!manifestArgument) throw new Error("--manifest is required.");
 
 const checkpointPath = path.resolve(checkpointArgument);
 const manifestPath = path.resolve(manifestArgument);
-const maxRounds = integerArgument("max-rounds", 5, 1);
+// Four active seeds per round need twelve clean rounds to cover a 48-deck
+// frontier. Leave four additional rounds for frontier churn caused by newly
+// discovered stronger decks, while retaining a finite safety cap.
+const maxRounds = integerArgument("max-rounds", 16, 1);
 
 const checkpoint = JSON.parse(await fs.readFile(checkpointPath, "utf8"));
 const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
@@ -91,33 +89,50 @@ const missingPlannedCount = plannedItems.reduce((count, item) => (
 ), 0);
 
 const seedLimit = Math.max(0, Number(manifest?.deepSearch?.seedLimit) || 4);
-const previousSeedKeys = [...(manifest?.deepSearch?.seedKeys ?? [])].map(String).sort();
+const frontierLimit = Math.max(seedLimit, Number(manifest?.deepSearch?.frontierLimit) || 48);
+const activeSeedKeys = [...(manifest?.deepSearch?.seedKeys ?? [])].map(String);
+const visitedSeedKeys = new Set([
+  ...(checkpoint?.finalizationState?.deepSearchVisitedSeedKeys ?? []),
+  ...(manifest?.deepSearch?.visitedSeedKeys ?? []),
+].map(String));
 const sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
-const currentSeeds = selectDeepSearchSeeds(sharedDeckPool, seedLimit);
-const currentSeedKeys = seedKeys(currentSeeds);
+const currentFrontier = selectDeepSearchSeeds(sharedDeckPool, frontierLimit);
+const currentFrontierKeys = currentFrontier.map(deckSeedKey);
 const currentRound = Math.max(1, Number(manifest?.deepSearch?.round) || Number(checkpoint?.finalizationState?.deepSearchRound) || 1);
 const deepWorkTruncated = manifest?.deepSearch?.truncated === true;
+
+// A seed only counts as visited after the entire planned wave is present in the
+// merged exact cache and the neighbourhood itself was not clipped by the wave
+// cap. If a wave was clipped, the next pass safely retries it and cache hits
+// make already completed deck evaluations free.
+if (missingPlannedCount === 0 && !deepWorkTruncated) {
+  activeSeedKeys.forEach((key) => visitedSeedKeys.add(String(key)));
+}
+
+const unvisitedFrontierKeys = currentFrontierKeys.filter((key) => !visitedSeedKeys.has(String(key)));
 
 let reopenReason = "";
 let nextRound = currentRound;
 if (missingPlannedCount > 0) {
   reopenReason = `${missingPlannedCount} planned unique evaluations are still missing`;
 } else if (deepWorkTruncated) {
-  // The per-wave workload cap intentionally left part of the *same* elite
-  // neighbourhood unevaluated. Reopen without advancing the round; the next
-  // planner sees this wave's cached decks and deterministically picks up the
-  // remaining candidates.
   reopenReason = `deep-search neighbourhood was truncated by the ${manifest?.maxWorkItems ?? "configured"}-evaluation wave cap`;
-} else if (!sameStringArray(previousSeedKeys, currentSeedKeys) && currentRound < maxRounds) {
+} else if (unvisitedFrontierKeys.length > 0 && currentRound < maxRounds) {
   nextRound = currentRound + 1;
-  reopenReason = `elite seed set changed after deep-search round ${currentRound}`;
+  reopenReason = `${unvisitedFrontierKeys.length}/${currentFrontierKeys.length} measured frontier seeds remain unvisited after round ${currentRound}`;
 }
 
 if (!reopenReason) {
-  if (!sameStringArray(previousSeedKeys, currentSeedKeys) && currentRound >= maxRounds) {
-    console.warn(`V12 deep search reached safety cap ${maxRounds} with a still-changing elite seed set; accepting the best measured pool so far.`);
+  if (unvisitedFrontierKeys.length > 0 && currentRound >= maxRounds) {
+    console.warn(
+      `V12 deep search reached safety cap ${maxRounds} with ${unvisitedFrontierKeys.length} `
+      + `unvisited measured frontier seed(s); accepting the best measured pool so far.`,
+    );
   } else {
-    console.log(`V12 deep search converged after round ${currentRound}: elite seed set is stable and all planned evaluations are cached.`);
+    console.log(
+      `V12 deep search converged after round ${currentRound}: all ${currentFrontierKeys.length} `
+      + `current elite/diverse frontier seeds have been explored and all planned evaluations are cached.`,
+    );
   }
   process.exit(0);
 }
@@ -128,6 +143,7 @@ const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map(
 const policy = checkpoint?.finalizationState?.policy ?? {};
 const reopenedState = createMetagameV12FinalizationState(resultsByPosition, sharedDeckPool, policy);
 reopenedState.deepSearchRound = nextRound;
+reopenedState.deepSearchVisitedSeedKeys = [...visitedSeedKeys].sort();
 reopenedState.lastProgressAt = new Date().toISOString();
 
 checkpoint.status = "finalizing";
@@ -137,5 +153,6 @@ await writeJsonAtomic(checkpointPath, checkpoint);
 
 console.log(
   `V12 deep search reopened ${checkpoint.context.inputId}: ${reopenReason}; `
-  + `continuing at round ${nextRound} with ${reopenedState.plan.length} refreshed anchor shells.`,
+  + `${visitedSeedKeys.size} seed neighbourhood(s) already covered, continuing at round ${nextRound} `
+  + `with ${reopenedState.plan.length} refreshed anchor shells.`,
 );
