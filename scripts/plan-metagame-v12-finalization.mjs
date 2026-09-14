@@ -8,6 +8,7 @@ import {
   resolveMetagameV7Input,
 } from "../src/core/metagame-v7.js";
 import { buildMetagameV12CounterfactualReplacementDecks } from "../src/core/metagame-v12.js";
+import { createMetagameV12FinalizationState } from "../src/core/metagame-v12-finalization.js";
 import {
   buildMetagameV12SharedDeckPool,
   hydrateMetagameV12EvaluationCache,
@@ -47,10 +48,6 @@ function selectDeepSearchSeeds(pool, limit) {
   const available = [...(pool ?? [])];
   if (available.length <= boundedLimit) return available;
 
-  // Keep the very strongest half unconditionally, then spend the other half
-  // on structurally different strong decks. A deliberately small seed set is
-  // expanded iteratively after each measured round instead of exhaustively
-  // probing dozens of shells before their value is known.
   const strongestCount = Math.max(1, Math.ceil(boundedLimit / 2));
   const selected = available.slice(0, strongestCount);
   for (const entry of available.slice(strongestCount)) {
@@ -75,6 +72,7 @@ const deepSeedCount = integerArgument("deep-seed-count", 4, 0);
 // runner. Any omitted work remains absent from the durable cache and is picked
 // up deterministically by the next wave.
 const maxWorkItems = integerArgument("max-work-items", 9500, shardCount);
+const currentAnchorLimit = integerArgument("counterfactual-anchor-limit", 3, 1);
 
 if (!readArgument("input-checkpoint")) throw new Error("--input-checkpoint is required.");
 if (!readArgument("output-manifest")) throw new Error("--output-manifest is required.");
@@ -86,19 +84,17 @@ const checkpoint = JSON.parse(await fs.readFile(inputCheckpointPath, "utf8"));
 if (checkpoint?.context?.inputId !== inputId) {
   throw new Error(`Checkpoint input mismatch: expected ${inputId}, got ${checkpoint?.context?.inputId ?? "missing"}.`);
 }
-const finalizationState = checkpoint?.finalizationState;
-if (!finalizationState || finalizationState.phase !== "counterfactual" || !Array.isArray(finalizationState.plan)) {
+const checkpointFinalizationState = checkpoint?.finalizationState;
+if (!checkpointFinalizationState || checkpointFinalizationState.phase !== "counterfactual" || !Array.isArray(checkpointFinalizationState.plan)) {
   throw new Error("Checkpoint does not contain an active frozen V12 counterfactual finalization plan.");
 }
 
 const context = checkpoint.context;
 const turns = Math.min(12, Math.max(1, Number(context.turns) || 12));
 const partnerLimit = Math.max(32, Number(context.partnerLimit) || 48);
-const replacementDeckLimit = Math.max(1, Number(finalizationState.policy?.replacementDeckLimit) || 24);
-const replacementBeamWidth = Math.max(1, Number(finalizationState.policy?.replacementBeamWidth) || 4000);
-const startPlanIndex = Math.max(0, Number(finalizationState.cursor?.planIndex) || 0);
-const startReplacementIndex = Math.max(0, Number(finalizationState.cursor?.replacementIndex) || 0);
-const deepSearchRound = Math.max(1, Number(finalizationState.deepSearchRound) || 1);
+const replacementDeckLimit = Math.max(1, Number(checkpointFinalizationState.policy?.replacementDeckLimit) || 24);
+const replacementBeamWidth = Math.max(1, Number(checkpointFinalizationState.policy?.replacementBeamWidth) || 4000);
+const checkpointDeepSearchRound = Math.max(1, Number(checkpointFinalizationState.deepSearchRound) || 1);
 
 const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
@@ -107,6 +103,33 @@ const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map(
 ));
 const baseEvaluationCache = new Map();
 hydrateMetagameV12EvaluationCache(baseEvaluationCache, checkpoint?.evaluatedDeckPool);
+const sharedDeckPool = buildMetagameV12SharedDeckPool(baseEvaluationCache, CHARACTER_CATALOG, turns);
+
+// Source changes can alter the finalization policy while a durable checkpoint
+// still contains an older frozen plan. Do not spend a whole wave evaluating
+// that obsolete plan. Rebuild the *planning view* immediately while retaining
+// every exact battle already present in the durable evaluation cache. The merge
+// step will make the same compatibility reset durable before advancing.
+let finalizationState = checkpointFinalizationState;
+let normalizedStalePolicy = false;
+if (Number(checkpointFinalizationState.policy?.counterfactualAnchorLimit) !== currentAnchorLimit) {
+  finalizationState = createMetagameV12FinalizationState(resultsByPosition, sharedDeckPool, {
+    counterfactualAnchorLimit: currentAnchorLimit,
+    replacementDeckLimit,
+    replacementBeamWidth,
+  });
+  finalizationState.deepSearchRound = checkpointDeepSearchRound;
+  normalizedStalePolicy = true;
+  console.log(
+    `V12 finalization planner normalized stale anchor policy `
+    + `${checkpointFinalizationState.policy?.counterfactualAnchorLimit ?? "missing"} -> ${currentAnchorLimit}; `
+    + `reusing ${baseEvaluationCache.size} cached exact deck evaluations.`,
+  );
+}
+
+const startPlanIndex = normalizedStalePolicy ? 0 : Math.max(0, Number(finalizationState.cursor?.planIndex) || 0);
+const startReplacementIndex = normalizedStalePolicy ? 0 : Math.max(0, Number(finalizationState.cursor?.replacementIndex) || 0);
+const deepSearchRound = Math.max(1, Number(finalizationState.deepSearchRound) || checkpointDeepSearchRound);
 
 const missingByKey = new Map();
 let scannedAnchorCount = 0;
@@ -164,12 +187,10 @@ for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; 
   }
 }
 
-// The normal counterfactual pass deliberately samples a bounded set of
-// replacements for every rated character. Separately, deeply search the local
-// neighbourhood of the strongest *complete* decks: freeze four slots and try
-// every legal candidate in the fifth slot. No character is privileged; the
-// seed is selected solely by measured complete-deck battle performance.
-const sharedDeckPool = buildMetagameV12SharedDeckPool(baseEvaluationCache, CHARACTER_CATALOG, turns);
+// The normal counterfactual pass audits each character on a small number of
+// diverse shells. Team discovery is handled separately here: freeze four slots
+// around a few measured elite decks and exhaustively try every legal candidate
+// in the fifth slot, then repeat only if the measured elite set changes.
 const deepSeeds = selectDeepSearchSeeds(sharedDeckPool, deepSeedCount);
 const deepSeedKeys = deepSeeds.map((entry) => entry.ids.map(String).join("|")).sort();
 const charactersById = candidatePools.charactersById ?? new Map(
@@ -216,9 +237,6 @@ if (!boundedWorkTruncated) {
   }
 }
 
-// Stable sorting plus round-robin distribution gives every runner essentially the
-// same number of expensive deck evaluations while guaranteeing that each unique
-// cache key belongs to exactly one runner.
 const uniqueItems = [...missingByKey.entries()]
   .map(([key, ids]) => ({ key, ids }))
   .sort((left, right) => left.key.localeCompare(right.key));
@@ -236,6 +254,8 @@ await writeJsonAtomic(outputManifestPath, {
   turns,
   shardCount,
   maxWorkItems,
+  normalizedStalePolicy,
+  counterfactualAnchorLimit: currentAnchorLimit,
   sourcePlanIndex: startPlanIndex,
   sourceReplacementIndex: startReplacementIndex,
   planLength: finalizationState.plan.length,
@@ -265,7 +285,7 @@ console.log(
 console.log(
   `V12 finalization work plan: ${uniqueItems.length}/${maxWorkItems} max unique missing evaluations `
   + `from ${replacementReferenceCount} bounded counterfactual references across ${scannedAnchorCount} fully scanned anchors `
-  + `plus staged elite neighbourhoods; boundedTruncated=${boundedWorkTruncated}; `
+  + `plus staged elite neighbourhoods; plan=${finalizationState.plan.length}, boundedTruncated=${boundedWorkTruncated}; `
   + `shards min=${shardSizes.length ? Math.min(...shardSizes) : 0}, `
   + `max=${shardSizes.length ? Math.max(...shardSizes) : 0}.`,
 );
