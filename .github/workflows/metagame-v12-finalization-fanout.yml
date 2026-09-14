@@ -22,11 +22,12 @@ permissions:
   actions: write
   contents: write
 
-# Never cancel an active segment. A source push should queue behind the current
-# durable segment so already-computed runner deltas are not discarded.
+# Continuation runs must serialize so their durable deltas are not discarded.
+# A source push, however, means the active plan is obsolete and should be
+# preempted immediately instead of burning runner-hours on stale work.
 concurrency:
   group: metagame-v12-shared-pool-recompute
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   select:
@@ -77,7 +78,7 @@ jobs:
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
 
               if [ -n "$progress" ] && \
-                 jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' <<< "$progress" >/dev/null 2>&1 && \
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 && \
                  [ "$marker" = "$ranking_policy" ]; then
                 continue
               fi
@@ -140,7 +141,8 @@ jobs:
             --input="$METAGAME_INPUT" \
             --input-checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
             --output-manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
-            --shard-count=19
+            --shard-count=19 \
+            --deep-seed-count=4
       - name: Upload shared checkpoint and work plan
         uses: actions/upload-artifact@v4
         with:
@@ -191,6 +193,8 @@ jobs:
             --output-checkpoint="$RUNNER_TEMP/v12-finalize-delta/${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-${{ matrix.shard }}.json" \
             --shard-index=${{ matrix.shard }} \
             --workers=4 \
+            --checkpoint-every=128 \
+            --checkpoint-interval-seconds=300 \
             --time-budget-seconds="$PREFILL_TIME_BUDGET_SECONDS"
       - name: Upload finalization cache delta
         if: always()
