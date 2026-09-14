@@ -73,7 +73,7 @@ jobs:
             local progress
             progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
             [ -n "$progress" ] && \
-              jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' <<< "$progress" >/dev/null 2>&1 && \
+              jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 && \
               has_current_ranking "$output_directory"
           }
 
@@ -148,11 +148,13 @@ jobs:
               work_matrix='{"include":[]}'
               echo "Handing $input_id directly to distributed finalization; normal recompute will not run serial counterfactual battles."
             elif [ "$checkpoint_exists" = true ] && \
-                 jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' "$checkpoint_path" >/dev/null 2>&1 && \
-                 ! has_current_ranking "$output_directory"; then
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' "$checkpoint_path" >/dev/null 2>&1; then
+              # A completed v1/shallow finalization must be reopened under the
+              # v2 five-anchor + elite-neighbourhood policy even if the old
+              # ranking-policy.txt marker is present.
               rerank_only=true
               work_matrix='{"include":[]}'
-              echo "Refreshing $input_id ranking policy from its completed checkpoint."
+              echo "Refreshing $input_id from an older or incomplete finalization policy."
             else
               if [ "$checkpoint_exists" != true ]; then
                 recovery_run_id="$(find_recovery_run "$output_directory" || true)"
@@ -359,7 +361,7 @@ jobs:
             local progress_path="$1"
             local marker_path="$2"
             [ -f "$progress_path" ] && \
-              jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' "$progress_path" >/dev/null && \
+              jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4" and .finalizationState.version == 2' "$progress_path" >/dev/null && \
               [ -f "$marker_path" ] && [ "$(cat "$marker_path")" = "$ranking_policy" ]
           }
           attribute_groups=(
