@@ -39,8 +39,10 @@ const outputCheckpointPath = path.resolve(readArgument("output-checkpoint"));
 const shardIndex = integerArgument("shard-index", 0, 0);
 const requestedWorkers = integerArgument("workers", 4, 1);
 const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds", "7200")) || 0);
-const checkpointEvery = integerArgument("checkpoint-every", 25, 1);
-const checkpointIntervalSeconds = integerArgument("checkpoint-interval-seconds", 60, 5);
+// Each save rewrites the full growing delta JSON, including per-scenario values.
+// Keep durable progress, but do not make serialization an every-minute hot path.
+const checkpointEvery = integerArgument("checkpoint-every", 128, 1);
+const checkpointIntervalSeconds = integerArgument("checkpoint-interval-seconds", 300, 5);
 
 if (!readArgument("input-checkpoint")) throw new Error("--input-checkpoint is required.");
 if (!readArgument("work-manifest")) throw new Error("--work-manifest is required.");
