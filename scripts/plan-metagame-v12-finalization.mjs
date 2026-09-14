@@ -48,8 +48,9 @@ function selectDeepSearchSeeds(pool, limit) {
   if (available.length <= boundedLimit) return available;
 
   // Keep the very strongest half unconditionally, then spend the other half
-  // on structurally different strong decks. This avoids wasting exhaustive
-  // one-slot probes on dozens of nearly identical shells.
+  // on structurally different strong decks. A deliberately small seed set is
+  // expanded iteratively after each measured round instead of exhaustively
+  // probing dozens of shells before their value is known.
   const strongestCount = Math.max(1, Math.ceil(boundedLimit / 2));
   const selected = available.slice(0, strongestCount);
   for (const entry of available.slice(strongestCount)) {
@@ -68,7 +69,7 @@ const inputId = readArgument("input", "fire:100");
 const inputCheckpointPath = path.resolve(readArgument("input-checkpoint"));
 const outputManifestPath = path.resolve(readArgument("output-manifest"));
 const shardCount = integerArgument("shard-count", 19, 1);
-const deepSeedCount = integerArgument("deep-seed-count", 48, 0);
+const deepSeedCount = integerArgument("deep-seed-count", 4, 0);
 
 if (!readArgument("input-checkpoint")) throw new Error("--input-checkpoint is required.");
 if (!readArgument("output-manifest")) throw new Error("--output-manifest is required.");
