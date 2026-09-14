@@ -92,6 +92,7 @@ const replacementDeckLimit = Math.max(1, Number(finalizationState.policy?.replac
 const replacementBeamWidth = Math.max(1, Number(finalizationState.policy?.replacementBeamWidth) || 4000);
 const startPlanIndex = Math.max(0, Number(finalizationState.cursor?.planIndex) || 0);
 const startReplacementIndex = Math.max(0, Number(finalizationState.cursor?.replacementIndex) || 0);
+const deepSearchRound = Math.max(1, Number(finalizationState.deepSearchRound) || 1);
 
 const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
@@ -157,6 +158,7 @@ for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; 
 // seed is selected solely by measured complete-deck battle performance.
 const sharedDeckPool = buildMetagameV12SharedDeckPool(baseEvaluationCache, CHARACTER_CATALOG, turns);
 const deepSeeds = selectDeepSearchSeeds(sharedDeckPool, deepSeedCount);
+const deepSeedKeys = deepSeeds.map((entry) => entry.ids.map(String).join("|")).sort();
 const charactersById = candidatePools.charactersById ?? new Map(
   CHARACTER_CATALOG.map((character) => [String(character.id), character]),
 );
@@ -217,8 +219,10 @@ await writeJsonAtomic(outputManifestPath, {
   scannedAnchorCount,
   replacementReferenceCount,
   deepSearch: {
+    round: deepSearchRound,
     seedLimit: deepSeedCount,
     seedCount: deepSeeds.length,
+    seedKeys: deepSeedKeys,
     replacementReferenceCount: deepReplacementReferenceCount,
     newEvaluationCount: deepNewEvaluationCount,
   },
@@ -229,7 +233,7 @@ await writeJsonAtomic(outputManifestPath, {
 });
 
 console.log(
-  `V12 deep neighbourhood search: ${deepSeeds.length} measured seed decks, `
+  `V12 deep neighbourhood search round ${deepSearchRound}: ${deepSeeds.length} measured seed decks, `
   + `${deepReplacementReferenceCount} legal one-slot replacements, ${deepNewEvaluationCount} newly missing evaluations.`,
 );
 console.log(
