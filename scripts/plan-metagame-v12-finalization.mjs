@@ -8,7 +8,10 @@ import {
   resolveMetagameV7Input,
 } from "../src/core/metagame-v7.js";
 import { buildMetagameV12CounterfactualReplacementDecks } from "../src/core/metagame-v12.js";
-import { hydrateMetagameV12EvaluationCache } from "../src/core/metagame-v12-shared-pool.js";
+import {
+  buildMetagameV12SharedDeckPool,
+  hydrateMetagameV12EvaluationCache,
+} from "../src/core/metagame-v12-shared-pool.js";
 
 function readArgument(name, fallback = "") {
   const prefix = `--${name}=`;
@@ -28,10 +31,44 @@ async function writeJsonAtomic(filePath, value) {
   await fs.rename(temporaryPath, filePath);
 }
 
+function isLegend(character) {
+  const rarity = String(character?.rarity ?? "");
+  return rarity === "伝" || rarity.toUpperCase() === "LEGEND";
+}
+
+function deckDifference(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return Number.MAX_SAFE_INTEGER;
+  return left.reduce((count, id, index) => count + (String(id) === String(right[index]) ? 0 : 1), 0);
+}
+
+function selectDeepSearchSeeds(pool, limit) {
+  const boundedLimit = Math.max(0, Math.floor(Number(limit) || 0));
+  if (!boundedLimit) return [];
+  const available = [...(pool ?? [])];
+  if (available.length <= boundedLimit) return available;
+
+  // Keep the very strongest half unconditionally, then spend the other half
+  // on structurally different strong decks. This avoids wasting exhaustive
+  // one-slot probes on dozens of nearly identical shells.
+  const strongestCount = Math.max(1, Math.ceil(boundedLimit / 2));
+  const selected = available.slice(0, strongestCount);
+  for (const entry of available.slice(strongestCount)) {
+    if (selected.length >= boundedLimit) break;
+    const minimumDifference = Math.min(...selected.map((chosen) => deckDifference(entry.ids, chosen.ids)));
+    if (minimumDifference >= 2) selected.push(entry);
+  }
+  for (const entry of available) {
+    if (selected.length >= boundedLimit) break;
+    if (!selected.includes(entry)) selected.push(entry);
+  }
+  return selected;
+}
+
 const inputId = readArgument("input", "fire:100");
 const inputCheckpointPath = path.resolve(readArgument("input-checkpoint"));
 const outputManifestPath = path.resolve(readArgument("output-manifest"));
 const shardCount = integerArgument("shard-count", 19, 1);
+const deepSeedCount = integerArgument("deep-seed-count", 48, 0);
 
 if (!readArgument("input-checkpoint")) throw new Error("--input-checkpoint is required.");
 if (!readArgument("output-manifest")) throw new Error("--output-manifest is required.");
@@ -68,6 +105,14 @@ const missingByKey = new Map();
 let scannedAnchorCount = 0;
 let replacementReferenceCount = 0;
 
+function addMissingDeck(ids) {
+  const normalizedIds = ids.map(String);
+  const key = `${turns}:${normalizedIds.join("|")}`;
+  if (baseEvaluationCache.has(key) || missingByKey.has(key)) return false;
+  missingByKey.set(key, normalizedIds);
+  return true;
+}
+
 for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; planIndex += 1) {
   const planEntry = finalizationState.plan[planIndex];
   const position = Number(planEntry.position);
@@ -96,15 +141,54 @@ for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; 
 
   for (let replacementIndex = replacementStart; replacementIndex < replacements.length; replacementIndex += 1) {
     const entry = replacements[replacementIndex];
-    const ids = entry.deck.map((character) => String(character.id));
-    const key = `${turns}:${ids.join("|")}`;
     replacementReferenceCount += 1;
-    if (baseEvaluationCache.has(key) || missingByKey.has(key)) continue;
-    missingByKey.set(key, ids);
+    addMissingDeck(entry.deck.map((character) => String(character.id)));
   }
   scannedAnchorCount += 1;
   if (scannedAnchorCount % 500 === 0) {
     console.log(`V12 finalization planner: ${scannedAnchorCount} anchors scanned, ${missingByKey.size} unique missing evaluations.`);
+  }
+}
+
+// The normal counterfactual pass deliberately samples a bounded set of
+// replacements for every rated character. Separately, deeply search the local
+// neighbourhood of the strongest *complete* decks: freeze four slots and try
+// every legal candidate in the fifth slot. No character is privileged; the
+// seed is selected solely by measured complete-deck battle performance.
+const sharedDeckPool = buildMetagameV12SharedDeckPool(baseEvaluationCache, CHARACTER_CATALOG, turns);
+const deepSeeds = selectDeepSearchSeeds(sharedDeckPool, deepSeedCount);
+const charactersById = candidatePools.charactersById ?? new Map(
+  CHARACTER_CATALOG.map((character) => [String(character.id), character]),
+);
+let deepReplacementReferenceCount = 0;
+let deepNewEvaluationCount = 0;
+
+for (const seed of deepSeeds) {
+  const seedCharacters = seed.ids.map((id) => charactersById.get(String(id)));
+  if (seedCharacters.some((character) => !character)) continue;
+  for (let positionIndex = 0; positionIndex < 5; positionIndex += 1) {
+    const currentCharacter = seedCharacters[positionIndex];
+    const fixedIds = new Set(seed.ids.filter((_, index) => index !== positionIndex).map(String));
+    const fixedCost = seedCharacters.reduce((sum, character, index) => (
+      index === positionIndex ? sum : sum + (Number(character.cost) || 0)
+    ), 0);
+    const fixedLegendCount = seedCharacters.reduce((sum, character, index) => (
+      index === positionIndex ? sum : sum + (isLegend(character) ? 1 : 0)
+    ), 0);
+    const positionCandidates = candidatePools.allByPosition?.[positionIndex] ?? [];
+
+    for (const candidate of positionCandidates) {
+      const candidateId = String(candidate.id);
+      if (candidateId === String(currentCharacter.id) || fixedIds.has(candidateId)) continue;
+      const totalCost = fixedCost + (Number(candidate.cost) || 0);
+      if (totalCost > Number(resolvedInput.totalCost)) continue;
+      if (fixedLegendCount + (isLegend(candidate) ? 1 : 0) > 1) continue;
+
+      const ids = [...seed.ids];
+      ids[positionIndex] = candidateId;
+      deepReplacementReferenceCount += 1;
+      if (addMissingDeck(ids)) deepNewEvaluationCount += 1;
+    }
   }
 }
 
@@ -132,6 +216,12 @@ await writeJsonAtomic(outputManifestPath, {
   planLength: finalizationState.plan.length,
   scannedAnchorCount,
   replacementReferenceCount,
+  deepSearch: {
+    seedLimit: deepSeedCount,
+    seedCount: deepSeeds.length,
+    replacementReferenceCount: deepReplacementReferenceCount,
+    newEvaluationCount: deepNewEvaluationCount,
+  },
   baseEvaluationCount: baseEvaluationCache.size,
   totalMissingEvaluationCount: uniqueItems.length,
   shardSizes,
@@ -139,7 +229,12 @@ await writeJsonAtomic(outputManifestPath, {
 });
 
 console.log(
+  `V12 deep neighbourhood search: ${deepSeeds.length} measured seed decks, `
+  + `${deepReplacementReferenceCount} legal one-slot replacements, ${deepNewEvaluationCount} newly missing evaluations.`,
+);
+console.log(
   `V12 finalization work plan: ${uniqueItems.length} unique missing evaluations `
-  + `from ${replacementReferenceCount} replacement references across ${scannedAnchorCount} anchors; `
-  + `shards min=${shardSizes.length ? Math.min(...shardSizes) : 0}, max=${shardSizes.length ? Math.max(...shardSizes) : 0}.`,
+  + `from ${replacementReferenceCount} bounded counterfactual references across ${scannedAnchorCount} anchors `
+  + `plus exhaustive elite neighbourhoods; shards min=${shardSizes.length ? Math.min(...shardSizes) : 0}, `
+  + `max=${shardSizes.length ? Math.max(...shardSizes) : 0}.`,
 );
