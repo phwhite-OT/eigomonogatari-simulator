@@ -48,6 +48,7 @@ export class MetagameV12EvaluationPool {
   #spawnWorker() {
     const slot = { worker: null, taskId: null, closing: false };
     const worker = new Worker(new URL(import.meta.url), {
+      execArgv: process.execArgv.filter((argument) => !argument.startsWith("--input-type")),
       workerData: {
         teamScenarios: this.teamScenarios,
         turns: this.turns,
