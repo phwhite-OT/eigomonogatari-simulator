@@ -1,6 +1,5 @@
-// State v2 expands the normal per-character audit; the distributed planner
-// additionally performs exhaustive one-slot neighbourhood probes around elite
-// measured decks and repeats them until the elite pool stabilizes.
+// State v2 pairs the normal bounded per-character audit with distributed,
+// iterative one-slot neighbourhood probes around elite measured complete decks.
 export const METAGAME_V12_FINALIZATION_STATE_VERSION = 2;
 
 function sameIds(left, right) {
@@ -8,15 +7,14 @@ function sameIds(left, right) {
   return left.every((value, index) => String(value) === String(right[index]));
 }
 
-export function selectMetagameV12CounterfactualAnchors(rating, position, pool, limit = 5) {
+export function selectMetagameV12CounterfactualAnchors(rating, position, pool, limit = 3) {
   const positionIndex = position - 1;
   const candidateId = String(rating?.id ?? "");
-  // V12 originally froze only three shells per character. That was enough for
-  // a cheap audit, but it let a character look settled while strong partner
-  // configurations just outside those three shells were never challenged.
-  // Keep at least five genuinely different strong shells before falling back
-  // to the next-best available shells.
-  const boundedLimit = Math.max(5, Math.floor(Number(limit) || 5));
+  // Per-character contribution auditing stays deliberately bounded. The
+  // separate distributed deep-search layer is responsible for exploring team
+  // combinations; multiplying every character audit is expensive and does not
+  // directly improve discovery of the strongest complete decks.
+  const boundedLimit = Math.max(1, Math.floor(Number(limit) || 3));
   const available = (pool ?? []).filter((entry) => (
     Array.isArray(entry?.ids)
     && entry.ids.length === 5
@@ -45,10 +43,7 @@ export function selectMetagameV12CounterfactualAnchors(rating, position, pool, l
 
 export function metagameV12FinalizationPolicy(options = {}) {
   return {
-    // Five is now the minimum audit depth. Callers may request more, but an
-    // older --counterfactual-anchor-limit=3 can no longer silently narrow the
-    // search back to the previous shallow policy.
-    counterfactualAnchorLimit: Math.max(5, Math.floor(Number(options.counterfactualAnchorLimit) || 5)),
+    counterfactualAnchorLimit: Math.max(1, Math.floor(Number(options.counterfactualAnchorLimit) || 3)),
     replacementDeckLimit: Math.max(1, Math.floor(Number(options.replacementDeckLimit) || 24)),
     replacementBeamWidth: Math.max(1, Math.floor(Number(options.replacementBeamWidth) || 4000)),
   };
