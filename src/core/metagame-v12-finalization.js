@@ -1,6 +1,6 @@
 // State v2 expands the normal per-character audit; the distributed planner
 // additionally performs exhaustive one-slot neighbourhood probes around elite
-// measured decks before a condition is accepted as settled.
+// measured decks and repeats them until the elite pool stabilizes.
 export const METAGAME_V12_FINALIZATION_STATE_VERSION = 2;
 
 function sameIds(left, right) {
