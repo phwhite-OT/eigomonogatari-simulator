@@ -96,11 +96,18 @@ const sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER
 const currentSeeds = selectDeepSearchSeeds(sharedDeckPool, seedLimit);
 const currentSeedKeys = seedKeys(currentSeeds);
 const currentRound = Math.max(1, Number(manifest?.deepSearch?.round) || Number(checkpoint?.finalizationState?.deepSearchRound) || 1);
+const deepWorkTruncated = manifest?.deepSearch?.truncated === true;
 
 let reopenReason = "";
 let nextRound = currentRound;
 if (missingPlannedCount > 0) {
   reopenReason = `${missingPlannedCount} planned unique evaluations are still missing`;
+} else if (deepWorkTruncated) {
+  // The per-wave workload cap intentionally left part of the *same* elite
+  // neighbourhood unevaluated. Reopen without advancing the round; the next
+  // planner sees this wave's cached decks and deterministically picks up the
+  // remaining candidates.
+  reopenReason = `deep-search neighbourhood was truncated by the ${manifest?.maxWorkItems ?? "configured"}-evaluation wave cap`;
 } else if (!sameStringArray(previousSeedKeys, currentSeedKeys) && currentRound < maxRounds) {
   nextRound = currentRound + 1;
   reopenReason = `elite seed set changed after deep-search round ${currentRound}`;
