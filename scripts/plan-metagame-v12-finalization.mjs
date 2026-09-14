@@ -70,6 +70,11 @@ const inputCheckpointPath = path.resolve(readArgument("input-checkpoint"));
 const outputManifestPath = path.resolve(readArgument("output-manifest"));
 const shardCount = integerArgument("shard-count", 19, 1);
 const deepSeedCount = integerArgument("deep-seed-count", 4, 0);
+// Hard wall-clock guard: never hand an accidentally huge wave to the 19
+// runners. At 9,500 items, round-robin fanout is at most 500 evaluations per
+// runner. Any omitted work remains absent from the durable cache and is picked
+// up deterministically by the next wave.
+const maxWorkItems = integerArgument("max-work-items", 9500, shardCount);
 
 if (!readArgument("input-checkpoint")) throw new Error("--input-checkpoint is required.");
 if (!readArgument("output-manifest")) throw new Error("--output-manifest is required.");
@@ -106,15 +111,18 @@ hydrateMetagameV12EvaluationCache(baseEvaluationCache, checkpoint?.evaluatedDeck
 const missingByKey = new Map();
 let scannedAnchorCount = 0;
 let replacementReferenceCount = 0;
+let boundedWorkTruncated = false;
 
-function addMissingDeck(ids) {
+function tryAddMissingDeck(ids) {
   const normalizedIds = ids.map(String);
   const key = `${turns}:${normalizedIds.join("|")}`;
-  if (baseEvaluationCache.has(key) || missingByKey.has(key)) return false;
+  if (baseEvaluationCache.has(key) || missingByKey.has(key)) return "existing";
+  if (missingByKey.size >= maxWorkItems) return "full";
   missingByKey.set(key, normalizedIds);
-  return true;
+  return "added";
 }
 
+boundedPlan:
 for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; planIndex += 1) {
   const planEntry = finalizationState.plan[planIndex];
   const position = Number(planEntry.position);
@@ -144,7 +152,11 @@ for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; 
   for (let replacementIndex = replacementStart; replacementIndex < replacements.length; replacementIndex += 1) {
     const entry = replacements[replacementIndex];
     replacementReferenceCount += 1;
-    addMissingDeck(entry.deck.map((character) => String(character.id)));
+    const addResult = tryAddMissingDeck(entry.deck.map((character) => String(character.id)));
+    if (addResult === "full") {
+      boundedWorkTruncated = true;
+      break boundedPlan;
+    }
   }
   scannedAnchorCount += 1;
   if (scannedAnchorCount % 500 === 0) {
@@ -165,32 +177,41 @@ const charactersById = candidatePools.charactersById ?? new Map(
 );
 let deepReplacementReferenceCount = 0;
 let deepNewEvaluationCount = 0;
+let deepWorkTruncated = boundedWorkTruncated;
 
-for (const seed of deepSeeds) {
-  const seedCharacters = seed.ids.map((id) => charactersById.get(String(id)));
-  if (seedCharacters.some((character) => !character)) continue;
-  for (let positionIndex = 0; positionIndex < 5; positionIndex += 1) {
-    const currentCharacter = seedCharacters[positionIndex];
-    const fixedIds = new Set(seed.ids.filter((_, index) => index !== positionIndex).map(String));
-    const fixedCost = seedCharacters.reduce((sum, character, index) => (
-      index === positionIndex ? sum : sum + (Number(character.cost) || 0)
-    ), 0);
-    const fixedLegendCount = seedCharacters.reduce((sum, character, index) => (
-      index === positionIndex ? sum : sum + (isLegend(character) ? 1 : 0)
-    ), 0);
-    const positionCandidates = candidatePools.allByPosition?.[positionIndex] ?? [];
+if (!boundedWorkTruncated) {
+  deepSearch:
+  for (const seed of deepSeeds) {
+    const seedCharacters = seed.ids.map((id) => charactersById.get(String(id)));
+    if (seedCharacters.some((character) => !character)) continue;
+    for (let positionIndex = 0; positionIndex < 5; positionIndex += 1) {
+      const currentCharacter = seedCharacters[positionIndex];
+      const fixedIds = new Set(seed.ids.filter((_, index) => index !== positionIndex).map(String));
+      const fixedCost = seedCharacters.reduce((sum, character, index) => (
+        index === positionIndex ? sum : sum + (Number(character.cost) || 0)
+      ), 0);
+      const fixedLegendCount = seedCharacters.reduce((sum, character, index) => (
+        index === positionIndex ? sum : sum + (isLegend(character) ? 1 : 0)
+      ), 0);
+      const positionCandidates = candidatePools.allByPosition?.[positionIndex] ?? [];
 
-    for (const candidate of positionCandidates) {
-      const candidateId = String(candidate.id);
-      if (candidateId === String(currentCharacter.id) || fixedIds.has(candidateId)) continue;
-      const totalCost = fixedCost + (Number(candidate.cost) || 0);
-      if (totalCost > Number(resolvedInput.totalCost)) continue;
-      if (fixedLegendCount + (isLegend(candidate) ? 1 : 0) > 1) continue;
+      for (const candidate of positionCandidates) {
+        const candidateId = String(candidate.id);
+        if (candidateId === String(currentCharacter.id) || fixedIds.has(candidateId)) continue;
+        const totalCost = fixedCost + (Number(candidate.cost) || 0);
+        if (totalCost > Number(resolvedInput.totalCost)) continue;
+        if (fixedLegendCount + (isLegend(candidate) ? 1 : 0) > 1) continue;
 
-      const ids = [...seed.ids];
-      ids[positionIndex] = candidateId;
-      deepReplacementReferenceCount += 1;
-      if (addMissingDeck(ids)) deepNewEvaluationCount += 1;
+        const ids = [...seed.ids];
+        ids[positionIndex] = candidateId;
+        deepReplacementReferenceCount += 1;
+        const addResult = tryAddMissingDeck(ids);
+        if (addResult === "added") deepNewEvaluationCount += 1;
+        if (addResult === "full") {
+          deepWorkTruncated = true;
+          break deepSearch;
+        }
+      }
     }
   }
 }
@@ -214,11 +235,13 @@ await writeJsonAtomic(outputManifestPath, {
   battleSemantics: context.battleSemantics,
   turns,
   shardCount,
+  maxWorkItems,
   sourcePlanIndex: startPlanIndex,
   sourceReplacementIndex: startReplacementIndex,
   planLength: finalizationState.plan.length,
   scannedAnchorCount,
   replacementReferenceCount,
+  boundedWorkTruncated,
   deepSearch: {
     round: deepSearchRound,
     seedLimit: deepSeedCount,
@@ -226,6 +249,7 @@ await writeJsonAtomic(outputManifestPath, {
     seedKeys: deepSeedKeys,
     replacementReferenceCount: deepReplacementReferenceCount,
     newEvaluationCount: deepNewEvaluationCount,
+    truncated: deepWorkTruncated,
   },
   baseEvaluationCount: baseEvaluationCache.size,
   totalMissingEvaluationCount: uniqueItems.length,
@@ -235,11 +259,13 @@ await writeJsonAtomic(outputManifestPath, {
 
 console.log(
   `V12 deep neighbourhood search round ${deepSearchRound}: ${deepSeeds.length} measured seed decks, `
-  + `${deepReplacementReferenceCount} legal one-slot replacements, ${deepNewEvaluationCount} newly missing evaluations.`,
+  + `${deepReplacementReferenceCount} legal one-slot replacements, ${deepNewEvaluationCount} newly missing evaluations`
+  + `${deepWorkTruncated ? " (wave-capped)" : ""}.`,
 );
 console.log(
-  `V12 finalization work plan: ${uniqueItems.length} unique missing evaluations `
-  + `from ${replacementReferenceCount} bounded counterfactual references across ${scannedAnchorCount} anchors `
-  + `plus exhaustive elite neighbourhoods; shards min=${shardSizes.length ? Math.min(...shardSizes) : 0}, `
+  `V12 finalization work plan: ${uniqueItems.length}/${maxWorkItems} max unique missing evaluations `
+  + `from ${replacementReferenceCount} bounded counterfactual references across ${scannedAnchorCount} fully scanned anchors `
+  + `plus staged elite neighbourhoods; boundedTruncated=${boundedWorkTruncated}; `
+  + `shards min=${shardSizes.length ? Math.min(...shardSizes) : 0}, `
   + `max=${shardSizes.length ? Math.max(...shardSizes) : 0}.`,
 );
