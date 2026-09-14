@@ -90,7 +90,7 @@ const missingPlannedCount = plannedItems.reduce((count, item) => (
   evaluationCache.has(String(item?.key ?? "")) ? count : count + 1
 ), 0);
 
-const seedLimit = Math.max(0, Number(manifest?.deepSearch?.seedLimit) || 48);
+const seedLimit = Math.max(0, Number(manifest?.deepSearch?.seedLimit) || 4);
 const previousSeedKeys = [...(manifest?.deepSearch?.seedKeys ?? [])].map(String).sort();
 const sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
 const currentSeeds = selectDeepSearchSeeds(sharedDeckPool, seedLimit);
