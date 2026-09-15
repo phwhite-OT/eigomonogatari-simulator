@@ -1,0 +1,58 @@
+name: Prepare V12.5 workflow blobs
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/v12-workflow-blob-prep.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+
+      - name: Build workflow blobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          old_version = "team-battle-v12.4-full-opportunity-baseline"
+          new_version = "team-battle-v12.5-effective-damage-individual-rank"
+          old_semantics = "opportunity-baseline-v4"
+          new_semantics = "opportunity-baseline-v5-effective-damage"
+          paths = [
+              Path('.github/workflows/metagame-v12-shared-pool-recompute.yml'),
+              Path('.github/workflows/metagame-v12-finalization-fanout.yml'),
+          ]
+          for path in paths:
+              text = path.read_text(encoding='utf-8')
+              if old_version not in text or old_semantics not in text:
+                  raise SystemExit(f'expected V12.4 markers missing in {path}')
+              path.write_text(
+                  text.replace(old_version, new_version).replace(old_semantics, new_semantics),
+                  encoding='utf-8',
+              )
+          PY
+
+          make_blob() {
+            local path="$1"
+            jq -Rs '{content: ., encoding: "utf-8"}' "$path" | \
+              gh api --method POST "repos/$GITHUB_REPOSITORY/git/blobs" --input - --jq '.sha'
+          }
+
+          echo "MASTER_SHA=$(git rev-parse HEAD)"
+          echo "MASTER_TREE=$(git rev-parse HEAD^{tree})"
+          echo "RECOMPUTE_BLOB=$(make_blob .github/workflows/metagame-v12-shared-pool-recompute.yml)"
+          echo "FANOUT_BLOB=$(make_blob .github/workflows/metagame-v12-finalization-fanout.yml)"
