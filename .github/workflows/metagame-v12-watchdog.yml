@@ -96,7 +96,7 @@ jobs:
               marker_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/ranking-policy.txt"
               progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
-              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "v5-effective-damage"' <<< "$progress" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
+              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage"' <<< "$progress" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
                 incomplete=$((incomplete + 1))
                 [ -n "$first_incomplete" ] || first_incomplete="${attribute_group}:${cost}"
               fi
