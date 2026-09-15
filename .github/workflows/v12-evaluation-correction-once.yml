@@ -1,0 +1,230 @@
+name: Apply V12 evaluation correction once
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/v12-evaluation-correction-once.yml"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  patch-test-commit-recompute:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply unbiased V12 evaluation fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import subprocess
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              if old not in text:
+                  raise SystemExit(f"{label}: expected source text not found in {path}")
+              text = text.replace(old, new, 1)
+              p.write_text(text, encoding="utf-8")
+
+          # Skill-use decisions must compare HP actually removed, not nominal
+          # damage beyond the target's remaining HP. This does not reward or
+          # penalize any character/role; it makes attack valuation match the
+          # battle state transition.
+          replace_once(
+              "src/core/simulate.js",
+              '  return action.hits.reduce((sum, hit) => sum + hit.damage, 0);',
+              '  return action.hits.reduce((sum, hit) => (\n'
+              '    sum + Math.max(0, (Number(hit.hpBefore) || 0) - (Number(hit.hpAfter) || 0))\n'
+              '  ), 0);',
+              "actual resolved damage",
+          )
+
+          # Keep the existing team-performance ordering for compatibility, but
+          # publish a separate pure contribution ordering. Contribution uses the
+          # exact same-four replacement evidence when available and otherwise
+          # falls back to the global opportunity-cost evidence.
+          rank_path = Path("src/core/metagame-v12.js")
+          rank_text = rank_path.read_text(encoding="utf-8")
+          new_rank = r'''function compareContributionValue(left, right) {
+            const leftValue = finiteOrNegativeInfinity(left);
+            const rightValue = finiteOrNegativeInfinity(right);
+            if (leftValue === rightValue) return 0;
+            return rightValue > leftValue ? 1 : -1;
+          }
+
+          /**
+           * Publishes two deliberately different rankings:
+           * - teamPerformanceRank/rank: proven positive contribution first, then
+           *   the strongest complete team the card can actually build.
+           * - individualContributionRank: the card's own robust marginal effect,
+           *   preferably from an exact same-four replacement comparison.
+           *
+           * Neither ranking contains a role, defense, power, or named-card bonus.
+           */
+          export function rankMetagameV12Characters(ratings) {
+            const individualRankById = new Map(
+              [...ratings]
+                .sort((left, right) => {
+                  const leftContribution = rankingContributionEvidence(left);
+                  const rightContribution = rankingContributionEvidence(right);
+                  return (
+                    compareContributionValue(leftContribution.robust, rightContribution.robust) ||
+                    compareContributionValue(leftContribution.mean, rightContribution.mean) ||
+                    Number(rightContribution.matched) - Number(leftContribution.matched) ||
+                    compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+                    compareCompleteDeckMetric(left, right, "expectedWinRate") ||
+                    Number(left.cost) - Number(right.cost) ||
+                    String(left.id).localeCompare(String(right.id))
+                  );
+                })
+                .map((rating, index) => [String(rating.id), index + 1]),
+            );
+
+            return [...ratings]
+              .sort((left, right) => {
+                const leftContribution = rankingContributionEvidence(left);
+                const rightContribution = rankingContributionEvidence(right);
+                const contributionTier = rightContribution.positive - leftContribution.positive;
+                if (contributionTier) return contributionTier;
+
+                if (leftContribution.positive && rightContribution.positive) {
+                  return (
+                    compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+                    compareCompleteDeckMetric(left, right, "expectedWinRate") ||
+                    compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
+                    rightContribution.robust - leftContribution.robust ||
+                    rightContribution.mean - leftContribution.mean ||
+                    finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
+                    Number(left.cost) - Number(right.cost) ||
+                    String(left.id).localeCompare(String(right.id))
+                  );
+                }
+
+                return (
+                  rightContribution.robust - leftContribution.robust ||
+                  rightContribution.mean - leftContribution.mean ||
+                  compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+                  compareCompleteDeckMetric(left, right, "expectedWinRate") ||
+                  compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
+                  finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
+                  Number(left.cost) - Number(right.cost) ||
+                  String(left.id).localeCompare(String(right.id))
+                );
+              })
+              .map((rating, index) => {
+                const contribution = rankingContributionEvidence(rating);
+                return {
+                  ...rating,
+                  rank: index + 1,
+                  teamPerformanceRank: index + 1,
+                  individualContributionRank: individualRankById.get(String(rating.id)),
+                  individualContributionBasis: contribution.matched
+                    ? "matched-replacement-contribution"
+                    : "opportunity-fallback",
+                  positiveContributionEvidence: contribution.positive === 1,
+                  rankingBasis: contribution.matched
+                    ? "matched-replacement-contribution"
+                    : hasCompleteBestDeck(rating)
+                      ? "complete-deck-performance"
+                      : "opportunity-fallback",
+                };
+              });
+          }
+          '''
+          replaced, count = re.subn(
+              r'export function rankMetagameV12Characters\(ratings\) \{[\s\S]*?\n\}\s*$',
+              new_rank.rstrip() + "\n",
+              rank_text,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f"ranking split: expected one rank function, found {count}")
+          rank_path.write_text(replaced, encoding="utf-8")
+
+          report_path = Path("scripts/rate-metagame-v12.mjs")
+          report_text = report_path.read_text(encoding="utf-8")
+          old_headers = '    "枠", "順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",'
+          new_headers = '    "枠", "実戦順位", "単体貢献順位", "単体貢献根拠", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",'
+          if old_headers not in report_text:
+              raise SystemExit("CSV headers: expected source text not found")
+          report_text = report_text.replace(old_headers, new_headers, 1)
+          old_rows = '    slot.position,\n    character.rank,\n    character.id,'
+          new_rows = '    slot.position,\n    character.teamPerformanceRank ?? character.rank,\n    character.individualContributionRank ?? "",\n    character.individualContributionBasis ?? "",\n    character.id,'
+          if old_rows not in report_text:
+              raise SystemExit("CSV rows: expected source text not found")
+          report_text = report_text.replace(old_rows, new_rows, 1)
+          report_path.write_text(report_text, encoding="utf-8")
+
+          # Battle semantics changed, so old exact deck evaluations must not be
+          # reused. Bump every executable/workflow completion gate together.
+          tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+          roots = ("src/", "scripts/", ".github/workflows/", "test/", "tests/")
+          suffixes = (".js", ".mjs", ".cjs", ".yml", ".yaml", ".json")
+          changed_versions = []
+          for name in tracked:
+              if not name.startswith(roots) or not name.endswith(suffixes):
+                  continue
+              p = Path(name)
+              try:
+                  text = p.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              updated = text.replace(
+                  "team-battle-v12.4-full-opportunity-baseline",
+                  "team-battle-v12.5-full-opportunity-baseline",
+              ).replace(
+                  "opportunity-baseline-v4",
+                  "opportunity-baseline-v5",
+              )
+              if updated != text:
+                  p.write_text(updated, encoding="utf-8")
+                  changed_versions.append(name)
+          if not changed_versions:
+              raise SystemExit("V12 semantics bump did not change any tracked source/workflow file")
+          print("Version gates bumped in:")
+          print("\n".join(f"  {name}" for name in changed_versions))
+          PY
+
+      - name: Validate syntax and tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/core/simulate.js
+          node --check src/core/metagame-v12.js
+          node --check scripts/rate-metagame-v12.mjs
+          npm test
+
+      - name: Commit correction and remove one-shot workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/v12-evaluation-correction-once.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: correct V12 damage valuation and split rankings"
+          git push origin HEAD:master
+          echo "Committed $(git rev-parse HEAD)"
+
+      - name: Start corrected V12 recompute
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run metagame-v12-shared-pool-recompute.yml --ref master
+          echo "Dispatched corrected V12 full recompute on master."
