@@ -4,7 +4,7 @@ import {
   evaluateMetagameV7Deck,
 } from "./metagame-v7.js";
 
-export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.4-full-opportunity-baseline";
+export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.5-effective-damage-individual-rank";
 
 const PARTIAL_SKILL_TYPES = new Set(["delay", "skill_reduction"]);
 
@@ -676,7 +676,34 @@ function rankingContributionEvidence(rating) {
  * one is the more useful building block. This keeps genuinely strong expensive
  * cards while preventing a weak card from riding a strong shell to the top.
  */
+function compareIndividualContribution(left, right) {
+  const leftContribution = rankingContributionEvidence(left);
+  const rightContribution = rankingContributionEvidence(right);
+  if (leftContribution.robust !== rightContribution.robust) {
+    return rightContribution.robust > leftContribution.robust ? 1 : -1;
+  }
+  if (leftContribution.mean !== rightContribution.mean) {
+    return rightContribution.mean > leftContribution.mean ? 1 : -1;
+  }
+  const matchedTier = Number(rightContribution.matched) - Number(leftContribution.matched);
+  if (matchedTier) return matchedTier;
+  const leftDecisive = finiteOrNegativeInfinity(
+    leftContribution.matched ? left.counterfactualDecisiveWinGain : left.decisiveWinGain,
+  );
+  const rightDecisive = finiteOrNegativeInfinity(
+    rightContribution.matched ? right.counterfactualDecisiveWinGain : right.decisiveWinGain,
+  );
+  if (leftDecisive !== rightDecisive) return rightDecisive > leftDecisive ? 1 : -1;
+  return String(left.id).localeCompare(String(right.id));
+}
+
 export function rankMetagameV12Characters(ratings) {
+  const individualRankById = new Map(
+    [...ratings]
+      .sort(compareIndividualContribution)
+      .map((rating, index) => [String(rating.id), index + 1]),
+  );
+
   return [...ratings]
     .sort((left, right) => {
       const leftContribution = rankingContributionEvidence(left);
@@ -713,12 +740,17 @@ export function rankMetagameV12Characters(ratings) {
       return {
         ...rating,
         rank: index + 1,
+        practicalRank: index + 1,
+        individualRank: individualRankById.get(String(rating.id)),
         positiveContributionEvidence: contribution.positive === 1,
         rankingBasis: contribution.matched
           ? "matched-replacement-contribution"
           : hasCompleteBestDeck(rating)
             ? "complete-deck-performance"
             : "opportunity-fallback",
+        individualRankingBasis: contribution.matched
+          ? "matched-replacement-contribution"
+          : "opportunity-fallback",
       };
     });
 }

@@ -497,7 +497,7 @@ function resolvedAttackDamage(state, side, actorIndex, skill, rules, targetPolic
     consumeSkill: false,
     random: () => 0,
   });
-  return action.hits.reduce((sum, hit) => sum + hit.damage, 0);
+  return action.hits.reduce((sum, hit) => sum + Math.max(0, hit.hpBefore - hit.hpAfter), 0);
 }
 
 function immediateAttackBenefit(state, side, actorIndex, skill, rules, options = {}) {

@@ -54,13 +54,14 @@ function csvCell(value) {
 
 function csvReport(report) {
   const headers = [
-    "枠", "順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",
+    "枠", "実戦採用順位", "単体貢献順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",
     "機会勝率差", "安定補正後差", "同一4枠差し替え勝率差", "差し替え安定補正後差",
     "候補勝率", "代替勝率", "候補デッキ", "代替デッキ", "同一4枠差し替えデッキ", "評価状態",
   ];
   const rows = report.rankingsByPosition.flatMap((slot) => slot.characters.map((character) => [
     slot.position,
-    character.rank,
+    character.practicalRank ?? character.rank,
+    character.individualRank ?? "",
     character.id,
     character.name,
     character.cost,
@@ -162,7 +163,7 @@ const selectedCandidatesByPosition = [1, 2, 3, 4, 5].map((position) => {
   const candidates = candidatePools.allByPosition[position - 1];
   return maxCandidates ? candidates.slice(0, maxCandidates) : candidates;
 });
-const METAGAME_V12_BATTLE_SEMANTICS_VERSION = "opportunity-baseline-v4";
+const METAGAME_V12_BATTLE_SEMANTICS_VERSION = "opportunity-baseline-v5-effective-damage";
 const checkpointContext = {
   version: METAGAME_V12_MODEL_VERSION,
   battleSemantics: METAGAME_V12_BATTLE_SEMANTICS_VERSION,
