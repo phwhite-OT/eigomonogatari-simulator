@@ -78,13 +78,13 @@ jobs:
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
 
               if [ -n "$progress" ] && \
-                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "v5-effective-damage" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 && \
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 && \
                  [ "$marker" = "$ranking_policy" ]; then
                 continue
               fi
 
               if [ -n "$progress" ] && \
-                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "v5-effective-damage" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
+                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
                 cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$progress")"
                 plan_length="$(jq -r '.finalizationState.plan | length' <<< "$progress")"
                 echo "should_run=true" >> "$GITHUB_OUTPUT"
