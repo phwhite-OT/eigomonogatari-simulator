@@ -1,0 +1,53 @@
+name: Diagnose V12 impacted tests in parallel
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/v12-impact-matrix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  impacted-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        file:
+          - test/simulate.test.js
+          - test/team-battle-ai-regression.test.js
+          - test/skills.test.js
+          - test/skill-use-revive-regression.test.js
+          - test/attack-mode-target-routing.test.js
+          - test/metagame-v12.test.js
+          - test/metagame-v12-browser-cache.test.js
+          - test/metagame-v12-dynamic-cost.test.js
+          - test/metagame-v12-finalization.test.js
+          - test/metagame-v12-recompute-resilience.test.js
+          - test/metagame-v12-shared-pool.test.js
+          - test/metagame-v12-sweep-inputs.test.js
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply exact repair patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          workflow = Path('.github/workflows/v12-evaluation-repair.yml').read_text(encoding='utf-8').splitlines()
+          start = next(i for i, line in enumerate(workflow) if line.strip() == "python - <<'PY'") + 1
+          end = next(i for i in range(start, len(workflow)) if workflow[i].strip() == 'PY')
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in workflow[start:end])
+          exec(compile(script, '<v12-repair>', 'exec'))
+          PY
+      - name: Run impacted test
+        run: node --test "${{ matrix.file }}"
