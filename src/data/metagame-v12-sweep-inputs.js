@@ -1,3 +1,4 @@
+// Re-trigger V12 shared-pool recompute after finalize-handoff fix (2026-09-16).
 // Re-trigger V12 shared-pool recompute after bootstrap workbook failure (2026-09-16).
 // Re-trigger V12 shared-pool recompute after stale-run termination hardening.
 import { METAGAME_V7_INPUTS } from "./metagame-v7-inputs.js";
