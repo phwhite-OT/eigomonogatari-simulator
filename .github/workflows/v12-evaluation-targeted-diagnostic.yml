@@ -1,0 +1,66 @@
+name: Diagnose V12 evaluation correction targeted
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/v12-evaluation-targeted-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-targeted:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply pending V12 correction in worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+          source = Path('.github/workflows/v12-evaluation-correction-once.yml').read_text(encoding='utf-8')
+          start_marker = "          python3 - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          payload = textwrap.dedent(source[start:end])
+          exec(compile(payload, 'v12-evaluation-correction.py', 'exec'), {'__name__': '__main__'})
+          PY
+
+      - name: Run targeted affected tests
+        shell: bash
+        run: |
+          set +e
+          node --test \
+            test/metagame-v12.test.js \
+            test/metagame-v12-browser-cache.test.js \
+            test/metagame-v12-counterfactual-contribution.test.js \
+            test/metagame-v12-deck-first-ranking.test.js \
+            test/metagame-v12-finalization.test.js \
+            test/metagame-v12-recompute-resilience.test.js \
+            test/metagame-v12-shared-pool.test.js \
+            test/metagame-v12-sweep-inputs.test.js \
+            test/simulate.test.js \
+            test/team-battle-ai-regression.test.js \
+            test/v12-battle-corrections.test.js \
+            > v12-targeted-test-output.txt 2>&1
+          status=$?
+          echo "TEST_EXIT_STATUS=$status" >> v12-targeted-test-output.txt
+          cat v12-targeted-test-output.txt
+          exit 0
+
+      - name: Upload targeted diagnostic output
+        uses: actions/upload-artifact@v4
+        with:
+          name: v12-targeted-test-output
+          path: v12-targeted-test-output.txt
+          if-no-files-found: error
