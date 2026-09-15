@@ -1,0 +1,289 @@
+name: One-shot V12 evaluation repair
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/v12-evaluation-repair.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  repair-test-and-recompute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply V12 evaluation fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          old_version = "team-battle-v12.4-full-opportunity-baseline"
+          new_version = "team-battle-v12.5-effective-damage-individual-rank"
+          old_semantics = "opportunity-baseline-v4"
+          new_semantics = "opportunity-baseline-v5-effective-damage"
+
+          roots = [Path("src"), Path("scripts"), Path("test"), Path(".github/workflows")]
+          changed = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob("*"):
+                  if not path.is_file() or path.as_posix().endswith("v12-evaluation-repair.yml"):
+                      continue
+                  try:
+                      text = path.read_text(encoding="utf-8")
+                  except UnicodeDecodeError:
+                      continue
+                  updated = text.replace(old_version, new_version).replace(old_semantics, new_semantics)
+                  if updated != text:
+                      path.write_text(updated, encoding="utf-8")
+                      changed.append(path.as_posix())
+
+          simulate_path = Path("src/core/simulate.js")
+          simulate = simulate_path.read_text(encoding="utf-8")
+          old_damage = "return action.hits.reduce((sum, hit) => sum + hit.damage, 0);"
+          new_damage = "return action.hits.reduce((sum, hit) => sum + Math.max(0, hit.hpBefore - hit.hpAfter), 0);"
+          if simulate.count(old_damage) != 1:
+              raise SystemExit(f"expected exactly one raw resolvedAttackDamage sum, found {simulate.count(old_damage)}")
+          simulate_path.write_text(simulate.replace(old_damage, new_damage), encoding="utf-8")
+          changed.append(simulate_path.as_posix())
+
+          metagame_path = Path("src/core/metagame-v12.js")
+          metagame = metagame_path.read_text(encoding="utf-8")
+          marker = "export function rankMetagameV12Characters(ratings) {"
+          if metagame.count(marker) != 1:
+              raise SystemExit("V12 ranking function marker was not unique")
+          prefix, _ = metagame.split(marker, 1)
+          replacement = r'''function compareIndividualContribution(left, right) {
+            const leftContribution = rankingContributionEvidence(left);
+            const rightContribution = rankingContributionEvidence(right);
+            if (leftContribution.robust !== rightContribution.robust) {
+              return rightContribution.robust > leftContribution.robust ? 1 : -1;
+            }
+            if (leftContribution.mean !== rightContribution.mean) {
+              return rightContribution.mean > leftContribution.mean ? 1 : -1;
+            }
+            const matchedTier = Number(rightContribution.matched) - Number(leftContribution.matched);
+            if (matchedTier) return matchedTier;
+            const leftDecisive = finiteOrNegativeInfinity(
+              leftContribution.matched ? left.counterfactualDecisiveWinGain : left.decisiveWinGain,
+            );
+            const rightDecisive = finiteOrNegativeInfinity(
+              rightContribution.matched ? right.counterfactualDecisiveWinGain : right.decisiveWinGain,
+            );
+            if (leftDecisive !== rightDecisive) return rightDecisive > leftDecisive ? 1 : -1;
+            return String(left.id).localeCompare(String(right.id));
+          }
+
+          /**
+           * Practical rank keeps the existing complete-team-conditioned ordering.
+           * individualRank is a separate, team-shell-controlled contribution rank:
+           * exact same-four replacement evidence when available, otherwise the
+           * global exclusion opportunity evidence. No role, skill type, cost, or
+           * character-specific bonus is added.
+           */
+          export function rankMetagameV12Characters(ratings) {
+            const individualRankById = new Map(
+              [...ratings]
+                .sort(compareIndividualContribution)
+                .map((rating, index) => [String(rating.id), index + 1]),
+            );
+
+            return [...ratings]
+              .sort((left, right) => {
+                const leftContribution = rankingContributionEvidence(left);
+                const rightContribution = rankingContributionEvidence(right);
+                const contributionTier = rightContribution.positive - leftContribution.positive;
+                if (contributionTier) return contributionTier;
+
+                if (leftContribution.positive && rightContribution.positive) {
+                  return (
+                    compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+                    compareCompleteDeckMetric(left, right, "expectedWinRate") ||
+                    compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
+                    rightContribution.robust - leftContribution.robust ||
+                    rightContribution.mean - leftContribution.mean ||
+                    finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
+                    Number(left.cost) - Number(right.cost) ||
+                    String(left.id).localeCompare(String(right.id))
+                  );
+                }
+
+                return (
+                  rightContribution.robust - leftContribution.robust ||
+                  rightContribution.mean - leftContribution.mean ||
+                  compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+                  compareCompleteDeckMetric(left, right, "expectedWinRate") ||
+                  compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
+                  finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
+                  Number(left.cost) - Number(right.cost) ||
+                  String(left.id).localeCompare(String(right.id))
+                );
+              })
+              .map((rating, index) => {
+                const contribution = rankingContributionEvidence(rating);
+                return {
+                  ...rating,
+                  rank: index + 1,
+                  practicalRank: index + 1,
+                  individualRank: individualRankById.get(String(rating.id)),
+                  positiveContributionEvidence: contribution.positive === 1,
+                  rankingBasis: contribution.matched
+                    ? "matched-replacement-contribution"
+                    : hasCompleteBestDeck(rating)
+                      ? "complete-deck-performance"
+                      : "opportunity-fallback",
+                  individualRankingBasis: contribution.matched
+                    ? "matched-replacement-contribution"
+                    : "opportunity-fallback",
+                };
+              });
+          }
+          '''
+          metagame_path.write_text(prefix + replacement, encoding="utf-8")
+          changed.append(metagame_path.as_posix())
+
+          report_path = Path("scripts/rate-metagame-v12.mjs")
+          report = report_path.read_text(encoding="utf-8")
+          old_headers = '"枠", "順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",'
+          new_headers = '"枠", "実戦採用順位", "単体貢献順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",'
+          if report.count(old_headers) != 1:
+              raise SystemExit("ranking CSV header marker was not unique")
+          report = report.replace(old_headers, new_headers)
+          old_row = '    slot.position,\n    character.rank,\n    character.id,'
+          new_row = '    slot.position,\n    character.practicalRank ?? character.rank,\n    character.individualRank ?? "",\n    character.id,'
+          if report.count(old_row) != 1:
+              raise SystemExit("ranking CSV row marker was not unique")
+          report_path.write_text(report.replace(old_row, new_row), encoding="utf-8")
+          changed.append(report_path.as_posix())
+
+          test_path = Path("test/metagame-v12-individual-ranking.test.js")
+          test_path.write_text(r'''import test from "node:test";
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import {
+            METAGAME_V12_MODEL_VERSION,
+            rankMetagameV12Characters,
+          } from "../src/core/metagame-v12.js";
+
+          function completeDeck(expectedWinRate, expectedWinLowerBound, decisiveWinRate = expectedWinRate) {
+            return {
+              ids: ["p1", "p2", "p3", "p4", "p5"],
+              expectedWinRate,
+              expectedWinLowerBound,
+              decisiveWinRate,
+            };
+          }
+
+          test("V12 keeps practical rank and exposes a separate pure contribution rank", () => {
+            const ranked = rankMetagameV12Characters([
+              {
+                id: "strong-team-small-marginal", cost: 20,
+                opportunityWinGain: 0.03, robustOpportunityWinGain: 0.02, decisiveWinGain: 0.01,
+                bestDeck: completeDeck(0.80, 0.72, 0.76),
+              },
+              {
+                id: "weaker-team-large-marginal", cost: 20,
+                opportunityWinGain: 0.20, robustOpportunityWinGain: 0.18, decisiveWinGain: 0.15,
+                bestDeck: completeDeck(0.66, 0.58, 0.61),
+              },
+            ]);
+            assert.equal(ranked[0].id, "strong-team-small-marginal");
+            assert.equal(ranked[0].practicalRank, 1);
+            assert.equal(ranked[0].individualRank, 2);
+            assert.equal(ranked[1].individualRank, 1);
+          });
+
+          test("V12 individual rank prefers matched same-four evidence when present", () => {
+            const ranked = rankMetagameV12Characters([
+              {
+                id: "matched", cost: 20,
+                opportunityWinGain: -0.2, robustOpportunityWinGain: -0.2,
+                counterfactualApplied: true,
+                counterfactualWinGain: 0.12,
+                counterfactualRobustWinGain: 0.10,
+                counterfactualDecisiveWinGain: 0.08,
+                bestDeck: completeDeck(0.70, 0.62),
+              },
+              {
+                id: "fallback", cost: 20,
+                opportunityWinGain: 0.09, robustOpportunityWinGain: 0.08, decisiveWinGain: 0.07,
+                bestDeck: completeDeck(0.72, 0.64),
+              },
+            ]);
+            const matched = ranked.find((entry) => entry.id === "matched");
+            assert.equal(matched.individualRank, 1);
+            assert.equal(matched.individualRankingBasis, "matched-replacement-contribution");
+          });
+
+          test("V12.5 uses effective HP removed for resolved attack-skill benefit", () => {
+            assert.match(METAGAME_V12_MODEL_VERSION, /v12\.5/);
+            const source = fs.readFileSync(new URL("../src/core/simulate.js", import.meta.url), "utf8");
+            assert.match(source, /hit\.hpBefore - hit\.hpAfter/);
+            assert.doesNotMatch(source, /return action\.hits\.reduce\(\(sum, hit\) => sum \+ hit\.damage, 0\);/);
+          });
+          ''', encoding="utf-8")
+          changed.append(test_path.as_posix())
+
+          print("Changed files:")
+          for path in sorted(set(changed)):
+              print(f"  {path}")
+          PY
+
+      - name: Syntax and targeted tests
+        run: |
+          set -euo pipefail
+          node --check src/core/simulate.js
+          node --check src/core/metagame-v12.js
+          node --check scripts/rate-metagame-v12.mjs
+          node --test \
+            test/metagame-v12-individual-ranking.test.js \
+            test/metagame-v12-deck-first-ranking.test.js \
+            test/metagame-v12-counterfactual-contribution.test.js \
+            test/v12-battle-corrections.test.js
+
+      - name: Full test suite
+        run: npm test
+
+      - name: Commit validated fixes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src scripts test .github/workflows/metagame-v12-shared-pool-recompute.yml .github/workflows/metagame-v12-finalization-fanout.yml || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "fix: use effective damage and expose V12 individual rank"
+            git push origin HEAD:master
+          fi
+
+      - name: Start fresh V12.5 recompute
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run metagame-v12-shared-pool-recompute.yml --ref master
+          sleep 3
+          gh run list --workflow metagame-v12-shared-pool-recompute.yml --limit 3 --json databaseId,status,conclusion,headSha,url,event
