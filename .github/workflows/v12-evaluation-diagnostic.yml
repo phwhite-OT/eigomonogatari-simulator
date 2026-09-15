@@ -1,0 +1,64 @@
+name: Diagnose V12 evaluation correction
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/v12-evaluation-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply the pending V12 correction in the worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import textwrap
+
+          source = Path('.github/workflows/v12-evaluation-correction-once.yml').read_text(encoding='utf-8')
+          start_marker = "          python3 - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          payload = textwrap.dedent(source[start:end])
+          exec(compile(payload, 'v12-evaluation-correction.py', 'exec'), {'__name__': '__main__'})
+          PY
+
+      - name: Capture syntax and test output
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== node --check src/core/simulate.js ==='
+            node --check src/core/simulate.js
+            echo '=== node --check src/core/metagame-v12.js ==='
+            node --check src/core/metagame-v12.js
+            echo '=== node --check scripts/rate-metagame-v12.mjs ==='
+            node --check scripts/rate-metagame-v12.mjs
+            echo '=== npm test ==='
+            npm test
+          } > v12-test-output.txt 2>&1
+          status=$?
+          echo "TEST_EXIT_STATUS=$status" >> v12-test-output.txt
+          cat v12-test-output.txt
+          exit 0
+
+      - name: Upload diagnostic output
+        uses: actions/upload-artifact@v4
+        with:
+          name: v12-evaluation-test-output
+          path: v12-test-output.txt
+          if-no-files-found: error
