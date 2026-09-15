@@ -1,0 +1,49 @@
+name: Bootstrap workbook data and start V12 recompute
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - ".github/workflows/bootstrap-workbook-and-recompute.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  bootstrap-and-start:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate workbook character catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/convert_workbook.py Book1.xlsx src/data/workbook-characters.js
+          test -s src/data/workbook-characters.js
+          grep -q 'WORKBOOK_CHARACTERS' src/data/workbook-characters.js
+      - name: Commit generated character catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/workbook-characters.js
+          if git diff --cached --quiet; then
+            echo "Workbook character catalog is already current."
+          else
+            git commit -m "fix: generate workbook character catalog for V12 recompute"
+            git push origin HEAD:master
+          fi
+      - name: Start V12 shared-pool recompute
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run metagame-v12-shared-pool-recompute.yml --ref master
+          echo "V12 shared-pool recompute dispatched."
