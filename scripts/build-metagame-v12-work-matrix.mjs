@@ -43,7 +43,25 @@ const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CA
 const candidateIdsByPosition = candidatePools.allByPosition.map((candidates) => (
   (maxCandidates ? candidates.slice(0, maxCandidates) : candidates).map((character) => String(character.id))
 ));
-const plan = buildMetagameCandidateShardPlan(candidateIdsByPosition, progress?.resultsByPosition, { maxWorkers });
+let plan = buildMetagameCandidateShardPlan(candidateIdsByPosition, progress?.resultsByPosition, { maxWorkers });
+
+// A durable checkpoint can already contain every candidate rating while still
+// needing the finalize-only handoff that creates the current V12 finalization
+// state. In that case the normal shard planner quite correctly returns zero
+// missing candidates, but the workflow still needs one ordinary checkpoint
+// artifact so publish can merge it and advance finalization. Re-run one
+// deterministic already-covered candidate; this does not widen the search and
+// preserves the existing checkpoint while unblocking the distributed fanout.
+if (!plan.length && progress) {
+  const positionIndex = candidateIdsByPosition.findIndex((candidateIds) => candidateIds.length > 0);
+  if (positionIndex >= 0) {
+    plan = [{
+      position: positionIndex + 1,
+      shard: `${positionIndex + 1}-finalize-handoff`,
+      candidateIndices: [0],
+    }];
+  }
+}
 
 process.stdout.write(`${JSON.stringify({
   include: plan.map(({ position, shard, candidateIndices }) => ({
