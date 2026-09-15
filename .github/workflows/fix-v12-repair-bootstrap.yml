@@ -1,0 +1,39 @@
+name: Bootstrap V12 repair workflow
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/fix-v12-repair-bootstrap.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-repair-workflow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - name: Remove unnecessary npm bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/v12-evaluation-repair.yml')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace('          cache: npm\n', '')
+          text = text.replace('\n      - name: Install dependencies\n        run: npm ci\n', '')
+          p.write_text(text, encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/v12-evaluation-repair.yml
+          git commit -m "fix: remove unavailable npm cache from V12 repair"
+          git push origin HEAD:master
