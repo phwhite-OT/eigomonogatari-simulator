@@ -1,0 +1,60 @@
+name: Diagnose V12 full-test failure
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/v12-test-diagnose.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply the exact repair patch in-memory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          workflow = Path('.github/workflows/v12-evaluation-repair.yml').read_text(encoding='utf-8').splitlines()
+          start = next(i for i, line in enumerate(workflow) if line.strip() == "python - <<'PY'") + 1
+          end = next(i for i in range(start, len(workflow)) if workflow[i].strip() == 'PY')
+          script = '\n'.join(line[10:] if line.startswith('          ') else line for line in workflow[start:end])
+          exec(compile(script, '<v12-repair>', 'exec'))
+          PY
+      - name: Run full suite and save exact output
+        id: tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node --test > /tmp/v12-full-test.log 2>&1
+      - name: Print compact failure summary
+        if: steps.tests.outcome != 'success'
+        shell: bash
+        run: |
+          echo '=== NOT OK ==='
+          grep -nE '^not ok|AssertionError|ERR_ASSERTION|actual:|expected:' /tmp/v12-full-test.log | tail -n 120 || true
+          echo '=== TAIL ==='
+          tail -n 180 /tmp/v12-full-test.log || true
+      - name: Upload full test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v12-full-test-log
+          path: /tmp/v12-full-test.log
+          if-no-files-found: error
+      - name: Fail if suite failed
+        if: steps.tests.outcome != 'success'
+        run: exit 1
