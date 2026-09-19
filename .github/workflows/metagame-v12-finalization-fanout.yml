@@ -12,12 +12,6 @@ on:
       - "scripts/prefill-metagame-v12-finalization.mjs"
       - "scripts/metagame-v12-evaluation-pool.mjs"
       - ".github/workflows/metagame-v12-finalization-fanout.yml"
-  workflow_run:
-    workflows:
-      - "Metagame V12 shared-pool full recompute"
-    types:
-      - completed
-
 permissions:
   actions: write
   contents: write
