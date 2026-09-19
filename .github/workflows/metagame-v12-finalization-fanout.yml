@@ -195,8 +195,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: v12-finalize-cache-${{ needs.select.outputs.output_directory }}-${{ matrix.shard }}
-          path: ${{ runner.temp }}/v12-finalize-delta/${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-${{ matrix.shard }}.json
-          if-no-files-found: warn
+          path: ${{ runner.temp }}/v12-finalize-delta/${{ needs.select.outputs.output_directory }}-finalization-shard-${{ matrix.shard }}.json
+          if-no-files-found: error
           retention-days: 2
       - name: Propagate prefill failure after delta upload
         if: always() && steps.prefill.outcome == 'failure'
@@ -241,7 +241,6 @@ jobs:
           name: v12-finalize-work-${{ needs.select.outputs.output_directory }}
           path: ${{ runner.temp }}/v12-finalize-work
       - name: Download distributed finalization cache deltas
-        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           pattern: v12-finalize-cache-${{ needs.select.outputs.output_directory }}-*
@@ -260,8 +259,10 @@ jobs:
             args+=("--merge-checkpoint-paths=$delta_paths")
             echo "Merging ${#delta_files[@]} globally-disjoint cache delta(s)."
           else
-            echo "No distributed cache deltas were available; advancing from the durable checkpoint only."
+            echo "::error::No distributed cache deltas were downloaded. Refusing to discard a completed fanout wave and fall back to slow serial finalization."
+            exit 1
           fi
+          echo "Merging ${#delta_files[@]} distributed cache delta file(s) from this fanout wave."
 
           node scripts/rate-metagame-v12.mjs \
             --input="$METAGAME_INPUT" \
