@@ -51,6 +51,8 @@ Distributed finalization workflow:
 
 The expensive counterfactual/deep-neighbourhood battle work belongs in this fanout workflow, not in a long serial `publish` step.
 
+Critical artifact invariant: every `prefill` shard must upload its cache delta and `merge` must refuse to continue when zero delta files are downloaded. In GitHub Action `with.path` fields, use GitHub expression syntax such as `${{ needs.select.outputs.output_directory }}`; shell-style `$METAGAME_OUTPUT_DIRECTORY` is not expanded there.
+
 ## Reliability / recovery design
 
 This system is intentionally resumable. Preserve that property when changing it.
