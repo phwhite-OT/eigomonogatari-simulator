@@ -157,6 +157,8 @@ Run up to 19 shards in parallel. The important expensive step is:
 
 Each shard emits a finalization-cache delta. The design intentionally tolerates partial shard completion so durable useful work is not lost.
 
+Those shard deltas are the actual output of the expensive fanout. The upload path must use GitHub expression syntax in action inputs (for example `${{ needs.select.outputs.output_directory }}`), not shell-style environment expansion. The merge job must fail rather than silently fall back to serial work if zero cache-delta artifacts are available; otherwise a full 19-runner wave can be wasted.
+
 ### `merge`
 
 Merge exact cache deltas back into the checkpoint, advance the frozen finalization cursor/plan, persist results, and continue if needed.
@@ -190,7 +192,7 @@ Long computation is expected to be interrupted sometimes. The design saves usefu
 
 `.github/workflows/metagame-v12-watchdog.yml`
 
-Scheduled at minute `17` and `47` of each hour, plus manual dispatch.
+Scheduled every 10 minutes, plus manual dispatch.
 
 It checks whether the 28-condition computation is complete, whether a current run exists, whether it has exceeded the healthy runtime window, and whether a safe continuation can be dispatched.
 
