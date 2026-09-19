@@ -237,6 +237,43 @@ jobs:
         if: always() && steps.rate.outcome == 'failure'
         run: exit 1
 
+
+  handoff_finalization:
+    needs: select
+    if: needs.select.outputs.all_completed != 'true' && needs.select.outputs.handoff_finalizing == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Dispatch distributed finalization immediately
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          workflow="metagame-v12-finalization-fanout.yml"
+          output=""
+          delay=5
+          for attempt in 1 2 3 4 5; do
+            if output="$(gh workflow run "$workflow" --repo "${GITHUB_REPOSITORY}" --ref master 2>&1)"; then
+              echo "Distributed finalization dispatch accepted on attempt $attempt."
+              exit 0
+            fi
+            echo "Distributed finalization dispatch attempt $attempt failed: $output" >&2
+            if ! grep -Eqi 'HTTP (500|502|503|504)|Failed to run workflow dispatch|temporar|timeout|connection reset|service unavailable|bad gateway|gateway timeout' <<< "$output"; then
+              echo "::error::Finalization handoff failed with a non-transient error."
+              exit 1
+            fi
+            if [ "$attempt" -lt 5 ]; then
+              sleep "$delay"
+              delay=$((delay * 2))
+            fi
+          done
+          # Durable progress is already on the results branch. The watchdog also
+          # dispatches finalization directly, so a transient GitHub outage here
+          # cannot strand a finalizing checkpoint.
+          echo "::warning::GitHub rejected finalization dispatch after 5 transient retries; watchdog will retry directly."
+          exit 0
+
   publish:
     needs: [select, evaluate]
     if: always() && needs.select.outputs.all_completed != 'true' && needs.select.outputs.handoff_finalizing != 'true'
