@@ -19,6 +19,9 @@ on:
       - "scripts/rate-metagame-v12.mjs"
       - "scripts/build-metagame-v12-work-matrix.mjs"
       - "scripts/build-metagame-simulator-data-v12.mjs"
+      - "scripts/plan-metagame-v12-browser-knowledge.mjs"
+      - "scripts/evaluate-metagame-v12-browser-boost-shard.mjs"
+      - "scripts/merge-metagame-v12-browser-knowledge.mjs"
       - "scripts/build-final.mjs"
       - "test/team-battle-ai-regression.test.js"
       - "test/simulate.test.js"
@@ -56,6 +59,9 @@ jobs:
           node --check scripts/rate-metagame-v12.mjs
           node --check scripts/build-metagame-v12-work-matrix.mjs
           node --check scripts/build-metagame-simulator-data-v12.mjs
+          node --check scripts/plan-metagame-v12-browser-knowledge.mjs
+          node --check scripts/evaluate-metagame-v12-browser-boost-shard.mjs
+          node --check scripts/merge-metagame-v12-browser-knowledge.mjs
           node --check scripts/build-final.mjs
       - name: Verify public bundle builds with cache policy
         run: node scripts/build-final.mjs --skip-metagame-data
