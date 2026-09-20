@@ -64,9 +64,9 @@ if (!manifestArgument) throw new Error("--manifest is required.");
 
 const checkpointPath = path.resolve(checkpointArgument);
 const manifestPath = path.resolve(manifestArgument);
-// Four active seeds per round need twelve clean rounds to cover a 48-deck
-// frontier. Leave four additional rounds for frontier churn caused by newly
-// discovered stronger decks, while retaining a finite safety cap.
+// Twelve active seeds per clean round can cover the 48-deck frontier in four
+// rounds. Keep a generous finite cap for wave truncation and frontier churn;
+// the cap is a safety brake, not the expected number of rounds.
 const maxRounds = integerArgument("max-rounds", 16, 1);
 
 const checkpoint = JSON.parse(await fs.readFile(checkpointPath, "utf8"));
