@@ -136,7 +136,7 @@ jobs:
             --input-checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
             --output-manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
             --shard-count=19 \
-            --deep-seed-count=4
+            --deep-seed-count=12
       - name: Upload shared checkpoint and work plan
         uses: actions/upload-artifact@v4
         with:
