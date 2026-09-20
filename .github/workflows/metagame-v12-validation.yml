@@ -6,6 +6,7 @@ on:
       - "src/core/simulate.js"
       - "src/core/metagame-v12.js"
       - "src/core/metagame-v12-finalization.js"
+      - "src/core/metagame-live.js"
       - "src/core/skills.js"
       - "src/data/character-catalog.js"
       - "src/data/metagame-v8-inputs.js"
@@ -51,6 +52,7 @@ jobs:
           node --check src/core/skills.js
           node --check src/core/metagame-v12.js
           node --check src/core/metagame-v12-finalization.js
+          node --check src/core/metagame-live.js
           node --check src/data/metagame-v8-inputs.js
           node --check src/data/metagame-v12-sweep-inputs.js
           node --check src/ui/eigomonogatari-ui.js
