@@ -73,7 +73,7 @@ const inputId = readArgument("input", "fire:100");
 const inputCheckpointPath = path.resolve(readArgument("input-checkpoint"));
 const outputManifestPath = path.resolve(readArgument("output-manifest"));
 const shardCount = integerArgument("shard-count", 19, 1);
-const deepSeedCount = integerArgument("deep-seed-count", 4, 0);
+const deepSeedCount = integerArgument("deep-seed-count", 12, 0);
 const deepFrontierCount = integerArgument("deep-frontier-count", 48, deepSeedCount);
 // Hard wall-clock guard: never hand an accidentally huge wave to the 19
 // runners. At 9,500 items, round-robin fanout is at most 500 evaluations per
@@ -198,10 +198,12 @@ for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; 
   }
 }
 
-// Keep the old broad 48-deck exploration frontier, but consume it in small
-// four-seed waves. This prevents one huge run without turning deep search into
-// a top-4-only hill climb. The frontier is rebuilt from measured battle results
-// after every completed wave, so newly discovered elite/diverse shells can enter.
+// Keep the broad 48-deck exploration frontier, but consume it in wider
+// twelve-seed waves. This preserves the same search space while cutting the
+// number of orchestration rounds dramatically. The 9,500-item wave cap still
+// bounds runner wall-clock; any overflow is retried deterministically from the
+// durable cache on the next wave. The frontier is rebuilt from measured battle
+// results after every completed wave, so newly discovered elite/diverse shells can enter.
 const deepFrontier = selectDeepSearchSeeds(sharedDeckPool, deepFrontierCount);
 const deepFrontierKeys = deepFrontier.map(deckSeedKey);
 const deepSeeds = deepFrontier
