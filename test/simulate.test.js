@@ -6,6 +6,7 @@ import {
   scoreSimulationResult,
   selectPriorityTarget,
   simulateBattle,
+  simulateBattleSummary,
   TARGET_POLICIES,
 } from "../src/core/simulate.js";
 import { DEFAULT_RULES, mergeRules } from "../src/data/rules.js";
@@ -39,6 +40,55 @@ const simpleRules = mergeRules(DEFAULT_RULES, {
       ),
     ),
   },
+});
+
+test("履歴なし高速経路でもランキングに使う戦闘結果は完全一致する", () => {
+  const buffSkill = {
+    type: "attack_buff",
+    multiplier: 1.8,
+    target: "ally_all",
+    duration: 2,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [[
+      character("ally-front", { hp: 700, pow: 180, skillTurn: 0, skill: buffSkill }),
+      character("ally-reserve", { hp: 900, pow: 220 }),
+    ], [character("ally-two", { hp: 800, pow: 160 })]],
+    [[
+      character("enemy-front", { hp: 650, pow: 210 }),
+      character("enemy-reserve", { hp: 850, pow: 190 }),
+    ], [character("enemy-two", { hp: 900, pow: 170 })]],
+  );
+  const options = {
+    turns: 5,
+    randomSeed: "summary-equivalence",
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  };
+  const full = simulateBattle(state, simpleRules, options);
+  const summary = simulateBattleSummary(state, simpleRules, options);
+
+  assert.deepEqual(summary.state, full.state);
+  assert.equal(summary.outcome, full.outcome);
+  assert.equal(summary.turnsCompleted, full.turnsCompleted);
+  assert.deepEqual(summary.initial, full.initial);
+  assert.deepEqual(summary.final, full.final);
+  assert.deepEqual({
+    allyLosses: summary.metrics.allyLosses,
+    enemyLosses: summary.metrics.enemyLosses,
+    allyRemainingSpread: summary.metrics.allyRemainingSpread,
+    enemyRemainingSpread: summary.metrics.enemyRemainingSpread,
+    boardDelta: summary.metrics.boardDelta,
+  }, {
+    allyLosses: full.metrics.allyLosses,
+    enemyLosses: full.metrics.enemyLosses,
+    allyRemainingSpread: full.metrics.allyRemainingSpread,
+    enemyRemainingSpread: full.metrics.enemyRemainingSpread,
+    boardDelta: full.metrics.boardDelta,
+  });
+  assert.deepEqual(summary.history, []);
 });
 
 test("3ターン対戦は通常攻撃と生存補正を順番に適用する", () => {

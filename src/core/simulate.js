@@ -833,6 +833,8 @@ function chooseSkills(state, rules, options) {
       : "このターンの支援・攻撃フェーズを予行しても蘇生対象が倒れないため温存";
   }
 
+  const intents = candidates.filter((intent) => intent.use);
+  if (options.collectBattleHistory === false) return { intents, events: [] };
   const events = candidates.map((intent) => ({
     type: intent.use ? "skill_use" : "skill_hold",
     side: intent.side,
@@ -842,7 +844,6 @@ function chooseSkills(state, rules, options) {
     skillType: intent.skill.type,
     reason: intent.reason,
   }));
-  const intents = candidates.filter((intent) => intent.use);
   return { intents, events };
 }
 
@@ -896,20 +897,22 @@ function supportChanges(before, after, side) {
   return changes;
 }
 
-function applySupportPhase(state, intents, skillTypes) {
+function applySupportPhase(state, intents, skillTypes, collectEvents = true) {
   let next = state;
   const events = [];
   for (const intent of intents.filter(({ skill }) => skillTypes.includes(skill.type))) {
-    const before = next;
+    const before = collectEvents ? next : null;
     next = applySupportSkill(next, intent.side, intent.actorIndex, intent.skill, { consumeSkill: false });
-    events.push({
-      type: "skill_effect",
-      side: intent.side,
-      actorIndex: intent.actorIndex,
-      actorName: intent.actorName,
-      skillType: intent.skill.type,
-      changes: supportChanges(before, next, intent.side),
-    });
+    if (collectEvents) {
+      events.push({
+        type: "skill_effect",
+        side: intent.side,
+        actorIndex: intent.actorIndex,
+        actorName: intent.actorName,
+        skillType: intent.skill.type,
+        changes: supportChanges(before, next, intent.side),
+      });
+    }
   }
   return { state: next, events };
 }
@@ -1065,19 +1068,21 @@ function resolveAttacks(state, intents, rules, options) {
       },
     );
     next = result.state;
-    actions.push({
-      type: "attack",
-      action: intent.action,
-      side: intent.side,
-      actorIndex: intent.actorIndex,
-      actorId: intent.actorId,
-      actorName: intent.actorName,
-      skillType: intent.skill.type,
-      targetIndex,
-      targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
-      targetReason: targetPolicyReason(options.targetPolicy),
-      hits: result.hits,
-    });
+    if (options.collectBattleHistory !== false) {
+      actions.push({
+        type: "attack",
+        action: intent.action,
+        side: intent.side,
+        actorIndex: intent.actorIndex,
+        actorId: intent.actorId,
+        actorName: intent.actorName,
+        skillType: intent.skill.type,
+        targetIndex,
+        targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
+        targetReason: targetPolicyReason(options.targetPolicy),
+        hits: result.hits,
+      });
+    }
   }
   return { state: next, actions };
 }
@@ -1175,7 +1180,7 @@ function continuationMetrics(history) {
   return { ...totals, bySource };
 }
 
-export function simulateBattle(initialState, rules, options = {}) {
+function simulateBattleInternal(initialState, rules, options, collectBattleHistory) {
   const configuredTurns = Number(options.turns ?? rules.simulation?.turns ?? 8);
   const totalTurns = Math.min(12, Math.max(1, Math.floor(configuredTurns || 8)));
   const initial = {
@@ -1185,60 +1190,76 @@ export function simulateBattle(initialState, rules, options = {}) {
   };
   let state = structuredClone(initialState);
   const history = [];
+  let turnsCompleted = 0;
   const random = typeof options.random === "function" ? options.random : seededRandom(options.randomSeed);
+  const battleOptions = collectBattleHistory
+    ? options
+    : { ...options, collectBattleHistory: false };
 
   for (let turnIndex = 0; turnIndex < totalTurns; turnIndex += 1) {
     options.onTurnStart?.({ turn: state.turn, state: structuredClone(state) });
-    const phases = [];
-    const selection = chooseSkills(state, rules, options);
-    phases.push(phase("skill_selection", selection.events));
+    const phases = collectBattleHistory ? [] : null;
+    const selection = chooseSkills(state, rules, battleOptions);
+    if (collectBattleHistory) phases.push(phase("skill_selection", selection.events));
     state = consumeSelectedSkills(state, selection.intents);
 
-    const attribute = applySupportPhase(state, selection.intents, ["attribute_change"]);
+    const attribute = applySupportPhase(state, selection.intents, ["attribute_change"], collectBattleHistory);
     state = attribute.state;
-    phases.push(phase("attribute_change", attribute.events));
+    if (collectBattleHistory) phases.push(phase("attribute_change", attribute.events));
 
-    const healing = applySupportPhase(state, selection.intents, ["heal"]);
+    const healing = applySupportPhase(state, selection.intents, ["heal"], collectBattleHistory);
     state = healing.state;
-    phases.push(phase("healing", healing.events));
+    if (collectBattleHistory) phases.push(phase("healing", healing.events));
 
-    const attackSupport = applySupportPhase(state, selection.intents, ["attack_buff", "aoe_attack", "multi_hit_attack"]);
+    const attackSupport = applySupportPhase(
+      state,
+      selection.intents,
+      ["attack_buff", "aoe_attack", "multi_hit_attack"],
+      collectBattleHistory,
+    );
     state = attackSupport.state;
-    phases.push(phase("attack_support", attackSupport.events));
+    if (collectBattleHistory) phases.push(phase("attack_support", attackSupport.events));
 
-    const defense = applySupportPhase(state, selection.intents, ["damage_reduction", "guard", "attribute_guard"]);
+    const defense = applySupportPhase(
+      state,
+      selection.intents,
+      ["damage_reduction", "guard", "attribute_guard"],
+      collectBattleHistory,
+    );
     state = defense.state;
-    phases.push(phase("defense", defense.events));
+    if (collectBattleHistory) phases.push(phase("defense", defense.events));
 
-    const scheduledAttacks = attackIntents(state, selection.intents, rules, options);
-    const attack = resolveAttacks(state, scheduledAttacks, rules, { ...options, random });
+    const scheduledAttacks = attackIntents(state, selection.intents, rules, battleOptions);
+    const attack = resolveAttacks(state, scheduledAttacks, rules, { ...battleOptions, random });
     state = attack.state;
-    phases.push(phase("attack", attack.actions));
+    if (collectBattleHistory) phases.push(phase("attack", attack.actions));
 
     const reviveIntents = [...selection.intents]
       .filter(({ skill }) => skill.type === "revive")
       .sort((left, right) => (Number(right.skill.multiplier) || 0) - (Number(left.skill.multiplier) || 0));
-    const revive = applySupportPhase(state, reviveIntents, ["revive"]);
+    const revive = applySupportPhase(state, reviveIntents, ["revive"], collectBattleHistory);
     state = revive.state;
-    phases.push(phase("revive", revive.events));
+    if (collectBattleHistory) phases.push(phase("revive", revive.events));
 
     const replacement = resolveDefeatedCombatants(state, {
       ghostPower: rules.simulation?.ghostPower ?? 1000,
     });
     state = replacement.state;
-    phases.push(phase("replacement", replacement.transitions.map((transition) => ({
-      type: transition.type,
-      ...transition,
-    }))));
-
-    history.push({
-      turn: state.turn,
-      phases,
-      actions: attack.actions,
-      allies: snapshotTeam(state, "allies"),
-      enemies: snapshotTeam(state, "enemies"),
-      board: evaluateBoard(state, "allies"),
-    });
+    if (collectBattleHistory) {
+      phases.push(phase("replacement", replacement.transitions.map((transition) => ({
+        type: transition.type,
+        ...transition,
+      }))));
+      history.push({
+        turn: state.turn,
+        phases,
+        actions: attack.actions,
+        allies: snapshotTeam(state, "allies"),
+        enemies: snapshotTeam(state, "enemies"),
+        board: evaluateBoard(state, "allies"),
+      });
+    }
+    turnsCompleted += 1;
     const outcome = outcomeOf(state);
     state = advanceTurn(state);
     if (outcome !== "ongoing") break;
@@ -1252,7 +1273,7 @@ export function simulateBattle(initialState, rules, options = {}) {
   return {
     state,
     history,
-    turnsCompleted: history.length,
+    turnsCompleted,
     attackModel: "simultaneous",
     assumptions: [
       "両チームの攻撃者は攻撃フェーズ開始時に確定し、途中で倒されても攻撃する",
@@ -1274,9 +1295,22 @@ export function simulateBattle(initialState, rules, options = {}) {
       allyRemainingSpread: final.allies.remainingSpread,
       enemyRemainingSpread: final.enemies.remainingSpread,
       boardDelta: final.board - initial.board,
-      continuation: continuationMetrics(history),
+      continuation: collectBattleHistory
+        ? continuationMetrics(history)
+        : { attackHits: 0, carriedAttackHits: 0, defenseHits: 0, carriedDefenseHits: 0, bySource: {} },
     },
   };
+}
+
+export function simulateBattle(initialState, rules, options = {}) {
+  return simulateBattleInternal(initialState, rules, options, true);
+}
+
+// Exact simulation fast path for callers that only consume the final state.
+// It performs the same skill decisions, attacks, replacements and RNG sequence,
+// but skips observational history/event snapshots that cannot affect combat.
+export function simulateBattleSummary(initialState, rules, options = {}) {
+  return simulateBattleInternal(initialState, rules, options, false);
 }
 
 function clamp(value, minimum = 0, maximum = 100) {
