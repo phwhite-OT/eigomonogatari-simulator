@@ -6,6 +6,7 @@ import {
   ATTACK_ORDER_POLICIES,
   PLAY_STYLES,
   simulateBattle,
+  simulateBattleSummary,
   TARGET_POLICIES,
 } from "./simulate.js";
 import { createBattleState } from "./battleState.js";
@@ -1446,6 +1447,7 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
   const values = [];
   const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
   const trackedCharacterId = options.trackedCharacterId === undefined ? null : String(options.trackedCharacterId);
+  const simulate = trackedCharacterId === null ? simulateBattleSummary : simulateBattle;
   const trackedDirectDefeats = new Map();
   let trackedActivatedScenarios = 0;
   let trackedSkillUses = 0;
@@ -1461,7 +1463,7 @@ export function evaluateMetagameV7Deck(deck, teamScenarios, options = {}) {
     }
     const allyDecks = [...scenario.allyDecks];
     allyDecks.splice(index % 5, 0, deck);
-    const result = simulateBattle(createBattleState(allyDecks, scenario.enemyDecks), rules, {
+    const result = simulate(createBattleState(allyDecks, scenario.enemyDecks), rules, {
       turns,
       targetPolicy: profile.targetPolicy,
       attackOrderPolicy: profile.attackOrderPolicy,

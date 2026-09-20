@@ -75,9 +75,10 @@ const outputManifestPath = path.resolve(readArgument("output-manifest"));
 const shardCount = integerArgument("shard-count", 19, 1);
 const deepSeedCount = integerArgument("deep-seed-count", 12, 0);
 const deepFrontierCount = integerArgument("deep-frontier-count", 48, deepSeedCount);
-// Hard wall-clock guard: never hand an accidentally huge wave to the 19
-// runners. At 9,500 items, round-robin fanout is at most 500 evaluations per
-// runner. Any omitted work remains absent from the durable cache and is picked
+// Hard wall-clock guard: never hand an accidentally huge wave to the fanout
+// runners. The workflow uses more chunks than concurrent runners so GitHub can
+// refill freed slots instead of waiting on one expensive tail shard. Any omitted
+// work remains absent from the durable cache and is picked
 // up deterministically by the next wave.
 const maxWorkItems = integerArgument("max-work-items", 9500, shardCount);
 const currentAnchorLimit = integerArgument("counterfactual-anchor-limit", 3, 1);
@@ -254,9 +255,22 @@ if (!boundedWorkTruncated) {
   }
 }
 
+function stableWorkHash(key) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < key.length; index += 1) {
+    hash ^= key.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
 const uniqueItems = [...missingByKey.entries()]
   .map(([key, ids]) => ({ key, ids }))
-  .sort((left, right) => left.key.localeCompare(right.key));
+  // Lexical round-robin accidentally kept similarly shaped decks on the same
+  // runners. A stable hash changes only scheduling, never the evaluated set or
+  // exact battle result, and makes expensive deck families much less likely to
+  // create one long-tail shard.
+  .sort((left, right) => stableWorkHash(left.key) - stableWorkHash(right.key) || left.key.localeCompare(right.key));
 const shards = Array.from({ length: shardCount }, () => []);
 for (let index = 0; index < uniqueItems.length; index += 1) {
   shards[index % shardCount].push(uniqueItems[index]);
