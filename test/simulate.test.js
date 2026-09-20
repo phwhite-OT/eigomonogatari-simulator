@@ -54,11 +54,11 @@ test("履歴なし高速経路でもランキングに使う戦闘結果は完�
     [[
       character("ally-front", { hp: 700, pow: 180, skillTurn: 0, skill: buffSkill }),
       character("ally-reserve", { hp: 900, pow: 220 }),
-    ], character("ally-two", { hp: 800, pow: 160 })],
+    ], [character("ally-two", { hp: 800, pow: 160 })]],
     [[
       character("enemy-front", { hp: 650, pow: 210 }),
       character("enemy-reserve", { hp: 850, pow: 190 }),
-    ], character("enemy-two", { hp: 900, pow: 170 })],
+    ], [character("enemy-two", { hp: 900, pow: 170 })]],
   );
   const options = {
     turns: 5,
