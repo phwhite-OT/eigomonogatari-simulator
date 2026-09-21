@@ -24,6 +24,7 @@ on:
       - "scripts/plan-metagame-v12-browser-knowledge.mjs"
       - "scripts/evaluate-metagame-v12-browser-boost-shard.mjs"
       - "scripts/merge-metagame-v12-browser-knowledge.mjs"
+      - "scripts/rerank-metagame-v12-report.mjs"
       - "scripts/build-final.mjs"
       - "test/team-battle-ai-regression.test.js"
       - "test/simulate.test.js"
@@ -36,6 +37,7 @@ on:
       - "test/skills.test.js"
       - "test/attack-mode-target-routing.test.js"
       - ".github/workflows/metagame-v12-*.yml"
+      - ".github/workflows/v12-cost100-rerank.yml"
 
 permissions:
   contents: read
@@ -68,6 +70,7 @@ jobs:
           node --check scripts/plan-metagame-v12-browser-knowledge.mjs
           node --check scripts/evaluate-metagame-v12-browser-boost-shard.mjs
           node --check scripts/merge-metagame-v12-browser-knowledge.mjs
+          node --check scripts/rerank-metagame-v12-report.mjs
           node --check scripts/build-final.mjs
       - name: Verify public bundle builds with cache policy
         run: node scripts/build-final.mjs --skip-metagame-data

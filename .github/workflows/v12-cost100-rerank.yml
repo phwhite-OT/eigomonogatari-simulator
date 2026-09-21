@@ -1,0 +1,97 @@
+name: V12 cost100 lightweight rerank
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - "scripts/rerank-metagame-v12-report.mjs"
+      - ".github/workflows/v12-cost100-rerank.yml"
+
+permissions:
+  contents: write
+
+# Share the writer lock with the full recompute. This lightweight rerank is
+# authoritative for the scoring-only policy change and should replace a stale
+# full recompute started by the same source transition.
+concurrency:
+  group: metagame-v12-shared-pool-recompute
+  cancel-in-progress: true
+
+jobs:
+  rerank:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Re-rank completed cost100 reports from existing battle evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          report_root="reports/metagame-ratings-v12-team-opportunity"
+          ranking_policy="full-budget-opportunity-v4-resumable"
+          git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+
+          groups=(
+            "fire-100"
+            "water-100"
+            "wind-100"
+            "fire-water-100"
+            "fire-wind-100"
+            "water-wind-100"
+            "fire-water-wind-100"
+          )
+
+          mkdir -p "$RUNNER_TEMP/v12-cost100-rerank/input" "$RUNNER_TEMP/v12-cost100-rerank/output"
+          for output_directory in "${groups[@]}"; do
+            input_report="$RUNNER_TEMP/v12-cost100-rerank/input/$output_directory-report.json"
+            output_report="$RUNNER_TEMP/v12-cost100-rerank/output/$output_directory-report.json"
+            output_csv="$RUNNER_TEMP/v12-cost100-rerank/output/$output_directory-ranking.csv"
+            source_path="$report_root/$output_directory/report.json"
+            progress_path="$report_root/$output_directory/progress.json"
+
+            git show "$results_ref:$source_path" > "$input_report"
+            progress="$(git show "$results_ref:$progress_path")"
+            jq -e '.status == "complete" and .context.totalCost == 100' <<< "$progress" >/dev/null
+            jq -e '.context.totalCost == 100' "$input_report" >/dev/null
+
+            node scripts/rerank-metagame-v12-report.mjs               --report="$input_report"               --output="$output_report"               --csv="$output_csv"
+
+            jq -e --arg policy "$ranking_policy" '.rankingPolicy == $policy' "$output_report" >/dev/null
+          done
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --detach "$results_ref"
+          git switch -C "$results_branch"
+
+          for output_directory in "${groups[@]}"; do
+            output_path="$report_root/$output_directory"
+            cp "$RUNNER_TEMP/v12-cost100-rerank/output/$output_directory-report.json" "$output_path/report.json"
+            cp "$RUNNER_TEMP/v12-cost100-rerank/output/$output_directory-ranking.csv" "$output_path/ranking.csv"
+            printf '%s\n' "$ranking_policy" > "$output_path/ranking-policy.txt"
+          done
+
+          provenance="$report_root/recompute-provenance.json"
+          if [ -f "$provenance" ]; then
+            tmp="$RUNNER_TEMP/recompute-provenance.json"
+            jq --arg policy "$ranking_policy" '.rankingPolicy = $policy' "$provenance" > "$tmp"
+            mv "$tmp" "$provenance"
+          fi
+
+          git add -f "$report_root"
+          if git diff --cached --quiet; then
+            echo "Cost100 reports already use $ranking_policy."
+            exit 0
+          fi
+
+          git commit -m "chore: rerank V12 cost100 with full-budget opportunity"
+          git push --force-with-lease=refs/heads/$results_branch origin HEAD:$results_branch
