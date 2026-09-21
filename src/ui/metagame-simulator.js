@@ -1301,9 +1301,9 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
             const liveStageTotal = Number(liveStages) || 0;
             if (liveStageNumber) {
               const stageLabel = liveStageNumber === 1
-                ? "追加・編集キャラ候補を代表6戦で選別中"
+                ? "追加・編集キャラ候補を代表12戦で選別中"
                 : liveStageNumber === 2
-                  ? "有望候補を代表12戦で再選別中"
+                  ? "有望候補を代表24戦で再選別中"
                   : "最終候補を全環境で検証中";
               progressLabel.textContent = `${stageLabel}（${deckNumber}/${deckTotal}デッキ）`;
               progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦・段階 ${liveStageNumber}/${liveStageTotal || 3}`;

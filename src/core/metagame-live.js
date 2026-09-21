@@ -16,8 +16,8 @@ import {
 const LIVE_BASE_LIMIT = 384;
 const LIVE_ANCHORS_PER_POSITION = 8;
 const LIVE_FIRST_STAGE_LIMIT = 72;
-const LIVE_SECOND_STAGE_LIMIT = 12;
-const LIVE_FINAL_STAGE_LIMIT = 3;
+const LIVE_SECOND_STAGE_LIMIT = 18;
+const LIVE_FINAL_STAGE_LIMIT = 6;
 const LIVE_COMBINATION_DEPTH = 3;
 const LIVE_COMBINATION_IDS = 16;
 const LIVE_ANALOG_COUNT = 6;
@@ -241,6 +241,62 @@ function candidatePriorsByPosition(knowledge) {
   return result;
 }
 
+function teamDeckPriorScores(knowledge) {
+  const deckLibrary = Array.isArray(knowledge?.deckLibrary) ? knowledge.deckLibrary : [];
+  const characterIds = Array.isArray(knowledge?.characterIds) ? knowledge.characterIds.map(String) : [];
+  if (!deckLibrary.length || !characterIds.length) return new Map();
+
+  const perPosition = Array.from({ length: 5 }, () => new Map());
+  const allQualities = [];
+  for (const raw of deckLibrary) {
+    if (!Array.isArray(raw?.i) || raw.i.length !== 5) continue;
+    const quality = baseQuality(raw);
+    if (!Number.isFinite(quality)) continue;
+    allQualities.push(quality);
+    for (let position = 0; position < 5; position += 1) {
+      const index = Number(raw.i[position]);
+      if (!Number.isInteger(index) || index < 0 || index >= characterIds.length) continue;
+      const id = characterIds[index];
+      const current = perPosition[position].get(id) ?? [];
+      current.push(quality);
+      current.sort((left, right) => right - left);
+      if (current.length > 8) current.length = 8;
+      perPosition[position].set(id, current);
+    }
+  }
+  if (!allQualities.length) return new Map();
+
+  const sortedGlobal = [...allQualities].sort((left, right) => right - left);
+  const eliteThreshold = sortedGlobal[Math.min(
+    sortedGlobal.length - 1,
+    Math.max(0, Math.floor(sortedGlobal.length * 0.05)),
+  )];
+
+  const result = new Map();
+  for (let position = 0; position < 5; position += 1) {
+    const rows = [...perPosition[position].entries()].map(([id, values]) => {
+      const best = values[0] ?? 0;
+      const topMean = average(values.slice(0, Math.min(5, values.length)));
+      const eliteRate = values.filter((value) => value >= eliteThreshold).length / Math.max(1, values.length);
+      return {
+        id,
+        raw: topMean * 0.68 + best * 0.22 + eliteRate * 0.10,
+        evidence: Math.min(1, Math.log1p(values.length) / Math.log(9)),
+      };
+    }).sort((left, right) => right.raw - left.raw || left.id.localeCompare(right.id));
+
+    const denominator = Math.max(1, rows.length - 1);
+    rows.forEach((row, index) => {
+      const percentile = rows.length <= 1 ? 0.5 : 1 - index / denominator;
+      // Complete-deck evidence is the primary prior. Sparse coverage shrinks
+      // toward neutral instead of letting one lucky shell dominate.
+      const shrunk = 0.5 + (percentile - 0.5) * (0.55 + row.evidence * 0.45);
+      result.set(`${position + 1}:${row.id}`, clampUnit(shrunk));
+    });
+  }
+  return result;
+}
+
 function roleFromSkill(character) {
   const type = String(character?.skill?.type ?? "none");
   if (type === "single_attack") return "precision_attack";
@@ -292,15 +348,23 @@ function liveAnalogs(character, position, knowledgePriors, charactersById, liveI
     .slice(0, LIVE_ANALOG_COUNT);
 }
 
-function transferredPriorScore(analogs) {
+function transferredPriorScore(analogs, position, teamPriors) {
   if (!analogs.length) return 0.5;
   const totalWeight = analogs.reduce((sum, entry) => sum + entry.weight, 0);
   const weighted = analogs.reduce((sum, entry) => {
     const score = Number(entry.prior?.s);
     const robust = Number(entry.prior?.r);
     const normalizedRobust = Number.isFinite(robust) ? clampUnit(0.5 + robust * 2.5) : 0.5;
-    const priorScore = Number.isFinite(score) ? clampUnit(score) : normalizedRobust;
-    return sum + (priorScore * 0.7 + normalizedRobust * 0.3) * entry.weight;
+    const individualPrior = Number.isFinite(score)
+      ? clampUnit(score * 0.7 + normalizedRobust * 0.3)
+      : normalizedRobust;
+    const teamPrior = teamPriors.get(`${position}:${String(entry.prior?.i)}`);
+    // The complete-team adoption prior dominates. Individual contribution is
+    // intentionally only a small exploratory fallback/tiebreaker.
+    const priorScore = Number.isFinite(teamPrior)
+      ? teamPrior * 0.90 + individualPrior * 0.10
+      : 0.5 * 0.85 + individualPrior * 0.15;
+    return sum + priorScore * entry.weight;
   }, 0);
   return totalWeight > 0 ? weighted / totalWeight : 0.5;
 }
@@ -335,8 +399,8 @@ function transferredPairScore(analogs, position, deck, pairPriors) {
   return weight > 0 ? total / weight : 0;
 }
 
-function syntheticLiveRating(character, position, analogs) {
-  const prior = transferredPriorScore(analogs);
+function syntheticLiveRating(character, position, analogs, teamPriors = new Map()) {
+  const prior = transferredPriorScore(analogs, position, teamPriors);
   return {
     id: characterKey(character),
     name: character.name,
@@ -394,6 +458,7 @@ function addUniqueCandidate(map, candidate) {
 
 function buildIncrementalCandidates(constraint, charactersById, liveIds, fixedSlots, availableIds, knowledge, baseCandidates) {
   const priors = candidatePriorsByPosition(knowledge);
+  const teamPriors = teamDeckPriorScores(knowledge);
   const pairPriors = buildPairPriorMap(knowledge);
   const publishedRatings = publishedRatingsByPosition(constraint);
   const liveRatings = new Map();
@@ -408,7 +473,7 @@ function buildIncrementalCandidates(constraint, charactersById, liveIds, fixedSl
     if (!analogCache.has(key)) {
       const analogs = liveAnalogs(character, position, priors, charactersById, liveIds, budget);
       analogCache.set(key, analogs);
-      liveRatings.set(key, syntheticLiveRating(character, position, analogs));
+      liveRatings.set(key, syntheticLiveRating(character, position, analogs, teamPriors));
     }
     return analogCache.get(key);
   };
@@ -451,7 +516,7 @@ function buildIncrementalCandidates(constraint, charactersById, liveIds, fixedSl
       if (!matchesMetagamePositionConstraint(character, constraint, position)) continue;
       if (fixedSlots.has(position) && String(fixedSlots.get(position)) !== id) continue;
       const analogs = analogsFor(character, position);
-      const priorScore = transferredPriorScore(analogs);
+      const priorScore = transferredPriorScore(analogs, position, teamPriors);
       const anchors = [];
       for (const base of preparedBases) {
         const deck = [...base.deck];
@@ -514,7 +579,7 @@ function buildIncrementalCandidates(constraint, charactersById, liveIds, fixedSl
           if (!metagameDeckIsLegal(deck, constraint, fixedSlots)) continue;
           if (availableIds && deck.some((entry) => !availableIds.has(characterKey(entry)))) continue;
           const analogs = analogsFor(character, position);
-          const priorScore = transferredPriorScore(analogs);
+          const priorScore = transferredPriorScore(analogs, position, teamPriors);
           const pairScore = transferredPairScore(analogs, position, deck, pairPriors);
           const proxyScore = seed.proxyScore + (priorScore - 0.5) * 0.10 + pairScore * 0.55;
           const candidate = makeCandidate(
@@ -641,6 +706,20 @@ async function evaluateCandidate(candidate, scenarios, indices, constraint, rule
     ongoingRate: outcomes.ongoing / divisor,
     scenarioValues: values,
   };
+}
+
+function retainLiveCoverage(entries, liveIds, limit) {
+  const selected = new Map();
+  for (const entry of entries.slice(0, Math.min(limit, entries.length))) {
+    selected.set(deckKey(entry.deck), entry);
+  }
+  for (const id of liveIds) {
+    const representative = entries.find((entry) => (
+      entry.deck.some((character) => characterKey(character) === String(id))
+    ));
+    if (representative) selected.set(deckKey(representative.deck), representative);
+  }
+  return [...selected.values()].sort(compareCandidates);
 }
 
 async function evaluateStage(candidates, scenarios, indices, constraint, rules, options, stage, totalStages) {
@@ -788,7 +867,7 @@ export async function findBestMetagameDeckIncrementalLive(
   const baseScenarios = baseScenarioSet.scenarios;
   if (!baseScenarios.length) throw new Error("増分評価に使える5対5環境シナリオがありません。");
 
-  const firstIndexes = representativeIndexes(knowledge, baseScenarios.length, 6);
+  const firstIndexes = representativeIndexes(knowledge, baseScenarios.length, 12);
   const first = await evaluateStage(
     candidates,
     baseScenarios,
@@ -823,11 +902,16 @@ export async function findBestMetagameDeckIncrementalLive(
       )
     : baseScenarioSet;
   const scenarios = scenarioSet.scenarios;
-  const secondIndexes = representativeIndexes(knowledge, scenarios.length, 12);
+  const secondIndexes = representativeIndexes(knowledge, scenarios.length, 24);
   const finalIndexes = Array.from({ length: scenarios.length }, (_, index) => index);
 
+  const secondCandidates = retainLiveCoverage(
+    first,
+    activeLiveIds,
+    LIVE_SECOND_STAGE_LIMIT,
+  );
   const second = await evaluateStage(
-    first.slice(0, Math.min(LIVE_SECOND_STAGE_LIMIT, first.length)),
+    secondCandidates,
     scenarios,
     secondIndexes,
     constraint,
@@ -836,8 +920,13 @@ export async function findBestMetagameDeckIncrementalLive(
     2,
     3,
   );
+  const finalCandidates = retainLiveCoverage(
+    second,
+    activeLiveIds,
+    LIVE_FINAL_STAGE_LIMIT,
+  );
   const final = await evaluateStage(
-    second.slice(0, Math.min(LIVE_FINAL_STAGE_LIMIT, second.length)),
+    finalCandidates,
     scenarios,
     finalIndexes,
     constraint,
