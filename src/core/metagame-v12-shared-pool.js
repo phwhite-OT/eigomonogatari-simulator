@@ -186,9 +186,17 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
   const counterfactualDecisiveWinGain = counterfactualBaseline
     ? (Number(best.result.decisiveWinRate) || 0) - (Number(counterfactualBaseline.result.decisiveWinRate) || 0)
     : null;
-  const primaryWinGain = counterfactualBaseline ? counterfactualWinGain : opportunityWinGain;
-  const primaryRobustWinGain = counterfactualBaseline ? counterfactualRobustWinGain : robustOpportunityWinGain;
+  // The cost-aware individual value must answer the budget-allocation question:
+  // "if this card is unavailable, how strong can the entire five-card deck become
+  // after reallocating the freed cost?" The matched-slot counterfactual answers a
+  // different and still useful question (pure slot contribution with teammates
+  // frozen), but it must not replace the budget-aware opportunity baseline.
+  const primaryWinGain = opportunityWinGain;
+  const primaryRobustWinGain = robustOpportunityWinGain;
   const score = signedOpportunityScore(primaryRobustWinGain);
+  const slotContributionScore = counterfactualBaseline
+    ? signedOpportunityScore(counterfactualRobustWinGain)
+    : null;
   const includeValues = includeEvaluated.map((entry) => Number(entry.result.expectedWinRate) || 0);
   const previousBest = rating.bestDeck ?? {};
   const previousBaseline = rating.baselineDeck ?? {};
@@ -221,7 +229,8 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
     roleBreakdown: {
       ...(rating.roleBreakdown ?? {}),
       opportunityCostScore: rounded(opportunityScore),
-      counterfactualContributionScore: counterfactualBaseline ? rounded(score) : null,
+      counterfactualContributionScore: counterfactualBaseline ? rounded(slotContributionScore) : null,
+      costAwareOpportunityScore: rounded(score),
       includeDeckStdDev: rounded(standardDeviation(includeValues)),
       pairedScenarioStdDev: rounded(pairedStdDev),
       pairedScenarioStandardError: rounded(pairedStandardError),
