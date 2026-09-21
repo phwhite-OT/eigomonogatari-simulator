@@ -1,4 +1,4 @@
-const METAGAME_V12_UI_MODEL_VERSION = "team-battle-v12.2-threshold-proxy";
+const METAGAME_V12_UI_MODEL_VERSION = "team-battle-v12.5-effective-damage-individual-rank";
 
 const metagameUiHasCurrentSkillEvidenceBeforeV12 = metagameUiHasCurrentSkillEvidence;
 metagameUiHasCurrentSkillEvidence = function metagameUiHasCurrentV12Evidence(data) {
@@ -26,11 +26,11 @@ renderMetagameCalculationStatus = function renderMetagameCalculationStatusV12(co
   const methodology = container.querySelector(".metagame-calculation-methodology");
   if (note) {
     note.textContent = data.constraints.length
-      ? `V12.2で全5枠の計算が完了した${data.constraints.length}条件だけを利用しています。未完了の条件は候補生成・対戦に混ぜません。`
-      : "V12.2で全5枠が完了した条件はまだありません。";
+      ? `V12で全5枠の計算が完了した${data.constraints.length}条件だけを利用しています。未完了の条件は候補生成・対戦に混ぜません。`
+      : "V12で全5枠が完了した条件はまだありません。";
   }
   if (methodology) {
-    methodology.textContent = "V12.2: 候補キャラ入りの最善デッキと、そのキャラを禁止して全5枠を同じ総コスト上限で再最適化した最善デッキを比較。安定補正後の勝率差を枠別順位に使います。通常条件では、この事前計算で実戦評価済みの完成デッキをブラウザで再利用します。";
+    methodology.textContent = "V12: 候補キャラ入りの最善デッキと、そのキャラを禁止して全5枠を同じ総コスト上限で再最適化した最善デッキを比較。安定補正後の勝率差を枠別順位に使います。通常条件では、この事前計算で実戦評価済みの完成デッキをブラウザで再利用します。";
   }
 };
 
@@ -46,7 +46,7 @@ renderMetagameDebugRankings = function renderMetagameDebugRankingsV12(container,
   ));
   const heading = metagameUiElement("div", "metagame-debug-rankings-heading");
   heading.append(
-    metagameUiElement("strong", "", "V12.2 枠別機会価値ランキング"),
+    metagameUiElement("strong", "", "V12 枠別機会価値ランキング"),
     metagameUiElement(
       "small",
       "",
@@ -96,15 +96,15 @@ metagameUiImpactReasons = function metagameUiImpactReasonsV12(character, rating,
     return metagameUiImpactReasonsBeforeV12(character, rating, environment, deck);
   }
   const reasons = [
-    `V12.2機会勝率差 ${metagameUiSigned((Number.isFinite(opportunity) ? opportunity : 0) * 100)}pt / 安定補正後 ${metagameUiSigned((Number.isFinite(robust) ? robust : opportunity || 0) * 100)}pt`,
+    `V12機会勝率差 ${metagameUiSigned((Number.isFinite(opportunity) ? opportunity : 0) * 100)}pt / 安定補正後 ${metagameUiSigned((Number.isFinite(robust) ? robust : opportunity || 0) * 100)}pt`,
     `このキャラを使える最善デッキ ${metagameUiPercent(Number.isFinite(candidateWin) ? candidateWin : rating.expectedWinRate)} / このキャラを禁止して全5枠再最適化 ${metagameUiPercent(Number.isFinite(benchmarkWin) ? benchmarkWin : 0)}`,
   ];
   if (rating?.evaluationStatus) {
-    reasons.push(`V12.2評価状態: ${rating.evaluationStatus}${rating.evaluationWarning ? `（${rating.evaluationWarning}）` : ""}`);
+    reasons.push(`V12評価状態: ${rating.evaluationStatus}${rating.evaluationWarning ? `（${rating.evaluationWarning}）` : ""}`);
   }
   const bestNames = rating?.bestDeck?.names ?? [];
   const baselineNames = rating?.baselineDeck?.names ?? [];
-  if (bestNames.length === 5) reasons.push(`V12.2での候補入り最善例: ${bestNames.join(" / ")}`);
+  if (bestNames.length === 5) reasons.push(`V12での候補入り最善例: ${bestNames.join(" / ")}`);
   if (baselineNames.length === 5) reasons.push(`候補禁止時の最善代替例: ${baselineNames.join(" / ")}`);
   reasons.push("完成デッキの最終順位は、この枠別機会価値だけで決めず、実戦評価済み完成デッキの勝率も使って決定します。");
   return reasons;
@@ -165,7 +165,7 @@ renderMetagameSimulatorResult = function renderMetagameSimulatorResultV12(contai
   const note = container.querySelector(".metagame-result-note");
   if (note) {
     note.textContent = searchResult.usedPrecomputedDeckCache
-      ? `この結果はV12.2で既に実戦評価済みの完成デッキを再利用しています。ブラウザ側の候補ビーム探索と再対戦は行っていません（事前評価 ${searchResult.scenarioCount}環境）。補正キャラ・新規編集キャラ・未計算コスト・保存済み候補にない固定条件を指定した場合だけ再計算します。`
-      : "V12.2の枠別順位は『そのキャラを使える最善デッキ』と『そのキャラを禁止し、空いたコストを含め全5枠を再最適化した最善代替デッキ』の勝率差で作成しています。この画面の完成デッキ順位は、そのV12.2候補を組み合わせた後、選択した環境へ再投入した5対5結果で決定します。";
+      ? `この結果はV12で既に実戦評価済みの完成デッキを再利用しています。ブラウザ側の候補ビーム探索と再対戦は行っていません（事前評価 ${searchResult.scenarioCount}環境）。補正キャラ・新規編集キャラ・未計算コスト・保存済み候補にない固定条件を指定した場合だけ再計算します。`
+      : "V12の枠別順位は『そのキャラを使える最善デッキ』と『そのキャラを禁止し、空いたコストを含め全5枠を再最適化した最善代替デッキ』の勝率差で作成しています。この画面の完成デッキ順位は、そのV12候補を組み合わせた後、選択した環境へ再投入した5対5結果で決定します。";
   }
 };
