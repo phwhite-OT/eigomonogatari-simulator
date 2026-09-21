@@ -29,6 +29,7 @@ on:
       - "test/metagame-v12.test.js"
       - "test/metagame-v12-finalization.test.js"
       - "test/metagame-v12-browser-cache.test.js"
+      - "test/metagame-live.test.js"
       - "test/metagame-v12-sweep-inputs.test.js"
       - "test/skills.test.js"
       - "test/attack-mode-target-routing.test.js"
@@ -68,4 +69,4 @@ jobs:
       - name: Verify public bundle builds with cache policy
         run: node scripts/build-final.mjs --skip-metagame-data
       - name: Run battle, V12, sweep and browser cache focused tests
-        run: node --test test/team-battle-ai-regression.test.js test/simulate.test.js test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-finalization.test.js test/metagame-v12-browser-cache.test.js test/metagame-v12-sweep-inputs.test.js
+        run: node --test test/team-battle-ai-regression.test.js test/simulate.test.js test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-v12.test.js test/metagame-v12-finalization.test.js test/metagame-v12-browser-cache.test.js test/metagame-live.test.js test/metagame-v12-sweep-inputs.test.js
