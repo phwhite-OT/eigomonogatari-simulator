@@ -10,6 +10,7 @@ on:
       - ".github/workflows/v12-cost100-rerank.yml"
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -111,3 +112,13 @@ jobs:
 
           git commit -m "chore: rerank completed V12 cost100 reports"
           git push --force-with-lease=refs/heads/$results_branch origin HEAD:$results_branch
+
+      - name: Resume the next incomplete V12 restriction
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "Resuming V12 queue after lightweight rerank."
+          gh workflow run metagame-v12-shared-pool-recompute.yml             --repo "${GITHUB_REPOSITORY}"             --ref master
