@@ -220,7 +220,7 @@ function hydrateKnowledgeDeckLibrary(knowledge, charactersById, availableIds, co
 function hydratePublishedBases(constraint, characters, availableIds, fixedSlots) {
   const entries = metagameV8PrecomputedResults(constraint, characters, fixedSlots);
   return entries
-    .filter((entry) => !availableIds || entry.deck.every((character) => availableIds.has(characterKey(character)))
+    .filter((entry) => !availableIds || entry.deck.every((character) => availableIds.has(characterKey(character))))
     .slice(0, LIVE_BASE_LIMIT)
     .map((entry) => ({
       ...entry,
