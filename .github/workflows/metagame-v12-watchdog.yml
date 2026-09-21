@@ -31,7 +31,7 @@ jobs:
           finalization_workflow="metagame-v12-finalization-fanout.yml"
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
-          ranking_policy="matched-slot-counterfactual-v3-resumable"
+          ranking_policy="full-budget-opportunity-v4-resumable"
 
           dispatch_workflow() {
             local workflow="$1"
