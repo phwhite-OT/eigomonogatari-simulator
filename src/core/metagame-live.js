@@ -546,6 +546,41 @@ function buildIncrementalCandidates(constraint, charactersById, liveIds, fixedSl
   return [...selected.values()].sort(compareProxy);
 }
 
+function selectLiveEnvironmentDecks(evaluated, liveIds, limit = 8) {
+  const selected = new Map();
+  const add = (entry) => {
+    if (!entry?.deck?.length || Number(entry.expectedWinRate) < 0.5) return;
+    const key = deckKey(entry.deck);
+    if (!selected.has(key)) {
+      selected.set(key, {
+        id: `live-incremental:${key}`,
+        ids: entry.deck.map(characterKey),
+        expectedWinRate: Number(entry.expectedWinRate) || 0,
+        expectedWinLowerBound: Number(entry.expectedWinLowerBound) || 0,
+      });
+    }
+  };
+  for (const id of liveIds) {
+    const representative = evaluated.find((entry) => (
+      entry.deck.some((character) => characterKey(character) === String(id))
+      && Number(entry.expectedWinRate) >= 0.5
+    ));
+    if (representative) add(representative);
+  }
+  for (const entry of evaluated) {
+    if (selected.size >= limit) break;
+    if (!entry.liveCharacterIds?.length) continue;
+    add(entry);
+  }
+  return [...selected.values()]
+    .sort((left, right) => (
+      right.expectedWinLowerBound - left.expectedWinLowerBound
+      || right.expectedWinRate - left.expectedWinRate
+      || left.id.localeCompare(right.id)
+    ))
+    .slice(0, limit);
+}
+
 function evenlySpacedScenarioIndexes(total, count) {
   if (count >= total) return Array.from({ length: total }, (_, index) => index);
   return Array.from({ length: count }, (_, index) => (
@@ -739,7 +774,7 @@ export async function findBestMetagameDeckIncrementalLive(
     valid: candidates.length,
   });
 
-  const scenarioSet = metagameBattleScenarios(
+  const baseScenarioSet = metagameBattleScenarios(
     constraint,
     charactersById,
     boostedIds,
@@ -750,16 +785,13 @@ export async function findBestMetagameDeckIncrementalLive(
       maxPrecomputedEnvironmentDecks: options.maxPrecomputedEnvironmentDecks,
     },
   );
-  const scenarios = scenarioSet.scenarios;
-  if (!scenarios.length) throw new Error("増分評価に使える5対5環境シナリオがありません。");
+  const baseScenarios = baseScenarioSet.scenarios;
+  if (!baseScenarios.length) throw new Error("増分評価に使える5対5環境シナリオがありません。");
 
-  const firstIndexes = representativeIndexes(knowledge, scenarios.length, 6);
-  const secondIndexes = representativeIndexes(knowledge, scenarios.length, 12);
-  const finalIndexes = Array.from({ length: scenarios.length }, (_, index) => index);
-
+  const firstIndexes = representativeIndexes(knowledge, baseScenarios.length, 6);
   const first = await evaluateStage(
     candidates,
-    scenarios,
+    baseScenarios,
     firstIndexes,
     constraint,
     options.rules ?? DEFAULT_RULES,
@@ -767,6 +799,33 @@ export async function findBestMetagameDeckIncrementalLive(
     1,
     3,
   );
+
+  // A genuinely strong new character should also enter the opponent metagame.
+  // Use only battle-proven live decks from stage 1, then replay the narrower
+  // stage-2 and full stage-3 evaluations against the updated environment.
+  const liveEnvironmentDecks = selectLiveEnvironmentDecks(
+    first,
+    activeLiveIds,
+    Math.max(1, Math.min(8, activeLiveIds.size * 2)),
+  );
+  const scenarioSet = liveEnvironmentDecks.length
+    ? metagameBattleScenarios(
+        constraint,
+        charactersById,
+        boostedIds,
+        {
+          environmentCharacterIds: [],
+          includeLiveFallback: false,
+          maxAdditionalEnvironmentDecks: liveEnvironmentDecks.length,
+          maxPrecomputedEnvironmentDecks: options.maxPrecomputedEnvironmentDecks,
+          liveEnvironmentDecks,
+        },
+      )
+    : baseScenarioSet;
+  const scenarios = scenarioSet.scenarios;
+  const secondIndexes = representativeIndexes(knowledge, scenarios.length, 12);
+  const finalIndexes = Array.from({ length: scenarios.length }, (_, index) => index);
+
   const second = await evaluateStage(
     first.slice(0, Math.min(LIVE_SECOND_STAGE_LIMIT, first.length)),
     scenarios,
@@ -798,7 +857,16 @@ export async function findBestMetagameDeckIncrementalLive(
     excludedScenarioCount: scenarioSet.excludedScenarioCount,
     boostedCharacterIds: [...boostedIds],
     automaticCharacterIds: [...activeLiveIds],
+    automaticEnvironmentCharacterIds: [...activeLiveIds],
+    automaticEnvironmentDecks: scenarioSet.liveEnvironmentDecks,
     liveCharacterIds: [...activeLiveIds],
+    environmentCharacterIds: scenarioSet.environmentCharacterIds,
+    environmentCombatants: scenarioSet.environmentCombatants,
+    environmentMix: {
+      baselineScenarioCount: scenarioSet.baselineScenarioCount,
+      precomputedTopDeckCount: scenarioSet.precomputedTopDeckCount,
+      liveEnvironmentDeckCount: scenarioSet.liveEnvironmentDeckCount,
+    },
     usedIncrementalLiveEvaluation: true,
     cachePolicy: "v12-live-incremental-v1",
     browserKnowledgeSchemaVersion: knowledge?.schemaVersion ?? null,
@@ -807,7 +875,16 @@ export async function findBestMetagameDeckIncrementalLive(
       ...entry,
       boostedCharacterIds: [...boostedIds],
       automaticCharacterIds: [...activeLiveIds],
+      automaticEnvironmentCharacterIds: [...activeLiveIds],
+      automaticEnvironmentDecks: scenarioSet.liveEnvironmentDecks,
       liveCharacterIds: [...activeLiveIds],
+      environmentCharacterIds: scenarioSet.environmentCharacterIds,
+      environmentCombatants: scenarioSet.environmentCombatants,
+      environmentMix: {
+        baselineScenarioCount: scenarioSet.baselineScenarioCount,
+        precomputedTopDeckCount: scenarioSet.precomputedTopDeckCount,
+        liveEnvironmentDeckCount: scenarioSet.liveEnvironmentDeckCount,
+      },
       usedIncrementalLiveEvaluation: true,
       cachePolicy: "v12-live-incremental-v1",
       browserKnowledgeSchemaVersion: knowledge?.schemaVersion ?? null,
