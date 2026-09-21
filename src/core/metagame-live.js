@@ -16,8 +16,8 @@ import {
 const LIVE_BASE_LIMIT = 384;
 const LIVE_ANCHORS_PER_POSITION = 8;
 const LIVE_FIRST_STAGE_LIMIT = 72;
-const LIVE_SECOND_STAGE_LIMIT = 12;
-const LIVE_FINAL_STAGE_LIMIT = 3;
+const LIVE_SECOND_STAGE_LIMIT = 18;
+const LIVE_FINAL_STAGE_LIMIT = 6;
 const LIVE_COMBINATION_DEPTH = 3;
 const LIVE_COMBINATION_IDS = 16;
 const LIVE_ANALOG_COUNT = 6;
@@ -708,6 +708,20 @@ async function evaluateCandidate(candidate, scenarios, indices, constraint, rule
   };
 }
 
+function retainLiveCoverage(entries, liveIds, limit) {
+  const selected = new Map();
+  for (const entry of entries.slice(0, Math.min(limit, entries.length))) {
+    selected.set(deckKey(entry.deck), entry);
+  }
+  for (const id of liveIds) {
+    const representative = entries.find((entry) => (
+      entry.deck.some((character) => characterKey(character) === String(id))
+    ));
+    if (representative) selected.set(deckKey(representative.deck), representative);
+  }
+  return [...selected.values()].sort(compareCandidates);
+}
+
 async function evaluateStage(candidates, scenarios, indices, constraint, rules, options, stage, totalStages) {
   let completed = 0;
   const total = candidates.length * indices.length;
@@ -853,7 +867,7 @@ export async function findBestMetagameDeckIncrementalLive(
   const baseScenarios = baseScenarioSet.scenarios;
   if (!baseScenarios.length) throw new Error("増分評価に使える5対5環境シナリオがありません。");
 
-  const firstIndexes = representativeIndexes(knowledge, baseScenarios.length, 6);
+  const firstIndexes = representativeIndexes(knowledge, baseScenarios.length, 12);
   const first = await evaluateStage(
     candidates,
     baseScenarios,
@@ -888,11 +902,16 @@ export async function findBestMetagameDeckIncrementalLive(
       )
     : baseScenarioSet;
   const scenarios = scenarioSet.scenarios;
-  const secondIndexes = representativeIndexes(knowledge, scenarios.length, 12);
+  const secondIndexes = representativeIndexes(knowledge, scenarios.length, 24);
   const finalIndexes = Array.from({ length: scenarios.length }, (_, index) => index);
 
+  const secondCandidates = retainLiveCoverage(
+    first,
+    activeLiveIds,
+    LIVE_SECOND_STAGE_LIMIT,
+  );
   const second = await evaluateStage(
-    first.slice(0, Math.min(LIVE_SECOND_STAGE_LIMIT, first.length)),
+    secondCandidates,
     scenarios,
     secondIndexes,
     constraint,
@@ -901,8 +920,13 @@ export async function findBestMetagameDeckIncrementalLive(
     2,
     3,
   );
+  const finalCandidates = retainLiveCoverage(
+    second,
+    activeLiveIds,
+    LIVE_FINAL_STAGE_LIMIT,
+  );
   const final = await evaluateStage(
-    second.slice(0, Math.min(LIVE_FINAL_STAGE_LIMIT, second.length)),
+    finalCandidates,
     scenarios,
     finalIndexes,
     constraint,
