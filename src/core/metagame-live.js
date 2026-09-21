@@ -13,7 +13,7 @@ import {
   resolveMetagameConstraint,
 } from "./metagame-deck.js";
 
-const LIVE_BASE_LIMIT = 256;
+const LIVE_BASE_LIMIT = 384;
 const LIVE_ANCHORS_PER_POSITION = 8;
 const LIVE_FIRST_STAGE_LIMIT = 72;
 const LIVE_SECOND_STAGE_LIMIT = 12;
@@ -165,7 +165,16 @@ export function metagameLiveQueryFingerprint(constraint, characters, liveIds, op
 function hydrateKnowledgeDeckLibrary(knowledge, charactersById, availableIds, constraint, fixedSlots) {
   if (!Array.isArray(knowledge?.deckLibrary) || !Array.isArray(knowledge?.characterIds)) return [];
   const idsByIndex = knowledge.characterIds.map(String);
-  const entries = [];
+  const topQuality = [];
+  const cheapestTotal = [];
+  const cheapestByPosition = Array.from({ length: 5 }, () => []);
+
+  const retainCheapest = (list, entry, score, limit) => {
+    list.push({ entry, score });
+    list.sort((left, right) => left.score - right.score || compareProxy(left.entry, right.entry));
+    if (list.length > limit) list.length = limit;
+  };
+
   for (const raw of knowledge.deckLibrary) {
     if (!Array.isArray(raw?.i) || raw.i.length !== 5) continue;
     const ids = raw.i.map((value) => {
@@ -178,7 +187,7 @@ function hydrateKnowledgeDeckLibrary(knowledge, charactersById, availableIds, co
     const deck = ids.map((id) => charactersById.get(String(id)));
     if (deck.some((character) => !character)) continue;
     if (!metagameDeckIsLegal(deck, constraint, fixedSlots)) continue;
-    entries.push({
+    const entry = {
       deck,
       totalCost: Number(raw.c) || totalCost(deck),
       expectedWinRate: Number(raw.w) || 0,
@@ -187,10 +196,25 @@ function hydrateKnowledgeDeckLibrary(knowledge, charactersById, availableIds, co
       proxyScore: baseQuality(raw),
       origin: "browser-knowledge",
       liveCharacterIds: [],
-    });
-    if (entries.length >= LIVE_BASE_LIMIT) break;
+    };
+    if (topQuality.length < 192) topQuality.push(entry);
+    retainCheapest(cheapestTotal, entry, entry.totalCost, 48);
+    for (let position = 0; position < 5; position += 1) {
+      retainCheapest(
+        cheapestByPosition[position],
+        entry,
+        Number(deck[position]?.cost) || 0,
+        32,
+      );
+    }
   }
-  return entries;
+
+  const selected = new Map();
+  const add = (entry) => selected.set(deckKey(entry.deck), entry);
+  topQuality.forEach(add);
+  cheapestTotal.forEach(({ entry }) => add(entry));
+  cheapestByPosition.flat().forEach(({ entry }) => add(entry));
+  return [...selected.values()].sort(compareProxy).slice(0, LIVE_BASE_LIMIT);
 }
 
 function hydratePublishedBases(constraint, characters, availableIds, fixedSlots) {
@@ -390,9 +414,25 @@ function buildIncrementalCandidates(constraint, charactersById, liveIds, fixedSl
   };
 
   const all = new Map();
-  const legalBaseControls = baseCandidates
-    .filter((entry) => metagameDeckIsLegal(entry.deck, constraint, fixedSlots))
-    .slice(0, 24);
+  const preparedBases = baseCandidates.flatMap((base) => {
+    const deck = [...base.deck];
+    for (const [position, fixedId] of fixedSlots) {
+      if (!liveIds.has(String(fixedId))) continue;
+      const character = charactersById.get(String(fixedId));
+      if (!character) return [];
+      deck[position - 1] = character;
+    }
+    if (!metagameDeckIsLegal(deck, constraint, fixedSlots)) return [];
+    if (availableIds && deck.some((entry) => !availableIds.has(characterKey(entry)))) return [];
+    return [{
+      ...base,
+      deck,
+      totalCost: totalCost(deck),
+      proxyScore: Number(base.proxyScore) || baseQuality(base),
+      liveCharacterIds: deck.filter((entry) => liveIds.has(characterKey(entry))).map(characterKey),
+    }];
+  });
+  const legalBaseControls = preparedBases.slice(0, 24);
   for (const base of legalBaseControls) {
     addUniqueCandidate(all, makeCandidate(
       base.deck,
@@ -413,7 +453,7 @@ function buildIncrementalCandidates(constraint, charactersById, liveIds, fixedSl
       const analogs = analogsFor(character, position);
       const priorScore = transferredPriorScore(analogs);
       const anchors = [];
-      for (const base of baseCandidates) {
+      for (const base of preparedBases) {
         const deck = [...base.deck];
         const existingIndex = deck.findIndex((entry) => characterKey(entry) === id);
         if (existingIndex >= 0 && existingIndex !== position - 1) continue;
