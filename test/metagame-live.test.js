@@ -138,6 +138,8 @@ test("an expensive newly added character is incrementally admitted without a V12
   assert.deepEqual(result.screenedScenarioCounts, [3, 3, 3]);
   assert.ok(result.results.some((entry) => entry.deck[0].id === added.id));
   assert.ok(result.liveCharacterIds.includes(added.id));
+  assert.ok(result.environmentMix.liveEnvironmentDeckCount >= 1);
+  assert.ok(result.automaticEnvironmentDecks.some((entry) => entry.ids.includes(added.id)));
   assert.ok(progress.some((entry) => entry.phase === "simulation" && entry.liveStage === 1));
   assert.ok(progress.some((entry) => entry.phase === "simulation" && entry.liveStage === 3));
 });
