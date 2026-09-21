@@ -44,7 +44,7 @@ jobs:
           set -euo pipefail
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
-          ranking_policy="matched-slot-counterfactual-v3-resumable"
+          ranking_policy="full-budget-opportunity-v4-resumable"
           echo "should_run=false" >> "$GITHUB_OUTPUT"
           echo "input=" >> "$GITHUB_OUTPUT"
           echo "output_directory=" >> "$GITHUB_OUTPUT"
@@ -282,7 +282,7 @@ jobs:
             --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
             --max-rounds=16
 
-          ranking_policy="matched-slot-counterfactual-v3-resumable"
+          ranking_policy="full-budget-opportunity-v4-resumable"
           if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
             printf '%s\n' "$ranking_policy" > "${output_path}/ranking-policy.txt"
             echo "Distributed finalization complete for $METAGAME_INPUT after converged deep search."
