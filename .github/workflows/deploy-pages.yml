@@ -82,7 +82,19 @@ jobs:
           if [ -d "$knowledge_root" ]; then
             while IFS= read -r knowledge_file; do
               directory="$(basename "$(dirname "$knowledge_file")")"
-              cp "$knowledge_file" "_site/metagame-knowledge/$directory.json"
+              jq '{
+                schemaVersion,
+                generatedAt,
+                inputId,
+                sourceGeneratedAt,
+                modelVersion,
+                context,
+                representativeScenarios,
+                characterIds,
+                candidatePriors,
+                deckLibrary,
+                pairPriors
+              }' "$knowledge_file" > "_site/metagame-knowledge/$directory.json"
             done < <(find "$knowledge_root" -mindepth 2 -maxdepth 2 -type f -name 'browser-knowledge.json' -print | sort)
           fi
           mkdir -p _site/character-images
