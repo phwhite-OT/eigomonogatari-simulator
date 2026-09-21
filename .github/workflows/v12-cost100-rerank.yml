@@ -12,9 +12,6 @@ on:
 permissions:
   contents: write
 
-# Share the writer lock with the full recompute. This lightweight rerank is
-# authoritative for the scoring-only policy change and should replace a stale
-# full recompute started by the same source transition.
 concurrency:
   group: metagame-v12-shared-pool-recompute
   cancel-in-progress: true
@@ -50,35 +47,54 @@ jobs:
             "fire-water-wind-100"
           )
 
-          mkdir -p "$RUNNER_TEMP/v12-cost100-rerank/input" "$RUNNER_TEMP/v12-cost100-rerank/output"
-          for output_directory in "${groups[@]}"; do
-            input_report="$RUNNER_TEMP/v12-cost100-rerank/input/$output_directory-report.json"
-            output_report="$RUNNER_TEMP/v12-cost100-rerank/output/$output_directory-report.json"
-            output_csv="$RUNNER_TEMP/v12-cost100-rerank/output/$output_directory-ranking.csv"
+          work_root="$RUNNER_TEMP/v12-cost100-rerank"
+          mkdir -p "$work_root/input" "$work_root/output"
+          reranked_file="$work_root/reranked-groups.txt"
+          : > "$reranked_file"
+
+          for output_directory in "\${groups[@]}"; do
+            input_report="$work_root/input/$output_directory-report.json"
+            output_report="$work_root/output/$output_directory-report.json"
+            output_csv="$work_root/output/$output_directory-ranking.csv"
             source_path="$report_root/$output_directory/report.json"
             progress_path="$report_root/$output_directory/progress.json"
 
-            git show "$results_ref:$source_path" > "$input_report"
-            progress="$(git show "$results_ref:$progress_path")"
-            jq -e '.status == "complete" and .context.totalCost == 100' <<< "$progress" >/dev/null
+            progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
+            if [ -z "$progress" ] || ! jq -e '.status == "complete" and .context.totalCost == 100' <<< "$progress" >/dev/null 2>&1; then
+              echo "Skipping $output_directory: completed cost100 checkpoint is not available yet."
+              continue
+            fi
+
+            if ! git show "$results_ref:$source_path" > "$input_report" 2>/dev/null || [ ! -s "$input_report" ]; then
+              echo "Skipping $output_directory: completed report is missing."
+              continue
+            fi
+
             jq -e '.context.totalCost == 100' "$input_report" >/dev/null
-
-            node scripts/rerank-metagame-v12-report.mjs               --report="$input_report"               --output="$output_report"               --csv="$output_csv"
-
+            node scripts/rerank-metagame-v12-report.mjs \
+              --report="$input_report" \
+              --output="$output_report" \
+              --csv="$output_csv"
             jq -e --arg policy "$ranking_policy" '.rankingPolicy == $policy' "$output_report" >/dev/null
+            printf '%s\n' "$output_directory" >> "$reranked_file"
           done
+
+          if [ ! -s "$reranked_file" ]; then
+            echo "No completed cost100 reports are currently available to rerank."
+            exit 0
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch --detach "$results_ref"
           git switch -C "$results_branch"
 
-          for output_directory in "${groups[@]}"; do
+          while IFS= read -r output_directory; do
             output_path="$report_root/$output_directory"
-            cp "$RUNNER_TEMP/v12-cost100-rerank/output/$output_directory-report.json" "$output_path/report.json"
-            cp "$RUNNER_TEMP/v12-cost100-rerank/output/$output_directory-ranking.csv" "$output_path/ranking.csv"
+            cp "$work_root/output/$output_directory-report.json" "$output_path/report.json"
+            cp "$work_root/output/$output_directory-ranking.csv" "$output_path/ranking.csv"
             printf '%s\n' "$ranking_policy" > "$output_path/ranking-policy.txt"
-          done
+          done < "$reranked_file"
 
           provenance="$report_root/recompute-provenance.json"
           if [ -f "$provenance" ]; then
@@ -89,9 +105,9 @@ jobs:
 
           git add -f "$report_root"
           if git diff --cached --quiet; then
-            echo "Cost100 reports already use $ranking_policy."
+            echo "Completed cost100 reports already use $ranking_policy."
             exit 0
           fi
 
-          git commit -m "chore: rerank V12 cost100 with full-budget opportunity"
+          git commit -m "chore: rerank completed V12 cost100 reports"
           git push --force-with-lease=refs/heads/$results_branch origin HEAD:$results_branch
