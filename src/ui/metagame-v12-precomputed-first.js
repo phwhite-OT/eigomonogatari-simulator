@@ -207,7 +207,7 @@ renderMetagameSimulatorResult = function renderMetagameSimulatorResultV12Precomp
       : "公開V12完成デッキを土台に使用";
     note.textContent =
       `${note.textContent} 管理DBの追加・編集キャラ${liveCount}体は無視せず増分評価しました。` +
-      ` ${knowledgeLabel}し、候補を局所生成→${counts[0] ?? 6}戦→${counts[1] ?? 12}戦で絞り、` +
+      ` ${knowledgeLabel}し、候補を局所生成→${counts[0] ?? 12}戦→${counts[1] ?? 24}戦で絞り、` +
       `最終候補だけ${counts[2] ?? searchResult.scenarioCount ?? 72}戦の5対5で確認しています。` +
       " キャラ追加ごとのV12全再計算は行いません。";
     return;
