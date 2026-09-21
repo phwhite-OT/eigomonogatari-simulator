@@ -26,6 +26,11 @@ async function loadMetagameBrowserKnowledge(constraint) {
         if (!response.ok) return null;
         const knowledge = await response.json();
         if (String(knowledge?.inputId ?? "") !== String(constraint?.id ?? "")) return null;
+        if (
+          knowledge?.modelVersion &&
+          constraint?.modelVersion &&
+          String(knowledge.modelVersion) !== String(constraint.modelVersion)
+        ) return null;
         return knowledge;
       } catch {
         return null;
