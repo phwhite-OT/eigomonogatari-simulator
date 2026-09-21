@@ -154,6 +154,43 @@ test("V12.1 ranking prefers paired-stable evidence when raw means are close", ()
   assert.deepEqual(ranked.map((entry) => entry.id), ["stable", "risky"]);
 });
 
+test("V12 individual value penalizes a costly card when freed budget can improve all five slots", () => {
+  const ranked = rankMetagameV12Characters([
+    {
+      id: "expensive-slot-star",
+      cost: 75,
+      opportunityWinGain: -0.06,
+      robustOpportunityWinGain: -0.08,
+      decisiveWinGain: -0.04,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.28,
+      counterfactualRobustWinGain: 0.24,
+      counterfactualDecisiveWinGain: 0.2,
+      bestDeck: { ids: ["expensive-slot-star", "c2", "c3", "c4", "c5"], expectedWinRate: 0.72, expectedWinLowerBound: 0.66 },
+    },
+    {
+      id: "efficient",
+      cost: 20,
+      opportunityWinGain: 0.07,
+      robustOpportunityWinGain: 0.05,
+      decisiveWinGain: 0.03,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.04,
+      counterfactualRobustWinGain: 0.03,
+      counterfactualDecisiveWinGain: 0.02,
+      bestDeck: { ids: ["efficient", "u2", "u3", "u4", "u5"], expectedWinRate: 0.69, expectedWinLowerBound: 0.64 },
+    },
+  ]);
+
+  assert.equal(ranked[0].id, "efficient");
+  assert.equal(ranked.find((entry) => entry.id === "efficient").individualRank, 1);
+  assert.equal(ranked.find((entry) => entry.id === "expensive-slot-star").individualRank, 2);
+  assert.equal(
+    ranked.find((entry) => entry.id === "expensive-slot-star").individualRankingBasis,
+    "full-deck-budget-reallocation",
+  );
+});
+
 test("V12.1 caps skill usage at two even if card data says three", () => {
   const reusable = character("reusable", 1, {
     skillTurn: 0,
