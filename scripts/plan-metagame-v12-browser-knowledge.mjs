@@ -61,15 +61,25 @@ function correlation(left, right) {
 }
 
 function compactCandidate(entry, position) {
+  const robustOpportunity = Number(entry.robustOpportunityWinGain);
+  const opportunity = Number(entry.opportunityWinGain);
+  const costAwareScore = Number.isFinite(robustOpportunity)
+    ? Math.min(1, Math.max(0, 0.5 + 0.5 * Math.tanh(robustOpportunity / 0.15)))
+    : Number(entry.costAwareScore ?? entry.individualScore) || 0.5;
   return {
     p: position,
     i: String(entry.id),
     c: Number(entry.cost) || 0,
     w: rounded(entry.expectedWinRate ?? entry.candidateExpectedWinRate),
     l: rounded(entry.expectedWinLowerBound),
-    m: rounded(entry.counterfactualWinGain ?? entry.marginalWinGain ?? entry.opportunityWinGain),
-    r: rounded(entry.counterfactualRobustWinGain ?? entry.marginalWinGainLowerBound ?? entry.robustOpportunityWinGain),
-    s: rounded(entry.individualScore ?? entry.costAwareScore),
+    // Browser generation needs cost-aware individual value. Keep the matched
+    // same-four-teammate contribution only as a diagnostic, never as the main
+    // prior because it cannot re-spend a costly card's freed budget.
+    m: rounded(Number.isFinite(opportunity) ? opportunity : entry.marginalWinGain),
+    r: rounded(Number.isFinite(robustOpportunity) ? robustOpportunity : entry.marginalWinGainLowerBound),
+    s: rounded(costAwareScore),
+    x: rounded(entry.counterfactualWinGain),
+    q: rounded(entry.counterfactualRobustWinGain),
     f: rounded(entry.roleFit),
     k: entry.role ?? "neutral",
     t: Number(entry.skillTurn) || 0,
