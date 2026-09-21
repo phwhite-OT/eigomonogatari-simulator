@@ -1295,6 +1295,21 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
           if (phase === "simulation") {
             const deckNumber = Number(deck) || 1;
             const deckTotal = Number(decks) || 1;
+            const liveStage = Number(arguments[0]?.liveStage) || 0;
+            const liveStages = Number(arguments[0]?.liveStages) || 0;
+            if (liveStage) {
+              const stageLabel = liveStage === 1
+                ? "追加・編集キャラ候補を代表6戦で選別中"
+                : liveStage === 2
+                  ? "有望候補を代表12戦で再選別中"
+                  : "最終候補を全環境で検証中";
+              progressLabel.textContent = `${stageLabel}（${deckNumber}/${deckTotal}デッキ）`;
+              progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦・段階 ${liveStage}/${liveStages || 3}`;
+              const stageBase = 30 + (liveStage - 1) * (70 / Math.max(1, liveStages || 3));
+              const stageWidth = 70 / Math.max(1, liveStages || 3);
+              progressBar.style.width = `${Math.round(stageBase + Math.min(1, Math.max(0, ratio)) * stageWidth)}%`;
+              return;
+            }
             progressLabel.textContent = `最終対戦を検証中（${deckNumber}/${deckTotal}デッキ）`;
             progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦`;
             progressBar.style.width = `${30 + Math.round(Math.min(1, Math.max(0, ratio)) * 70)}%`;
