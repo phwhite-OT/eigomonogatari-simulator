@@ -60,26 +60,38 @@ function cloneIncrementalResult(result, characters) {
 }
 
 function compactIncrementalResult(result) {
+  const {
+    constraint: _constraint,
+    results = [],
+    ...summary
+  } = result ?? {};
   return {
-    ...result,
-    results: (result.results ?? []).map((entry) => ({
-      ...entry,
-      deckIds: (entry.deck ?? []).map((character) => String(character.id)),
-      deck: (entry.deck ?? []).map((character) => ({ id: String(character.id) })),
-    })),
+    ...summary,
+    results: results.map((entry) => {
+      const {
+        scenarioValues: _scenarioValues,
+        deck = [],
+        ...rest
+      } = entry;
+      return {
+        ...rest,
+        deckIds: deck.map((character) => String(character.id)),
+        deck: deck.map((character) => ({ id: String(character.id) })),
+      };
+    }),
   };
 }
 
-function readIncrementalSessionCache(key, characters) {
+function readIncrementalSessionCache(key, characters, constraint) {
   const memory = cloneIncrementalResult(metagameIncrementalResultCache.get(key), characters);
-  if (memory) return memory;
+  if (memory) return { ...memory, constraint };
   try {
     const raw = globalThis.sessionStorage?.getItem(`eigomonogatari:metagame-live:${key}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     const hydrated = cloneIncrementalResult(parsed, characters);
     if (hydrated) metagameIncrementalResultCache.set(key, parsed);
-    return hydrated;
+    return hydrated ? { ...hydrated, constraint } : null;
   } catch {
     return null;
   }
@@ -105,12 +117,12 @@ findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(da
   const constraint = { ...resolveMetagameConstraint(data, constraintId, requestedTotalCost), costMode };
   const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
   const automaticIds = normalizeMetagameBoostedCharacterIds(options.automaticCharacterIds);
-  const isExactPublishedV12 = metagameV12Model(constraint?.modelVersion)
-    && !constraint.interpolation
+  const isV12WithPublishedDecks = metagameV12Model(constraint?.modelVersion)
     && Array.isArray(constraint.precomputedDecks)
     && constraint.precomputedDecks.length > 0;
+  const isExactPublishedV12 = isV12WithPublishedDecks && !constraint.interpolation;
 
-  if (isExactPublishedV12 && hasMetagameLiveCharacters(characters, automaticIds)) {
+  if (isV12WithPublishedDecks && hasMetagameLiveCharacters(characters, automaticIds)) {
     const knowledge = await loadMetagameBrowserKnowledge(constraint);
     const cacheKey = metagameIncrementalCacheKey(
       constraint,
@@ -119,7 +131,7 @@ findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(da
       options,
       knowledge,
     );
-    const cached = readIncrementalSessionCache(cacheKey, characters);
+    const cached = readIncrementalSessionCache(cacheKey, characters, constraint);
     if (cached) {
       options.onProgress?.({
         phase: "candidate",
