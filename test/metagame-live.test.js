@@ -164,3 +164,59 @@ test("multiple newly added fixed characters survive incremental local search tog
   assert.ok(result.liveCharacterIds.includes(first.id));
   assert.ok(result.liveCharacterIds.includes(second.id));
 });
+
+
+test("per-browser available character IDs exclude unowned published cards while keeping live DB cards", async () => {
+  const source = fixture();
+  const alternateDeck = [1, 2, 3, 4, 5].map((position) => character(`owned-${position}`, position, 4, 60));
+  const added = character("manual-owned-live", 1, 20, 10_000);
+  const allCharacters = [...source.baseDeck, ...alternateDeck, added];
+  const characterIds = allCharacters.map((entry) => String(entry.id));
+  const indexById = new Map(characterIds.map((id, index) => [id, index]));
+  const knowledge = {
+    schemaVersion: 1,
+    generatedAt: "2026-09-21T00:00:00.000Z",
+    inputId: source.constraint.id,
+    modelVersion: source.constraint.modelVersion,
+    characterIds,
+    candidatePriors: [],
+    pairPriors: [],
+    representativeScenarios: {},
+    deckLibrary: [
+      {
+        i: source.baseDeck.map((entry) => indexById.get(String(entry.id))),
+        c: 20,
+        w: 0.95,
+        l: 0.90,
+        a: 0.95,
+      },
+      {
+        i: alternateDeck.map((entry) => indexById.get(String(entry.id))),
+        c: 20,
+        w: 0.55,
+        l: 0.45,
+        a: 0.55,
+      },
+    ],
+  };
+  const available = new Set([...alternateDeck.map((entry) => String(entry.id)), String(added.id)]);
+
+  const result = await findBestMetagameDeckIncrementalLive(
+    source.data,
+    source.constraint.id,
+    allCharacters,
+    {
+      automaticCharacterIds: [added.id],
+      availableCharacterIds: available,
+      browserKnowledge: knowledge,
+    },
+  );
+
+  assert.ok(result.results.length > 0);
+  assert.ok(result.results.every((entry) => (
+    entry.deck.every((member) => available.has(String(member.id)))
+  )));
+  assert.ok(result.results.every((entry) => (
+    entry.deck.every((member) => !String(member.id).startsWith("base-"))
+  )));
+});
