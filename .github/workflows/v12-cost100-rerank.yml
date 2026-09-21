@@ -52,7 +52,7 @@ jobs:
           reranked_file="$work_root/reranked-groups.txt"
           : > "$reranked_file"
 
-          for output_directory in "\${groups[@]}"; do
+          for output_directory in "${groups[@]}"; do
             input_report="$work_root/input/$output_directory-report.json"
             output_report="$work_root/output/$output_directory-report.json"
             output_csv="$work_root/output/$output_directory-ranking.csv"
