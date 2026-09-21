@@ -1,5 +1,5 @@
 import { createBattleState } from "./battleState.js";
-import { simulateBattle } from "./simulate.js";
+import { simulateBattle, simulateBattleSummary } from "./simulate.js";
 import { DEFAULT_ENVIRONMENT_BATTLE_PROFILES } from "./environment-rating.js";
 import { DEFAULT_RULES, resolveAttributeClass } from "../data/rules.js";
 import { isSkillTurnAllowedAtPosition } from "./filter.js";
@@ -482,7 +482,7 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   return [...selected.values()];
 }
 
-function metagameFixedSlots(fixedSlots) {
+export function metagameFixedSlots(fixedSlots) {
   const entries = fixedSlots instanceof Map
     ? [...fixedSlots.entries()]
     : Array.isArray(fixedSlots)
@@ -522,7 +522,7 @@ function metagameAllowedPositions(character) {
     : [1, 2, 3, 4, 5];
 }
 
-function matchesMetagamePositionConstraint(character, constraint, position) {
+export function matchesMetagamePositionConstraint(character, constraint, position) {
   return matchesMetagameFixedConstraint(character, constraint)
     && metagameAllowedPositions(character).includes(Number(position))
     && isSkillTurnAllowedAtPosition(character, position);
@@ -535,7 +535,7 @@ function metagameCostMatchesConstraint(totalCost, constraint) {
   );
 }
 
-function metagameDeckIsLegal(deck, constraint, fixedSlots = new Map()) {
+export function metagameDeckIsLegal(deck, constraint, fixedSlots = new Map()) {
   const totalCost = deck.reduce((sum, character) => sum + Math.max(0, Number(character?.cost) || 0), 0);
   if (deck.length !== 5 || !metagameCostMatchesConstraint(totalCost, constraint)) return false;
   if (new Set(deck.map((character) => String(character?.id))).size !== deck.length) return false;
@@ -1284,7 +1284,7 @@ function metagameScenarioEnvironmentCombatants(scenarios) {
   ));
 }
 
-function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds, options = {}) {
+export function metagameBattleScenarios(constraint, charactersById, boostedCharacterIds, options = {}) {
   const boostedIds = normalizeMetagameBoostedCharacterIds(boostedCharacterIds);
   const environmentCharacterIds = normalizeMetagameBoostedCharacterIds(
     options.environmentCharacterIds ?? boostedIds,
@@ -1495,7 +1495,7 @@ async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, opt
     const allyDecks = [...scenario.allyDecks];
     allyDecks.splice(actorIndex, 0, candidate.deck);
     const profile = METAGAME_DECK_PROFILES[scenarioIndex % METAGAME_DECK_PROFILES.length];
-    const result = simulateBattle(
+    const result = simulateBattleSummary(
       createBattleState(allyDecks, scenario.enemyDecks),
       rules,
       {
@@ -1524,7 +1524,7 @@ async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, opt
   };
 }
 
-function metagameV8PrecomputedResults(constraint, characters, fixedSlots) {
+export function metagameV8PrecomputedResults(constraint, characters, fixedSlots) {
   const charactersById = new Map(characters.map((character) => [String(character.id), character]));
   const ratingsByPosition = (constraint.slots ?? []).map((slot) => (
     new Map((slot.candidates ?? []).map((rating) => [String(rating.id), rating]))

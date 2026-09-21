@@ -24,6 +24,7 @@ const sourceFiles = [
   "src/core/environment-rating.js",
   "src/core/search-fast.js",
   "src/core/metagame-deck.js",
+  "src/core/metagame-live.js",
   "src/core/lightest-exact.js",
   "src/core/lightest-guidance.js",
   "src/core/lightest.js",

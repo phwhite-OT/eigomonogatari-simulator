@@ -22,7 +22,7 @@ function createHarness({ precomputed = [{ scenarioCount: 72, deck: [{ id: "a" },
     resolveMetagameConstraint: (_data, constraintId, totalCost) => ({
       id: constraintId,
       totalCost,
-      modelVersion: "team-battle-v12.2-threshold-proxy",
+      modelVersion: "team-battle-v12.5-effective-damage-individual-rank",
       precomputedDecks: [{ i: ["a", "b", "c", "d", "e"] }],
       scenarioCount: 72,
       slots: [],

@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - metagame-v12-shared-pool-results
+      - metagame-v12-browser-knowledge-results
   workflow_dispatch:
 
 permissions:
@@ -43,7 +44,7 @@ jobs:
             for output_directory in fire-100 water-100 wind-100 fire-water-100 fire-wind-100 water-wind-100 fire-water-wind-100; do
               progress="$(git show "$shared_ref:$report_root/$output_directory/progress.json" 2>/dev/null || true)"
               marker="$(git show "$shared_ref:$report_root/$output_directory/ranking-policy.txt" 2>/dev/null || true)"
-              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.4-full-opportunity-baseline" and .context.battleSemantics == "opportunity-baseline-v4"' <<< "$progress" >/dev/null 2>&1 || \
+              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage"' <<< "$progress" >/dev/null 2>&1 || \
                  [ "$marker" != "$ranking_policy" ]; then
                 shared_ready=false
                 break
@@ -62,9 +63,40 @@ jobs:
             git checkout FETCH_HEAD -- "$report_root"
           fi
 
+          # Browser knowledge is an optional, lazily loaded acceleration layer.
+          # A missing condition never blocks deployment; the browser falls back
+          # to published V12 decks and the same incremental battle evaluator.
+          knowledge_branch="metagame-v12-browser-knowledge-results"
+          knowledge_root="reports/metagame-browser-knowledge"
+          if git fetch --depth=1 origin "$knowledge_branch"; then
+            knowledge_ref="FETCH_HEAD"
+            if git cat-file -e "$knowledge_ref:$knowledge_root" 2>/dev/null; then
+              git checkout "$knowledge_ref" -- "$knowledge_root"
+            fi
+          fi
+
           npm run build
           mkdir -p _site
           cp index.html _site/index.html
+          mkdir -p _site/metagame-knowledge
+          if [ -d "$knowledge_root" ]; then
+            while IFS= read -r knowledge_file; do
+              directory="$(basename "$(dirname "$knowledge_file")")"
+              jq '{
+                schemaVersion,
+                generatedAt,
+                inputId,
+                sourceGeneratedAt,
+                modelVersion,
+                context,
+                representativeScenarios,
+                characterIds,
+                candidatePriors,
+                deckLibrary,
+                pairPriors
+              }' "$knowledge_file" > "_site/metagame-knowledge/$directory.json"
+            done < <(find "$knowledge_root" -mindepth 2 -maxdepth 2 -type f -name 'browser-knowledge.json' -print | sort)
+          fi
           mkdir -p _site/character-images
           find character-images -maxdepth 1 -type f \
             \( -iname '*.avif' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' \) \

@@ -9,6 +9,7 @@ import { CHARACTER_CATALOG, CHARACTER_CATALOG_SUMMARY } from "./data/character-c
 import { METAGAME_SIMULATOR_DATA } from "./data/metagame-simulator-data.js";
 import { searchDecks } from "./core/search-fast.js";
 import { findBestMetagameDeck } from "./core/metagame-deck.js";
+import { metagameLiveCharacterFingerprint } from "./core/metagame-live.js";
 import { findLightestDeck, simulateLightestStage } from "./core/lightest.js";
 import { solveExactLightestStage } from "./core/lightest-exact.js";
 import { createCharacterSearchIndex, parseCharacterSearchQuery, searchCharacters } from "./core/character-search.js";
@@ -328,7 +329,15 @@ function bootstrap() {
   // Database records are either additions or overrides made from this app.
   // The metagame evaluator must treat them as live data instead of silently
   // falling back to a bundle that was rated before the edit existed.
-  const metagameAutomaticCharacterIds = () => databaseCharacters.map((character) => String(character.id));
+  const metagameAutomaticCharacterIds = () => {
+    const baseById = new Map(baseCharacters.map((character) => [String(character.id), character]));
+    return databaseCharacters
+      .filter((character) => {
+        const base = baseById.get(String(character.id));
+        return !base || metagameLiveCharacterFingerprint(base) !== metagameLiveCharacterFingerprint(character);
+      })
+      .map((character) => String(character.id));
+  };
 
   const refreshData = () => {
     hydrateCharacterOptions(form, characters);
