@@ -654,27 +654,24 @@ function compareCompleteDeckMetric(left, right, key) {
 
 function rankingContributionEvidence(rating) {
   const matched = rating?.counterfactualApplied === true;
-  const robust = finiteOrNegativeInfinity(
-    matched ? rating.counterfactualRobustWinGain : rating.robustOpportunityWinGain,
-  );
-  const mean = finiteOrNegativeInfinity(
-    matched ? rating.counterfactualWinGain : rating.opportunityWinGain,
-  );
+  const robust = finiteOrNegativeInfinity(rating.robustOpportunityWinGain);
+  const mean = finiteOrNegativeInfinity(rating.opportunityWinGain);
   return {
     matched,
     robust,
     mean,
     positive: Number.isFinite(robust) && robust > 0 ? 1 : 0,
+    slotRobust: finiteOrNegativeInfinity(rating.counterfactualRobustWinGain),
+    slotMean: finiteOrNegativeInfinity(rating.counterfactualWinGain),
   };
 }
 
 /**
- * A complete deck can win despite one bad passenger. First require positive
- * marginal evidence: preferably the exact same four teammates with only this
- * slot replaced, otherwise the older global opportunity-cost evidence. Once
- * two cards both have positive evidence, complete-team strength decides which
- * one is the more useful building block. This keeps genuinely strong expensive
- * cards while preventing a weak card from riding a strong shell to the top.
+ * Rank individual value by budget-aware opportunity cost. Removing a costly
+ * card must allow the whole five-card deck to re-optimize and spend the freed
+ * budget anywhere; otherwise a 70+ cost card can look artificially essential
+ * merely because four cheap teammates were frozen in place. The matched-slot
+ * counterfactual remains a useful pure-combat diagnostic/tiebreaker only.
  */
 function compareIndividualContribution(left, right) {
   const leftContribution = rankingContributionEvidence(left);
@@ -687,12 +684,8 @@ function compareIndividualContribution(left, right) {
   }
   const matchedTier = Number(rightContribution.matched) - Number(leftContribution.matched);
   if (matchedTier) return matchedTier;
-  const leftDecisive = finiteOrNegativeInfinity(
-    leftContribution.matched ? left.counterfactualDecisiveWinGain : left.decisiveWinGain,
-  );
-  const rightDecisive = finiteOrNegativeInfinity(
-    rightContribution.matched ? right.counterfactualDecisiveWinGain : right.decisiveWinGain,
-  );
+  const leftDecisive = finiteOrNegativeInfinity(left.decisiveWinGain);
+  const rightDecisive = finiteOrNegativeInfinity(right.decisiveWinGain);
   if (leftDecisive !== rightDecisive) return rightDecisive > leftDecisive ? 1 : -1;
   return String(left.id).localeCompare(String(right.id));
 }
@@ -743,14 +736,10 @@ export function rankMetagameV12Characters(ratings) {
         practicalRank: index + 1,
         individualRank: individualRankById.get(String(rating.id)),
         positiveContributionEvidence: contribution.positive === 1,
-        rankingBasis: contribution.matched
-          ? "matched-replacement-contribution"
-          : hasCompleteBestDeck(rating)
-            ? "complete-deck-performance"
-            : "opportunity-fallback",
-        individualRankingBasis: contribution.matched
-          ? "matched-replacement-contribution"
-          : "opportunity-fallback",
+        rankingBasis: hasCompleteBestDeck(rating)
+          ? "complete-deck-performance-with-budget-aware-contribution"
+          : "full-deck-budget-reallocation",
+        individualRankingBasis: "full-deck-budget-reallocation",
       };
     });
 }
