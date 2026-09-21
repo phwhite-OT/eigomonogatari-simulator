@@ -241,62 +241,6 @@ function candidatePriorsByPosition(knowledge) {
   return result;
 }
 
-function teamDeckPriorScores(knowledge) {
-  const deckLibrary = Array.isArray(knowledge?.deckLibrary) ? knowledge.deckLibrary : [];
-  const characterIds = Array.isArray(knowledge?.characterIds) ? knowledge.characterIds.map(String) : [];
-  if (!deckLibrary.length || !characterIds.length) return new Map();
-
-  const perPosition = Array.from({ length: 5 }, () => new Map());
-  const allQualities = [];
-  for (const raw of deckLibrary) {
-    if (!Array.isArray(raw?.i) || raw.i.length !== 5) continue;
-    const quality = baseQuality(raw);
-    if (!Number.isFinite(quality)) continue;
-    allQualities.push(quality);
-    for (let position = 0; position < 5; position += 1) {
-      const index = Number(raw.i[position]);
-      if (!Number.isInteger(index) || index < 0 || index >= characterIds.length) continue;
-      const id = characterIds[index];
-      const current = perPosition[position].get(id) ?? [];
-      current.push(quality);
-      current.sort((left, right) => right - left);
-      if (current.length > 8) current.length = 8;
-      perPosition[position].set(id, current);
-    }
-  }
-  if (!allQualities.length) return new Map();
-
-  const sortedGlobal = [...allQualities].sort((left, right) => right - left);
-  const eliteThreshold = sortedGlobal[Math.min(
-    sortedGlobal.length - 1,
-    Math.max(0, Math.floor(sortedGlobal.length * 0.05)),
-  )];
-
-  const result = new Map();
-  for (let position = 0; position < 5; position += 1) {
-    const rows = [...perPosition[position].entries()].map(([id, values]) => {
-      const best = values[0] ?? 0;
-      const topMean = average(values.slice(0, Math.min(5, values.length)));
-      const eliteRate = values.filter((value) => value >= eliteThreshold).length / Math.max(1, values.length);
-      return {
-        id,
-        raw: topMean * 0.68 + best * 0.22 + eliteRate * 0.10,
-        evidence: Math.min(1, Math.log1p(values.length) / Math.log(9)),
-      };
-    }).sort((left, right) => right.raw - left.raw || left.id.localeCompare(right.id));
-
-    const denominator = Math.max(1, rows.length - 1);
-    rows.forEach((row, index) => {
-      const percentile = rows.length <= 1 ? 0.5 : 1 - index / denominator;
-      // Complete-deck evidence is the primary prior. Sparse coverage shrinks
-      // toward neutral instead of letting one lucky shell dominate.
-      const shrunk = 0.5 + (percentile - 0.5) * (0.55 + row.evidence * 0.45);
-      result.set(`${position + 1}:${row.id}`, clampUnit(shrunk));
-    });
-  }
-  return result;
-}
-
 function roleFromSkill(character) {
   const type = String(character?.skill?.type ?? "none");
   if (type === "single_attack") return "precision_attack";
