@@ -55,7 +55,7 @@ jobs:
           set -euo pipefail
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
-          ranking_policy="full-budget-opportunity-v5-slot-tiebreak"
+          ranking_policy="full-budget-opportunity-v6-cost-weighted-slot"
           if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
             git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
           fi
@@ -330,7 +330,7 @@ jobs:
           RERANK_ONLY: ${{ needs.select.outputs.rerank_only }}
         run: |
           set -euo pipefail
-          ranking_policy="full-budget-opportunity-v5-slot-tiebreak"
+          ranking_policy="full-budget-opportunity-v6-cost-weighted-slot"
           while IFS= read -r target; do
             input="$(jq -r '.input' <<< "$target")"
             output_directory="$(jq -r '.output_directory' <<< "$target")"
@@ -384,7 +384,7 @@ jobs:
               attributeGroups:["fire","water","wind","fire-water","fire-wind","water-wind","fire-water-wind"],
               representativeCosts:[100,200,300,500],
               intermediateCostPolicy:"compose from neighbouring precomputed cost bands during deck generation",
-              rankingPolicy:"full-budget-opportunity-v5-slot-tiebreak",
+              rankingPolicy:"full-budget-opportunity-v6-cost-weighted-slot",
               conditionCount:28
             }' \
             > reports/metagame-ratings-v12-team-opportunity/recompute-provenance.json
@@ -393,7 +393,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ranking_policy="full-budget-opportunity-v5-slot-tiebreak"
+          ranking_policy="full-budget-opportunity-v6-cost-weighted-slot"
           is_complete_file() {
             local progress_path="$1"
             local marker_path="$2"
