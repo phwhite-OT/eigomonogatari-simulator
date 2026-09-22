@@ -113,7 +113,7 @@ jobs:
               .status == "complete"
               and .context.inputId == $input_id
               and .context.version == "team-battle-v12.5-effective-damage-individual-rank"
-              and .context.battleSemantics == "opportunity-baseline-v5-effective-damage"
+              and .context.battleSemantics == "opportunity-baseline-v6-target-priority"
               and .finalizationState.version == 2
             ' >/dev/null 2>&1; then
               echo "Skipping $output_directory: current completed cost100 checkpoint is not available yet."
