@@ -63,21 +63,29 @@ function correlation(left, right) {
 function compactCandidate(entry, position) {
   const robustOpportunity = Number(entry.robustOpportunityWinGain);
   const opportunity = Number(entry.opportunityWinGain);
+  const matchedRobust = Number(entry.counterfactualRobustWinGain);
   const costAwareScore = Number.isFinite(robustOpportunity)
     ? Math.min(1, Math.max(0, 0.5 + 0.5 * Math.tanh(robustOpportunity / 0.15)))
     : Number(entry.costAwareScore ?? entry.individualScore) || 0.5;
+  const matchedScore = Number.isFinite(matchedRobust)
+    ? Math.min(1, Math.max(0, 0.5 + 0.5 * Math.tanh(matchedRobust / 0.15)))
+    : 0.5;
+  const budgetEquivalent = Number.isFinite(opportunity) && Math.abs(opportunity) < 0.00005 && Number.isFinite(matchedRobust);
+  const browserPriorScore = budgetEquivalent
+    ? costAwareScore * 0.5 + matchedScore * 0.5
+    : costAwareScore;
   return {
     p: position,
     i: String(entry.id),
     c: Number(entry.cost) || 0,
     w: rounded(entry.expectedWinRate ?? entry.candidateExpectedWinRate),
     l: rounded(entry.expectedWinLowerBound),
-    // Browser generation needs cost-aware individual value. Keep the matched
-    // same-four-teammate contribution only as a diagnostic, never as the main
-    // prior because it cannot re-spend a costly card's freed budget.
+    // Browser generation stays budget-aware. Only when the fully re-optimized
+    // five-card mean is exactly tied do we blend in same-four-teammate evidence
+    // so a real low-cost slot contributor is not treated like a passenger.
     m: rounded(Number.isFinite(opportunity) ? opportunity : entry.marginalWinGain),
     r: rounded(Number.isFinite(robustOpportunity) ? robustOpportunity : entry.marginalWinGainLowerBound),
-    s: rounded(costAwareScore),
+    s: rounded(browserPriorScore),
     x: rounded(entry.counterfactualWinGain),
     q: rounded(entry.counterfactualRobustWinGain),
     f: rounded(entry.roleFit),
