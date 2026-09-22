@@ -55,6 +55,14 @@ The expensive counterfactual/deep-neighbourhood battle work belongs in this fano
 
 Critical artifact invariant: every `prefill` shard must upload its cache delta and `merge` must refuse to continue when zero delta files are downloaded. In GitHub Action `with.path` fields, use GitHub expression syntax such as `${{ needs.select.outputs.output_directory }}`; shell-style `$METAGAME_OUTPUT_DIRECTORY` is not expanded there.
 
+## Public-site publication
+
+`.github/workflows/deploy-pages.yml` is triggered by pushes to `master`, `metagame-v12-shared-pool-results`, and the browser-knowledge results branch. It must always check out **master** for application source code, then overlay report data from result branches.
+
+V12 result publication is **progressive per condition**. Start from the last broadly complete fallback snapshot, then replace each of the 28 representative condition directories independently when the shared-pool result is truly complete and its model version, battle semantics, finalization-state version, and ranking-policy marker match the current policy. Never gate the whole public site on all seven cost-100 conditions (or all 28 conditions) being complete at once.
+
+This means a newly completed condition such as `fire-100` should become visible on the next Pages deployment while unfinished conditions continue using their previous published snapshots. Result-branch source files themselves are not authoritative application code.
+
 ## Reliability / recovery design
 
 This system is intentionally resumable. Preserve that property when changing it.
