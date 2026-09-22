@@ -12,6 +12,7 @@ import {
   createMetagameV12EnvironmentDecks,
   createMetagameV12TeamScenarios,
   rankMetagameV12Characters,
+  selectDiverseDecks,
 } from "../src/core/metagame-v12.js";
 
 function character(id, position, options = {}) {
@@ -152,6 +153,23 @@ test("V12.1 ranking prefers paired-stable evidence when raw means are close", ()
     { id: "stable", opportunityWinGain: 0.10, robustOpportunityWinGain: 0.08, decisiveWinGain: 0, cost: 10 },
   ]);
   assert.deepEqual(ranked.map((entry) => entry.id), ["stable", "risky"]);
+});
+
+test("V12 diverse deck selection keeps spare budget when proxy strength is tied", () => {
+  const cheaper = {
+    deck: [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }, { id: "e" }],
+    proxyScore: 0.8,
+    synergyScore: 0.1,
+    totalCost: 80,
+  };
+  const fuller = {
+    deck: [{ id: "f" }, { id: "g" }, { id: "h" }, { id: "i" }, { id: "j" }],
+    proxyScore: 0.8,
+    synergyScore: 0.1,
+    totalCost: 100,
+  };
+
+  assert.equal(selectDiverseDecks([fuller, cheaper], 1)[0].totalCost, 80);
 });
 
 test("V12 hybrid preserves full-budget evidence when matched-slot data is unavailable", () => {
