@@ -1,0 +1,94 @@
+name: Diagnose fire100 V8 ranking
+
+on:
+  push:
+    branches:
+      - diagnose-fire100-v8-ranking
+    paths:
+      - ".github/workflows/diagnose-fire100-v8-ranking.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: metagame-v12-shared-pool-results
+          sparse-checkout: |
+            reports/metagame-ratings-v12-team-opportunity/fire-100
+          sparse-checkout-cone-mode: false
+      - name: Print compact fire100 ranking summary
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("reports/metagame-ratings-v12-team-opportunity/fire-100")
+          report = json.loads((root / "report.json").read_text(encoding="utf-8"))
+          policy = (root / "ranking-policy.txt").read_text(encoding="utf-8").strip()
+
+          def pick(c):
+              return {
+                  "rank": c.get("rank"),
+                  "practicalRank": c.get("practicalRank"),
+                  "individualRank": c.get("individualRank"),
+                  "id": c.get("id"),
+                  "name": c.get("name"),
+                  "attributes": c.get("attributes"),
+                  "rarity": c.get("rarity"),
+                  "cost": c.get("cost"),
+                  "hp": c.get("hp"),
+                  "pow": c.get("pow"),
+                  "skillTurn": c.get("skillTurn"),
+                  "skillType": c.get("skillType"),
+                  "skillName": c.get("skillName"),
+                  "opportunityWinGain": c.get("opportunityWinGain"),
+                  "robustOpportunityWinGain": c.get("robustOpportunityWinGain"),
+                  "rankingContributionMean": c.get("rankingContributionMean"),
+                  "matchedSlotContributionMean": c.get("matchedSlotContributionMean"),
+                  "rankingContributionRobust": c.get("rankingContributionRobust"),
+                  "decisiveWinGain": c.get("decisiveWinGain"),
+                  "counterfactualApplied": c.get("counterfactualApplied"),
+                  "counterfactualWinGain": c.get("counterfactualWinGain"),
+                  "counterfactualRobustWinGain": c.get("counterfactualRobustWinGain"),
+                  "candidateExpectedWinRate": c.get("candidateExpectedWinRate"),
+                  "benchmarkExpectedWinRate": c.get("benchmarkExpectedWinRate"),
+                  "expectedWinLowerBound": c.get("expectedWinLowerBound"),
+                  "roleFit": c.get("roleFit"),
+                  "includeDeckStdDev": c.get("includeDeckStdDev"),
+                  "pairedScenarioStdDev": c.get("pairedScenarioStdDev"),
+                  "pairedScenarioStandardError": c.get("pairedScenarioStandardError"),
+                  "pairedScenarioCount": c.get("pairedScenarioCount"),
+                  "counterfactualScenarioStdDev": c.get("counterfactualScenarioStdDev"),
+                  "counterfactualScenarioStandardError": c.get("counterfactualScenarioStandardError"),
+                  "counterfactualScenarioCount": c.get("counterfactualScenarioCount"),
+                  "bestDeck": c.get("bestDeck"),
+                  "baselineDeck": c.get("baselineDeck"),
+                  "counterfactualReplacementDeck": c.get("counterfactualReplacementDeck"),
+                  "roleBreakdown": c.get("roleBreakdown"),
+                  "positiveContributionEvidence": c.get("positiveContributionEvidence"),
+              }
+
+          result = {
+              "rankingPolicy": policy,
+              "context": report.get("context"),
+              "model": report.get("model"),
+              "slots": []
+          }
+          for slot in report.get("rankingsByPosition", []):
+              chars = slot.get("characters", [])
+              result["slots"].append({
+                  "position": slot.get("position"),
+                  "count": len(chars),
+                  "top20": [pick(c) for c in chars[:20]],
+              })
+
+          print("FIRE100_SUMMARY_BEGIN")
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          print("FIRE100_SUMMARY_END")
+          PY
