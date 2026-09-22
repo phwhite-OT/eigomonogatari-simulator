@@ -23,10 +23,10 @@ permissions:
 
 concurrency:
   group: metagame-v12-shared-pool-recompute
-  # A source push replaces obsolete calculations. Normal candidate recompute
-  # and distributed finalization otherwise serialize through the same group so
-  # they cannot race while writing the durable results branch.
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  # All durable result writers serialize through the same group. Source pushes
+  # may change ranking code, but completed battle deltas remain reusable, so do
+  # not throw away an active calculation wave.
+  cancel-in-progress: false
 
 jobs:
   select:
