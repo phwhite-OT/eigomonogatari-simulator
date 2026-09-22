@@ -18,7 +18,7 @@ Important identifiers:
 
 - model/context version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v5-effective-damage`
-- ranking policy: `matched-slot-counterfactual-v3-resumable`
+- ranking policy: `full-budget-opportunity-v6-cost-weighted-slot`
 - finalization state version: `2`
 - durable results branch: `metagame-v12-shared-pool-results`
 - report root: `reports/metagame-ratings-v12-team-opportunity/`
@@ -39,6 +39,8 @@ Normal recompute workflow:
 1. `select` finds the first incomplete environment and restores its durable checkpoint.
 2. `evaluate` computes missing candidate ratings using a matrix with up to 19 runners in parallel.
 3. `publish` merges checkpoints, creates/advances finalization state, writes progress to the results branch, and dispatches either the next candidate segment or distributed finalization.
+
+The 19-runner cap is intentional: it leaves one runner slot available for lightweight/control work such as ranking refreshes instead of letting battle fanout consume all 20 slots.
 
 Distributed finalization workflow:
 
@@ -136,7 +138,7 @@ Individual contribution uses one transitive score per character. The primary evi
 
 This means cheap cards can receive meaningful credit for real slot impact, while high-cost cards cannot erase the opportunity cost they impose on the other four slots. If matched-slot evidence is unavailable, the score must remain exactly the full-budget opportunity result; do not blend against missing values.
 
-Long-running battle evidence remains reusable across ranking-only changes. Result-writing workflows serialize rather than preempt active battle waves, and stale-run cancellation is manual unless battle semantics themselves become incompatible.
+Long-running battle evidence remains reusable across ranking-only changes. Heavy battle workflows remain serialized by `metagame-v12-shared-pool-recompute`, while every job that writes `metagame-v12-shared-pool-results` also uses the short job-level lock `metagame-v12-result-writer`. The lightweight cost-100 reranker uses a separate workflow concurrency group so it can consume the intentionally reserved 20th runner while a 19-runner battle wave is active, but it still takes the result-writer lock before touching durable results. Stale-run cancellation is manual unless battle semantics themselves become incompatible.
 
 ## Documentation rule for future agents
 

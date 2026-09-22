@@ -25,6 +25,9 @@ concurrency:
 
 jobs:
   refresh_rankings:
+    concurrency:
+      group: metagame-v12-result-writer
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -343,6 +346,9 @@ jobs:
         run: exit 1
 
   merge:
+    concurrency:
+      group: metagame-v12-result-writer
+      cancel-in-progress: false
     needs: [select, plan, prefill]
     if: always() && needs.select.outputs.should_run == 'true' && needs.plan.result == 'success' && needs.prefill.result != 'cancelled'
     runs-on: ubuntu-latest

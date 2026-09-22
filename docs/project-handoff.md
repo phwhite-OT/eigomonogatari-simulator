@@ -114,6 +114,7 @@ This step can take time because it fetches history/results and may inspect previ
 
 - matrix job
 - up to 19 runners in parallel
+- the 19-runner ceiling is deliberate so one of the normal 20 GitHub-hosted runner slots remains available for lightweight/control work such as reranking
 - restores the current condition checkpoint
 - computes missing candidate shards via `scripts/rate-metagame-v12.mjs`
 - uploads checkpoint artifacts even when a shard later reports failure, allowing safe recovery
@@ -335,7 +336,7 @@ Do not merely increase retries. Determine whether the failure is transport/trans
 
 ### Finalization starved by normal recompute
 
-The workflows share concurrency intentionally. Normal recompute should hand off expensive finalization rather than spending hours doing it serially.
+Heavy recompute/finalization workflows still share `metagame-v12-shared-pool-recompute` so two expensive battle waves cannot duplicate the same durable work. Lightweight ranking refresh is intentionally outside that heavy-wave mutex so it can use the reserved 20th runner. To keep that safe, every job that writes `metagame-v12-shared-pool-results` must use the short job-level `metagame-v12-result-writer` lock.
 
 ### Browser costs tempt expansion to every cost
 
@@ -432,3 +433,17 @@ now identify the target via the directory-derived `inputId` (for example `fire-1
 They also inspect `ranking-policy.txt` and skip reports that already use `full-budget-opportunity-v6-cost-weighted-slot`, preventing repeated reranks whose only change would otherwise be a fresh `rerankedAt` timestamp.
 
 This is a ranking/report refresh fix only. It does **not** change battle semantics and must not invalidate or restart completed battle evidence.
+
+
+### 2026-09-22 — reserve the 20th runner for lightweight reranking
+
+Observed problem: the cost-100 rerank workflow was placed in the same workflow-level concurrency group as the long 19-runner battle/finalization wave. That meant the deliberately unused 20th runner could not be used by the reranker at all; the rerank stayed `pending` until the entire heavy wave finished.
+
+Architecture correction:
+
+- keep the expensive shared-pool/finalization workflows serialized by `metagame-v12-shared-pool-recompute`
+- add a separate short writer mutex, `metagame-v12-result-writer`, to the shared-pool `publish` job and finalization `refresh_rankings` / `merge` jobs
+- move the lightweight cost-100 reranker to its own workflow concurrency group and give its job the same result-writer mutex
+- this lets reranking occupy the intentionally reserved 20th runner while 19 battle workers are busy, while durable result-branch writes remain serialized
+
+This is workflow scheduling/recovery only. Battle semantics, ranking formula, checkpoint compatibility, and existing battle evidence are unchanged.

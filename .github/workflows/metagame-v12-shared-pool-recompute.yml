@@ -275,6 +275,9 @@ jobs:
           exit 0
 
   publish:
+    concurrency:
+      group: metagame-v12-result-writer
+      cancel-in-progress: false
     needs: [select, evaluate]
     if: always() && needs.select.outputs.all_completed != 'true' && needs.select.outputs.handoff_finalizing != 'true'
     runs-on: ubuntu-latest
