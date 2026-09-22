@@ -447,3 +447,5 @@ Architecture correction:
 - this lets reranking occupy the intentionally reserved 20th runner while 19 battle workers are busy, while durable result-branch writes remain serialized
 
 This is workflow scheduling/recovery only. Battle semantics, ranking formula, checkpoint compatibility, and existing battle evidence are unchanged.
+
+Transition safety: the first lock-aware rerank includes a bounded migration guard keyed to commit `6f4785e904879f5cbdbce736fb917c297a408eb5`. It waits only for heavy V12 runs whose head commit predates the shared result-writer lock, preventing the already-running legacy merge from racing the first spare-slot rerank. Lock-aware heavy runs do not block the reranker; after legacy runs disappear this guard becomes an immediate no-op.
