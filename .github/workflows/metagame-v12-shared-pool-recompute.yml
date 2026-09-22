@@ -10,6 +10,7 @@ on:
       - "src/core/skills.js"
       - "src/core/metagame-v7.js"
       - "src/core/metagame-v12.js"
+      - "src/core/metagame-v12-contribution.js"
       - "src/core/metagame-v12-finalization.js"
       - "src/core/metagame-v12-shared-pool.js"
       - "scripts/rate-metagame-v12.mjs"
