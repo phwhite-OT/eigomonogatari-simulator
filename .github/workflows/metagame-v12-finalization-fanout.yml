@@ -16,15 +16,90 @@ permissions:
   actions: write
   contents: write
 
-# Continuation runs must serialize so their durable deltas are not discarded.
-# A source push, however, means the active plan is obsolete and should be
-# preempted immediately instead of burning runner-hours on stale work.
+# All writers serialize through one group. Do not preempt active calculation
+# waves on source pushes: every worker uploads a durable delta, and a newer
+# workflow can recover those deltas before planning the remaining work.
 concurrency:
   group: metagame-v12-shared-pool-recompute
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  cancel-in-progress: false
 
 jobs:
+  refresh_rankings:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Refresh completed cost100 rankings from existing battle evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          report_root="reports/metagame-ratings-v12-team-opportunity"
+          ranking_policy="full-budget-opportunity-v5-slot-tiebreak"
+          if [ -z "$(git ls-remote --heads origin "$results_branch")" ]; then
+            echo "No results branch exists yet."
+            exit 0
+          fi
+          git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+
+          groups=(
+            "fire-100" "water-100" "wind-100"
+            "fire-water-100" "fire-wind-100" "water-wind-100"
+            "fire-water-wind-100"
+          )
+          work_root="$RUNNER_TEMP/v12-finalize-ranking-refresh"
+          mkdir -p "$work_root"
+          refreshed=()
+          for output_directory in "${groups[@]}"; do
+            progress_path="$report_root/$output_directory/progress.json"
+            source_path="$report_root/$output_directory/report.json"
+            progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
+            if [ -z "$progress" ] || ! jq -e '.status == "complete" and .context.totalCost == 100' <<< "$progress" >/dev/null 2>&1; then
+              continue
+            fi
+            input_report="$work_root/$output_directory-report.json"
+            output_report="$work_root/$output_directory-report-out.json"
+            output_csv="$work_root/$output_directory-ranking.csv"
+            git show "$results_ref:$source_path" > "$input_report"
+            node scripts/rerank-metagame-v12-report.mjs \
+              --report="$input_report" \
+              --output="$output_report" \
+              --csv="$output_csv"
+            refreshed+=("$output_directory")
+          done
+
+          if [ "${#refreshed[@]}" -eq 0 ]; then
+            echo "No completed cost100 ranking needed a refresh."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch --detach "$results_ref"
+          git switch -C "$results_branch"
+          for output_directory in "${refreshed[@]}"; do
+            output_path="$report_root/$output_directory"
+            cp "$work_root/$output_directory-report-out.json" "$output_path/report.json"
+            cp "$work_root/$output_directory-ranking.csv" "$output_path/ranking.csv"
+            printf '%s\n' "$ranking_policy" > "$output_path/ranking-policy.txt"
+          done
+          git add -f "$report_root"
+          if git diff --cached --quiet; then
+            echo "Completed cost100 rankings already match $ranking_policy."
+            exit 0
+          fi
+          git commit -m "chore: refresh V12 cost100 rankings before finalization"
+          git push --force-with-lease=refs/heads/$results_branch origin HEAD:$results_branch
+
   select:
+    needs: refresh_rankings
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.target.outputs.should_run }}
@@ -32,6 +107,7 @@ jobs:
       output_directory: ${{ steps.target.outputs.output_directory }}
       cursor: ${{ steps.target.outputs.cursor }}
       plan_length: ${{ steps.target.outputs.plan_length }}
+      recovery_run_id: ${{ steps.target.outputs.recovery_run_id }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -40,16 +116,19 @@ jobs:
       - id: target
         name: Select active counterfactual finalization
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
-          ranking_policy="full-budget-opportunity-v4-resumable"
+          ranking_policy="full-budget-opportunity-v5-slot-tiebreak"
           echo "should_run=false" >> "$GITHUB_OUTPUT"
           echo "input=" >> "$GITHUB_OUTPUT"
           echo "output_directory=" >> "$GITHUB_OUTPUT"
           echo "cursor=0" >> "$GITHUB_OUTPUT"
           echo "plan_length=0" >> "$GITHUB_OUTPUT"
+          echo "recovery_run_id=" >> "$GITHUB_OUTPUT"
 
           if [ -z "$(git ls-remote --heads origin "$results_branch")" ]; then
             echo "No V12 results branch exists yet."
@@ -72,8 +151,10 @@ jobs:
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
 
               if [ -n "$progress" ] && \
-                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 && \
-                 [ "$marker" = "$ranking_policy" ]; then
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1; then
+                # Ranking-only policy refreshes are handled separately. They
+                # must never block discovery of a later condition whose battle
+                # finalization is still active.
                 continue
               fi
 
@@ -81,12 +162,31 @@ jobs:
                  jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
                 cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$progress")"
                 plan_length="$(jq -r '.finalizationState.plan | length' <<< "$progress")"
+                recovery_run_id=""
+                runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/metagame-v12-finalization-fanout.yml/runs?per_page=20" 2>/dev/null || true)"
+                if [ -n "$runs_json" ]; then
+                  while IFS= read -r candidate_run_id; do
+                    artifacts_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate_run_id}/artifacts?per_page=100" 2>/dev/null || true)"
+                    [ -n "$artifacts_json" ] || continue
+                    prefix="v12-finalize-cache-${output_directory}-"
+                    if jq -e --arg prefix "$prefix" '[.artifacts[] | select(.expired == false and (.name | startswith($prefix)))] | length > 0' <<< "$artifacts_json" >/dev/null; then
+                      recovery_run_id="$candidate_run_id"
+                      break
+                    fi
+                  done < <(jq -r --argjson current "$GITHUB_RUN_ID" '.workflow_runs[] | select(.id != $current) | .id' <<< "$runs_json")
+                fi
+
                 echo "should_run=true" >> "$GITHUB_OUTPUT"
                 echo "input=$input" >> "$GITHUB_OUTPUT"
                 echo "output_directory=$output_directory" >> "$GITHUB_OUTPUT"
                 echo "cursor=$cursor" >> "$GITHUB_OUTPUT"
                 echo "plan_length=$plan_length" >> "$GITHUB_OUTPUT"
-                echo "Accelerating $input from frozen plan cursor $cursor/$plan_length."
+                echo "recovery_run_id=$recovery_run_id" >> "$GITHUB_OUTPUT"
+                if [ -n "$recovery_run_id" ]; then
+                  echo "Accelerating $input from frozen plan cursor $cursor/$plan_length and recovering deltas from run $recovery_run_id."
+                else
+                  echo "Accelerating $input from frozen plan cursor $cursor/$plan_length."
+                fi
               else
                 echo "First incomplete condition $input is not ready for distributed finalization."
               fi
@@ -128,6 +228,31 @@ jobs:
           node --check scripts/plan-metagame-v12-finalization.mjs
           node --check scripts/evaluate-metagame-v12-finalization-shard.mjs
           node --check scripts/reopen-metagame-v12-deep-search.mjs
+          node --check scripts/merge-metagame-v12-finalization-deltas.mjs
+      - name: Download recoverable deltas from the previous interrupted wave
+        if: needs.select.outputs.recovery_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: v12-finalize-cache-${{ needs.select.outputs.output_directory }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/v12-finalize-recovery
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.select.outputs.recovery_run_id }}
+      - name: Merge recovered cache deltas before replanning
+        if: needs.select.outputs.recovery_run_id != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t delta_files < <(find "$RUNNER_TEMP/v12-finalize-recovery" -maxdepth 1 -type f -name "${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-*.json" -print | sort)
+          if [ "${#delta_files[@]}" -eq 0 ]; then
+            echo "::error::Recovery run contained no usable finalization delta files."
+            exit 1
+          fi
+          delta_paths="$(IFS=,; echo "${delta_files[*]}")"
+          node scripts/merge-metagame-v12-finalization-deltas.mjs \
+            --checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
+            --deltas="$delta_paths"
       - name: Build globally deduplicated finalization work plan
         shell: bash
         run: |
@@ -282,7 +407,7 @@ jobs:
             --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
             --max-rounds=16
 
-          ranking_policy="full-budget-opportunity-v4-resumable"
+          ranking_policy="full-budget-opportunity-v5-slot-tiebreak"
           if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
             printf '%s\n' "$ranking_policy" > "${output_path}/ranking-policy.txt"
             echo "Distributed finalization complete for $METAGAME_INPUT after converged deep search."
