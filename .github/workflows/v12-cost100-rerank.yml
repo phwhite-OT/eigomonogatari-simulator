@@ -7,6 +7,7 @@ on:
       - master
     paths:
       - "src/core/metagame-v12.js"
+      - "src/core/metagame-v12-contribution.js"
       - "scripts/plan-metagame-v12-browser-knowledge.mjs"
       - "scripts/rerank-metagame-v12-report.mjs"
       - "test/metagame-v12.test.js"
