@@ -324,6 +324,26 @@ Do not trigger a full 28-environment recompute merely as a syntax test.
 
 When battle semantics actually change, tests passing is necessary but not sufficient: decide explicitly whether old V12 checkpoints are semantically compatible. If not, bump/invalidate the appropriate model/battle-semantic marker rather than silently mixing old and new evidence.
 
+## 14.5 Progressive public-site publication
+
+Workflow:
+
+`.github/workflows/deploy-pages.yml`
+
+The public site is rebuilt on pushes to `master`, `metagame-v12-shared-pool-results`, and `metagame-v12-browser-knowledge-results`.
+
+Application source must always come from the latest `master`. The durable results branch is computation state and can lag or differ structurally from source development, so a Pages run triggered by a results-branch push must **not** build the application source from that results branch.
+
+Report data is published progressively:
+
+1. restore the last broadly complete fallback V12 report snapshot
+2. fetch `metagame-v12-shared-pool-results`
+3. scan the 28 representative conditions independently
+4. for every condition whose checkpoint is truly `complete` and whose model version, battle semantics, finalization schema, ranking-policy marker, and report file are current, overlay that one condition directory
+5. build the browser bundle from the mixed snapshot
+
+Therefore one completed result becomes visible immediately without waiting for unrelated conditions. Unfinished conditions remain usable from the previous public snapshot until their current result completes. Do not reintroduce an all-or-nothing gate across cost-100 or all 28 conditions.
+
 ## 15. Common failure modes to watch for
 
 ### “Incomplete” but zero candidate shards
@@ -385,6 +405,28 @@ This document is also the canonical rolling handoff log for future Codex/ChatGPT
 For small fixes, a dated entry in the rolling log below is sufficient. If the change alters architecture, battle semantics, ranking policy, checkpoint format, workflow topology/recovery, or the meaning of V12 outputs, also update the relevant explanatory sections above and `AGENTS.md`.
 
 ## 18. Rolling handoff log
+
+### 2026-09-23 — publish completed V12 conditions to the site immediately
+
+Source branch: `fix-progressive-site-results`.
+
+Observed problem:
+
+- Pages deployment already triggered on shared-results pushes, but publication used an all-or-nothing gate: all seven cost-100 conditions had to be complete before the site consumed the shared-pool report tree
+- the gate still expected the obsolete `full-budget-opportunity-v4-resumable` ranking marker, so current v8 results could never satisfy it
+- when a deploy was triggered by a results-branch push, the default checkout could also use the results branch as application source instead of latest `master`
+
+Correction:
+
+- Pages source checkout is pinned to `master`
+- deployment starts from the fallback snapshot and overlays each of the 28 representative conditions independently
+- an overlay is accepted only when `progress.status == "complete"`, model/battle semantics/finalization version match V12.5, the marker is `full-budget-opportunity-v8-mean-primary-slot`, and `report.json` exists
+- completed conditions therefore appear on the site on the next results-branch Pages deployment; incomplete conditions keep their previous published version
+- browser-knowledge publication remains optional and independent
+
+Compatibility note:
+
+No battle evidence or ranking values are recomputed by this change. It only changes which already-published report snapshot the Pages build consumes.
 
 ### 2026-09-22 — mean-primary contribution correction (v8)
 
