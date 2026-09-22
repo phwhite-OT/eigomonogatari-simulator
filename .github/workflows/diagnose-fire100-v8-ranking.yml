@@ -74,21 +74,42 @@ jobs:
                   "positiveContributionEvidence": c.get("positiveContributionEvidence"),
               }
 
-          result = {
+          print("FIRE100_COMPACT_BEGIN")
+          print(json.dumps({
               "rankingPolicy": policy,
-              "context": report.get("context"),
-              "model": report.get("model"),
-              "slots": []
-          }
+              "inputId": report.get("context", {}).get("inputId"),
+              "teamScenarioCount": report.get("context", {}).get("teamScenarioCount"),
+              "environmentCount": report.get("context", {}).get("environmentCount"),
+              "sharedEvaluatedDeckCount": report.get("context", {}).get("sharedEvaluatedDeckCount"),
+          }, ensure_ascii=False))
           for slot in report.get("rankingsByPosition", []):
-              chars = slot.get("characters", [])
-              result["slots"].append({
-                  "position": slot.get("position"),
-                  "count": len(chars),
-                  "top20": [pick(c) for c in chars[:20]],
-              })
-
-          print("FIRE100_SUMMARY_BEGIN")
-          print(json.dumps(result, ensure_ascii=False, indent=2))
-          print("FIRE100_SUMMARY_END")
+              print(f"SLOT {slot.get('position')} COUNT {len(slot.get('characters', []))}")
+              for c in slot.get("characters", [])[:12]:
+                  row = {
+                      "rank": c.get("rank"),
+                      "individualRank": c.get("individualRank"),
+                      "name": c.get("name"),
+                      "cost": c.get("cost"),
+                      "attrs": c.get("attributes"),
+                      "hp": c.get("hp"),
+                      "pow": c.get("pow"),
+                      "turn": c.get("skillTurn"),
+                      "skillType": c.get("skillType"),
+                      "mean": c.get("opportunityWinGain"),
+                      "slotMean": c.get("counterfactualWinGain"),
+                      "robust": c.get("rankingContributionRobust"),
+                      "decisive": c.get("decisiveWinGain"),
+                      "candWR": c.get("candidateExpectedWinRate"),
+                      "baseWR": c.get("benchmarkExpectedWinRate"),
+                      "lower": c.get("expectedWinLowerBound"),
+                      "roleFit": c.get("roleFit"),
+                      "bestCost": c.get("bestDeck", {}).get("totalCost") if c.get("bestDeck") else None,
+                      "bestDeck": c.get("bestDeck", {}).get("names") if c.get("bestDeck") else None,
+                      "cfDeck": c.get("counterfactualReplacementDeck", {}).get("names") if c.get("counterfactualReplacementDeck") else None,
+                      "cfWR": c.get("counterfactualReplacementDeck", {}).get("expectedWinRate") if c.get("counterfactualReplacementDeck") else None,
+                      "pairedSE": c.get("roleBreakdown", {}).get("pairedScenarioStandardError"),
+                      "cfSE": c.get("roleBreakdown", {}).get("counterfactualScenarioStandardError"),
+                  }
+                  print(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
+          print("FIRE100_COMPACT_END")
           PY
