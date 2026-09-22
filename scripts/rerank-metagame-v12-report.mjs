@@ -29,16 +29,34 @@ function csvCell(value) {
 function rerankCharacter(character, totalCost) {
   const robust = Number(character?.robustOpportunityWinGain);
   const mean = Number(character?.opportunityWinGain);
-  const score = signedOpportunityScore(robust);
-  const budgetShare = totalCost > 0 ? (Number(character?.cost) || 0) / totalCost : 0;
+  const slotRobust = Number(character?.counterfactualRobustWinGain);
+  const slotMean = Number(character?.counterfactualWinGain);
+  const budgetShare = totalCost > 0 ? Math.min(1, Math.max(0, (Number(character?.cost) || 0) / totalCost)) : 1;
+  const matchedSlotWeight = (
+    character?.counterfactualApplied === true &&
+    Number.isFinite(robust) &&
+    Number.isFinite(mean) &&
+    Number.isFinite(slotRobust) &&
+    Number.isFinite(slotMean)
+  ) ? 0.5 * ((1 - budgetShare) ** 2) : 0;
+  const hybridRobust = Number.isFinite(robust)
+    ? robust + matchedSlotWeight * (slotRobust - robust)
+    : robust;
+  const hybridMean = Number.isFinite(mean)
+    ? mean + matchedSlotWeight * (slotMean - mean)
+    : mean;
+  const score = signedOpportunityScore(hybridRobust);
 
   return {
     ...character,
-    // The primary individual value is the full-budget opportunity result.
-    // Removing the character permits all five slots to be rebuilt and the
-    // freed cost to be spent anywhere in the deck.
+    // The primary signal is still full-budget opportunity. Matched-slot combat
+    // evidence is blended in with a weight that falls quadratically with this
+    // card's budget share, keeping expensive slot-stars from gaming the score.
     marginalWinGain: Number.isFinite(mean) ? rounded(mean) : character.marginalWinGain,
     marginalWinGainLowerBound: Number.isFinite(robust) ? rounded(robust) : character.marginalWinGainLowerBound,
+    individualHybridMeanGain: Number.isFinite(hybridMean) ? rounded(hybridMean) : null,
+    individualHybridRobustGain: Number.isFinite(hybridRobust) ? rounded(hybridRobust) : null,
+    matchedSlotBlendWeight: rounded(matchedSlotWeight, 6),
     costAwareScore: rounded(score),
     practicalValue: rounded(score),
     individualScore: rounded(score),
@@ -108,11 +126,11 @@ const rankingsByPosition = (report.rankingsByPosition ?? []).map((slot) => ({
 const updated = {
   ...report,
   rerankedAt: new Date().toISOString(),
-  rankingPolicy: "full-budget-opportunity-v5-slot-tiebreak",
+  rankingPolicy: "full-budget-opportunity-v6-cost-hybrid",
   model: {
     ...(report.model ?? {}),
     objective: "対象キャラを外して浮くコストを5枠全体へ再配分し、再構築後の最善デッキとの差からコスト制約込みの単体価値を評価する。",
-    scoringPolicy: "単体コスパ順位は全5枠再最適化の機会勝率差を第一根拠にする。全5枠再最適化の平均差が同値の候補同士だけ、同一4枠差し替えの安定補正後差で順位を決める。平均差が異なる場合は枠内差し替えで上書きしない。",
+    scoringPolicy: "単体コスパ順位は、全5枠再最適化の安定補正後機会勝率差を主成分とし、同一4枠差し替えの実貢献を0.5×(1-コスト占有率)^2の重みで補助的に混ぜた単一スコアで決める。高コストほど枠内単体評価の影響を強く抑える。",
     costPolicy: "高コストキャラは、そのコストを他4枠へ再投資した最善代替構成より十分に強い場合だけ高評価になる。",
   },
   rankingsByPosition,
