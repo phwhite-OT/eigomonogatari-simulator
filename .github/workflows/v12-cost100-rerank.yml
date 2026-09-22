@@ -10,19 +10,21 @@ on:
       - "scripts/plan-metagame-v12-browser-knowledge.mjs"
       - "scripts/rerank-metagame-v12-report.mjs"
       - "test/metagame-v12.test.js"
-      - ".github/workflows/v12-cost100-rerank.yml"
 
 permissions:
   actions: write
   contents: write
 
 concurrency:
-  group: metagame-v12-shared-pool-recompute
-  # Serialize result-branch writers, but never discard an active battle wave.
+  group: metagame-v12-lightweight-rerank
+  # Do not queue behind the 19-runner battle wave; this workflow is the intended spare-slot sidecar.
   cancel-in-progress: false
 
 jobs:
   rerank:
+    concurrency:
+      group: metagame-v12-result-writer
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
