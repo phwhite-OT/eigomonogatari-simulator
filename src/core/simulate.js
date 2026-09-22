@@ -131,6 +131,22 @@ function guardBreakTargetForAttacker(state, actorSide, actor) {
   if (redirected) return { ...redirected, mode: "redirected" };
 
   let selected;
+  if (actor?.isGhost) {
+    for (const [index, combatant] of state[opponentSide(actorSide)].entries()) {
+      if (!combatant.alive || combatant.isGhost) continue;
+      for (const effect of combatant.buffs) {
+        if (!["guard", "attribute_guard"].includes(effect.type)) continue;
+        if (Number(effect.remainingTurns) <= 0) continue;
+        const activationOrder = Number(effect.activationOrder) || 0;
+        if (!selected || activationOrder >= selected.activationOrder) {
+          selected = { index, combatant, effect, activationOrder, mode: "bypass" };
+        }
+      }
+    }
+    if (selected) return selected;
+  }
+
+  selected = undefined;
   for (const [index, combatant] of state[opponentSide(actorSide)].entries()) {
     if (!combatant.alive || combatant.isGhost) continue;
     for (const effect of combatant.buffs) {
@@ -151,6 +167,13 @@ function skillTurnsRemaining(combatant) {
   return Math.max(0, skillTurn - (Number(combatant.skillCounter) || 0));
 }
 
+function hasRemainingReviveThreat(combatant) {
+  if (combatant.character?.skill?.type !== "revive") return false;
+  const rawMaxUses = Number(combatant.character?.maxUses);
+  const maxUses = Number.isFinite(rawMaxUses) ? Math.min(2, Math.max(0, rawMaxUses)) : 2;
+  return (Number(combatant.skillUses) || 0) < maxUses;
+}
+
 function compareDamageEfficiency(left, right, killablePool) {
   return killablePool
     ? left.overkill - right.overkill
@@ -161,6 +184,7 @@ function compareTargetCandidates(left, right, policy, killablePool) {
   if (policy === TARGET_POLICIES.SKILL_THREAT) {
     return (
       right.remaining - left.remaining ||
+      Number(right.reviveThreat) - Number(left.reviveThreat) ||
       left.skillTurnsRemaining - right.skillTurnsRemaining ||
       Number(right.killable) - Number(left.killable) ||
       compareDamageEfficiency(left, right, left.killable && right.killable) ||
@@ -171,6 +195,7 @@ function compareTargetCandidates(left, right, policy, killablePool) {
   }
   return (
     right.remaining - left.remaining ||
+    Number(right.reviveThreat) - Number(left.reviveThreat) ||
     Number(right.killable) - Number(left.killable) ||
     compareDamageEfficiency(left, right, killablePool) ||
     left.skillTurnsRemaining - right.skillTurnsRemaining ||
@@ -181,8 +206,8 @@ function compareTargetCandidates(left, right, policy, killablePool) {
 }
 
 export function targetPolicyReason(policy = TARGET_POLICIES.EXPERT) {
-  if (policy === TARGET_POLICIES.SKILL_THREAT) return "残数の多い相手を軸に、発動間近のスキルも警戒して割り振る";
-  return "敵の残りキャラ数を最優先にし、低火力側から攻撃して高火力を後詰めに残す";
+  if (policy === TARGET_POLICIES.SKILL_THREAT) return "残数の多い相手を軸に、同残数なら未消費の蘇生持ちを最優先し、発動間近のスキルも警戒する";
+  return "敵の残りキャラ数を最優先にし、同残数なら未消費の蘇生持ちを最優先する。幽霊はかばう役を直接狙って防御を崩す";
 }
 
 export function selectPriorityTarget(state, actorSide, options = {}) {
@@ -205,6 +230,7 @@ export function selectPriorityTarget(state, actorSide, options = {}) {
       overkill: Math.max(0, damage - target.currentHp),
       damageRatio: target.currentHp > 0 ? damage / target.currentHp : 0,
       threat: Number(target.character.pow) || 0,
+      reviveThreat: hasRemainingReviveThreat(target),
       skillTurnsRemaining: skillTurnsRemaining(target),
       survivalTurns: Number(target.survivalTurns) || 0,
     };
@@ -228,8 +254,10 @@ export function selectPriorityTarget(state, actorSide, options = {}) {
   const maximumRemaining = Math.max(...candidates.map((candidate) => candidate.remaining));
   const pool = candidates.filter((candidate) => candidate.remaining === maximumRemaining);
 
-  // 残数最大の敵から外れることはしない。同じ残数の中だけで、今の攻撃で
-  // 倒せるか・無駄打ちが少ないか・スキル脅威などを使って優先順位を決める。
+  // 通常時は残数最大の敵から外れない。同じ残数なら、まだ使用回数の残る
+  // 蘇生持ちを最優先し、その後に倒し切り・無駄打ち・スキル脅威を比較する。
+  // 幽霊だけは上の guardBreakTargetForAttacker で、残数差より先にかばう役を
+  // 直接狙う。幽霊はかばう/防御軽減を受けないため、先に壁を壊す価値が高い。
   pool.sort((left, right) => compareTargetCandidates(
     left,
     right,
