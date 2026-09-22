@@ -253,7 +253,7 @@ test("V12 hybrid preserves full-budget evidence when matched-slot data is unavai
   assert.equal(helpful.rankingContributionMean, 0.08);
 });
 
-test("V12 matched-slot evidence resolves uncertainty without using cost as a weight", () => {
+test("V12 matched-slot mean resolves full-budget mean ties without using cost as a weight", () => {
   const ranked = rankMetagameV12Characters([
     {
       id: "passenger",
@@ -295,10 +295,10 @@ test("V12 matched-slot evidence resolves uncertainty without using cost as a wei
 
   assert.deepEqual(
     ranked.slice().sort((a, b) => a.individualRank - b.individualRank).map((entry) => entry.id),
-    ["real-slot-contributor", "expensive-slot-star", "passenger"],
+    ["expensive-slot-star", "real-slot-contributor", "passenger"],
   );
   const contributor = ranked.find((entry) => entry.id === "real-slot-contributor");
-  assert.equal(contributor.individualRank, 1);
+  assert.equal(contributor.individualRank, 2);
   assert.equal(contributor.matchedSlotEvidenceCorrection, 0.049);
   assert.equal(contributor.matchedSlotCorrectionCap, 0.049);
   assert.equal(
