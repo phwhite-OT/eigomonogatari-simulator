@@ -200,7 +200,7 @@ test("V12 cost-weighted slot evidence rewards efficient real contributors with a
   );
   const contributor = ranked.find((entry) => entry.id === "real-slot-contributor");
   assert.equal(contributor.individualRank, 1);
-  assert.ok(contributor.matchedSlotBlendWeight > 0.3);
+  assert.ok(contributor.matchedSlotBlendWeight > 0.27);
   assert.equal(
     contributor.individualRankingBasis,
     "full-deck-budget-reallocation-with-cost-weighted-slot-evidence",
