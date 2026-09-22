@@ -787,29 +787,17 @@ export function rankMetagameV12Characters(ratings) {
       const contributionTier = rightContribution.positive - leftContribution.positive;
       if (contributionTier) return contributionTier;
 
-      if (leftContribution.positive && rightContribution.positive) {
-        return (
-          compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
-          compareCompleteDeckMetric(left, right, "expectedWinRate") ||
-          compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
-          rightContribution.hybridRobust - leftContribution.hybridRobust ||
-          rightContribution.hybridMean - leftContribution.hybridMean ||
-          rightContribution.robust - leftContribution.robust ||
-          rightContribution.mean - leftContribution.mean ||
-          finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
-          Number(left.cost) - Number(right.cost) ||
-          String(left.id).localeCompare(String(right.id))
-        );
-      }
-
+      // Central estimates decide first. Complete-deck averages come next, then
+      // confidence/lower-bound evidence. This keeps robustness useful without
+      // allowing variance alone to reverse a larger measured contribution.
       return (
-        rightContribution.hybridRobust - leftContribution.hybridRobust ||
         rightContribution.hybridMean - leftContribution.hybridMean ||
-        rightContribution.robust - leftContribution.robust ||
-        rightContribution.mean - leftContribution.mean ||
-        compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+        rightContribution.matchedMean - leftContribution.matchedMean ||
         compareCompleteDeckMetric(left, right, "expectedWinRate") ||
         compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
+        rightContribution.hybridRobust - leftContribution.hybridRobust ||
+        compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
+        rightContribution.robust - leftContribution.robust ||
         finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
         Number(left.cost) - Number(right.cost) ||
         String(left.id).localeCompare(String(right.id))
@@ -817,7 +805,7 @@ export function rankMetagameV12Characters(ratings) {
     })
     .map((rating, index) => {
       const contribution = rankingContributionEvidence(rating);
-      const rankingScore = rounded(signedOpportunityScore(contribution.hybridRobust));
+      const rankingScore = rounded(signedOpportunityScore(contribution.hybridMean));
       return {
         ...rating,
         costAwareScore: rankingScore,
@@ -828,9 +816,12 @@ export function rankMetagameV12Characters(ratings) {
           budgetShare: rounded(contribution.budgetShare, 6),
           matchedSlotEvidenceCorrection: rounded(contribution.matchedSlotEvidenceCorrection, 6),
           matchedSlotCorrectionCap: rounded(contribution.matchedSlotCorrectionCap, 6),
+          matchedSlotContributionMean: rounded(contribution.matchedMean, 6),
           budgetNeutralContributionScore: rankingScore,
+          meanPrimaryContributionScore: rankingScore,
         },
         rankingContributionMean: rounded(contribution.hybridMean),
+        matchedSlotContributionMean: rounded(contribution.matchedMean, 6),
         rankingContributionRobust: rounded(contribution.hybridRobust),
         matchedSlotEvidenceCorrection: rounded(contribution.matchedSlotEvidenceCorrection, 6),
         matchedSlotCorrectionCap: rounded(contribution.matchedSlotCorrectionCap, 6),
@@ -840,9 +831,9 @@ export function rankMetagameV12Characters(ratings) {
         individualRank: individualRankById.get(String(rating.id)),
         positiveContributionEvidence: contribution.positive === 1,
         rankingBasis: hasCompleteBestDeck(rating)
-          ? "complete-deck-performance-with-uncertainty-bounded-slot-evidence"
+          ? "complete-deck-performance-with-mean-primary-slot-evidence"
           : "full-deck-budget-reallocation",
-        individualRankingBasis: "full-deck-budget-reallocation-with-uncertainty-bounded-slot-evidence",
+        individualRankingBasis: "full-deck-budget-reallocation-with-mean-primary-slot-evidence",
       };
     });
 }
