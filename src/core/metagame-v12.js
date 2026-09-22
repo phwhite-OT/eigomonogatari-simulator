@@ -712,6 +712,16 @@ export function metagameV12RankingContributionEvidence(rating) {
     ? robust + matchedSlotEvidenceCorrection
     : robust;
   const hybridMean = mean;
+  // Mean contribution is the ranking anchor. The same-four-teammate mean is
+  // the next attribution signal when full-budget means tie; conservative
+  // lower bounds are deliberately kept for later confidence tie-breaks.
+  // When matched-slot evidence is unavailable, reuse the full-budget mean so
+  // missing diagnostics are not treated as negative evidence.
+  const matchedMean = completeMatchedEvidence ? slotMean : mean;
+  const positive = Number.isFinite(hybridMean) && (
+    hybridMean > 0 ||
+    (hybridMean === 0 && Number.isFinite(matchedMean) && matchedMean > 0)
+  ) ? 1 : 0;
 
   return {
     matched,
@@ -719,12 +729,13 @@ export function metagameV12RankingContributionEvidence(rating) {
     mean,
     slotRobust,
     slotMean,
+    matchedMean,
     budgetShare,
     matchedSlotCorrectionCap,
     matchedSlotEvidenceCorrection,
     hybridRobust,
     hybridMean,
-    positive: Number.isFinite(hybridRobust) && hybridRobust > 0 ? 1 : 0,
+    positive,
   };
 }
 
@@ -733,28 +744,28 @@ function rankingContributionEvidence(rating) {
 }
 
 /**
- * Rank individual value with one transitive score for every card. Full-deck
- * budget reallocation remains the primary signal and already captures cost
- * opportunity. Same-four-teammate evidence may only resolve uncertainty inside
- * the full-budget mean/robust band; it is never scaled by cost or budget usage.
- * This prevents both "spend the cap" and "cheap is automatically better"
- * shortcuts from overriding actual complete-deck battle evidence.
+ * Rank individual value from central battle evidence first. Full-deck budget
+ * reallocation mean is the primary signal and already captures opportunity
+ * cost. When those means tie, the controlled same-four-teammate mean resolves
+ * direct slot attribution. Robust/lower-bound evidence is intentionally only a
+ * later confidence tie-break, so variance alone cannot overturn a genuinely
+ * larger measured contribution.
  */
 function compareIndividualContribution(left, right) {
   const leftContribution = rankingContributionEvidence(left);
   const rightContribution = rankingContributionEvidence(right);
 
-  if (leftContribution.hybridRobust !== rightContribution.hybridRobust) {
-    return rightContribution.hybridRobust > leftContribution.hybridRobust ? 1 : -1;
-  }
   if (leftContribution.hybridMean !== rightContribution.hybridMean) {
     return rightContribution.hybridMean > leftContribution.hybridMean ? 1 : -1;
   }
+  if (leftContribution.matchedMean !== rightContribution.matchedMean) {
+    return rightContribution.matchedMean > leftContribution.matchedMean ? 1 : -1;
+  }
+  if (leftContribution.hybridRobust !== rightContribution.hybridRobust) {
+    return rightContribution.hybridRobust > leftContribution.hybridRobust ? 1 : -1;
+  }
   if (leftContribution.robust !== rightContribution.robust) {
     return rightContribution.robust > leftContribution.robust ? 1 : -1;
-  }
-  if (leftContribution.mean !== rightContribution.mean) {
-    return rightContribution.mean > leftContribution.mean ? 1 : -1;
   }
   const leftDecisive = finiteOrNegativeInfinity(left.decisiveWinGain);
   const rightDecisive = finiteOrNegativeInfinity(right.decisiveWinGain);
