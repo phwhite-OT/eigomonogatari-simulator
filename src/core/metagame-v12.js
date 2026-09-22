@@ -666,8 +666,8 @@ function inferredBudgetShare(rating) {
     if (budget > 0) return clampUnit(cost / budget);
   }
 
-  // Unknown budget must not accidentally give matched-slot evidence maximum
-  // influence. Falling back to share=1 makes the blend weight zero.
+  // Budget share remains diagnostic output only. Ranking no longer scales
+  // matched-slot evidence by cost, so this fallback cannot affect ordering.
   return 1;
 }
 
