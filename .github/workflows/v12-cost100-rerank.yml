@@ -18,7 +18,8 @@ permissions:
 
 concurrency:
   group: metagame-v12-shared-pool-recompute
-  cancel-in-progress: true
+  # Serialize result-branch writers, but never discard an active battle wave.
+  cancel-in-progress: false
 
 jobs:
   rerank:
