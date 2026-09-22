@@ -471,6 +471,45 @@ test("幽霊は残数差よりかばう役を優先して直接狙う", () => {
   }), 0);
 });
 
+
+test("TACTICALでは幽霊が通常攻撃者より先にかばう役を処理する", () => {
+  const state = createBattleState(
+    [
+      character("ghost", { pow: 100 }),
+      character("normal", { pow: 300 }),
+    ],
+    [
+      character("guard", { hp: 80, pow: 0 }),
+      [
+        character("deep-stack", { hp: 1_000, pow: 0 }),
+        character("deep-reserve"),
+      ],
+    ],
+  );
+  state.allies[0].isGhost = true;
+  state.enemies[0].buffs = [{
+    type: "guard",
+    multiplier: 0.1,
+    remainingTurns: 1,
+    conditions: [],
+    activationOrder: 1,
+  }];
+
+  const result = simulateBattle(state, simpleRules, {
+    turns: 1,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  });
+  const allyActions = result.history[0].actions.filter(({ side }) => side === "allies");
+
+  assert.equal(allyActions[0].actorName, "ghost");
+  assert.equal(allyActions[0].hits[0].targetName, "guard");
+  assert.equal(allyActions[0].hits[0].defeated, true);
+  assert.equal(allyActions[1].actorName, "normal");
+  assert.equal(allyActions[1].hits[0].targetName, "deep-stack");
+});
+
 test("火力順方針では推定ダメージが高い味方から攻撃する", () => {
   const state = createBattleState(
     [character("weak", { pow: 100 }), character("strong", { pow: 300 })],
