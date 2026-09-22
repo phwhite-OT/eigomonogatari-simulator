@@ -40,7 +40,7 @@ Current V12.5 context:
 
 - context/model version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v5-effective-damage`
-- final ranking policy: `full-budget-opportunity-v7-budget-neutral-slot`
+- final ranking policy: `full-budget-opportunity-v8-mean-primary-slot`
 - finalization-state schema version: `2`
 
 Key modeling principle: a match is a **team battle made from five player decks against five player decks**. Do not regress to a one-deck-vs-one-deck shortcut merely because it is cheaper.
@@ -170,7 +170,9 @@ The finalization plan must be resumable and stable. Do not silently regenerate a
 
 The final ranking is not meant to reward a character merely because it was paired with a strong deck, but matched-slot strength also must not let a very expensive card ignore the opportunity cost it imposes on the other four slots.
 
-The current v7 policy gives every character one transitive contribution score. Full five-slot budget-reallocation opportunity evidence is the primary signal, and it already prices cost because removing a candidate frees that cost for all five slots. Same-four-teammate matched-slot contribution is used only to resolve uncertainty inside the full-budget result: the correction magnitude is capped at `max(0, opportunity mean - robust opportunity)`. The correction is not scaled by character cost or budget share and cannot push the conservative contribution beyond the full-budget mean. If matched-slot evidence is unavailable, the full-budget result is preserved unchanged.
+The current v8 policy ranks central battle evidence before confidence penalties. The primary signal is the **mean** full five-slot budget-reallocation opportunity result, which already prices cost because removing a candidate frees that cost for all five slots. When that mean ties, the controlled same-four-teammate **mean** result is the next direct-attribution signal. Only after both mean signals does robust/lower-bound evidence act as a confidence tie-break.
+
+The existing conservative diagnostic is still retained: matched-slot robust evidence may adjust the robust full-budget result only inside the uncertainty band `max(0, opportunity mean - robust opportunity)`. That correction is not scaled by character cost or budget share and cannot push the conservative contribution beyond the full-budget mean. The crucial v8 change is that this conservative value no longer outranks a larger measured mean merely because the larger mean has higher variance. If matched-slot evidence is unavailable, the full-budget mean is reused for the matched-mean tie-break rather than treating the missing comparison as negative evidence.
 
 Total cost is a hard ceiling, not a fill target. Unused budget receives no direct score adjustment. Candidate search must not prefer a deck merely because it spends more; when proxy score and synergy are tied, the lower-cost legal deck is retained so strong spare-budget decks remain eligible for real battle evaluation.
 
@@ -383,6 +385,33 @@ This document is also the canonical rolling handoff log for future Codex/ChatGPT
 For small fixes, a dated entry in the rolling log below is sufficient. If the change alters architecture, battle semantics, ranking policy, checkpoint format, workflow topology/recovery, or the meaning of V12 outputs, also update the relevant explanatory sections above and `AGENTS.md`.
 
 ## 18. Rolling handoff log
+
+### 2026-09-22 — mean-primary contribution correction (v8)
+
+Source branch while this entry was written: `fix-v12-mean-primary-ranking`. Intended ranking marker:
+
+`full-budget-opportunity-v8-mean-primary-slot`
+
+Observed problem:
+
+- v7 correctly removed direct budget-fill bias, but ordering still placed the robust/lower-bound contribution before the measured mean
+- that let variance penalties reverse cards whose average direct contribution was larger
+- concrete fire-100 regression: 腹話フック had the larger same-four-teammate mean contribution (+1.39pt versus ズンビーフック +0.69pt), while ズンビーフック ranked higher because its robust value was less negative
+- this was especially misleading because 腹話フック's 4-turn fire-team 4-hit mode has broader coverage in a fire restriction than ズンビーフック's 4-turn wind-team 3-hit mode
+
+Correction:
+
+- full five-slot **mean** opportunity contribution is now the first ranking signal and remains the source of cost opportunity
+- when full-budget means tie, same-four-teammate **mean** contribution is the next direct slot-attribution signal
+- robust contribution and complete-deck lower bounds are confidence tie-breaks after mean evidence, not primary ranking keys
+- positive-contribution tiering is mean-led; robust negativity alone no longer demotes an otherwise positive mean
+- ranking display score is derived from the mean opportunity value, while robust values remain available as diagnostics
+- cost remains budget-neutral: no reward for spending the cap, no direct cheap-card bonus, and the lower-cost proxy/synergy tie-break from v7 is preserved
+- regression tests pin the real ズンビーフック / 腹話フック evidence shape so lower variance cannot reverse the larger matched-slot mean again
+
+Compatibility/recompute note:
+
+This is a ranking-only semantic change. Existing V12.5 battle simulations and counterfactual evidence are reusable, so completed reports can be reranked without restarting heavy 19-runner battle computation. The lightweight cost-100 reranker should publish v8 rankings to the durable results branch after merge.
 
 ### 2026-09-22 — budget-neutral cost-cap correction (v7)
 
