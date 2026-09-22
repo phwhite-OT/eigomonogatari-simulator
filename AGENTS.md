@@ -141,3 +141,12 @@ Long-running battle evidence remains reusable across ranking-only changes. Resul
 ## Documentation rule for future agents
 
 When a change materially alters architecture, battle semantics, ranking policy, checkpoint format, workflow recovery, or the meaning of V12 outputs, update **both** this file and `docs/project-handoff.md` in the same change. The goal is that a new agent can begin useful work without needing any previous chat history.
+
+
+## Every-fix handoff rule
+
+Do not rely on chat history to preserve current work context.
+
+After **every source/workflow/evaluation fix**, update the rolling handoff log in `docs/project-handoff.md` during the same work session. Record the change, reason, compatibility/recompute implications, validation/current state, and next checks as relevant. Minor fixes only need a short dated log entry there.
+
+If the fix materially changes architecture, battle semantics, ranking policy, checkpoint format, workflow recovery/topology, or the meaning of V12 outputs, update the explanatory sections in both this file and `docs/project-handoff.md` as well.
