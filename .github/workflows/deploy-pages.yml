@@ -65,16 +65,19 @@ jobs:
                 output_path="$report_root/$output_directory"
                 marker="$(git show "$shared_ref:$output_path/ranking-policy.txt" 2>/dev/null || true)"
 
-                if git show "$shared_ref:$output_path/progress.json" 2>/dev/null | jq -e \
-                  --arg version "$model_version" \
-                  --arg semantics "$battle_semantics" \
-                  '.status == "complete"
-                    and .context.version == $version
-                    and .context.battleSemantics == $semantics
-                    and .finalizationState.version == 2' \
-                  >/dev/null 2>&1 && \
-                   [ "$marker" = "$ranking_policy" ] && \
-                   git cat-file -e "$shared_ref:$output_path/report.json" 2>/dev/null; then
+                # ranking-policy.txt is tiny, so reject stale/incomplete
+                # conditions before parsing their potentially large progress
+                # checkpoint.
+                if [ "$marker" = "$ranking_policy" ] && \
+                   git cat-file -e "$shared_ref:$output_path/report.json" 2>/dev/null && \
+                   git show "$shared_ref:$output_path/progress.json" 2>/dev/null | jq -e \
+                     --arg version "$model_version" \
+                     --arg semantics "$battle_semantics" \
+                     '.status == "complete"
+                       and .context.version == $version
+                       and .context.battleSemantics == $semantics
+                       and .finalizationState.version == 2' \
+                     >/dev/null 2>&1; then
                   git checkout "$shared_ref" -- "$output_path"
                   published_current+=("$output_directory")
                   echo "Publishing current shared-pool result: $output_directory"
