@@ -154,7 +154,7 @@ test("V12.1 ranking prefers paired-stable evidence when raw means are close", ()
   assert.deepEqual(ranked.map((entry) => entry.id), ["stable", "risky"]);
 });
 
-test("V12 budget-equivalent cards use matched-slot contribution before confidence width", () => {
+test("V12 low-cost matched-slot contribution lifts a real contributor over a passenger", () => {
   const ranked = rankMetagameV12Characters([
     {
       id: "passenger",
@@ -165,7 +165,7 @@ test("V12 budget-equivalent cards use matched-slot contribution before confidenc
       counterfactualApplied: true,
       counterfactualWinGain: 0,
       counterfactualRobustWinGain: -0.0335,
-      bestDeck: { ids: ["a", "b", "c", "passenger", "e"], expectedWinRate: 0.8819, expectedWinLowerBound: 0.82, decisiveWinRate: 0.79 },
+      bestDeck: { ids: ["a", "b", "c", "passenger", "e"], totalCost: 94, remainingCost: 6, expectedWinRate: 0.8819, expectedWinLowerBound: 0.82, decisiveWinRate: 0.79 },
     },
     {
       id: "real-slot-contributor",
@@ -176,7 +176,7 @@ test("V12 budget-equivalent cards use matched-slot contribution before confidenc
       counterfactualApplied: true,
       counterfactualWinGain: 0.0417,
       counterfactualRobustWinGain: 0.0088,
-      bestDeck: { ids: ["a", "b", "c", "real-slot-contributor", "e"], expectedWinRate: 0.8819, expectedWinLowerBound: 0.82, decisiveWinRate: 0.79 },
+      bestDeck: { ids: ["a", "b", "c", "real-slot-contributor", "e"], totalCost: 100, remainingCost: 0, expectedWinRate: 0.8819, expectedWinLowerBound: 0.82, decisiveWinRate: 0.79 },
     },
   ]);
 
@@ -184,8 +184,46 @@ test("V12 budget-equivalent cards use matched-slot contribution before confidenc
   assert.equal(ranked.find((entry) => entry.id === "real-slot-contributor").individualRank, 1);
   assert.equal(
     ranked.find((entry) => entry.id === "real-slot-contributor").individualRankingBasis,
-    "full-deck-budget-reallocation-with-matched-slot-tiebreak",
+    "cost-aware-transitive-hybrid",
   );
+});
+
+test("V12 hybrid ranking is transitive across three mixed-evidence cards", () => {
+  const ranked = rankMetagameV12Characters([
+    {
+      id: "passenger",
+      cost: 17,
+      opportunityWinGain: 0,
+      robustOpportunityWinGain: -0.0335,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0,
+      counterfactualRobustWinGain: -0.0335,
+      bestDeck: { ids: ["a", "b", "c", "passenger", "e"], totalCost: 94, remainingCost: 6, expectedWinRate: 0.8819, expectedWinLowerBound: 0.82 },
+    },
+    {
+      id: "contributor",
+      cost: 26,
+      opportunityWinGain: 0,
+      robustOpportunityWinGain: -0.049,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.0417,
+      counterfactualRobustWinGain: 0.0088,
+      bestDeck: { ids: ["a", "b", "c", "contributor", "e"], totalCost: 100, remainingCost: 0, expectedWinRate: 0.8819, expectedWinLowerBound: 0.81 },
+    },
+    {
+      id: "middle",
+      cost: 19,
+      opportunityWinGain: 0,
+      robustOpportunityWinGain: -0.0456,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.0069,
+      counterfactualRobustWinGain: -0.0019,
+      bestDeck: { ids: ["a", "b", "c", "middle", "e"], totalCost: 99, remainingCost: 1, expectedWinRate: 0.8819, expectedWinLowerBound: 0.81 },
+    },
+  ]);
+
+  assert.deepEqual(ranked.map((entry) => entry.id), ["middle", "contributor", "passenger"]);
+  assert.ok(ranked[1].individualHybridRobustGain > ranked[2].individualHybridRobustGain);
 });
 
 test("V12 individual value penalizes a costly card when freed budget can improve all five slots", () => {
@@ -200,7 +238,7 @@ test("V12 individual value penalizes a costly card when freed budget can improve
       counterfactualWinGain: 0.28,
       counterfactualRobustWinGain: 0.24,
       counterfactualDecisiveWinGain: 0.2,
-      bestDeck: { ids: ["expensive-slot-star", "c2", "c3", "c4", "c5"], expectedWinRate: 0.72, expectedWinLowerBound: 0.66 },
+      bestDeck: { ids: ["expensive-slot-star", "c2", "c3", "c4", "c5"], totalCost: 100, remainingCost: 0, expectedWinRate: 0.72, expectedWinLowerBound: 0.66 },
     },
     {
       id: "efficient",
@@ -212,7 +250,7 @@ test("V12 individual value penalizes a costly card when freed budget can improve
       counterfactualWinGain: 0.04,
       counterfactualRobustWinGain: 0.03,
       counterfactualDecisiveWinGain: 0.02,
-      bestDeck: { ids: ["efficient", "u2", "u3", "u4", "u5"], expectedWinRate: 0.69, expectedWinLowerBound: 0.64 },
+      bestDeck: { ids: ["efficient", "u2", "u3", "u4", "u5"], totalCost: 100, remainingCost: 0, expectedWinRate: 0.69, expectedWinLowerBound: 0.64 },
     },
   ]);
 
@@ -221,7 +259,7 @@ test("V12 individual value penalizes a costly card when freed budget can improve
   assert.equal(ranked.find((entry) => entry.id === "expensive-slot-star").individualRank, 2);
   assert.equal(
     ranked.find((entry) => entry.id === "expensive-slot-star").individualRankingBasis,
-    "full-deck-budget-reallocation-with-matched-slot-tiebreak",
+    "cost-aware-transitive-hybrid",
   );
 });
 
