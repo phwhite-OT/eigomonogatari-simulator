@@ -39,11 +39,15 @@ The current model line grew out of older V7/V8/V11 code, so some filenames/expor
 Current V12.5 context:
 
 - context/model version: `team-battle-v12.5-effective-damage-individual-rank`
-- battle semantics: `opportunity-baseline-v5-effective-damage`
+- battle semantics: `opportunity-baseline-v6-target-priority`
 - final ranking policy: `full-budget-opportunity-v8-mean-primary-slot`
 - finalization-state schema version: `2`
 
 Key modeling principle: a match is a **team battle made from five player decks against five player decks**. Do not regress to a one-deck-vs-one-deck shortcut merely because it is cheaper.
+
+Target-selection semantics now deliberately model two tactical priorities:
+- **Ghost guard breaker:** ghosts already bypass guard/attribute-guard redirection and defensive mitigation. They now directly target the active guard carrier before normal stock balancing, so a ghost can remove a late wall such as ネオけいび instead of wasting its piercing hit elsewhere.
+- **Revive threat:** after normal attackers choose the enemy group with the highest remaining stock, equal-stock targets with unused revive capacity are always preferred before killability, damage efficiency, or ordinary skill timing. A revive user that has exhausted all allowed skill uses is no longer treated as a revive threat.
 
 The ranking system tries to separate a character's own measurable value from the strength of teammates it happened to be tested beside. Static proxy metrics are acceptable for bounded partner selection and search acceleration; they are not a substitute for measured final battle contribution.
 
@@ -405,6 +409,17 @@ This document is also the canonical rolling handoff log for future Codex/ChatGPT
 For small fixes, a dated entry in the rolling log below is sufficient. If the change alters architecture, battle semantics, ranking policy, checkpoint format, workflow topology/recovery, or the meaning of V12 outputs, also update the relevant explanatory sections above and `AGENTS.md`.
 
 ## 18. Rolling handoff log
+
+### 2026-09-23 — ghost guard-break and revive-target priority
+
+Battle targeting was refined to match tactical play rather than treating every attacker identically.
+
+- ghosts already ignored guard/attribute-guard redirection and defense multipliers, but target selection did not exploit that property; a ghost could continue stock-balancing into another enemy while the guard carrier stayed alive
+- `guardBreakTargetForAttacker` now treats a ghost as a direct bypass attacker against any active guard/attribute-guard carrier, so tactical attack ordering can send the ghost into the wall first and subsequent ordinary attacks are no longer forced through that guard if the ghost removes it
+- within the normal maximum-remaining-stock target pool, a character whose active skill is `revive` and still has skill uses remaining is now an absolute tie priority before killability, damage efficiency, or skill-charge timing
+- revive users with all allowed uses exhausted are intentionally not prioritized as revive threats
+- regression tests cover a non-ready revive user beating a killable equal-stock target, an exhausted revive user losing that special priority, and a ghost choosing a guard carrier even when another enemy has a deeper stock
+- battle semantics bumped from `opportunity-baseline-v5-effective-damage` to `opportunity-baseline-v6-target-priority`; old V12.5 battle checkpoints are **not semantically compatible** and must not be mixed with the new targeting results
 
 ### 2026-09-23 — publish completed V12 conditions to the site immediately
 
