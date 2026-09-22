@@ -221,7 +221,7 @@ test("V12 individual value penalizes a costly card when freed budget can improve
   assert.equal(ranked.find((entry) => entry.id === "expensive-slot-star").individualRank, 2);
   assert.equal(
     ranked.find((entry) => entry.id === "expensive-slot-star").individualRankingBasis,
-    "full-deck-budget-reallocation",
+    "full-deck-budget-reallocation-with-matched-slot-tiebreak",
   );
 });
 
