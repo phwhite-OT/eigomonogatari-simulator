@@ -1,3 +1,5 @@
+import { metagameV12ContributionEvidence } from "./metagame-v12-contribution.js";
+
 export const METAGAME_V12_SHARED_POOL_VERSION = 2;
 
 function clampUnit(value) {
@@ -186,13 +188,20 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
   const counterfactualDecisiveWinGain = counterfactualBaseline
     ? (Number(best.result.decisiveWinRate) || 0) - (Number(counterfactualBaseline.result.decisiveWinRate) || 0)
     : null;
-  // The cost-aware individual value must answer the budget-allocation question:
-  // "if this card is unavailable, how strong can the entire five-card deck become
-  // after reallocating the freed cost?" The matched-slot counterfactual answers a
-  // different and still useful question (pure slot contribution with teammates
-  // frozen), but it must not replace the budget-aware opportunity baseline.
-  const primaryWinGain = opportunityWinGain;
-  const primaryRobustWinGain = robustOpportunityWinGain;
+  // Full-budget opportunity remains the majority of individual value. The
+  // matched-slot result supplies bounded evidence of actual slot impact, with
+  // its weight shrinking as this card consumes more of the available budget.
+  // This creates one transitive score instead of pair-specific tie rules.
+  const contribution = metagameV12ContributionEvidence({
+    ...rating,
+    opportunityWinGain,
+    robustOpportunityWinGain,
+    counterfactualApplied: Boolean(counterfactualBaseline),
+    counterfactualWinGain,
+    counterfactualRobustWinGain,
+  }, { totalCost });
+  const primaryWinGain = contribution.hybridMean;
+  const primaryRobustWinGain = contribution.hybridRobust;
   const score = signedOpportunityScore(primaryRobustWinGain);
   const slotContributionScore = counterfactualBaseline
     ? signedOpportunityScore(counterfactualRobustWinGain)
@@ -219,6 +228,10 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
       : null,
     marginalWinGain: rounded(primaryWinGain),
     marginalWinGainLowerBound: rounded(primaryRobustWinGain),
+    hybridContributionWinGain: rounded(contribution.hybridMean),
+    hybridContributionRobustWinGain: rounded(contribution.hybridRobust),
+    matchedSlotWeight: rounded(contribution.matchedSlotWeight),
+    budgetShare: rounded(contribution.budgetShare),
     candidateExpectedWinRate: rounded(best.result.expectedWinRate),
     benchmarkExpectedWinRate: rounded(baseline.result.expectedWinRate),
     expectedWinRate: rounded(best.result.expectedWinRate),
@@ -231,6 +244,9 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
       opportunityCostScore: rounded(opportunityScore),
       counterfactualContributionScore: counterfactualBaseline ? rounded(slotContributionScore) : null,
       costAwareOpportunityScore: rounded(score),
+      hybridContributionScore: rounded(score),
+      matchedSlotWeight: rounded(contribution.matchedSlotWeight),
+      budgetShare: rounded(contribution.budgetShare),
       includeDeckStdDev: rounded(standardDeviation(includeValues)),
       pairedScenarioStdDev: rounded(pairedStdDev),
       pairedScenarioStandardError: rounded(pairedStandardError),
