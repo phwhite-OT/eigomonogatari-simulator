@@ -728,8 +728,12 @@ export function rankMetagameV12Characters(ratings) {
       const contribution = metagameV12ContributionEvidence(rating);
       return {
         ...rating,
-        hybridContributionWinGain: rounded(contribution.hybridMean),
-        hybridContributionRobustWinGain: rounded(contribution.hybridRobust),
+        hybridContributionWinGain: Number.isFinite(contribution.hybridMean)
+          ? rounded(contribution.hybridMean)
+          : null,
+        hybridContributionRobustWinGain: Number.isFinite(contribution.hybridRobust)
+          ? rounded(contribution.hybridRobust)
+          : null,
         matchedSlotWeight: rounded(contribution.matchedSlotWeight),
         budgetShare: rounded(contribution.budgetShare),
         rank: index + 1,
