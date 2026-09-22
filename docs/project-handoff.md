@@ -415,3 +415,20 @@ What to inspect next when results look strange:
 4. Verify that cost-heavy cards pay the opportunity cost of weakening the remaining four slots.
 5. Verify that cheap stall/support cards receive credit when they create a real turn/deck-level advantage.
 6. Prefer fixing the evidence/aggregation problem over adding character-specific exceptions.
+
+
+### 2026-09-22 — cost100 rerank completion-detection fix
+
+Observed problem: completed cost-100 result sets such as `fire-100` still had the old ranking marker `full-budget-opportunity-v5-slot-tiebreak` even after the v6 cost-weighted ranking change. The refresh job incorrectly logged that no completed cost-100 ranking needed a refresh.
+
+Root cause: V12 durable checkpoints intentionally store a compact checkpoint context that includes `inputId`, model version, and battle-semantics version, but **does not include `context.totalCost`**. Both cost-100 rerank workflows tested `.context.totalCost == 100`, so every completed checkpoint was skipped.
+
+Fix:
+
+- `.github/workflows/metagame-v12-finalization-fanout.yml`
+- `.github/workflows/v12-cost100-rerank.yml`
+
+now identify the target via the directory-derived `inputId` (for example `fire-100 -> fire:100`) and require the current model version, battle semantics, finalization-state version, and `status == "complete"`.
+They also inspect `ranking-policy.txt` and skip reports that already use `full-budget-opportunity-v6-cost-weighted-slot`, preventing repeated reranks whose only change would otherwise be a fresh `rerankedAt` timestamp.
+
+This is a ranking/report refresh fix only. It does **not** change battle semantics and must not invalidate or restart completed battle evidence.
