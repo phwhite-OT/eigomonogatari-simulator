@@ -63,17 +63,16 @@ jobs:
               for attribute_group in "${attribute_groups[@]}"; do
                 output_directory="${attribute_group}-${cost}"
                 output_path="$report_root/$output_directory"
-                progress="$(git show "$shared_ref:$output_path/progress.json" 2>/dev/null || true)"
                 marker="$(git show "$shared_ref:$output_path/ranking-policy.txt" 2>/dev/null || true)"
 
-                if jq -e \
+                if git show "$shared_ref:$output_path/progress.json" 2>/dev/null | jq -e \
                   --arg version "$model_version" \
                   --arg semantics "$battle_semantics" \
                   '.status == "complete"
                     and .context.version == $version
                     and .context.battleSemantics == $semantics
                     and .finalizationState.version == 2' \
-                  <<< "$progress" >/dev/null 2>&1 && \
+                  >/dev/null 2>&1 && \
                    [ "$marker" = "$ranking_policy" ] && \
                    git cat-file -e "$shared_ref:$output_path/report.json" 2>/dev/null; then
                   git checkout "$shared_ref" -- "$output_path"
