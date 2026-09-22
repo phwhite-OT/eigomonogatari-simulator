@@ -63,10 +63,22 @@ jobs:
             output_csv="$work_root/output/$output_directory-ranking.csv"
             source_path="$report_root/$output_directory/report.json"
             progress_path="$report_root/$output_directory/progress.json"
+            marker_path="$report_root/$output_directory/ranking-policy.txt"
+            input_id="${output_directory%-100}:100"
+            marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
 
-            progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
-            if [ -z "$progress" ] || ! jq -e '.status == "complete" and .context.totalCost == 100' <<< "$progress" >/dev/null 2>&1; then
-              echo "Skipping $output_directory: completed cost100 checkpoint is not available yet."
+            if ! git show "$results_ref:$progress_path" 2>/dev/null | jq -e --arg input_id "$input_id" '
+              .status == "complete"
+              and .context.inputId == $input_id
+              and .context.version == "team-battle-v12.5-effective-damage-individual-rank"
+              and .context.battleSemantics == "opportunity-baseline-v5-effective-damage"
+              and .finalizationState.version == 2
+            ' >/dev/null 2>&1; then
+              echo "Skipping $output_directory: current completed cost100 checkpoint is not available yet."
+              continue
+            fi
+            if [ "$marker" = "$ranking_policy" ]; then
+              echo "Skipping $output_directory: ranking already uses $ranking_policy."
               continue
             fi
 
