@@ -687,10 +687,10 @@ export function metagameV12RankingContributionEvidence(rating) {
     ? MATCHED_SLOT_MAX_BLEND * (1 - budgetShare) ** 2
     : 0;
   const hybridRobust = Number.isFinite(robust)
-    ? robust + slotBlendWeight * (slotRobust - robust)
+    ? (slotBlendWeight > 0 ? robust + slotBlendWeight * (slotRobust - robust) : robust)
     : robust;
   const hybridMean = Number.isFinite(mean)
-    ? mean + slotBlendWeight * (slotMean - mean)
+    ? (slotBlendWeight > 0 ? mean + slotBlendWeight * (slotMean - mean) : mean)
     : mean;
 
   return {
