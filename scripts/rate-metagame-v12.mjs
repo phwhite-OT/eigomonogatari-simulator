@@ -163,7 +163,7 @@ const selectedCandidatesByPosition = [1, 2, 3, 4, 5].map((position) => {
   const candidates = candidatePools.allByPosition[position - 1];
   return maxCandidates ? candidates.slice(0, maxCandidates) : candidates;
 });
-const METAGAME_V12_BATTLE_SEMANTICS_VERSION = "opportunity-baseline-v5-effective-damage";
+const METAGAME_V12_BATTLE_SEMANTICS_VERSION = "opportunity-baseline-v6-target-priority";
 const checkpointContext = {
   version: METAGAME_V12_MODEL_VERSION,
   battleSemantics: METAGAME_V12_BATTLE_SEMANTICS_VERSION,
