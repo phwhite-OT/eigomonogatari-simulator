@@ -652,70 +652,83 @@ function compareCompleteDeckMetric(left, right, key) {
   return rightValue > leftValue ? 1 : -1;
 }
 
+function ratingBudgetShare(rating) {
+  const explicit = Number(rating?.roleBreakdown?.budgetShare);
+  if (Number.isFinite(explicit)) return Math.min(1, Math.max(0, explicit));
+
+  const totalCost = Number(rating?.bestDeck?.totalCost);
+  const remainingCost = Number(rating?.bestDeck?.remainingCost);
+  const budget = (Number.isFinite(totalCost) ? totalCost : 0) + (Number.isFinite(remainingCost) ? remainingCost : 0);
+  if (budget <= 0) return 1;
+  return Math.min(1, Math.max(0, (Number(rating?.cost) || 0) / budget));
+}
+
 function rankingContributionEvidence(rating) {
   const matched = rating?.counterfactualApplied === true;
   const robust = finiteOrNegativeInfinity(rating.robustOpportunityWinGain);
   const mean = finiteOrNegativeInfinity(rating.opportunityWinGain);
+  const slotRobust = finiteOrNegativeInfinity(rating.counterfactualRobustWinGain);
+  const slotMean = finiteOrNegativeInfinity(rating.counterfactualWinGain);
+  const budgetShare = ratingBudgetShare(rating);
+
+  // Same-four-teammate evidence is useful, but it ignores the opportunity cost
+  // of tying up budget in this slot. Blend it into the full-deck result with a
+  // cost-sensitive weight that falls quadratically as budget share rises.
+  // A 26/100 card receives ~27% slot evidence; a 75/100 card receives ~3%.
+  const matchedSlotWeight = (
+    matched &&
+    Number.isFinite(robust) &&
+    Number.isFinite(mean) &&
+    Number.isFinite(slotRobust) &&
+    Number.isFinite(slotMean)
+  ) ? 0.5 * ((1 - budgetShare) ** 2) : 0;
+  const hybridRobust = Number.isFinite(robust)
+    ? robust + matchedSlotWeight * (slotRobust - robust)
+    : robust;
+  const hybridMean = Number.isFinite(mean)
+    ? mean + matchedSlotWeight * (slotMean - mean)
+    : mean;
+
   return {
     matched,
     robust,
     mean,
-    positive: Number.isFinite(robust) && robust > 0 ? 1 : 0,
-    slotRobust: finiteOrNegativeInfinity(rating.counterfactualRobustWinGain),
-    slotMean: finiteOrNegativeInfinity(rating.counterfactualWinGain),
+    slotRobust,
+    slotMean,
+    budgetShare,
+    matchedSlotWeight,
+    hybridRobust,
+    hybridMean,
+    positive: Number.isFinite(hybridRobust) && hybridRobust > 0 ? 1 : 0,
   };
 }
 
-function compareBudgetEquivalentMatchedSlot(leftContribution, rightContribution) {
-  // If the fully re-optimized five-card deck reaches exactly the same average
-  // win gain with either card, the budget question is genuinely tied. In that
-  // narrow case, use the same-four-teammate counterfactual to distinguish a
-  // card that actually contributes in its slot from a passenger that merely
-  // appears in an equally strong completed deck. This must never override a
-  // real full-budget mean difference, so expensive cards still pay their full
-  // opportunity cost.
-  if (leftContribution.mean !== rightContribution.mean) return 0;
-
-  const matchedTier = Number(rightContribution.matched) - Number(leftContribution.matched);
-  if (matchedTier) return matchedTier;
-  if (!leftContribution.matched || !rightContribution.matched) return 0;
-
-  if (leftContribution.slotRobust !== rightContribution.slotRobust) {
-    return rightContribution.slotRobust > leftContribution.slotRobust ? 1 : -1;
-  }
-  if (leftContribution.slotMean !== rightContribution.slotMean) {
-    return rightContribution.slotMean > leftContribution.slotMean ? 1 : -1;
-  }
-  return 0;
-}
-
 /**
- * Rank individual value by budget-aware opportunity cost. Removing a costly
- * card must allow the whole five-card deck to re-optimize and spend the freed
- * budget anywhere; otherwise a 70+ cost card can look artificially essential
- * merely because four cheap teammates were frozen in place. When two cards
- * have exactly the same full-budget mean, matched-slot contribution breaks the
- * tie before confidence-width differences do.
+ * Rank individual value with one transitive cost-aware score. Full-deck budget
+ * reallocation remains the dominant signal, while same-four-teammate combat
+ * contribution is blended in only to the extent that the card leaves budget
+ * available for the other four slots.
  */
 function compareIndividualContribution(left, right) {
   const leftContribution = rankingContributionEvidence(left);
   const rightContribution = rankingContributionEvidence(right);
 
-  const budgetEquivalentMatched = compareBudgetEquivalentMatchedSlot(leftContribution, rightContribution);
-  if (budgetEquivalentMatched) return budgetEquivalentMatched;
-
+  if (leftContribution.hybridRobust !== rightContribution.hybridRobust) {
+    return rightContribution.hybridRobust > leftContribution.hybridRobust ? 1 : -1;
+  }
+  if (leftContribution.hybridMean !== rightContribution.hybridMean) {
+    return rightContribution.hybridMean > leftContribution.hybridMean ? 1 : -1;
+  }
   if (leftContribution.robust !== rightContribution.robust) {
     return rightContribution.robust > leftContribution.robust ? 1 : -1;
   }
   if (leftContribution.mean !== rightContribution.mean) {
     return rightContribution.mean > leftContribution.mean ? 1 : -1;
   }
-  const matchedTier = Number(rightContribution.matched) - Number(leftContribution.matched);
-  if (matchedTier) return matchedTier;
   const leftDecisive = finiteOrNegativeInfinity(left.decisiveWinGain);
   const rightDecisive = finiteOrNegativeInfinity(right.decisiveWinGain);
   if (leftDecisive !== rightDecisive) return rightDecisive > leftDecisive ? 1 : -1;
-  return String(left.id).localeCompare(String(right.id));
+  return Number(left.cost) - Number(right.cost) || String(left.id).localeCompare(String(right.id));
 }
 
 export function rankMetagameV12Characters(ratings) {
@@ -737,7 +750,8 @@ export function rankMetagameV12Characters(ratings) {
           compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
           compareCompleteDeckMetric(left, right, "expectedWinRate") ||
           compareCompleteDeckMetric(left, right, "decisiveWinRate") ||
-          compareBudgetEquivalentMatchedSlot(leftContribution, rightContribution) ||
+          rightContribution.hybridRobust - leftContribution.hybridRobust ||
+          rightContribution.hybridMean - leftContribution.hybridMean ||
           rightContribution.robust - leftContribution.robust ||
           rightContribution.mean - leftContribution.mean ||
           finiteOrNegativeInfinity(right.decisiveWinGain) - finiteOrNegativeInfinity(left.decisiveWinGain) ||
@@ -747,7 +761,8 @@ export function rankMetagameV12Characters(ratings) {
       }
 
       return (
-        compareBudgetEquivalentMatchedSlot(leftContribution, rightContribution) ||
+        rightContribution.hybridRobust - leftContribution.hybridRobust ||
+        rightContribution.hybridMean - leftContribution.hybridMean ||
         rightContribution.robust - leftContribution.robust ||
         rightContribution.mean - leftContribution.mean ||
         compareCompleteDeckMetric(left, right, "expectedWinLowerBound") ||
@@ -769,7 +784,11 @@ export function rankMetagameV12Characters(ratings) {
         rankingBasis: hasCompleteBestDeck(rating)
           ? "complete-deck-performance-with-budget-aware-contribution"
           : "full-deck-budget-reallocation",
-        individualRankingBasis: "full-deck-budget-reallocation-with-matched-slot-tiebreak",
+        individualRankingBasis: "cost-aware-transitive-hybrid",
+        individualHybridRobustGain: Number.isFinite(contribution.hybridRobust) ? contribution.hybridRobust : null,
+        individualHybridMeanGain: Number.isFinite(contribution.hybridMean) ? contribution.hybridMean : null,
+        matchedSlotBlendWeight: contribution.matchedSlotWeight,
+        budgetShare: contribution.budgetShare,
       };
     });
 }
