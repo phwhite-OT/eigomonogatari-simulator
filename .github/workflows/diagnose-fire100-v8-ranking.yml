@@ -17,99 +17,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: metagame-v12-shared-pool-results
-          sparse-checkout: |
-            reports/metagame-ratings-v12-team-opportunity/fire-100
-          sparse-checkout-cone-mode: false
-      - name: Print compact fire100 ranking summary
+          ref: diagnose-fire100-v8-ranking
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Print selected fire100 character data
         shell: bash
         run: |
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          root = Path("reports/metagame-ratings-v12-team-opportunity/fire-100")
-          report = json.loads((root / "report.json").read_text(encoding="utf-8"))
-          policy = (root / "ranking-policy.txt").read_text(encoding="utf-8").strip()
-
-          def pick(c):
-              return {
-                  "rank": c.get("rank"),
-                  "practicalRank": c.get("practicalRank"),
-                  "individualRank": c.get("individualRank"),
-                  "id": c.get("id"),
-                  "name": c.get("name"),
-                  "attributes": c.get("attributes"),
-                  "rarity": c.get("rarity"),
-                  "cost": c.get("cost"),
-                  "hp": c.get("hp"),
-                  "pow": c.get("pow"),
-                  "skillTurn": c.get("skillTurn"),
-                  "skillType": c.get("skillType"),
-                  "skillName": c.get("skillName"),
-                  "opportunityWinGain": c.get("opportunityWinGain"),
-                  "robustOpportunityWinGain": c.get("robustOpportunityWinGain"),
-                  "rankingContributionMean": c.get("rankingContributionMean"),
-                  "matchedSlotContributionMean": c.get("matchedSlotContributionMean"),
-                  "rankingContributionRobust": c.get("rankingContributionRobust"),
-                  "decisiveWinGain": c.get("decisiveWinGain"),
-                  "counterfactualApplied": c.get("counterfactualApplied"),
-                  "counterfactualWinGain": c.get("counterfactualWinGain"),
-                  "counterfactualRobustWinGain": c.get("counterfactualRobustWinGain"),
-                  "candidateExpectedWinRate": c.get("candidateExpectedWinRate"),
-                  "benchmarkExpectedWinRate": c.get("benchmarkExpectedWinRate"),
-                  "expectedWinLowerBound": c.get("expectedWinLowerBound"),
-                  "roleFit": c.get("roleFit"),
-                  "includeDeckStdDev": c.get("includeDeckStdDev"),
-                  "pairedScenarioStdDev": c.get("pairedScenarioStdDev"),
-                  "pairedScenarioStandardError": c.get("pairedScenarioStandardError"),
-                  "pairedScenarioCount": c.get("pairedScenarioCount"),
-                  "counterfactualScenarioStdDev": c.get("counterfactualScenarioStdDev"),
-                  "counterfactualScenarioStandardError": c.get("counterfactualScenarioStandardError"),
-                  "counterfactualScenarioCount": c.get("counterfactualScenarioCount"),
-                  "bestDeck": c.get("bestDeck"),
-                  "baselineDeck": c.get("baselineDeck"),
-                  "counterfactualReplacementDeck": c.get("counterfactualReplacementDeck"),
-                  "roleBreakdown": c.get("roleBreakdown"),
-                  "positiveContributionEvidence": c.get("positiveContributionEvidence"),
-              }
-
-          print("FIRE100_COMPACT_BEGIN")
-          print(json.dumps({
-              "rankingPolicy": policy,
-              "inputId": report.get("context", {}).get("inputId"),
-              "teamScenarioCount": report.get("context", {}).get("teamScenarioCount"),
-              "environmentCount": report.get("context", {}).get("environmentCount"),
-              "sharedEvaluatedDeckCount": report.get("context", {}).get("sharedEvaluatedDeckCount"),
-          }, ensure_ascii=False))
-          for slot in report.get("rankingsByPosition", []):
-              print(f"SLOT {slot.get('position')} COUNT {len(slot.get('characters', []))}")
-              for c in slot.get("characters", [])[:12]:
-                  row = {
-                      "rank": c.get("rank"),
-                      "individualRank": c.get("individualRank"),
-                      "name": c.get("name"),
-                      "cost": c.get("cost"),
-                      "attrs": c.get("attributes"),
-                      "hp": c.get("hp"),
-                      "pow": c.get("pow"),
-                      "turn": c.get("skillTurn"),
-                      "skillType": c.get("skillType"),
-                      "mean": c.get("opportunityWinGain"),
-                      "slotMean": c.get("counterfactualWinGain"),
-                      "robust": c.get("rankingContributionRobust"),
-                      "decisive": c.get("decisiveWinGain"),
-                      "candWR": c.get("candidateExpectedWinRate"),
-                      "baseWR": c.get("benchmarkExpectedWinRate"),
-                      "lower": c.get("expectedWinLowerBound"),
-                      "roleFit": c.get("roleFit"),
-                      "bestCost": c.get("bestDeck", {}).get("totalCost") if c.get("bestDeck") else None,
-                      "bestDeck": c.get("bestDeck", {}).get("names") if c.get("bestDeck") else None,
-                      "cfDeck": c.get("counterfactualReplacementDeck", {}).get("names") if c.get("counterfactualReplacementDeck") else None,
-                      "cfWR": c.get("counterfactualReplacementDeck", {}).get("expectedWinRate") if c.get("counterfactualReplacementDeck") else None,
-                      "pairedSE": c.get("roleBreakdown", {}).get("pairedScenarioStandardError"),
-                      "cfSE": c.get("roleBreakdown", {}).get("counterfactualScenarioStandardError"),
-                  }
-                  print(json.dumps(row, ensure_ascii=False, separators=(",", ":")))
-          print("FIRE100_COMPACT_END")
-          PY
+          node --input-type=module <<'JS'
+          import * as mod from "./src/data/workbook-characters.js";
+          const wanted = new Set([
+            "エーランドちゃん","Let's☆ハチ公","製鉄所★澤先輩",
+            "カム着火べあぱわー","帝王ヒルズ様","カルボ姉（ねえ）",
+            "漆黒及び純白のポワン","牛タソ☆行進曲","称えよ☆メジェド様！",
+            "パプアさん","腹話フック","聖☆いんてぃないか","ズンビーフック",
+            "巨大カンテツ","いーびルン","ネオけいび"
+          ]);
+          const found = new Map();
+          const seen = new Set();
+          function walk(v) {
+            if (!v || typeof v !== "object" || seen.has(v)) return;
+            seen.add(v);
+            if (typeof v.name === "string" && wanted.has(v.name)) found.set(v.name, v);
+            if (Array.isArray(v)) for (const x of v) walk(x);
+            else for (const x of Object.values(v)) walk(x);
+          }
+          for (const v of Object.values(mod)) walk(v);
+          console.log("CHAR_DATA_BEGIN");
+          for (const name of wanted) {
+            const c = found.get(name);
+            console.log(JSON.stringify(c ? {
+              id:c.id,name:c.name,attributes:c.attributes,rarity:c.rarity,cost:c.cost,hp:c.hp,pow:c.pow,
+              skillTurn:c.skillTurn,maxUses:c.maxUses,skill:c.skill
+            } : {name,missing:true}, null, 0));
+          }
+          console.log("CHAR_DATA_END");
+          JS
