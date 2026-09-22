@@ -147,12 +147,79 @@ test("V12 ranking keeps harmful team contribution below neutral instead of clipp
   assert.deepEqual(ranked.map((entry) => entry.id), ["helpful", "neutral", "harmful"]);
 });
 
-test("V12.1 ranking prefers paired-stable evidence when raw means are close", () => {
+test("V12 mean contribution outranks a lower mean with tighter confidence", () => {
   const ranked = rankMetagameV12Characters([
-    { id: "risky", opportunityWinGain: 0.11, robustOpportunityWinGain: 0.01, decisiveWinGain: 0, cost: 10 },
-    { id: "stable", opportunityWinGain: 0.10, robustOpportunityWinGain: 0.08, decisiveWinGain: 0, cost: 10 },
+    { id: "higher-mean", opportunityWinGain: 0.11, robustOpportunityWinGain: 0.01, decisiveWinGain: 0, cost: 10 },
+    { id: "lower-mean-stable", opportunityWinGain: 0.10, robustOpportunityWinGain: 0.08, decisiveWinGain: 0, cost: 10 },
   ]);
-  assert.deepEqual(ranked.map((entry) => entry.id), ["stable", "risky"]);
+  assert.deepEqual(ranked.map((entry) => entry.id), ["higher-mean", "lower-mean-stable"]);
+});
+
+test("V12 robust evidence breaks a tie only after central means tie", () => {
+  const ranked = rankMetagameV12Characters([
+    {
+      id: "less-stable",
+      opportunityWinGain: 0.05,
+      robustOpportunityWinGain: 0.01,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.02,
+      counterfactualRobustWinGain: -0.01,
+      decisiveWinGain: 0,
+      cost: 10,
+    },
+    {
+      id: "more-stable",
+      opportunityWinGain: 0.05,
+      robustOpportunityWinGain: 0.04,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.02,
+      counterfactualRobustWinGain: 0.015,
+      decisiveWinGain: 0,
+      cost: 10,
+    },
+  ]);
+  assert.deepEqual(ranked.map((entry) => entry.id), ["more-stable", "less-stable"]);
+});
+
+test("V12 fire-slot regression keeps stronger mean slot contribution above lower-variance evidence", () => {
+  const ranked = rankMetagameV12Characters([
+    {
+      id: "zombie-hook",
+      cost: 17,
+      opportunityWinGain: 0,
+      robustOpportunityWinGain: -0.0335,
+      decisiveWinGain: 0.0139,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.0069,
+      counterfactualRobustWinGain: -0.013,
+      bestDeck: {
+        ids: ["a", "b", "c", "zombie-hook", "e"],
+        expectedWinRate: 0.8819,
+        expectedWinLowerBound: 0.8222,
+        decisiveWinRate: 0.8056,
+      },
+    },
+    {
+      id: "ventriloquist-hook",
+      cost: 15,
+      opportunityWinGain: 0,
+      robustOpportunityWinGain: -0.0456,
+      decisiveWinGain: 0.0139,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.0139,
+      counterfactualRobustWinGain: -0.0195,
+      bestDeck: {
+        ids: ["a", "b", "c", "ventriloquist-hook", "e"],
+        expectedWinRate: 0.8819,
+        expectedWinLowerBound: 0.8222,
+        decisiveWinRate: 0.8056,
+      },
+    },
+  ]);
+
+  assert.deepEqual(ranked.map((entry) => entry.id), ["ventriloquist-hook", "zombie-hook"]);
+  assert.equal(ranked.find((entry) => entry.id === "ventriloquist-hook").matchedSlotContributionMean, 0.0139);
+  assert.equal(ranked.find((entry) => entry.id === "zombie-hook").matchedSlotContributionMean, 0.0069);
 });
 
 test("V12 diverse deck selection keeps spare budget when proxy strength is tied", () => {
@@ -236,7 +303,7 @@ test("V12 matched-slot evidence resolves uncertainty without using cost as a wei
   assert.equal(contributor.matchedSlotCorrectionCap, 0.049);
   assert.equal(
     contributor.individualRankingBasis,
-    "full-deck-budget-reallocation-with-uncertainty-bounded-slot-evidence",
+    "full-deck-budget-reallocation-with-mean-primary-slot-evidence",
   );
 });
 
@@ -304,7 +371,7 @@ test("V12 individual value penalizes a costly card when freed budget can improve
   assert.equal(ranked.find((entry) => entry.id === "expensive-slot-star").individualRank, 2);
   assert.equal(
     ranked.find((entry) => entry.id === "expensive-slot-star").individualRankingBasis,
-    "full-deck-budget-reallocation-with-uncertainty-bounded-slot-evidence",
+    "full-deck-budget-reallocation-with-mean-primary-slot-evidence",
   );
 });
 
