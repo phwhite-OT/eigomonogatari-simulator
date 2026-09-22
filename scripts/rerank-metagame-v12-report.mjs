@@ -59,6 +59,7 @@ function rankingCsv(report) {
   const headers = [
     "枠", "実戦採用順位", "単体コスパ順位", "キャラID", "名前", "コスト", "予算占有率", "HP", "Power",
     "スキルターン", "スキル種類", "全5枠再配分・機会勝率差", "全5枠再配分・安定補正後差",
+    "コスト加重総合勝率差", "コスト加重総合安定差", "枠内証拠重み",
     "同一4枠差し替え勝率差", "同一4枠差し替え安定補正後差", "候補勝率", "全再最適化代替勝率",
     "候補デッキ", "全再最適化代替デッキ", "同一4枠差し替えデッキ", "評価状態",
   ];
@@ -78,6 +79,9 @@ function rankingCsv(report) {
       character.skillType,
       character.opportunityWinGain,
       character.robustOpportunityWinGain,
+      character.rankingContributionMean ?? "",
+      character.rankingContributionRobust ?? "",
+      character.matchedSlotBlendWeight ?? "",
       character.counterfactualWinGain ?? "",
       character.counterfactualRobustWinGain ?? "",
       character.candidateExpectedWinRate,
@@ -108,11 +112,11 @@ const rankingsByPosition = (report.rankingsByPosition ?? []).map((slot) => ({
 const updated = {
   ...report,
   rerankedAt: new Date().toISOString(),
-  rankingPolicy: "full-budget-opportunity-v5-slot-tiebreak",
+  rankingPolicy: "full-budget-opportunity-v6-cost-weighted-slot",
   model: {
     ...(report.model ?? {}),
     objective: "対象キャラを外して浮くコストを5枠全体へ再配分し、再構築後の最善デッキとの差からコスト制約込みの単体価値を評価する。",
-    scoringPolicy: "単体コスパ順位は全5枠再最適化の機会勝率差を第一根拠にする。全5枠再最適化の平均差が同値の候補同士だけ、同一4枠差し替えの安定補正後差で順位を決める。平均差が異なる場合は枠内差し替えで上書きしない。",
+    scoringPolicy: "単体コスパ順位は、全5枠再最適化の機会勝率差を主成分とし、同一4枠差し替えの実貢献を補助成分として一つの推移的スコアへ統合する。枠内証拠の重みは 0.50×(1-コスト比率)^2 とし、高コストほど全5枠再配分の評価をほぼそのまま使う。",
     costPolicy: "高コストキャラは、そのコストを他4枠へ再投資した最善代替構成より十分に強い場合だけ高評価になる。",
   },
   rankingsByPosition,

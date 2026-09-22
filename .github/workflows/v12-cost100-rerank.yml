@@ -18,7 +18,8 @@ permissions:
 
 concurrency:
   group: metagame-v12-shared-pool-recompute
-  cancel-in-progress: true
+  # Serialize result-branch writers, but never discard an active battle wave.
+  cancel-in-progress: false
 
 jobs:
   rerank:
@@ -38,7 +39,7 @@ jobs:
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
           report_root="reports/metagame-ratings-v12-team-opportunity"
-          ranking_policy="full-budget-opportunity-v5-slot-tiebreak"
+          ranking_policy="full-budget-opportunity-v6-cost-weighted-slot"
           git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
 
           groups=(

@@ -126,6 +126,18 @@ Check the actual job/step:
 
 The exact live run ID is intentionally not hard-coded here because it becomes stale. Inspect GitHub Actions for the newest run on `master`.
 
+## Current V12 ranking policy
+
+Current ranking marker: `full-budget-opportunity-v6-cost-weighted-slot`.
+
+Individual contribution uses one transitive score per character. The primary evidence is the full five-slot budget-reallocation opportunity result. Same-four-teammate matched-slot contribution is supporting evidence with weight:
+
+`0.50 × (1 - character cost / total budget)^2`
+
+This means cheap cards can receive meaningful credit for real slot impact, while high-cost cards cannot erase the opportunity cost they impose on the other four slots. If matched-slot evidence is unavailable, the score must remain exactly the full-budget opportunity result; do not blend against missing values.
+
+Long-running battle evidence remains reusable across ranking-only changes. Result-writing workflows serialize rather than preempt active battle waves, and stale-run cancellation is manual unless battle semantics themselves become incompatible.
+
 ## Documentation rule for future agents
 
 When a change materially alters architecture, battle semantics, ranking policy, checkpoint format, workflow recovery, or the meaning of V12 outputs, update **both** this file and `docs/project-handoff.md` in the same change. The goal is that a new agent can begin useful work without needing any previous chat history.

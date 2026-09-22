@@ -1,10 +1,10 @@
 name: Metagame V12 stale-run preemptor
 
+# Destructive preemption is intentionally manual. Ranking/reporting source
+# changes can reuse already-computed battle evidence and must not discard an
+# active recompute wave merely because master moved.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - master
 
 permissions:
   actions: write

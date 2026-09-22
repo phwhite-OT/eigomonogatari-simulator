@@ -154,7 +154,20 @@ test("V12.1 ranking prefers paired-stable evidence when raw means are close", ()
   assert.deepEqual(ranked.map((entry) => entry.id), ["stable", "risky"]);
 });
 
-test("V12 budget-equivalent cards use matched-slot contribution before confidence width", () => {
+test("V12 hybrid preserves full-budget evidence when matched-slot data is unavailable", () => {
+  const ranked = rankMetagameV12Characters([
+    { id: "helpful-unmatched", opportunityWinGain: 0.08, robustOpportunityWinGain: 0.06, decisiveWinGain: 0.03, cost: 25 },
+    { id: "neutral-unmatched", opportunityWinGain: 0, robustOpportunityWinGain: 0, decisiveWinGain: 0, cost: 25 },
+  ]);
+
+  const helpful = ranked.find((entry) => entry.id === "helpful-unmatched");
+  assert.equal(helpful.individualRank, 1);
+  assert.equal(helpful.matchedSlotBlendWeight, 0);
+  assert.equal(helpful.rankingContributionRobust, 0.06);
+  assert.equal(helpful.rankingContributionMean, 0.08);
+});
+
+test("V12 cost-weighted slot evidence rewards efficient real contributors with a transitive score", () => {
   const ranked = rankMetagameV12Characters([
     {
       id: "passenger",
@@ -165,6 +178,7 @@ test("V12 budget-equivalent cards use matched-slot contribution before confidenc
       counterfactualApplied: true,
       counterfactualWinGain: 0,
       counterfactualRobustWinGain: -0.0335,
+      roleBreakdown: { budgetShare: 0.17 },
       bestDeck: { ids: ["a", "b", "c", "passenger", "e"], expectedWinRate: 0.8819, expectedWinLowerBound: 0.82, decisiveWinRate: 0.79 },
     },
     {
@@ -176,15 +190,33 @@ test("V12 budget-equivalent cards use matched-slot contribution before confidenc
       counterfactualApplied: true,
       counterfactualWinGain: 0.0417,
       counterfactualRobustWinGain: 0.0088,
+      roleBreakdown: { budgetShare: 0.26 },
       bestDeck: { ids: ["a", "b", "c", "real-slot-contributor", "e"], expectedWinRate: 0.8819, expectedWinLowerBound: 0.82, decisiveWinRate: 0.79 },
+    },
+    {
+      id: "expensive-slot-star",
+      cost: 75,
+      opportunityWinGain: 0,
+      robustOpportunityWinGain: -0.06,
+      decisiveWinGain: 0,
+      counterfactualApplied: true,
+      counterfactualWinGain: 0.25,
+      counterfactualRobustWinGain: 0.20,
+      roleBreakdown: { budgetShare: 0.75 },
+      bestDeck: { ids: ["a", "b", "c", "expensive-slot-star", "e"], expectedWinRate: 0.8819, expectedWinLowerBound: 0.82, decisiveWinRate: 0.79 },
     },
   ]);
 
-  assert.equal(ranked[0].id, "real-slot-contributor");
-  assert.equal(ranked.find((entry) => entry.id === "real-slot-contributor").individualRank, 1);
+  assert.deepEqual(
+    ranked.slice().sort((a, b) => a.individualRank - b.individualRank).map((entry) => entry.id),
+    ["real-slot-contributor", "passenger", "expensive-slot-star"],
+  );
+  const contributor = ranked.find((entry) => entry.id === "real-slot-contributor");
+  assert.equal(contributor.individualRank, 1);
+  assert.ok(contributor.matchedSlotBlendWeight > 0.27);
   assert.equal(
-    ranked.find((entry) => entry.id === "real-slot-contributor").individualRankingBasis,
-    "full-deck-budget-reallocation-with-matched-slot-tiebreak",
+    contributor.individualRankingBasis,
+    "full-deck-budget-reallocation-with-cost-weighted-slot-evidence",
   );
 });
 
@@ -221,7 +253,7 @@ test("V12 individual value penalizes a costly card when freed budget can improve
   assert.equal(ranked.find((entry) => entry.id === "expensive-slot-star").individualRank, 2);
   assert.equal(
     ranked.find((entry) => entry.id === "expensive-slot-star").individualRankingBasis,
-    "full-deck-budget-reallocation-with-matched-slot-tiebreak",
+    "full-deck-budget-reallocation-with-cost-weighted-slot-evidence",
   );
 });
 

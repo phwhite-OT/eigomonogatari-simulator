@@ -231,6 +231,7 @@ export function reconcileMetagameV12RatingFromSharedPool(rating, position, share
       opportunityCostScore: rounded(opportunityScore),
       counterfactualContributionScore: counterfactualBaseline ? rounded(slotContributionScore) : null,
       costAwareOpportunityScore: rounded(score),
+      budgetShare: rounded(totalCost > 0 ? (Number(rating.cost) || 0) / totalCost : 1, 6),
       includeDeckStdDev: rounded(standardDeviation(includeValues)),
       pairedScenarioStdDev: rounded(pairedStdDev),
       pairedScenarioStandardError: rounded(pairedStandardError),
