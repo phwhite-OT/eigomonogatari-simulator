@@ -40,7 +40,7 @@ Current V12.5 context:
 
 - context/model version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v5-effective-damage`
-- final ranking policy: `full-budget-opportunity-v6-cost-weighted-slot`
+- final ranking policy: `full-budget-opportunity-v7-budget-neutral-slot`
 - finalization-state schema version: `2`
 
 Key modeling principle: a match is a **team battle made from five player decks against five player decks**. Do not regress to a one-deck-vs-one-deck shortcut merely because it is cheaper.
@@ -170,7 +170,9 @@ The finalization plan must be resumable and stable. Do not silently regenerate a
 
 The final ranking is not meant to reward a character merely because it was paired with a strong deck, but matched-slot strength also must not let a very expensive card ignore the opportunity cost it imposes on the other four slots.
 
-The current v6 policy therefore gives every character one transitive contribution score. Full five-slot budget-reallocation opportunity evidence is the primary signal. Same-four-teammate matched-slot contribution is blended in as supporting evidence with weight `0.50 × (1 - cost / total budget)^2`. At cost 26/100 the matched-slot evidence gets about 27% weight; at cost 75/100 it gets only about 3%. If matched-slot evidence is unavailable, the full-budget result is preserved unchanged.
+The current v7 policy gives every character one transitive contribution score. Full five-slot budget-reallocation opportunity evidence is the primary signal, and it already prices cost because removing a candidate frees that cost for all five slots. Same-four-teammate matched-slot contribution is used only to resolve uncertainty inside the full-budget result: the correction magnitude is capped at `max(0, opportunity mean - robust opportunity)`. The correction is not scaled by character cost or budget share and cannot push the conservative contribution beyond the full-budget mean. If matched-slot evidence is unavailable, the full-budget result is preserved unchanged.
+
+Total cost is a hard ceiling, not a fill target. Unused budget receives no direct score adjustment. Candidate search must not prefer a deck merely because it spends more; when proxy score and synergy are tied, the lower-cost legal deck is retained so strong spare-budget decks remain eligible for real battle evaluation.
 
 Deep-neighbourhood work still exists to improve the matched-slot evidence around important/high-performing configurations. Ranking-only changes reuse existing battle evidence and should not cancel active computation waves.
 
@@ -381,6 +383,33 @@ This document is also the canonical rolling handoff log for future Codex/ChatGPT
 For small fixes, a dated entry in the rolling log below is sufficient. If the change alters architecture, battle semantics, ranking policy, checkpoint format, workflow topology/recovery, or the meaning of V12 outputs, also update the relevant explanatory sections above and `AGENTS.md`.
 
 ## 18. Rolling handoff log
+
+### 2026-09-22 — budget-neutral cost-cap correction (v7)
+
+Source branch while this entry was written: `fix-v12-budget-neutral-ranking`. Current ranking marker after merge is intended to be:
+
+`full-budget-opportunity-v7-budget-neutral-slot`
+
+Observed problem:
+
+- the ranking formula explicitly scaled matched-slot evidence by character cost, so cost itself changed how much evidence was trusted
+- `selectDiverseDecks` broke exact proxy/synergy ties by preferring the **higher-total-cost** deck, which could prune an equally strong deck simply because it left budget unused
+- this made it possible for budget usage itself, rather than measured 5v5 performance/opportunity value, to influence the result
+
+Correction:
+
+- total cost remains a legality ceiling, not a target to fill
+- full five-slot reoptimization remains the source of cost opportunity: removing a card frees its actual cost and lets all five positions rebuild
+- same-four-teammate evidence is no longer weighted by cost share
+- matched-slot evidence may only adjust the robust full-budget result within the existing full-budget uncertainty band `mean - robust`; it cannot override the full-budget mean
+- exact proxy/synergy search ties now retain the lower-cost complete deck rather than the fuller-cost deck
+- browser priors, report CSV labels, cost-100 rerank workflows, and durable ranking markers are aligned to v7
+- regression tests cover both equal battle evidence at different cost shares and preservation of an 80-cost deck over a 100-cost deck on an exact proxy/synergy tie
+
+Compatibility/recompute note:
+
+Existing V12.5 battle simulations remain numerically reusable for the ranking-only v7 refresh. The search tie-break change affects which candidate deck is retained in future candidate generation, so future/reopened battle searches automatically benefit from the fix. Completed cost-100 reports can be re-ranked immediately from existing evidence; if a suspicious result remains after v7, inspect whether a missing spare-budget deck requires targeted battle expansion rather than changing the ranking formula again.
+
 
 ### 2026-09-22 — cost-aware transitive ranking correction
 

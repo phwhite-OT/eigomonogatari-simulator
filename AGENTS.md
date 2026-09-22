@@ -18,7 +18,7 @@ Important identifiers:
 
 - model/context version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v5-effective-damage`
-- ranking policy: `full-budget-opportunity-v6-cost-weighted-slot`
+- ranking policy: `full-budget-opportunity-v7-budget-neutral-slot`
 - finalization state version: `2`
 - durable results branch: `metagame-v12-shared-pool-results`
 - report root: `reports/metagame-ratings-v12-team-opportunity/`
@@ -130,13 +130,17 @@ The exact live run ID is intentionally not hard-coded here because it becomes st
 
 ## Current V12 ranking policy
 
-Current ranking marker: `full-budget-opportunity-v6-cost-weighted-slot`.
+Current ranking marker: `full-budget-opportunity-v7-budget-neutral-slot`.
 
-Individual contribution uses one transitive score per character. The primary evidence is the full five-slot budget-reallocation opportunity result. Same-four-teammate matched-slot contribution is supporting evidence with weight:
+Individual contribution uses one transitive score per character. The primary evidence is the full five-slot budget-reallocation opportunity result. That comparison already captures cost because removing a candidate frees its cost and allows all five slots to rebuild.
 
-`0.50 × (1 - character cost / total budget)^2`
+Same-four-teammate matched-slot contribution is supporting evidence only for uncertainty resolution. Its correction is capped by the full-budget uncertainty band:
 
-This means cheap cards can receive meaningful credit for real slot impact, while high-cost cards cannot erase the opportunity cost they impose on the other four slots. If matched-slot evidence is unavailable, the score must remain exactly the full-budget opportunity result; do not blend against missing values.
+`correction cap = max(0, opportunity mean - robust opportunity)`
+
+The matched-slot robust result may move the conservative contribution only inside that band; it is **not weighted by character cost or budget usage** and cannot push the conservative contribution beyond the full-budget mean. If matched-slot evidence is unavailable, the full-budget result remains unchanged.
+
+Treat total cost as a **ceiling, not a target**. Unused budget has no direct bonus or penalty. Search tie-breaks must not prefer a fuller-cost deck merely because it spends more; when proxy and synergy are equal, preserve the lower-cost legal deck so a strong spare-budget construction is not pruned.
 
 Long-running battle evidence remains reusable across ranking-only changes. Heavy battle workflows remain serialized by `metagame-v12-shared-pool-recompute`, while every job that writes `metagame-v12-shared-pool-results` also uses the short job-level lock `metagame-v12-result-writer`. The lightweight cost-100 reranker uses a separate workflow concurrency group so it can consume the intentionally reserved 20th runner while a 19-runner battle wave is active, but it still takes the result-writer lock before touching durable results. Stale-run cancellation is manual unless battle semantics themselves become incompatible.
 

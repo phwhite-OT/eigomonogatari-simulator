@@ -75,8 +75,8 @@ function compactCandidate(entry, position) {
     w: rounded(entry.expectedWinRate ?? entry.candidateExpectedWinRate),
     l: rounded(entry.expectedWinLowerBound),
     // Browser generation uses the same transitive contribution as published
-    // ranking: full-budget reallocation is primary, while matched-slot evidence
-    // is blended in less and less as the candidate consumes more budget.
+    // ranking: full-budget reallocation already captures opportunity cost, and
+    // matched-slot evidence only resolves uncertainty inside that result.
     m: rounded(Number.isFinite(meanContribution) ? meanContribution : entry.marginalWinGain),
     r: rounded(Number.isFinite(robustContribution) ? robustContribution : entry.marginalWinGainLowerBound),
     s: rounded(costAwareScore),

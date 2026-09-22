@@ -7,7 +7,6 @@ import {
 export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.5-effective-damage-individual-rank";
 
 const PARTIAL_SKILL_TYPES = new Set(["delay", "skill_reduction"]);
-const MATCHED_SLOT_MAX_BLEND = 0.50;
 
 function clampUnit(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
@@ -238,7 +237,7 @@ export function createMetagameV12TeamScenarios(resolvedInput, options = {}) {
   return scenarios;
 }
 
-function selectDiverseDecks(entries, limit) {
+export function selectDiverseDecks(entries, limit) {
   const unique = new Map();
   for (const entry of entries ?? []) {
     const key = deckKey(entry.deck);
@@ -248,7 +247,9 @@ function selectDiverseDecks(entries, limit) {
   const sorted = [...unique.values()].sort((left, right) => (
     (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0) ||
     (Number(right.synergyScore) || 0) - (Number(left.synergyScore) || 0) ||
-    (Number(right.totalCost) || 0) - (Number(left.totalCost) || 0)
+    // Cost is a ceiling, not a target. If proxy quality is tied, preserve the
+    // deck that proves the same strength with more unused budget.
+    (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
   ));
   if (sorted.length <= limit) return sorted;
   const selected = sorted.slice(0, Math.min(limit, 2));
@@ -665,8 +666,8 @@ function inferredBudgetShare(rating) {
     if (budget > 0) return clampUnit(cost / budget);
   }
 
-  // Unknown budget must not accidentally give matched-slot evidence maximum
-  // influence. Falling back to share=1 makes the blend weight zero.
+  // Budget share remains diagnostic output only. Ranking no longer scales
+  // matched-slot evidence by cost, so this fallback cannot affect ordering.
   return 1;
 }
 
@@ -677,21 +678,40 @@ export function metagameV12RankingContributionEvidence(rating) {
   const slotRobust = finiteOrNegativeInfinity(rating.counterfactualRobustWinGain);
   const slotMean = finiteOrNegativeInfinity(rating.counterfactualWinGain);
   const budgetShare = inferredBudgetShare(rating);
-  const slotBlendWeight = (
+  const completeMatchedEvidence = (
     matched &&
     Number.isFinite(robust) &&
     Number.isFinite(mean) &&
     Number.isFinite(slotRobust) &&
     Number.isFinite(slotMean)
-  )
-    ? MATCHED_SLOT_MAX_BLEND * (1 - budgetShare) ** 2
+  );
+
+  // The full five-slot re-optimization already prices the candidate's cost:
+  // removing it releases its budget and lets all five slots rebuild. Do not
+  // multiply matched-slot evidence by cost again. Instead, let the controlled
+  // same-four-teammate comparison explain only the uncertainty discount
+  // between the full-budget mean and its conservative robust estimate.
+  //
+  // Therefore matched-slot evidence can improve (or worsen) confidence, but it
+  // can never move the conservative contribution past the full-budget mean.
+  // A deck that wins while leaving budget unused is not penalized merely for
+  // failing to spend the cap.
+  const matchedSlotCorrectionCap = completeMatchedEvidence
+    ? Math.max(0, mean - robust)
+    : 0;
+  const desiredMatchedSlotCorrection = completeMatchedEvidence
+    ? slotRobust - robust
+    : 0;
+  const matchedSlotEvidenceCorrection = matchedSlotCorrectionCap > 0
+    ? Math.max(
+        -matchedSlotCorrectionCap,
+        Math.min(matchedSlotCorrectionCap, desiredMatchedSlotCorrection),
+      )
     : 0;
   const hybridRobust = Number.isFinite(robust)
-    ? (slotBlendWeight > 0 ? robust + slotBlendWeight * (slotRobust - robust) : robust)
+    ? robust + matchedSlotEvidenceCorrection
     : robust;
-  const hybridMean = Number.isFinite(mean)
-    ? (slotBlendWeight > 0 ? mean + slotBlendWeight * (slotMean - mean) : mean)
-    : mean;
+  const hybridMean = mean;
 
   return {
     matched,
@@ -700,7 +720,8 @@ export function metagameV12RankingContributionEvidence(rating) {
     slotRobust,
     slotMean,
     budgetShare,
-    slotBlendWeight,
+    matchedSlotCorrectionCap,
+    matchedSlotEvidenceCorrection,
     hybridRobust,
     hybridMean,
     positive: Number.isFinite(hybridRobust) && hybridRobust > 0 ? 1 : 0,
@@ -713,11 +734,11 @@ function rankingContributionEvidence(rating) {
 
 /**
  * Rank individual value with one transitive score for every card. Full-deck
- * budget reallocation remains the primary signal. Same-four-teammate slot
- * contribution is blended in as supporting evidence, with its influence
- * shrinking quadratically as the card consumes more of the total budget.
- * This rewards efficient genuine contributors without letting a 70+ cost slot
- * star erase the opportunity cost it imposes on the other four slots.
+ * budget reallocation remains the primary signal and already captures cost
+ * opportunity. Same-four-teammate evidence may only resolve uncertainty inside
+ * the full-budget mean/robust band; it is never scaled by cost or budget usage.
+ * This prevents both "spend the cap" and "cheap is automatically better"
+ * shortcuts from overriding actual complete-deck battle evidence.
  */
 function compareIndividualContribution(left, right) {
   const leftContribution = rankingContributionEvidence(left);
@@ -794,21 +815,23 @@ export function rankMetagameV12Characters(ratings) {
         roleBreakdown: {
           ...(rating.roleBreakdown ?? {}),
           budgetShare: rounded(contribution.budgetShare, 6),
-          matchedSlotBlendWeight: rounded(contribution.slotBlendWeight, 6),
-          costWeightedContributionScore: rankingScore,
+          matchedSlotEvidenceCorrection: rounded(contribution.matchedSlotEvidenceCorrection, 6),
+          matchedSlotCorrectionCap: rounded(contribution.matchedSlotCorrectionCap, 6),
+          budgetNeutralContributionScore: rankingScore,
         },
         rankingContributionMean: rounded(contribution.hybridMean),
         rankingContributionRobust: rounded(contribution.hybridRobust),
-        matchedSlotBlendWeight: rounded(contribution.slotBlendWeight, 6),
+        matchedSlotEvidenceCorrection: rounded(contribution.matchedSlotEvidenceCorrection, 6),
+        matchedSlotCorrectionCap: rounded(contribution.matchedSlotCorrectionCap, 6),
         budgetShare: rounded(contribution.budgetShare, 6),
         rank: index + 1,
         practicalRank: index + 1,
         individualRank: individualRankById.get(String(rating.id)),
         positiveContributionEvidence: contribution.positive === 1,
         rankingBasis: hasCompleteBestDeck(rating)
-          ? "complete-deck-performance-with-cost-weighted-slot-evidence"
+          ? "complete-deck-performance-with-uncertainty-bounded-slot-evidence"
           : "full-deck-budget-reallocation",
-        individualRankingBasis: "full-deck-budget-reallocation-with-cost-weighted-slot-evidence",
+        individualRankingBasis: "full-deck-budget-reallocation-with-uncertainty-bounded-slot-evidence",
       };
     });
 }
