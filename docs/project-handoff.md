@@ -40,7 +40,7 @@ Current V12.5 context:
 
 - context/model version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v5-effective-damage`
-- final ranking policy: `matched-slot-counterfactual-v3-resumable`
+- final ranking policy: `full-budget-opportunity-v6-cost-weighted-slot`
 - finalization-state schema version: `2`
 
 Key modeling principle: a match is a **team battle made from five player decks against five player decks**. Do not regress to a one-deck-vs-one-deck shortcut merely because it is cheaper.
@@ -167,9 +167,11 @@ The finalization plan must be resumable and stable. Do not silently regenerate a
 
 ## 8. Why matched-slot counterfactual finalization exists
 
-The final ranking is not meant to reward a character merely because it was paired with a strong deck.
+The final ranking is not meant to reward a character merely because it was paired with a strong deck, but matched-slot strength also must not let a very expensive card ignore the opportunity cost it imposes on the other four slots.
 
-The current policy therefore uses matched-slot counterfactual evidence: compare battle outcomes while changing the relevant character/slot under controlled surrounding conditions. Deep-neighbourhood work expands exact evidence around important/high-performing configurations.
+The current v6 policy therefore gives every character one transitive contribution score. Full five-slot budget-reallocation opportunity evidence is the primary signal. Same-four-teammate matched-slot contribution is blended in as supporting evidence with weight `0.50 × (1 - cost / total budget)^2`. At cost 26/100 the matched-slot evidence gets about 27% weight; at cost 75/100 it gets only about 3%. If matched-slot evidence is unavailable, the full-budget result is preserved unchanged.
+
+Deep-neighbourhood work still exists to improve the matched-slot evidence around important/high-performing configurations. Ranking-only changes reuse existing battle evidence and should not cancel active computation waves.
 
 The implementation details live primarily in:
 
