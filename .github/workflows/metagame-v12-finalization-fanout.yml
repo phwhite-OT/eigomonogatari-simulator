@@ -71,7 +71,7 @@ jobs:
               .status == "complete"
               and .context.inputId == $input_id
               and .context.version == "team-battle-v12.5-effective-damage-individual-rank"
-              and .context.battleSemantics == "opportunity-baseline-v5-effective-damage"
+              and .context.battleSemantics == "opportunity-baseline-v6-target-priority"
               and .finalizationState.version == 2
             ' >/dev/null 2>&1; then
               echo "Skipping $output_directory: current completed checkpoint is not available yet."
@@ -169,7 +169,7 @@ jobs:
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
 
               if [ -n "$progress" ] && \
-                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1; then
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1; then
                 # Ranking-only policy refreshes are handled separately. They
                 # must never block discovery of a later condition whose battle
                 # finalization is still active.
@@ -177,7 +177,7 @@ jobs:
               fi
 
               if [ -n "$progress" ] && \
-                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
+                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
                 cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$progress")"
                 plan_length="$(jq -r '.finalizationState.plan | length' <<< "$progress")"
                 recovery_run_id=""
