@@ -17,9 +17,15 @@ As of 2026-09-16, the main background task is the **V12.5 shared-pool metagame r
 Important identifiers:
 
 - model/context version: `team-battle-v12.5-effective-damage-individual-rank`
-- battle semantics: `opportunity-baseline-v5-effective-damage`
+- battle semantics: `opportunity-baseline-v6-target-priority`
 - ranking policy: `full-budget-opportunity-v8-mean-primary-slot`
 - finalization state version: `2`
+
+Target selection semantics:
+- normal attackers keep stock balancing as the first target rule
+- among enemies with the same remaining stock, an active character with unused revive capacity is an absolute target priority before killability/damage efficiency
+- ghosts bypass guard/attribute-guard redirection and mitigation, and therefore directly prioritize the currently active guard carrier even when another enemy has more remaining stock; this lets the ghost remove the wall before ordinary attackers act
+- exhausted revive users (no skill uses remaining) lose the revive-priority flag
 - durable results branch: `metagame-v12-shared-pool-results`
 - report root: `reports/metagame-ratings-v12-team-opportunity/`
 
