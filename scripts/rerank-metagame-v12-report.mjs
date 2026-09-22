@@ -113,11 +113,11 @@ const rankingsByPosition = (report.rankingsByPosition ?? []).map((slot) => ({
 const updated = {
   ...report,
   rerankedAt: new Date().toISOString(),
-  rankingPolicy: "full-budget-opportunity-v7-budget-neutral-slot",
+  rankingPolicy: "full-budget-opportunity-v8-mean-primary-slot",
   model: {
     ...(report.model ?? {}),
     objective: "対象キャラを外して浮くコストを5枠全体へ再配分し、再構築後の最善デッキとの差からコスト制約込みの単体価値を評価する。",
-    scoringPolicy: "単体コスパ順位は全5枠再最適化の機会勝率差を主成分にする。同一4枠差し替えは、全5枠評価の平均値と安定補正後値の間にある不確実性幅の範囲だけ補正に使い、コスト比率では重み付けしない。",
+    scoringPolicy: "単体コスパ順位は全5枠再最適化の平均機会勝率差を最優先し、それが同値なら同一4枠差し替えの平均勝率差で直接の枠貢献を比較する。robust・下限値は平均同士でも決まらない場合の信頼性タイブレークに限定し、分散だけで大きい平均貢献を逆転させない。",
     costPolicy: "総コストは上限であって目標値ではない。候補を外した際に浮くコストを5枠全体へ再配分できるため、高コストの機会損失はそこで自然に評価する。未使用コストそのものには減点も加点もしない。",
   },
   rankingsByPosition,
