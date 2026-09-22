@@ -7,7 +7,7 @@ import {
 export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.5-effective-damage-individual-rank";
 
 const PARTIAL_SKILL_TYPES = new Set(["delay", "skill_reduction"]);
-const MATCHED_SLOT_MAX_BLEND = 0.55;
+const MATCHED_SLOT_MAX_BLEND = 0.50;
 
 function clampUnit(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
