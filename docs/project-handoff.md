@@ -361,3 +361,57 @@ If a future change alters any of the following, update this file and `AGENTS.md`
 - interpretation of “complete”
 
 The intended outcome is simple: a fresh coding agent should be able to open the repository, read two files, inspect the latest workflow state, and continue the project without needing the original chat history.
+
+
+## 17. Rolling worklog rule
+
+This document is also the canonical rolling handoff log for future Codex/ChatGPT sessions.
+
+**After every source/workflow/evaluation fix, update this document in the same working session.** Do not rely on chat history alone. A useful entry should state, as applicable:
+
+- what changed
+- why it changed / what user-observed problem it addresses
+- whether battle semantics changed or only ranking/reporting changed
+- checkpoint/recompute compatibility
+- current validation / workflow state
+- what should be checked next
+- any sanity-check examples that motivated the change
+
+For small fixes, a dated entry in the rolling log below is sufficient. If the change alters architecture, battle semantics, ranking policy, checkpoint format, workflow topology/recovery, or the meaning of V12 outputs, also update the relevant explanatory sections above and `AGENTS.md`.
+
+## 18. Rolling handoff log
+
+### 2026-09-22 — cost-aware transitive ranking correction
+
+Latest known master commit at the time of this entry: `8ba71b32f94e636572a4499c97721a2e9bcdbf69` (`fix: make V12 ranking transitive and cost-weighted`).
+
+Current ranking marker:
+
+`full-budget-opportunity-v6-cost-weighted-slot`
+
+The correction addresses a ranking failure mode where a character could look excellent in isolation or in a fixed-slot comparison while consuming too much of a cost-100 deck budget to belong in the strongest actual five-card decks.
+
+The intended interpretation is:
+
+- keep one transitive contribution score per character
+- make full five-slot budget reallocation the primary evidence, so the evaluator accounts for what the other four slots can become when this character's cost changes
+- use same-four-teammate matched-slot evidence only as supporting evidence
+- weight that supporting evidence by `0.50 × (1 - character cost / total budget)^2`
+- preserve the full-budget result unchanged when matched-slot evidence is missing
+- ranking-only changes should reuse existing battle evidence rather than invalidating/restarting expensive battle waves unless battle semantics themselves changed
+
+User-observed sanity checks that should remain visible to future agents:
+
+- At cost 100, very expensive characters such as アマテラス / フヒッティ should not rank near the top merely because their standalone battle contribution is strong if spending roughly 70+ cost on one slot prevents the resulting five-card deck from being competitive.
+- Conversely, cheap utility cards must not be crushed simply because a fixed-slot or partner-sensitive metric undervalues them. パプアさん is an important example: at cost 26, a near-reliable one-turn stall can be highly valuable because four other slots still retain substantial budget.
+- Be suspicious if a restriction-irrelevant effect wins mainly through teammate/context leakage rather than genuine opportunity value. The user's example was 水蘇生のちび丸 being rewarded in a way that seemed disconnected from the actual restriction.
+- These examples are regression/sanity checks, not hard-coded desired ranks. If simulation evidence genuinely contradicts them, inspect the actual decks, opponents, slot contribution, opportunity result, and cost allocation before changing the formula again.
+
+What to inspect next when results look strange:
+
+1. Compare the character's full-budget opportunity result against matched-slot evidence.
+2. Inspect the actual best five-card decks containing and excluding the character, not only the character's scalar score.
+3. Check whether partner selection or a restriction-specific interaction is leaking unrelated value into the ranking.
+4. Verify that cost-heavy cards pay the opportunity cost of weakening the remaining four slots.
+5. Verify that cheap stall/support cards receive credit when they create a real turn/deck-level advantage.
+6. Prefer fixing the evidence/aggregation problem over adding character-specific exceptions.
