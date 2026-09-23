@@ -12,13 +12,14 @@ Read `docs/project-handoff.md` for the detailed architecture, current V12.5 comp
 
 ## Current highest-priority work
 
-As of 2026-09-16, the main background task is the **V12.5 shared-pool metagame recompute/finalization**.
+As of 2026-09-23, the main background task is the **V12.5 shared-pool metagame recompute/finalization**.
 
 Important identifiers:
 
 - model/context version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v6-target-priority`
-- ranking policy: `full-budget-opportunity-v8-mean-primary-slot`
+- ranking policy: `full-budget-opportunity-v9-adaptive-metagame`
+- adaptive metagame schema: `2`
 - finalization state version: `2`
 
 Target selection semantics:
@@ -111,6 +112,7 @@ Read at least:
 - `src/core/simulate.js`
 - `src/core/metagame-v7.js`
 - `src/core/metagame-v12.js`
+- `src/core/metagame-v12-adaptive.js`
 - `src/core/metagame-v12-finalization.js`
 - `scripts/rate-metagame-v12.mjs`
 - `scripts/build-metagame-v12-work-matrix.mjs`
@@ -144,7 +146,11 @@ The exact live run ID is intentionally not hard-coded here because it becomes st
 
 ## Current V12 ranking policy
 
-Current ranking marker: `full-budget-opportunity-v8-mean-primary-slot`.
+Current ranking marker: `full-budget-opportunity-v9-adaptive-metagame`.
+
+Final ranking is no longer a simple uniform average over the fixed 72 supplied scenarios. The completed shared deck pool is treated as the measured strategy population. A time-averaged coevolution loop raises adoption for complete decks that perform well under the current scenario mix, while the environment side raises weight on scenarios where the currently popular decks underperform. This approximates the practical counter cycle (strong deck → counter adoption → counter-counter adoption) without hard-coded character exceptions. A uniform scenario floor and time averaging keep rock-paper-scissors style cycles represented instead of collapsing to the final iterate.
+
+This adaptive pass is ranking/reporting only. It consumes the existing per-scenario battle vectors already stored in the V12 cache, so compatible V12.5 battle checkpoints remain reusable. `scripts/rerank-metagame-v12-report.mjs` must never upgrade an old fixed-environment report by relabeling it; only reports already containing `adaptiveMetagame.version == 2` may use that lightweight reranker. Completed legacy reports are upgraded through `scripts/rate-metagame-v12.mjs --finalize-only=true`, which rebuilds the adaptive aggregation from durable battle evidence without replaying the heavy battles.
 
 Individual contribution is ordered from central battle evidence first. The primary signal is the **mean** full five-slot budget-reallocation opportunity result. That comparison already captures cost because removing a candidate frees its cost and allows all five slots to rebuild. When two candidates have the same full-budget mean, the controlled same-four-teammate **mean** contribution is the next direct-attribution signal.
 
