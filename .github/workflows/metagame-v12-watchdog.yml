@@ -76,7 +76,7 @@ jobs:
               marker_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/ranking-policy.txt"
               progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
-              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v5-effective-damage" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
+              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
                 incomplete=$((incomplete + 1))
                 if [ -z "$first_incomplete" ]; then
                   first_incomplete="${attribute_group}:${cost}"
@@ -94,7 +94,7 @@ jobs:
           desired_workflow="$recompute_workflow"
           if [ -n "$first_progress" ] &&              jq -e '.status == "finalizing"
                and .context.version == "team-battle-v12.5-effective-damage-individual-rank"
-               and .context.battleSemantics == "opportunity-baseline-v5-effective-damage"
+               and .context.battleSemantics == "opportunity-baseline-v6-target-priority"
                and .finalizationState.phase == "counterfactual"
                and (.finalizationState.plan | type == "array")
                and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$first_progress" >/dev/null 2>&1; then

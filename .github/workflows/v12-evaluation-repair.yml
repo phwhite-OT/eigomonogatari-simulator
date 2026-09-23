@@ -34,7 +34,7 @@ jobs:
           old_version = "team-battle-v12.4-full-opportunity-baseline"
           new_version = "team-battle-v12.5-effective-damage-individual-rank"
           old_semantics = "opportunity-baseline-v4"
-          new_semantics = "opportunity-baseline-v5-effective-damage"
+          new_semantics = "opportunity-baseline-v6-target-priority"
 
           for root in (Path("src"), Path("scripts"), Path("test")):
               if not root.exists():

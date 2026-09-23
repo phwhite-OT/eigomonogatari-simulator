@@ -290,8 +290,11 @@ test("蘇生は攻撃後・交代前に解決し、同じキャラへ一度だ�
   };
   const state = createBattleState(
     [
-      character("leader", { hp: 500, pow: 0 }),
-      character("reviver", { hp: 100, pow: 0, skillTurn: 0, skill: revive }),
+      [
+        character("leader", { hp: 500, pow: 0 }),
+        character("leader-reserve", { hp: 500, pow: 0 }),
+      ],
+      [character("reviver", { hp: 100, pow: 0, skillTurn: 0, skill: revive })],
     ],
     [character("enemy", { hp: 1000, pow: 1000 })],
   );
@@ -391,6 +394,122 @@ test("スキル脅威方針は残数が同じなら発動の近い相手を優�
     rules: simpleRules,
     targetPolicy: TARGET_POLICIES.SKILL_THREAT,
   }), 1);
+});
+
+
+test("同じ残数なら倒しやすさより未消費の蘇生持ちを優先する", () => {
+  const revive = {
+    type: "revive",
+    multiplier: 1,
+    target: "ally_all",
+    duration: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [character("attacker", { pow: 100 })],
+    [
+      character("reviver", { hp: 1_000, skillTurn: 8, skill: revive }),
+      character("killable", { hp: 50, skillTurn: 0 }),
+    ],
+  );
+
+  assert.equal(selectPriorityTarget(state, "allies", {
+    actorIndex: 0,
+    rules: simpleRules,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+  }), 0);
+});
+
+
+test("蘇生回数を使い切った相手は同残数の蘇生優先から外す", () => {
+  const revive = {
+    type: "revive",
+    multiplier: 1,
+    target: "ally_all",
+    duration: 1,
+    conditions: [],
+  };
+  const state = createBattleState(
+    [character("attacker", { pow: 100 })],
+    [
+      character("spent-reviver", { hp: 1_000, skillTurn: 0, maxUses: 1, skill: revive }),
+      character("killable", { hp: 50 }),
+    ],
+  );
+  state.enemies[0].skillUses = 1;
+
+  assert.equal(selectPriorityTarget(state, "allies", {
+    actorIndex: 0,
+    rules: simpleRules,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+  }), 1);
+});
+
+
+test("幽霊は残数差よりかばう役を優先して直接狙う", () => {
+  const state = createBattleState(
+    [character("ghost", { pow: 100 })],
+    [
+      character("guard", { hp: 1_000, pow: 0 }),
+      [
+        character("deep-stack", { hp: 1_000, pow: 0 }),
+        character("deep-reserve-a"),
+        character("deep-reserve-b"),
+      ],
+    ],
+  );
+  state.allies[0].isGhost = true;
+  state.enemies[0].buffs = [{
+    type: "guard",
+    multiplier: 0.1,
+    remainingTurns: 1,
+    conditions: [],
+    activationOrder: 1,
+  }];
+
+  assert.equal(selectPriorityTarget(state, "allies", {
+    actorIndex: 0,
+    rules: simpleRules,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+  }), 0);
+});
+
+
+test("TACTICALでは幽霊が通常攻撃者より先にかばう役を処理する", () => {
+  const state = createBattleState(
+    [
+      character("ghost", { pow: 100 }),
+      character("normal", { pow: 300 }),
+    ],
+    [
+      character("guard", { hp: 80, pow: 0 }),
+      [
+        character("deep-stack", { hp: 1_000, pow: 0 }),
+        character("deep-reserve"),
+      ],
+    ],
+  );
+  state.allies[0].isGhost = true;
+  state.enemies[0].buffs = [{
+    type: "guard",
+    multiplier: 0.1,
+    remainingTurns: 1,
+    conditions: [],
+    activationOrder: 1,
+  }];
+
+  const result = simulateBattle(state, simpleRules, {
+    turns: 1,
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  });
+  const allyActions = result.history[0].actions.filter(({ side }) => side === "allies");
+
+  assert.equal(allyActions[0].actorName, "ghost");
+  assert.equal(allyActions[0].hits[0].targetName, "guard");
+  assert.equal(allyActions[0].hits[0].defeated, true);
+  assert.equal(allyActions[1].actorName, "normal");
 });
 
 test("火力順方針では推定ダメージが高い味方から攻撃する", () => {
@@ -657,8 +776,11 @@ test("回復は自身がこのターンに蘇生されるときだけ温存す�
   };
   const state = createBattleState(
     [
-      character("healer", { hp: 100, skillTurn: 0, skill: heal, pow: 0 }),
-      character("ready-reviver", { skillTurn: 0, skill: revive, pow: 0 }),
+      [
+        character("healer", { hp: 100, skillTurn: 0, skill: heal, pow: 0 }),
+        character("healer-reserve", { hp: 100, pow: 0 }),
+      ],
+      [character("ready-reviver", { skillTurn: 0, skill: revive, pow: 0 })],
     ],
     [character("enemy", { pow: 200 })],
   );
