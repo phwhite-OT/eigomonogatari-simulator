@@ -444,6 +444,28 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-23 — lightweight select/watchdog progress state
+
+Observed problem:
+
+- live shared-pool `select` was not deadlocked, but the quiet queue-selection section consistently took about 105–137 seconds across five recent runs
+- the selector inflated the large durable `progress.json` into a shell variable just to decide whether a condition was complete, then inflated the same checkpoint again when the condition actually needed work
+- as more representative conditions become complete, scanning every earlier condition this way would make the control plane progressively slower and continue to look like a stuck `select`
+
+Correction:
+
+- durable result writers now emit a compact `progress-summary.json` next to each checkpoint with only status, model/battle identifiers, finalization phase/cursor/plan length, and adaptive-schema version
+- normal shared-pool selection, distributed-finalization selection, and the watchdog read the compact summary first
+- legacy result snapshots without the summary still fall back to deriving the same state from `progress.json`, so no existing checkpoint or battle cache is invalidated
+- the normal selector also checks the tiny ranking-policy marker before touching legacy `progress.json`; a ranking mismatch no longer causes an unnecessary first full-checkpoint read
+- workers that actually resume calculation still restore the full checkpoint exactly as before
+
+Compatibility / validation:
+
+- battle semantics, adaptive ranking, checkpoint contents, and finalization schema are unchanged
+- this is control-plane performance/reliability only
+- the first run after deployment may still pay one legacy full-checkpoint read; once its writer publishes the summary, subsequent selects for that condition use the compact path
+
 ### 2026-09-23 — watchdog pending/concurrency recovery repair
 
 Observed problem:
