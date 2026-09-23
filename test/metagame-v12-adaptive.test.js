@@ -2,18 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  adaptiveMetagameV12ScenarioWeights,
   buildAdaptiveMetagameV12Equilibrium,
   reconcileAdaptiveMetagameV12Rating,
+  selectAdaptiveMetagameV12Strategies,
 } from "../src/core/metagame-v12-adaptive.js";
-
-function character(id, name = id) {
-  return { id, name, cost: 10 };
-}
-
-function deck(id) {
-  return [0, 1, 2, 3, 4].map((index) => character(`${id}-${index}`, `${id}${index}`));
-}
 
 function result(values) {
   return {
@@ -24,81 +16,85 @@ function result(values) {
   };
 }
 
-test("adaptive scenario weights are uniform when strategy adoption is uniform", () => {
-  const a = deck("a");
-  const b = deck("b");
-  const aKey = a.map((entry) => entry.id).join("|");
-  const bKey = b.map((entry) => entry.id).join("|");
-  const scenarios = [
-    { backgroundDeckKeys: [aKey] },
-    { backgroundDeckKeys: [bKey] },
+function strategy(id, values, ids = null) {
+  const deckIds = ids ?? [0, 1, 2, 3, 4].map((index) => `${id}-${index}`);
+  return {
+    ids: deckIds,
+    names: deckIds,
+    totalCost: 50,
+    result: result(values),
+  };
+}
+
+test("adaptive strategy selection keeps structurally different measured decks", () => {
+  const pool = [
+    strategy("a1", [0.80, 0.80], ["a", "b", "c", "d", "e"]),
+    strategy("a2", [0.79, 0.79], ["a", "b", "c", "d", "f"]),
+    strategy("a3", [0.78, 0.78], ["a", "b", "c", "d", "g"]),
+    strategy("counter", [0.77, 0.77], ["u", "v", "w", "x", "y"]),
+    strategy("other", [0.76, 0.76], ["u", "v", "w", "q", "r"]),
+    strategy("last", [0.75, 0.75], ["1", "2", "3", "4", "5"]),
+    strategy("z1", [0.74, 0.74]),
+    strategy("z2", [0.73, 0.73]),
+    strategy("z3", [0.72, 0.72]),
   ];
-  const weights = adaptiveMetagameV12ScenarioWeights(
-    scenarios,
-    new Map([[aKey, 0.5], [bKey, 0.5]]),
-    { uniformScenarioFloor: 0.2 },
-  );
-  assert.deepEqual(weights.map((value) => Number(value.toFixed(8))), [0.5, 0.5]);
+  const selected = selectAdaptiveMetagameV12Strategies(pool, 2, { strategyLimit: 8 });
+  assert.equal(selected.length, 8);
+  assert.ok(selected.some((entry) => entry.key === "u|v|w|x|y"));
 });
 
-test("adaptive equilibrium rewards broad strength over a narrow counter that only matters into one shell", () => {
-  const broad = deck("broad");
-  const wall = deck("wall");
-  const counter = deck("counter");
-  const decks = [broad, wall, counter];
-  const keys = decks.map((entry) => entry.map((character) => character.id).join("|"));
-  const scenarios = [
-    { backgroundDeckKeys: [keys[0]] },
-    { backgroundDeckKeys: [keys[1]] },
-    { backgroundDeckKeys: [keys[2]] },
+test("adaptive equilibrium rewards broad strength over a narrow counter", () => {
+  const pool = [
+    strategy("broad", [0.68, 0.62, 0.66]),
+    strategy("wall", [0.48, 0.60, 0.58]),
+    strategy("counter", [0.35, 0.90, 0.30]),
   ];
-  const cache = new Map([
-    [`12:${keys[0]}`, result([0.68, 0.62, 0.66])],
-    [`12:${keys[1]}`, result([0.48, 0.60, 0.58])],
-    [`12:${keys[2]}`, result([0.35, 0.90, 0.30])],
-  ]);
-  const equilibrium = buildAdaptiveMetagameV12Equilibrium(decks, scenarios, cache, {
-    turns: 12,
-    iterations: 64,
-    burnIn: 16,
-    learningRate: 6,
-    exploration: 0.04,
-    uniformScenarioFloor: 0.2,
-  });
+  const equilibrium = buildAdaptiveMetagameV12Equilibrium(
+    pool,
+    [{ id: "s1" }, { id: "s2" }, { id: "s3" }],
+    {
+      iterations: 80,
+      burnIn: 20,
+      strategyLearningRate: 6,
+      counterLearningRate: 5,
+      strategyExploration: 0.03,
+      uniformScenarioFloor: 0.25,
+      strategyLimit: 8,
+    },
+  );
   const byKey = new Map(equilibrium.strategies.map((entry) => [entry.key, entry]));
-  assert.ok(byKey.get(keys[0]).weight > byKey.get(keys[2]).weight);
-  assert.ok(byKey.get(keys[0]).expectedWinRate > byKey.get(keys[2]).expectedWinRate);
-  assert.ok(byKey.get(keys[2]).weight > 0, "counter strategies must remain represented instead of being deleted");
+  const broadKey = pool[0].ids.join("|");
+  const counterKey = pool[2].ids.join("|");
+  assert.ok(byKey.get(broadKey).weight > byKey.get(counterKey).weight);
+  assert.ok(byKey.get(broadKey).expectedWinRate > byKey.get(counterKey).expectedWinRate);
+  assert.ok(byKey.get(counterKey).weight > 0, "narrow counters remain represented rather than being deleted");
+  assert.ok(equilibrium.effectiveScenarioCount > 1);
 });
 
 test("time-averaging preserves all sides of a cyclic counter metagame", () => {
-  const a = deck("a");
-  const b = deck("b");
-  const c = deck("c");
-  const decks = [a, b, c];
-  const keys = decks.map((entry) => entry.map((character) => character.id).join("|"));
-  const scenarios = [
-    { backgroundDeckKeys: [keys[0]] },
-    { backgroundDeckKeys: [keys[1]] },
-    { backgroundDeckKeys: [keys[2]] },
+  const pool = [
+    strategy("a", [0.50, 0.80, 0.20]),
+    strategy("b", [0.20, 0.50, 0.80]),
+    strategy("c", [0.80, 0.20, 0.50]),
   ];
-  const cache = new Map([
-    [`12:${keys[0]}`, result([0.50, 0.80, 0.20])],
-    [`12:${keys[1]}`, result([0.20, 0.50, 0.80])],
-    [`12:${keys[2]}`, result([0.80, 0.20, 0.50])],
-  ]);
-  const equilibrium = buildAdaptiveMetagameV12Equilibrium(decks, scenarios, cache, {
-    iterations: 72,
-    burnIn: 12,
-    exploration: 0.03,
-    uniformScenarioFloor: 0.15,
-  });
+  const equilibrium = buildAdaptiveMetagameV12Equilibrium(
+    pool,
+    [{ id: "a" }, { id: "b" }, { id: "c" }],
+    {
+      iterations: 96,
+      burnIn: 16,
+      strategyExploration: 0.03,
+      uniformScenarioFloor: 0.20,
+      strategyLimit: 8,
+    },
+  );
   const weights = equilibrium.strategies.map((entry) => entry.weight);
   assert.ok(weights.every((weight) => weight > 0.15));
   assert.ok(weights.every((weight) => weight < 0.50));
+  assert.ok(Math.max(...equilibrium.scenarioWeights) - Math.min(...equilibrium.scenarioWeights) < 0.20);
 });
 
-test("adaptive reconciliation can change the selected best complete deck using measured scenario values", () => {
+test("adaptive reconciliation can change the selected best complete deck using measured counter pressure", () => {
   const scenarioWeights = [0.8, 0.2];
   const rating = {
     id: "target",
@@ -111,36 +107,16 @@ test("adaptive reconciliation can change the selected best complete deck using m
     roleBreakdown: {},
   };
   const sharedPool = [
-    {
-      ids: ["target", "a", "b", "c", "d"],
-      names: ["target", "a", "b", "c", "d"],
-      totalCost: 50,
-      result: result([0.90, 0.10]),
-    },
-    {
-      ids: ["target", "e", "f", "g", "h"],
-      names: ["target", "e", "f", "g", "h"],
-      totalCost: 50,
-      result: result([0.55, 0.75]),
-    },
-    {
-      ids: ["x", "a", "b", "c", "d"],
-      names: ["x", "a", "b", "c", "d"],
-      totalCost: 45,
-      result: result([0.45, 0.45]),
-    },
-    {
-      ids: ["y", "e", "f", "g", "h"],
-      names: ["y", "e", "f", "g", "h"],
-      totalCost: 45,
-      result: result([0.50, 0.50]),
-    },
+    strategy("candidate-a", [0.90, 0.10], ["target", "a", "b", "c", "d"]),
+    strategy("candidate-b", [0.55, 0.75], ["target", "e", "f", "g", "h"]),
+    strategy("baseline-a", [0.45, 0.45], ["x", "a", "b", "c", "d"]),
+    strategy("baseline-b", [0.50, 0.50], ["y", "e", "f", "g", "h"]),
   ];
   const reconciled = reconcileAdaptiveMetagameV12Rating(
     rating,
     1,
     sharedPool,
-    { version: 1, scenarioWeights },
+    { version: 2, scenarioWeights },
     { totalCost: 100 },
   );
   assert.equal(reconciled.adaptiveMetagameApplied, true);
