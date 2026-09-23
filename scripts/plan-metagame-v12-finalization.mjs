@@ -128,6 +128,8 @@ if (Number(checkpointFinalizationState.policy?.counterfactualAnchorLimit) !== cu
     counterfactualAnchorLimit: currentAnchorLimit,
     replacementDeckLimit,
     replacementBeamWidth,
+    equilibriumDeckLimit: Number(checkpointFinalizationState.policy?.equilibriumDeckLimit) || 24,
+    equilibriumIterations: Number(checkpointFinalizationState.policy?.equilibriumIterations) || 1200,
   });
   finalizationState.deepSearchRound = checkpointDeepSearchRound;
   finalizationState.deepSearchVisitedSeedKeys = [...visitedDeepSeedKeys];
