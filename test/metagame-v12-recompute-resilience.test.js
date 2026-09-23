@@ -36,6 +36,13 @@ test("V12 heavy work remains resumable and capped at nineteen parallel runners",
   assert.match(rateScript, /MetagameV12EvaluationPool/);
 });
 
+test("V12 publish hands off only counterfactual finalization to fanout", () => {
+  assert.match(workflow, /Condition entered counterfactual finalization/);
+  assert.match(workflow, /Condition still needs candidate\/baseline finalization work/);
+  assert.match(workflow, /\.finalizationState\.phase == "counterfactual"/);
+  assert.match(workflow, /\.finalizationState\.cursor\.planIndex < \(\.finalizationState\.plan \| length\)/);
+});
+
 test("V12 watchdog recognizes adaptive policy and safely heals pending concurrency stalls", () => {
   assert.match(watchdog, /schedule:/);
   assert.match(watchdog, /\*\/10 \* \* \* \*/);
