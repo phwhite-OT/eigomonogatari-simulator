@@ -459,6 +459,116 @@ export function solveMetagameV12Equilibrium(matrix, options = {}) {
   };
 }
 
+function initialPopulationWeights(entries) {
+  if (!(entries?.length > 0)) return [];
+  const broadScores = entries.map((entry) => {
+    const value = Number(entry.result?.expectedWinRate);
+    return Number.isFinite(value) ? value : 0.5;
+  });
+  const maximum = Math.max(...broadScores);
+  // Start the feedback loop from the surveyed environment's measured strength
+  // rather than an artificial uniform field. The softmax is deliberately mild
+  // so narrow specialists still retain enough mass to prove a counter relation.
+  return normalizeWeights(broadScores.map((value) => Math.exp((value - maximum) * 8)));
+}
+
+function populationDistance(left, right) {
+  if (left.length !== right.length) return 1;
+  return left.reduce((sum, value, index) => sum + Math.abs(value - right[index]), 0) / 2;
+}
+
+/**
+ * Close the team-population feedback loop.
+ *
+ * Pair payoffs are not measured in five identical copies. Each focal pair is
+ * embedded in eight background players sampled from the current population.
+ * After solving that payoff matrix, the resulting usage distribution becomes
+ * the next round's background population. Damping prevents one noisy round
+ * from replacing the whole field at once.
+ */
+export async function solveMetagameV12PopulationFeedback(entries, characters, options = {}) {
+  const feedbackRounds = Math.max(1, Math.floor(Number(options.feedbackRounds) || 5));
+  const feedbackDamping = Math.min(1, Math.max(0.1, Number(options.feedbackDamping) || 0.65));
+  const targetPopulationDrift = Math.max(0, Number(options.targetPopulationDrift) || 0.025);
+  let populationWeights = entries.length === options.initialPopulationWeights?.length
+    ? normalizeWeights(options.initialPopulationWeights)
+    : initialPopulationWeights(entries);
+  let lastMatrixResult = null;
+  let lastSolution = null;
+  let populationDrift = 1;
+
+  for (let roundIndex = 0; roundIndex < feedbackRounds; roundIndex += 1) {
+    const matrixResult = await buildMetagameV12EquilibriumMatrix(entries, characters, {
+      ...options,
+      populationWeights,
+      onProgress: async (progress) => {
+        await options.onProgress?.({
+          ...progress,
+          feedbackRound: roundIndex + 1,
+          feedbackRounds,
+          populationDrift,
+        });
+      },
+    });
+    if (!matrixResult.complete) {
+      return {
+        complete: false,
+        feedbackRound: roundIndex + 1,
+        feedbackRounds,
+        populationWeights,
+        populationDrift,
+        matrixResult,
+        solution: lastSolution,
+      };
+    }
+
+    const solution = solveMetagameV12Equilibrium(matrixResult.matrix, options);
+    populationDrift = populationDistance(populationWeights, solution.usage);
+    lastMatrixResult = matrixResult;
+    lastSolution = solution;
+    await options.onRoundComplete?.({
+      feedbackRound: roundIndex + 1,
+      feedbackRounds,
+      populationWeights,
+      populationDrift,
+      matrixResult,
+      solution,
+    });
+
+    if (populationDrift <= targetPopulationDrift) {
+      return {
+        complete: true,
+        feedbackRound: roundIndex + 1,
+        feedbackRounds,
+        populationWeights,
+        populationDrift,
+        matrixResult,
+        solution: {
+          ...solution,
+          converged: solution.converged && populationDrift <= targetPopulationDrift,
+        },
+      };
+    }
+
+    populationWeights = normalizeWeights(populationWeights.map((weight, index) => (
+      (1 - feedbackDamping) * weight + feedbackDamping * (Number(solution.usage[index]) || 0)
+    )));
+  }
+
+  return {
+    complete: true,
+    feedbackRound: feedbackRounds,
+    feedbackRounds,
+    populationWeights,
+    populationDrift,
+    matrixResult: lastMatrixResult,
+    solution: {
+      ...lastSolution,
+      converged: Boolean(lastSolution?.converged) && populationDrift <= targetPopulationDrift,
+    },
+  };
+}
+
 function dependencyAgainstRemovedTarget(matrix, usage, deckIndex, targetIndex, currentWinRate) {
   const remaining = 1 - usage[targetIndex];
   if (targetIndex === deckIndex || remaining <= 1e-9) return 0;
@@ -517,11 +627,14 @@ export function summarizeMetagameV12Equilibrium(entries, matrix, solution, optio
 
   return {
     version: METAGAME_V12_EQUILIBRIUM_VERSION,
-    model: "symmetric-5v5-archetype-no-regret",
+    model: "mixed-5v5-population-feedback-no-regret",
     candidateDeckCount: entries.length,
     equilibriumValue: rounded(solution.equilibriumValue),
     exploitability: rounded(solution.exploitability),
     iterations: solution.iterations,
+    feedbackRound: Number(options.feedbackRound) || null,
+    feedbackRounds: Number(options.feedbackRounds) || null,
+    populationDrift: rounded(options.populationDrift),
     converged: solution.converged,
     decks: decks.sort((left, right) => left.rank - right.rank),
   };
