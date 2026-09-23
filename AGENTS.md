@@ -49,6 +49,8 @@ Normal recompute workflow:
 
 The 19-runner cap is intentional: it leaves one runner slot available for lightweight/control work such as ranking refreshes instead of letting battle fanout consume all 20 slots.
 
+A synthetic `*-finalize-handoff` shard exists only to finish any remaining global-baseline work and freeze the counterfactual plan. Once the checkpoint reaches `finalizationState.phase == "counterfactual"`, that shard must exit immediately; it must not spend its long candidate time budget doing serial/4-worker counterfactual evaluation. Counterfactual work belongs to the distributed fanout.
+
 Distributed finalization workflow:
 
 `.github/workflows/metagame-v12-finalization-fanout.yml`
