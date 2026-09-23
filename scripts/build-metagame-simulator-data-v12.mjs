@@ -34,6 +34,13 @@ function compactV12Candidate(entry, character) {
     skillTarget: entry.skillTarget ?? character?.skill?.target ?? "self",
     skillName: entry.skillName ?? character?.skillName ?? "",
     overallRank: Number(entry.rank) || null,
+    practicalRank: Number(entry.practicalRank) || null,
+    individualRank: Number(entry.individualRank) || null,
+    equilibriumRank: Number(entry.equilibriumRank) || null,
+    equilibriumUsageRate: Number(entry.equilibriumUsageRate) || 0,
+    equilibriumExpectedWinRate: Number(entry.equilibriumExpectedWinRate) || 0,
+    equilibriumMetaDependency: Number(entry.equilibriumMetaDependency) || 0,
+    equilibriumDependencyTarget: entry.equilibriumDependencyTarget ?? null,
     role: entry.role ?? "neutral",
     evaluationStatus: entry.evaluationStatus ?? "complete",
     evaluationWarning: entry.evaluationWarning ?? null,
@@ -116,6 +123,31 @@ function compactV12PrecomputedDecks(rankings) {
   ));
 }
 
+function compactV12Equilibrium(equilibrium) {
+  if (!equilibrium || !Array.isArray(equilibrium.decks)) return null;
+  return {
+    version: Number(equilibrium.version) || null,
+    model: equilibrium.model ?? null,
+    candidateDeckCount: Number(equilibrium.candidateDeckCount) || equilibrium.decks.length,
+    equilibriumValue: Number(equilibrium.equilibriumValue) || 0,
+    exploitability: Number(equilibrium.exploitability) || 0,
+    iterations: Number(equilibrium.iterations) || 0,
+    converged: equilibrium.converged === true,
+    decks: equilibrium.decks.map((deck) => ({
+      rank: Number(deck.rank) || null,
+      ids: (deck.ids ?? []).map(String),
+      names: deck.names ?? [],
+      totalCost: Number(deck.totalCost) || 0,
+      usageRate: Number(deck.usageRate) || 0,
+      expectedWinRate: Number(deck.expectedWinRate) || 0,
+      broadExpectedWinRate: Number(deck.broadExpectedWinRate) || 0,
+      metaDependency: Number(deck.metaDependency) || 0,
+      dependencyTargetNames: deck.dependencyTargetNames ?? null,
+      dependencyTargetUsageRate: Number(deck.dependencyTargetUsageRate) || 0,
+    })),
+  };
+}
+
 function compactTeamScenarios(scenarios) {
   return scenarios.map((scenario) => ({
     a: scenario.allyDecks.map((deck) => deck.map((character) => String(character.id))),
@@ -178,6 +210,7 @@ async function buildConstraint(input, projectRoot, charactersById) {
   });
   const rankings = new Map((report.rankingsByPosition ?? []).map((slot) => [Number(slot.position), slot.characters ?? []]));
   const precomputedDecks = compactV12PrecomputedDecks(rankings);
+  const equilibrium = compactV12Equilibrium(report.equilibrium);
 
   return {
     id: report.context?.inputId ?? input.id,
@@ -189,6 +222,7 @@ async function buildConstraint(input, projectRoot, charactersById) {
     scenarioCount: teamScenarios.length,
     modelVersion: METAGAME_V12_MODEL_VERSION,
     reportGeneratedAt: report.generatedAt ?? progress.updatedAt ?? null,
+    equilibrium,
     slots: [1, 2, 3, 4, 5].map((position) => {
       const candidates = (rankings.get(position) ?? [])
         .map((entry) => compactV12Candidate(entry, charactersById.get(String(entry.id))))
@@ -212,6 +246,12 @@ async function buildConstraint(input, projectRoot, charactersById) {
       alternativeDeckLimit: Number(report.context?.alternativeDeckLimit ?? progress.context?.alternativeDeckLimit) || null,
       beamWidth: Number(report.context?.beamWidth ?? progress.context?.beamWidth) || null,
       precomputedDeckCount: precomputedDecks.length,
+      equilibriumVersion: Number(report.context?.equilibriumVersion) || equilibrium?.version || null,
+      equilibriumDeckCount: Number(report.context?.equilibriumDeckCount) || equilibrium?.candidateDeckCount || 0,
+      equilibriumExploitability: Number(report.context?.equilibriumExploitability) || equilibrium?.exploitability || 0,
+      equilibriumConverged: report.context?.equilibriumConverged === true || equilibrium?.converged === true,
+      deepSearchConverged: progress.finalizationState?.deepSearchConverged === true,
+      deepSearchSafetyCapReached: progress.finalizationState?.deepSearchSafetyCapReached === true,
     },
   };
 }
