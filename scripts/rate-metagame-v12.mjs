@@ -412,7 +412,7 @@ if (segmentCounterfactualNewEvaluations) {
   applyReconciledRatings();
 }
 
-if (finalizationState.phase === "complete" && finalizationState.equilibriumVersion !== METAGAME_V12_EQUILIBRIUM_VERSION) {
+if (finalizationState.phase === "complete" && (finalizationState.equilibriumVersion !== METAGAME_V12_EQUILIBRIUM_VERSION || !equilibriumReport)) {
   finalizationState.phase = "equilibrium";
   equilibriumReport = null;
 }
@@ -486,6 +486,7 @@ const report = {
     costPolicy: "総コストは上限であって目標値ではない。候補を外した際のコストは5枠全体へ再配分し、そこで機会損失を評価する。未使用コストそのものには減点も加点もしない。proxyが同等なら、コストを余らせた合法デッキも探索から落とさない。",
     environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
     performancePolicy: "各候補の直接探索と共有基準デッキは既存キャッシュを再利用する。全shard統合後、各キャラについて構成の異なる強い完成デッキを最大3本だけ一度固定して監査し、各デッキで他4枠固定の差し替え候補を最大24本探索する。監査計画とカーソルをcheckpointへ保存し、再開時に計算範囲を増殖させず未処理位置から継続する。反実仮想の未評価戦闘だけをCPU数に応じたworker poolで並列実行し、評価内容とキャッシュキーは従来と同一に保つ。",
+    equilibriumPolicy: "共有実戦プールから汎用上位とシナリオ特化の完成デッキを残し、各デッキを5人採用した純粋アーキタイプ同士を両陣営・3戦術で対称評価する。得られた対戦行列へno-regret反復を適用し、対策→対策返しが循環する場合も時間平均の均衡採用率・均衡勝率・特定相手への依存度を算出する。単体貢献順位とは別の均衡メタ順位として保持する。",
   },
   context: {
     inputId: resolvedInput.id,
@@ -507,6 +508,12 @@ const report = {
     replacementBeamWidth,
     counterfactualAnchorLimit,
     finalizationWorkers,
+    equilibriumVersion: finalizationState.equilibriumVersion,
+    equilibriumDeckLimit,
+    equilibriumIterations,
+    equilibriumDeckCount: equilibriumReport?.candidateDeckCount ?? 0,
+    equilibriumExploitability: equilibriumReport?.exploitability ?? null,
+    equilibriumConverged: equilibriumReport?.converged ?? null,
     finalizationPlanLength: finalizationState.plan.length,
     finalizationSegmentCount: finalizationState.segmentCount,
     globalBaselineCandidateCount: globalBaselineCandidates.length,
@@ -523,6 +530,7 @@ const report = {
     invalidExamples: resolvedInput.invalidExamples,
     nonExactMatches,
   },
+  equilibrium: equilibriumReport,
   rankingsByPosition,
 };
 
@@ -532,4 +540,5 @@ await saveProgress("complete");
 console.log(`V12 full opportunity baseline: ${globalBaselineCandidates.length} decks (${globalBaselineNewEvaluations} newly evaluated this segment).`);
 console.log(`V12 matched-slot counterfactuals: ${counterfactualCandidateDeckCount} planned/processed decks (${counterfactualNewEvaluations} newly evaluated since the frozen plan).`);
 console.log(`V12 shared pool: ${sharedDeckPool.length} evaluated decks / ${sharedPoolImprovementCount} ratings changed.`);
+console.log(`V12 equilibrium: ${equilibriumReport?.candidateDeckCount ?? 0} archetypes / exploitability ${equilibriumReport?.exploitability ?? "n/a"}.`);
 console.log(`V12 report: ${path.relative(projectRoot, outputDirectory)}`);
