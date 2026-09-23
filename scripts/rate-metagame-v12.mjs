@@ -331,7 +331,7 @@ async function maybeSaveFinalizationProgress(force = false) {
   evaluationsAtLastCheckpoint = segmentCounterfactualNewEvaluations;
 }
 
-if (finalizationState.phase !== "complete") {
+if (finalizationState.phase === "counterfactual") {
   const evaluationPool = new MetagameV12EvaluationPool({ teamScenarios, turns, workerCount: finalizationWorkers });
   const finalizationBatchSize = Math.max(1, evaluationPool.workerCount * 2);
   console.log(`V12 counterfactual battle pool: ${evaluationPool.workerCount} worker(s), batch size ${finalizationBatchSize}.`);
@@ -398,14 +398,77 @@ if (stoppedEarly) {
   process.exit(0);
 }
 
-finalizationState.phase = "complete";
-finalizationState.cursor = { planIndex: finalizationState.plan.length, replacementIndex: 0 };
-finalizationState.lastProgressAt = new Date().toISOString();
-await maybeSaveFinalizationProgress(true);
+if (finalizationState.phase === "counterfactual") {
+  finalizationState.phase = "equilibrium";
+  finalizationState.cursor = { planIndex: finalizationState.plan.length, replacementIndex: 0 };
+  finalizationState.lastProgressAt = new Date().toISOString();
+  equilibriumReport = null;
+  await maybeSaveFinalizationProgress(true);
+}
+
 if (segmentCounterfactualNewEvaluations) {
   sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
   reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, { totalCost: resolvedInput.totalCost });
   applyReconciledRatings();
+}
+
+if (finalizationState.phase === "complete" && finalizationState.equilibriumVersion !== METAGAME_V12_EQUILIBRIUM_VERSION) {
+  finalizationState.phase = "equilibrium";
+  equilibriumReport = null;
+}
+
+if (finalizationState.phase === "equilibrium") {
+  sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
+  reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, { totalCost: resolvedInput.totalCost });
+  applyReconciledRatings();
+
+  const equilibriumDecks = selectMetagameV12EquilibriumDecks(sharedDeckPool, { limit: equilibriumDeckLimit });
+  console.log(`V12 equilibrium metagame: ${equilibriumDecks.length} strategic deck archetypes / ${equilibriumMatchupCache.size} cached matchup(s).`);
+  const matrixResult = await buildMetagameV12EquilibriumMatrix(
+    equilibriumDecks,
+    CHARACTER_CATALOG,
+    {
+      turns,
+      matchupCache: equilibriumMatchupCache,
+      checkpointEvery: equilibriumCheckpointEvery,
+      shouldStop: () => finalizationDeadlineReached(5000),
+      onProgress: async ({ completedPairs, totalPairs, newMatchups }) => {
+        finalizationState.lastProgressAt = new Date().toISOString();
+        await saveProgress("finalizing");
+        console.log(`  equilibrium matchups ${completedPairs}/${totalPairs} (${newMatchups} new, cache ${equilibriumMatchupCache.size})`);
+      },
+    },
+  );
+
+  if (!matrixResult.complete) {
+    finalizationState.lastProgressAt = new Date().toISOString();
+    await saveProgress("finalizing");
+    console.log(`V12 equilibrium matrix paused safely at ${matrixResult.completedPairs}/${matrixResult.totalPairs}; continuing from cached matchups next segment.`);
+    process.exit(0);
+  }
+
+  const equilibriumSolution = solveMetagameV12Equilibrium(matrixResult.matrix, {
+    iterations: equilibriumIterations,
+  });
+  equilibriumReport = summarizeMetagameV12Equilibrium(
+    matrixResult.entries,
+    matrixResult.matrix,
+    equilibriumSolution,
+  );
+  const annotatedByPosition = annotateMetagameV12RatingsWithEquilibrium(resultsByPosition, equilibriumReport);
+  for (const [index, ratings] of annotatedByPosition.entries()) {
+    resultsByPosition[index].clear();
+    for (const rating of ratings) resultsByPosition[index].set(String(rating.id), rating);
+  }
+
+  finalizationState.phase = "complete";
+  finalizationState.equilibriumVersion = METAGAME_V12_EQUILIBRIUM_VERSION;
+  finalizationState.equilibriumDeckCount = equilibriumReport.candidateDeckCount;
+  finalizationState.equilibriumExploitability = equilibriumReport.exploitability;
+  finalizationState.equilibriumConverged = equilibriumReport.converged;
+  finalizationState.lastProgressAt = new Date().toISOString();
+  await saveProgress("finalizing");
+  console.log(`V12 equilibrium solved: value ${equilibriumReport.equilibriumValue.toFixed(4)}, exploitability ${equilibriumReport.exploitability.toFixed(4)}, ${equilibriumReport.converged ? "converged" : "approximate"}.`);
 }
 
 const counterfactualCandidateDeckCount = finalizationState.processedCandidateDeckCount ?? 0;
