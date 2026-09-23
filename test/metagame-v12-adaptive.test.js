@@ -26,21 +26,25 @@ function strategy(id, values, ids = null) {
   };
 }
 
-test("adaptive strategy selection keeps structurally different measured decks", () => {
+test("adaptive strategy selection preserves a narrow counter even when its uniform mean is low", () => {
   const pool = [
-    strategy("a1", [0.80, 0.80], ["a", "b", "c", "d", "e"]),
-    strategy("a2", [0.79, 0.79], ["a", "b", "c", "d", "f"]),
-    strategy("a3", [0.78, 0.78], ["a", "b", "c", "d", "g"]),
-    strategy("counter", [0.77, 0.77], ["u", "v", "w", "x", "y"]),
-    strategy("other", [0.76, 0.76], ["u", "v", "w", "q", "r"]),
-    strategy("last", [0.75, 0.75], ["1", "2", "3", "4", "5"]),
-    strategy("z1", [0.74, 0.74]),
-    strategy("z2", [0.73, 0.73]),
-    strategy("z3", [0.72, 0.72]),
+    strategy("a1", [0.80, 0.80, 0.80, 0.80], ["a", "b", "c", "d", "e"]),
+    strategy("a2", [0.79, 0.79, 0.79, 0.79], ["a", "b", "c", "d", "f"]),
+    strategy("a3", [0.78, 0.78, 0.78, 0.78], ["a", "b", "c", "d", "g"]),
+    strategy("a4", [0.77, 0.77, 0.77, 0.77], ["a", "b", "c", "h", "i"]),
+    strategy("a5", [0.76, 0.76, 0.76, 0.76], ["a", "b", "j", "k", "l"]),
+    strategy("a6", [0.75, 0.75, 0.75, 0.75], ["m", "n", "o", "p", "q"]),
+    strategy("a7", [0.74, 0.74, 0.74, 0.74], ["r", "s", "t", "u", "v"]),
+    strategy("a8", [0.73, 0.73, 0.73, 0.73], ["w", "x", "y", "z", "0"]),
+    strategy("counter", [1.00, 0.10, 0.10, 0.10], ["counter", "1", "2", "3", "4"]),
+    strategy("low", [0.40, 0.40, 0.40, 0.40], ["low", "1", "2", "3", "4"]),
   ];
-  const selected = selectAdaptiveMetagameV12Strategies(pool, 2, { strategyLimit: 8 });
+  const selected = selectAdaptiveMetagameV12Strategies(pool, 4, { strategyLimit: 8 });
   assert.equal(selected.length, 8);
-  assert.ok(selected.some((entry) => entry.key === "u|v|w|x|y"));
+  assert.ok(
+    selected.some((entry) => entry.key === "counter|1|2|3|4"),
+    "a high-payoff specialist must survive the frontier even with a weak uniform mean",
+  );
 });
 
 test("adaptive equilibrium rewards broad strength over a narrow counter", () => {
