@@ -186,21 +186,65 @@ export function hydrateMetagameV12EquilibriumMatchupCache(cache, entries) {
   return cache;
 }
 
-function matchupCacheKey(leftKey, rightKey, turns) {
-  const [first, second] = [String(leftKey), String(rightKey)].sort();
-  return `eq-v${METAGAME_V12_EQUILIBRIUM_VERSION}:${turns}:${first}::${second}`;
+function populationSignature(weights) {
+  const normalized = normalizeWeights(weights ?? []);
+  return normalized.map((weight) => rounded(weight, 5).toFixed(5)).join(",");
 }
 
-function repeatedTeam(deck) {
-  return Array.from({ length: 5 }, () => deck);
+function matchupCacheKey(leftKey, rightKey, turns, weights) {
+  const [first, second] = [String(leftKey), String(rightKey)].sort();
+  const populationHash = stableHash(populationSignature(weights));
+  return `eq-v${METAGAME_V12_EQUILIBRIUM_VERSION}:${turns}:p${populationHash}:${first}::${second}`;
+}
+
+function deterministicUnit(seed) {
+  let value = (Number(seed) || 0) >>> 0;
+  value ^= value << 13;
+  value ^= value >>> 17;
+  value ^= value << 5;
+  return (value >>> 0) / 4294967296;
+}
+
+function weightedDeckIndex(weights, unit) {
+  const normalized = normalizeWeights(weights);
+  let cursor = clampUnit(unit);
+  for (let index = 0; index < normalized.length; index += 1) {
+    cursor -= normalized[index];
+    if (cursor <= 0 || index === normalized.length - 1) return index;
+  }
+  return normalized.length - 1;
+}
+
+function sampleBackgroundTeams(populationDecks, populationWeights, seedBase, sampleIndex) {
+  const weights = populationDecks.length === populationWeights?.length
+    ? normalizeWeights(populationWeights)
+    : populationDecks.map(() => 1 / Math.max(1, populationDecks.length));
+  const sampled = [];
+  for (let slot = 0; slot < 8; slot += 1) {
+    const unit = deterministicUnit(seedBase + sampleIndex * 101 + slot * 977 + 17);
+    sampled.push(populationDecks[weightedDeckIndex(weights, unit)]);
+  }
+  return {
+    allies: sampled.slice(0, 4),
+    enemies: sampled.slice(4),
+  };
+}
+
+function insertFocalDeck(backgroundDecks, focalDeck, position) {
+  const team = [...backgroundDecks];
+  team.splice(Math.max(0, Math.min(4, position)), 0, focalDeck);
+  return team;
 }
 
 /**
- * Measure one archetype matchup as a symmetric 5v5 result.
+ * Measure one focal-deck matchup inside a mixed 5v5 population.
  *
- * Five players using the same ordered deck represent a pure metagame
- * archetype. Both side orientations and all three tactical profiles are
- * averaged, removing ally/enemy side bias while retaining counter relations.
+ * A and B each occupy one player slot. The other eight players are sampled
+ * deterministically from the current metagame population. Across nine contexts
+ * we cover every tactical-profile x damage-multiplier combination, and each
+ * context is simulated in both side orientations. This retains the project's
+ * real "one evaluated player among four teammates" semantics instead of
+ * exaggerating an archetype by cloning it across all five players.
  */
 export function evaluateMetagameV12EquilibriumMatchup(leftDeck, rightDeck, options = {}) {
   const rules = options.rules ?? DEFAULT_RULES;
@@ -209,41 +253,53 @@ export function evaluateMetagameV12EquilibriumMatchup(leftDeck, rightDeck, optio
   const rightKey = rightDeck.map((character) => String(character.id)).join("|");
   if (leftKey === rightKey) return 0.5;
 
+  const populationDecks = Array.isArray(options.populationDecks) && options.populationDecks.length
+    ? options.populationDecks
+    : [leftDeck, rightDeck];
+  const populationWeights = populationDecks.length === options.populationWeights?.length
+    ? normalizeWeights(options.populationWeights)
+    : populationDecks.map(() => 1 / populationDecks.length);
   const values = [];
-  const seedBase = stableHash(`${leftKey}::${rightKey}`);
+  const seedBase = stableHash(`${leftKey}::${rightKey}::${populationSignature(populationWeights)}`);
   const minimumRandomMultiplier = Math.min(1, Math.max(0, Number(rules.damage?.randomMinimum) || 0.9));
   const damageMultipliers = [minimumRandomMultiplier, (minimumRandomMultiplier + 1) / 2, 1];
-  for (let profileIndex = 0; profileIndex < EQUILIBRIUM_PROFILES.length; profileIndex += 1) {
-    const profile = EQUILIBRIUM_PROFILES[profileIndex];
-    for (let damageIndex = 0; damageIndex < damageMultipliers.length; damageIndex += 1) {
-      const damageMultiplier = damageMultipliers[damageIndex];
-      const seedOffset = profileIndex * 31 + damageIndex * 11;
-      const forward = simulateBattleSummary(
-        createBattleState(repeatedTeam(leftDeck), repeatedTeam(rightDeck)),
-        rules,
-        {
-          turns,
-          targetPolicy: profile.targetPolicy,
-          attackOrderPolicy: profile.attackOrderPolicy,
-          playStyle: profile.playStyle,
-          randomSeed: seedBase + seedOffset,
-          damageMultiplier,
-        },
-      );
-      const reverse = simulateBattleSummary(
-        createBattleState(repeatedTeam(rightDeck), repeatedTeam(leftDeck)),
-        rules,
-        {
-          turns,
-          targetPolicy: profile.targetPolicy,
-          attackOrderPolicy: profile.attackOrderPolicy,
-          playStyle: profile.playStyle,
-          randomSeed: seedBase + seedOffset + 7,
-          damageMultiplier,
-        },
-      );
-      values.push((projectedWinValue(forward) + (1 - projectedWinValue(reverse))) / 2);
-    }
+
+  for (let contextIndex = 0; contextIndex < 9; contextIndex += 1) {
+    const profile = EQUILIBRIUM_PROFILES[contextIndex % EQUILIBRIUM_PROFILES.length];
+    const damageMultiplier = damageMultipliers[Math.floor(contextIndex / EQUILIBRIUM_PROFILES.length) % damageMultipliers.length];
+    const background = sampleBackgroundTeams(populationDecks, populationWeights, seedBase, contextIndex);
+    const allyPosition = contextIndex % 5;
+    const enemyPosition = (contextIndex * 2 + 1) % 5;
+    const forwardAllies = insertFocalDeck(background.allies, leftDeck, allyPosition);
+    const forwardEnemies = insertFocalDeck(background.enemies, rightDeck, enemyPosition);
+    const reverseAllies = insertFocalDeck(background.enemies, rightDeck, enemyPosition);
+    const reverseEnemies = insertFocalDeck(background.allies, leftDeck, allyPosition);
+
+    const forward = simulateBattleSummary(
+      createBattleState(forwardAllies, forwardEnemies),
+      rules,
+      {
+        turns,
+        targetPolicy: profile.targetPolicy,
+        attackOrderPolicy: profile.attackOrderPolicy,
+        playStyle: profile.playStyle,
+        randomSeed: seedBase + contextIndex * 37,
+        damageMultiplier,
+      },
+    );
+    const reverse = simulateBattleSummary(
+      createBattleState(reverseAllies, reverseEnemies),
+      rules,
+      {
+        turns,
+        targetPolicy: profile.targetPolicy,
+        attackOrderPolicy: profile.attackOrderPolicy,
+        playStyle: profile.playStyle,
+        randomSeed: seedBase + contextIndex * 37 + 7,
+        damageMultiplier,
+      },
+    );
+    values.push((projectedWinValue(forward) + (1 - projectedWinValue(reverse))) / 2);
   }
   return clampUnit(average(values));
 }
