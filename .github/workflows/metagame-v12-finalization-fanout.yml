@@ -171,22 +171,44 @@ jobs:
               input="${attribute_group}:${cost}"
               output_directory="${attribute_group}-${cost}"
               progress_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"
+              summary_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress-summary.json"
               marker_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/ranking-policy.txt"
-              progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
+              state="$(git show "$results_ref:$summary_path" 2>/dev/null || true)"
+              if [ -z "$state" ]; then
+                state="$(git show "$results_ref:$progress_path" 2>/dev/null | jq -c '{
+                  schemaVersion: 1,
+                  status,
+                  updatedAt,
+                  context: {
+                    version: .context.version,
+                    battleSemantics: .context.battleSemantics,
+                    inputId: .context.inputId
+                  },
+                  finalizationState: (
+                    if .finalizationState then {
+                      version: .finalizationState.version,
+                      phase: .finalizationState.phase,
+                      cursor: {planIndex: (.finalizationState.cursor.planIndex // 0)},
+                      planLength: ((.finalizationState.plan // []) | length)
+                    } else null end
+                  ),
+                  adaptiveMetagameVersion: (.adaptiveMetagame.version // null)
+                }' || true)"
+              fi
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
 
-              if [ -n "$progress" ] && \
-                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1; then
+              if [ -n "$state" ] && \
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$state" >/dev/null 2>&1; then
                 # Ranking-only policy refreshes are handled separately. They
                 # must never block discovery of a later condition whose battle
                 # finalization is still active.
                 continue
               fi
 
-              if [ -n "$progress" ] && \
-                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
-                cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$progress")"
-                plan_length="$(jq -r '.finalizationState.plan | length' <<< "$progress")"
+              if [ -n "$state" ] && \
+                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.phase == "counterfactual" and (.finalizationState.cursor.planIndex < .finalizationState.planLength)' <<< "$state" >/dev/null 2>&1; then
+                cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$state")"
+                plan_length="$(jq -r '.finalizationState.planLength' <<< "$state")"
                 recovery_run_id=""
                 runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/metagame-v12-finalization-fanout.yml/runs?per_page=20" 2>/dev/null || true)"
                 if [ -n "$runs_json" ]; then
@@ -434,6 +456,26 @@ jobs:
             --checkpoint="$checkpoint_path" \
             --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
             --max-rounds=16
+
+          jq -c '{
+            schemaVersion: 1,
+            status,
+            updatedAt,
+            context: {
+              version: .context.version,
+              battleSemantics: .context.battleSemantics,
+              inputId: .context.inputId
+            },
+            finalizationState: (
+              if .finalizationState then {
+                version: .finalizationState.version,
+                phase: .finalizationState.phase,
+                cursor: {planIndex: (.finalizationState.cursor.planIndex // 0)},
+                planLength: ((.finalizationState.plan // []) | length)
+              } else null end
+            ),
+            adaptiveMetagameVersion: (.adaptiveMetagame.version // null)
+          }' "$checkpoint_path" > "${output_path}/progress-summary.json"
 
           ranking_policy="full-budget-opportunity-v9-adaptive-metagame"
           if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then

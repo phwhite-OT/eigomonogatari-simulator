@@ -75,6 +75,8 @@ This means a newly completed condition such as `fire-100` should become visible 
 This system is intentionally resumable. Preserve that property when changing it.
 
 - long calculations must save checkpoints/artifacts instead of depending on one uninterrupted run
+- control-plane jobs such as `select` and the watchdog should read `progress-summary.json` first; the full `progress.json` checkpoint can be tens of megabytes and is reserved for workers that actually need the battle cache
+- durable writers must refresh `progress-summary.json` whenever they change `progress.json`; legacy results without the summary are supported through a full-checkpoint fallback
 - GitHub transport/service failures may be retried
 - `.github/workflows/metagame-v12-watchdog.yml` checks periodically and resumes safe stalled work
 - `publish` must hand work to `metagame-v12-finalization-fanout.yml` only after the checkpoint is in `finalizationState.phase == "counterfactual"` with remaining frozen-plan work; earlier finalization phases such as global baseline must continue through normal shared-pool segments
