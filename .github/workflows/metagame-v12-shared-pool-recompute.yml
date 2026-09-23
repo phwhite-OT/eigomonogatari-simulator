@@ -68,14 +68,50 @@ jobs:
             [ "$marker" = "$ranking_policy" ]
           }
 
+          read_progress_state() {
+            local output_directory="$1"
+            local summary_path progress_path summary
+            summary_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress-summary.json"
+            progress_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"
+            summary="$(git show "$results_ref:$summary_path" 2>/dev/null || true)"
+            if [ -n "$summary" ]; then
+              printf '%s\n' "$summary"
+              return 0
+            fi
+
+            # Legacy fallback. New durable writers always create the compact
+            # summary so future selects do not have to inflate huge checkpoints.
+            git show "$results_ref:$progress_path" 2>/dev/null | jq -c '{
+              schemaVersion: 1,
+              status,
+              updatedAt,
+              context: {
+                version: .context.version,
+                battleSemantics: .context.battleSemantics,
+                inputId: .context.inputId
+              },
+              finalizationState: (
+                if .finalizationState then {
+                  version: .finalizationState.version,
+                  phase: .finalizationState.phase,
+                  cursor: {planIndex: (.finalizationState.cursor.planIndex // 0)},
+                  planLength: ((.finalizationState.plan // []) | length)
+                } else null end
+              ),
+              adaptiveMetagameVersion: (.adaptiveMetagame.version // null)
+            }' || true
+          }
+
           is_current_complete() {
-            local progress_path="$1"
-            local output_directory="$2"
-            local progress
-            progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
-            [ -n "$progress" ] && \
-              jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 && \
-              has_current_ranking "$output_directory"
+            local output_directory="$1"
+            local state
+            # The tiny marker check comes first. A ranking-policy mismatch
+            # means the condition needs work, so do not inflate progress.json
+            # merely to rediscover that fact.
+            has_current_ranking "$output_directory" || return 1
+            state="$(read_progress_state "$output_directory")"
+            [ -n "$state" ] && \
+              jq -e '.schemaVersion == 1 and .status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$state" >/dev/null 2>&1
           }
 
           find_recovery_run() {
@@ -115,7 +151,7 @@ jobs:
           for input_id in "${input_ids[@]}"; do
             output_directory="${input_id//:/-}"
             progress_path="reports/metagame-ratings-v12-team-opportunity/$output_directory/progress.json"
-            if is_current_complete "$progress_path" "$output_directory"; then
+            if is_current_complete "$output_directory"; then
               continue
             fi
             targets="$(jq -c --arg input "$input_id" --arg output_directory "$output_directory" '. + [{input:$input,output_directory:$output_directory}]' <<< "$targets")"
@@ -363,6 +399,26 @@ jobs:
                 --time-budget-seconds="$FINALIZE_TIME_BUDGET_SECONDS" \
                 --finalize-only=true
             fi
+
+            jq -c '{
+              schemaVersion: 1,
+              status,
+              updatedAt,
+              context: {
+                version: .context.version,
+                battleSemantics: .context.battleSemantics,
+                inputId: .context.inputId
+              },
+              finalizationState: (
+                if .finalizationState then {
+                  version: .finalizationState.version,
+                  phase: .finalizationState.phase,
+                  cursor: {planIndex: (.finalizationState.cursor.planIndex // 0)},
+                  planLength: ((.finalizationState.plan // []) | length)
+                } else null end
+              ),
+              adaptiveMetagameVersion: (.adaptiveMetagame.version // null)
+            }' "$checkpoint_path" > "${output_path}/progress-summary.json"
 
             if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
               printf '%s\n' "$ranking_policy" > "${output_path}/ranking-policy.txt"
