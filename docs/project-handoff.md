@@ -444,6 +444,27 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-23 — immediate finalize-handoff to 19-runner fanout
+
+Observed problem:
+
+- after `select` was fixed, the live fire:100 run correctly entered the synthetic `1-finalize-handoff` evaluate shard
+- that shard reused the normal 8400-second candidate time budget; once global baseline finished and the counterfactual plan was frozen, `rate-metagame-v12.mjs` continued into its local four-worker counterfactual loop instead of returning control immediately
+- the computation was therefore still making progress, but it could hold the shared heavy-work mutex for up to about 140 minutes while doing work that the 19-runner distributed finalization workflow is designed to parallelize
+
+Correction:
+
+- synthetic finalize-handoff matrix entries now carry `finalize_handoff: true`
+- the workflow passes that as `--stop-after-finalization-plan=true`
+- after global baseline is complete and a compatible counterfactual finalization plan exists, the rate script persists the checkpoint and exits before starting local counterfactual evaluation
+- publish can then detect the counterfactual phase and hand the durable checkpoint to the 19-runner finalization fanout
+
+Compatibility:
+
+- no battle semantics, ranking policy, checkpoint schema, or already-computed evidence changes
+- ordinary candidate shards and explicit finalize-only/fanout work keep their existing behavior
+- the already-running pre-fix shard is allowed to finish and persist its work; the fix applies to subsequent handoff shards without discarding current progress
+
 ### 2026-09-23 — lightweight select/watchdog progress state
 
 Observed problem:

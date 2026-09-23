@@ -261,6 +261,7 @@ jobs:
             --position=${{ matrix.position }} \
             --candidate-indices="${{ matrix.candidate_indices }}" \
             --checkpoint-path="$RUNNER_TEMP/v12-sp-progress/${METAGAME_OUTPUT_DIRECTORY}-position-${{ matrix.position }}-shard-${{ matrix.shard }}.json" \
+            --stop-after-finalization-plan="${{ matrix.finalize_handoff }}" \
             --time-budget-seconds="$METAGAME_TIME_BUDGET_SECONDS"
       - name: Upload recompute shard progress
         if: always()

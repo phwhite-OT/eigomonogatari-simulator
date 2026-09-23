@@ -155,6 +155,7 @@ const checkpointArgument = readArgument("checkpoint-path", "");
 const checkpointPath = checkpointArgument ? path.resolve(projectRoot, checkpointArgument) : path.join(outputDirectory, "progress.json");
 const mergeCheckpointPaths = readArgument("merge-checkpoint-paths", "").split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => path.resolve(projectRoot, entry));
 const finalizeOnly = readArgument("finalize-only", "false").toLowerCase() === "true";
+const stopAfterFinalizationPlan = readArgument("stop-after-finalization-plan", "false").toLowerCase() === "true";
 
 const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const nonExactMatches = resolvedInput.audit.filter((entry) => !["exact", "high"].includes(entry.confidence));
@@ -294,6 +295,12 @@ if (!isMetagameV12FinalizationStateCompatible(finalizationState, finalizationOpt
   console.log(`V12 finalization plan frozen: ${finalizationState.plan.length} anchor shells.`);
 } else {
   console.log(`V12 finalization resume: ${finalizationState.cursor.planIndex}/${finalizationState.plan.length} anchor shells, replacement ${finalizationState.cursor.replacementIndex}.`);
+}
+
+if (stopAfterFinalizationPlan && finalizationState.phase === "counterfactual") {
+  await saveProgress("finalizing");
+  console.log(`V12 finalization handoff ready at ${finalizationState.cursor.planIndex}/${finalizationState.plan.length}; stopping before serial counterfactual work so distributed fanout can take over.`);
+  process.exit(0);
 }
 
 let segmentCounterfactualNewEvaluations = 0;
