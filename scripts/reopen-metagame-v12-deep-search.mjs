@@ -74,8 +74,15 @@ const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
 if (checkpoint?.context?.inputId !== manifest?.inputId) {
   throw new Error(`Checkpoint/manifest input mismatch: ${checkpoint?.context?.inputId ?? "missing"} vs ${manifest?.inputId ?? "missing"}.`);
 }
-if (checkpoint?.status !== "complete") {
-  console.log(`V12 deep-search convergence check skipped because checkpoint status is ${checkpoint?.status ?? "missing"}.`);
+const checkpointPlanLength = checkpoint?.finalizationState?.plan?.length ?? 0;
+const checkpointPlanIndex = Number(checkpoint?.finalizationState?.cursor?.planIndex) || 0;
+const readyForConvergenceCheck = checkpoint?.status === "complete" || (
+  checkpoint?.status === "finalizing"
+  && checkpoint?.finalizationState?.phase === "counterfactual"
+  && checkpointPlanIndex >= checkpointPlanLength
+);
+if (!readyForConvergenceCheck) {
+  console.log(`V12 deep-search convergence check skipped because checkpoint is not at the bounded-plan boundary (${checkpoint?.status ?? "missing"} / ${checkpoint?.finalizationState?.phase ?? "missing"} / ${checkpointPlanIndex}/${checkpointPlanLength}).`);
   process.exit(0);
 }
 
@@ -123,15 +130,29 @@ if (missingPlannedCount > 0) {
 }
 
 if (!reopenReason) {
-  if (unvisitedFrontierKeys.length > 0 && currentRound >= maxRounds) {
+  const safetyCapReached = unvisitedFrontierKeys.length > 0 && currentRound >= maxRounds;
+  const finalizationState = checkpoint.finalizationState;
+  finalizationState.phase = "equilibrium";
+  finalizationState.deepSearchRound = currentRound;
+  finalizationState.deepSearchVisitedSeedKeys = [...visitedSeedKeys].sort();
+  finalizationState.deepSearchConverged = !safetyCapReached;
+  finalizationState.deepSearchSafetyCapReached = safetyCapReached;
+  finalizationState.lastProgressAt = new Date().toISOString();
+  checkpoint.status = "finalizing";
+  checkpoint.updatedAt = new Date().toISOString();
+  checkpoint.finalizationState = finalizationState;
+  checkpoint.equilibrium = null;
+  await writeJsonAtomic(checkpointPath, checkpoint);
+
+  if (safetyCapReached) {
     console.warn(
       `V12 deep search reached safety cap ${maxRounds} with ${unvisitedFrontierKeys.length} `
-      + `unvisited measured frontier seed(s); accepting the best measured pool so far.`,
+      + `unvisited measured frontier seed(s); advancing to equilibrium from the best measured pool so far.`,
     );
   } else {
     console.log(
       `V12 deep search converged after round ${currentRound}: all ${currentFrontierKeys.length} `
-      + `current elite/diverse frontier seeds have been explored and all planned evaluations are cached.`,
+      + `current elite/diverse frontier seeds have been explored; advancing to equilibrium.`,
     );
   }
   process.exit(0);
