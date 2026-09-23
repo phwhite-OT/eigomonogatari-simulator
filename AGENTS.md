@@ -12,14 +12,15 @@ Read `docs/project-handoff.md` for the detailed architecture, current V12.5 comp
 
 ## Current highest-priority work
 
-As of 2026-09-16, the main background task is the **V12.5 shared-pool metagame recompute/finalization**.
+As of 2026-09-23, the main background task is the **V12.5 shared-pool recompute plus equilibrium-metagame finalization**.
 
 Important identifiers:
 
 - model/context version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v6-target-priority`
 - ranking policy: `full-budget-opportunity-v8-mean-primary-slot`
-- finalization state version: `2`
+- finalization state version: `3`
+- equilibrium model version: `1` (`symmetric-5v5-archetype-no-regret`)
 
 Target selection semantics:
 - normal attackers keep stock balancing as the first target rule
@@ -56,8 +57,10 @@ Distributed finalization workflow:
 2. build a globally deduplicated work plan
 3. run up to 19 finalization shards in parallel
 4. merge exact cache deltas and advance the frozen finalization plan
+5. run `reopen-metagame-v12-deep-search.mjs` to decide whether another elite-neighbourhood round is needed
+6. only after the elite/diverse frontier converges, advance to `phase: equilibrium`; the normal shared-pool workflow then computes/resumes the strategic matchup matrix and no-regret equilibrium
 
-The expensive counterfactual/deep-neighbourhood battle work belongs in this fanout workflow, not in a long serial `publish` step.
+The expensive counterfactual/deep-neighbourhood battle work belongs in this fanout workflow, not in a long serial `publish` step. The equilibrium matrix is deliberately resumable on the normal runner, and already-computed deck-pair matchups remain cached.
 
 Critical artifact invariant: every `prefill` shard must upload its cache delta and `merge` must refuse to continue when zero delta files are downloaded. In GitHub Action `with.path` fields, use GitHub expression syntax such as `${{ needs.select.outputs.output_directory }}`; shell-style `$METAGAME_OUTPUT_DIRECTORY` is not expanded there.
 
@@ -65,7 +68,7 @@ Critical artifact invariant: every `prefill` shard must upload its cache delta a
 
 `.github/workflows/deploy-pages.yml` is triggered by pushes to `master`, `metagame-v12-shared-pool-results`, and the browser-knowledge results branch. It must always check out **master** for application source code, then overlay report data from result branches.
 
-V12 result publication is **progressive per condition**. Start from the last broadly complete fallback snapshot, then replace each of the 28 representative condition directories independently when the shared-pool result is truly complete and its model version, battle semantics, finalization-state version, and ranking-policy marker match the current policy. Never gate the whole public site on all seven cost-100 conditions (or all 28 conditions) being complete at once.
+V12 result publication is **progressive per condition**. Start from the last broadly complete fallback snapshot, then replace each of the 28 representative condition directories independently when the shared-pool result is truly complete and its model version, battle semantics, finalization-state version, equilibrium-model version, and ranking-policy marker match the current policy. Never gate the whole public site on all seven cost-100 conditions (or all 28 conditions) being complete at once.
 
 This means a newly completed condition such as `fire-100` should become visible on the next Pages deployment while unfinished conditions continue using their previous published snapshots. Result-branch source files themselves are not authoritative application code.
 
@@ -96,11 +99,12 @@ Do not remove this as “redundant” unless the workflow is redesigned so that 
 
 1. A match is modeled as **five player decks vs five player decks**, not one deck vs one deck.
 2. Static HP/Power/skill proxies may help bounded partner search, but must not silently replace measured battle evidence as the final ranking signal.
-3. Candidate coverage and final ranking are separate concerns. Finishing candidate ratings does not necessarily mean the environment is fully `complete`; counterfactual finalization can remain.
-4. A checkpoint is considered current only when its model version, battle semantics, finalization version, and ranking-policy marker match the current policy.
-5. The results branch is durable computation state. Do not delete/reset `metagame-v12-shared-pool-results` unless a deliberate semantics/model invalidation requires a clean recompute.
-6. Source pushes can invalidate in-flight calculations. Concurrency/preemption behavior exists to prevent mixed-source results.
-7. Preserve exact resumability: continuing from a checkpoint should not change the meaning of already completed work.
+3. Candidate coverage and final ranking are separate concerns. Finishing candidate ratings does not necessarily mean the environment is fully `complete`; counterfactual, deep-neighbourhood, or equilibrium finalization can remain.
+4. A checkpoint is considered current only when its model version, battle semantics, finalization version, equilibrium version, and ranking-policy marker match the current policy.
+5. Causal individual contribution and equilibrium metagame prevalence are separate outputs. Do not replace one with the other: a narrow counter can have high head-to-head value but low equilibrium usage once its target declines.
+6. The results branch is durable computation state. Do not delete/reset `metagame-v12-shared-pool-results` unless a deliberate semantics/model invalidation requires a clean recompute.
+7. Source pushes can invalidate in-flight calculations. Concurrency/preemption behavior exists to prevent mixed-source results.
+8. Preserve exact resumability: continuing from a checkpoint should not change the meaning of already completed work.
 
 ## Before changing simulation/metagame code
 
@@ -112,6 +116,7 @@ Read at least:
 - `src/core/metagame-v7.js`
 - `src/core/metagame-v12.js`
 - `src/core/metagame-v12-finalization.js`
+- `src/core/metagame-v12-equilibrium.js`
 - `scripts/rate-metagame-v12.mjs`
 - `scripts/build-metagame-v12-work-matrix.mjs`
 - the two V12 workflows listed above
@@ -137,7 +142,8 @@ Check the actual job/step:
 
 - `select` = choosing/restoring work; not the expensive calculation
 - `evaluate` + `Recompute V12 candidate shard` in progress = candidate battle calculation is running
-- finalization fanout `prefill` + `Evaluate assigned unique counterfactual battles` = distributed expensive finalization is running
+- finalization fanout `prefill` + `Evaluate assigned unique counterfactual battles` = distributed expensive counterfactual/deep-neighbourhood work is running
+- `finalizationState.phase == "equilibrium"` = elite frontier is settled and the resumable strategic matchup matrix / no-regret solve is active
 - `publish`/`merge` = checkpoint consolidation / handoff, normally not the main expensive fanout
 
 The exact live run ID is intentionally not hard-coded here because it becomes stale. Inspect GitHub Actions for the newest run on `master`.
@@ -155,6 +161,8 @@ Robust/lower-bound evidence is a confidence tie-break only after the mean signal
 That correction is **not weighted by character cost or budget usage** and cannot push the conservative contribution beyond the full-budget mean. It no longer outranks a larger measured mean merely because the latter has more variance. If matched-slot evidence is unavailable, the full-budget mean is reused for the matched-mean tie-break so missing diagnostics are not treated as negative evidence.
 
 Treat total cost as a **ceiling, not a target**. Unused budget has no direct bonus or penalty. Search tie-breaks must not prefer a fuller-cost deck merely because it spends more; when proxy and synergy are equal, preserve the lower-cost legal deck so a strong spare-budget construction is not pruned.
+
+Equilibrium metagame output is an additional strategic layer, not a replacement ranking. After counterfactual/deep-neighbourhood search converges, a bounded pool of generalist and scenario-specialist complete decks is evaluated as symmetric 5v5 archetypes. A time-averaged multiplicative-weights/no-regret solve produces `equilibriumUsageRate`, `equilibriumExpectedWinRate`, `equilibriumMetaDependency`, and `equilibriumRank`. This is intended to capture counter cycles such as strong deck → counter → counter-counter: a deck that exists only to punish one target should lose equilibrium share when that target itself declines.
 
 Long-running battle evidence remains reusable across ranking-only changes. Heavy battle workflows remain serialized by `metagame-v12-shared-pool-recompute`, while every job that writes `metagame-v12-shared-pool-results` also uses the short job-level lock `metagame-v12-result-writer`. The lightweight cost-100 reranker uses a separate workflow concurrency group so it can consume the intentionally reserved 20th runner while a 19-runner battle wave is active, but it still takes the result-writer lock before touching durable results. Stale-run cancellation is manual unless battle semantics themselves become incompatible.
 
