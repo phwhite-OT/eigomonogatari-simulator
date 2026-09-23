@@ -227,10 +227,18 @@ async function buildConstraint(input, projectRoot, charactersById) {
       const candidates = (rankings.get(position) ?? [])
         .map((entry) => compactV12Candidate(entry, charactersById.get(String(entry.id))))
         .slice(0, V12_BROWSER_POOL_LIMIT);
+      const debugById = new Map();
+      for (const entry of candidates.slice(0, 12)) debugById.set(String(entry.id), entry);
+      for (const entry of [...candidates]
+        .filter((entry) => Number(entry.equilibriumRank) > 0)
+        .sort((left, right) => left.equilibriumRank - right.equilibriumRank)
+        .slice(0, 12)) {
+        debugById.set(String(entry.id), entry);
+      }
       return {
         position,
         candidates,
-        debugRankings: candidates.slice(0, 12),
+        debugRankings: [...debugById.values()],
         environment: compactEnvironmentPool(resolvedInput.environmentPools[position - 1] ?? []),
       };
     }),
