@@ -149,6 +149,10 @@ reopenedState.lastProgressAt = new Date().toISOString();
 checkpoint.status = "finalizing";
 checkpoint.updatedAt = new Date().toISOString();
 checkpoint.finalizationState = reopenedState;
+// The strategic population must be recomputed from the newly expanded elite
+// deck frontier. Keep equilibriumMatchups: pair results between unchanged decks
+// remain exact and can be reused in the next round.
+checkpoint.equilibrium = null;
 await writeJsonAtomic(checkpointPath, checkpoint);
 
 console.log(
