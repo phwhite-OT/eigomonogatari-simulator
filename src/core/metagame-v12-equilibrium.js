@@ -211,31 +211,39 @@ export function evaluateMetagameV12EquilibriumMatchup(leftDeck, rightDeck, optio
 
   const values = [];
   const seedBase = stableHash(`${leftKey}::${rightKey}`);
-  for (let index = 0; index < EQUILIBRIUM_PROFILES.length; index += 1) {
-    const profile = EQUILIBRIUM_PROFILES[index];
-    const forward = simulateBattleSummary(
-      createBattleState(repeatedTeam(leftDeck), repeatedTeam(rightDeck)),
-      rules,
-      {
-        turns,
-        targetPolicy: profile.targetPolicy,
-        attackOrderPolicy: profile.attackOrderPolicy,
-        playStyle: profile.playStyle,
-        randomSeed: seedBase + index * 17,
-      },
-    );
-    const reverse = simulateBattleSummary(
-      createBattleState(repeatedTeam(rightDeck), repeatedTeam(leftDeck)),
-      rules,
-      {
-        turns,
-        targetPolicy: profile.targetPolicy,
-        attackOrderPolicy: profile.attackOrderPolicy,
-        playStyle: profile.playStyle,
-        randomSeed: seedBase + index * 17 + 7,
-      },
-    );
-    values.push((projectedWinValue(forward) + (1 - projectedWinValue(reverse))) / 2);
+  const minimumRandomMultiplier = Math.min(1, Math.max(0, Number(rules.damage?.randomMinimum) || 0.9));
+  const damageMultipliers = [minimumRandomMultiplier, (minimumRandomMultiplier + 1) / 2, 1];
+  for (let profileIndex = 0; profileIndex < EQUILIBRIUM_PROFILES.length; profileIndex += 1) {
+    const profile = EQUILIBRIUM_PROFILES[profileIndex];
+    for (let damageIndex = 0; damageIndex < damageMultipliers.length; damageIndex += 1) {
+      const damageMultiplier = damageMultipliers[damageIndex];
+      const seedOffset = profileIndex * 31 + damageIndex * 11;
+      const forward = simulateBattleSummary(
+        createBattleState(repeatedTeam(leftDeck), repeatedTeam(rightDeck)),
+        rules,
+        {
+          turns,
+          targetPolicy: profile.targetPolicy,
+          attackOrderPolicy: profile.attackOrderPolicy,
+          playStyle: profile.playStyle,
+          randomSeed: seedBase + seedOffset,
+          damageMultiplier,
+        },
+      );
+      const reverse = simulateBattleSummary(
+        createBattleState(repeatedTeam(rightDeck), repeatedTeam(leftDeck)),
+        rules,
+        {
+          turns,
+          targetPolicy: profile.targetPolicy,
+          attackOrderPolicy: profile.attackOrderPolicy,
+          playStyle: profile.playStyle,
+          randomSeed: seedBase + seedOffset + 7,
+          damageMultiplier,
+        },
+      );
+      values.push((projectedWinValue(forward) + (1 - projectedWinValue(reverse))) / 2);
+    }
   }
   return clampUnit(average(values));
 }
