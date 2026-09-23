@@ -5,6 +5,7 @@ import {
 } from "./metagame-v7.js";
 
 export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.5-effective-damage-individual-rank";
+export const METAGAME_V12_RANKING_POLICY = "full-budget-opportunity-v9-adaptive-metagame";
 
 const PARTIAL_SKILL_TYPES = new Set(["delay", "skill_reduction"]);
 
@@ -232,6 +233,11 @@ export function createMetagameV12TeamScenarios(resolvedInput, options = {}) {
       id: `v12-team-${scenarioIndex + 1}`,
       allyDecks: decks.slice(0, 4),
       enemyDecks: decks.slice(4),
+      // Metadata only: battle resolution is unchanged. Final aggregation uses
+      // these exact background shells to reweight already-measured scenario
+      // values as the empirical metagame adapts.
+      backgroundDeckKeys: decks.map(deckKey),
+      environmentDeckIndexes: [...indexes],
     });
   }
   return scenarios;
