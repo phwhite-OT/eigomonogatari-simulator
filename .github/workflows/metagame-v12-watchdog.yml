@@ -73,14 +73,36 @@ jobs:
             for attribute_group in "${attribute_groups[@]}"; do
               output_directory="${attribute_group}-${cost}"
               progress_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"
+              summary_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress-summary.json"
               marker_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/ranking-policy.txt"
-              progress="$(git show "$results_ref:$progress_path" 2>/dev/null || true)"
+              state="$(git show "$results_ref:$summary_path" 2>/dev/null || true)"
+              if [ -z "$state" ]; then
+                state="$(git show "$results_ref:$progress_path" 2>/dev/null | jq -c '{
+                  schemaVersion: 1,
+                  status,
+                  updatedAt,
+                  context: {
+                    version: .context.version,
+                    battleSemantics: .context.battleSemantics,
+                    inputId: .context.inputId
+                  },
+                  finalizationState: (
+                    if .finalizationState then {
+                      version: .finalizationState.version,
+                      phase: .finalizationState.phase,
+                      cursor: {planIndex: (.finalizationState.cursor.planIndex // 0)},
+                      planLength: ((.finalizationState.plan // []) | length)
+                    } else null end
+                  ),
+                  adaptiveMetagameVersion: (.adaptiveMetagame.version // null)
+                }' || true)"
+              fi
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
-              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
+              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$state" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
                 incomplete=$((incomplete + 1))
                 if [ -z "$first_incomplete" ]; then
                   first_incomplete="${attribute_group}:${cost}"
-                  first_progress="$progress"
+                  first_progress="$state"
                 fi
               fi
             done
@@ -96,11 +118,10 @@ jobs:
                and .context.version == "team-battle-v12.5-effective-damage-individual-rank"
                and .context.battleSemantics == "opportunity-baseline-v6-target-priority"
                and .finalizationState.phase == "counterfactual"
-               and (.finalizationState.plan | type == "array")
-               and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$first_progress" >/dev/null 2>&1; then
+               and (.finalizationState.cursor.planIndex < .finalizationState.planLength)' <<< "$first_progress" >/dev/null 2>&1; then
             desired_workflow="$finalization_workflow"
             cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$first_progress")"
-            plan_length="$(jq -r '.finalizationState.plan | length' <<< "$first_progress")"
+            plan_length="$(jq -r '.finalizationState.planLength' <<< "$first_progress")"
             echo "$incomplete/28 conditions incomplete; first=$first_incomplete is finalizing at $cursor/$plan_length."
           else
             echo "$incomplete/28 conditions incomplete; first=$first_incomplete needs normal recompute."
