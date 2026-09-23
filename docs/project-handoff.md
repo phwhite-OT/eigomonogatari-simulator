@@ -40,7 +40,8 @@ Current V12.5 context:
 
 - context/model version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v6-target-priority`
-- final ranking policy: `full-budget-opportunity-v8-mean-primary-slot`
+- final ranking policy: `full-budget-opportunity-v9-adaptive-metagame`
+- adaptive-metagame schema version: `2`
 - finalization-state schema version: `2`
 
 Key modeling principle: a match is a **team battle made from five player decks against five player decks**. Do not regress to a one-deck-vs-one-deck shortcut merely because it is cheaper.
@@ -185,6 +186,7 @@ Deep-neighbourhood work still exists to improve the matched-slot evidence around
 The implementation details live primarily in:
 
 - `src/core/metagame-v12.js`
+- `src/core/metagame-v12-adaptive.js`
 - `src/core/metagame-v12-finalization.js`
 - `scripts/plan-metagame-v12-finalization.mjs`
 - `scripts/evaluate-metagame-v12-finalization-shard.mjs`
@@ -192,6 +194,38 @@ The implementation details live primarily in:
 - `scripts/reopen-metagame-v12-deep-search.mjs`
 
 When optimizing performance, preserve the meaning of the counterfactual comparison. Faster but semantically different evidence is not a valid optimization unless the model version/ranking policy is deliberately changed.
+
+## 8.5 Adaptive metagame equilibrium (v9)
+
+The user-observed problem with the previous v8 aggregation was that every completed deck was still judged against a fixed, uniformly weighted set of 72 supplied 5v5 scenarios. That is useful for broad coverage, but it does not represent the strategic feedback loop of real PvP:
+
+**strong construction → players bring counters → those counters create new weaknesses → counter-counters become useful → the field settles into a mixed environment**
+
+Examples discussed during the redesign include H・F-style durable defense causing more firepower to appear, and パプアさん → 水変 → 水シールド → パプアさん-style counter cycles. These examples are sanity checks only; no character-specific matchup table or hard-coded bonus is added.
+
+Current v9 behavior:
+
+- the shared pool of **actually measured complete five-card decks** is the strategy population
+- every strategy keeps its exact per-scenario values from the existing V12.5 battle cache
+- a multiplicative-weights update raises adoption for complete decks that perform well under the current scenario distribution
+- the environment side updates in the opposite direction: scenarios where the currently popular strategy mixture underperforms receive more weight, representing counter-pressure entering the field
+- strategy and scenario updates repeat for multiple rounds and the final result uses the **time-averaged mixture**, not the final iteration
+- a uniform scenario floor prevents a narrow current metagame from permanently deleting broad supplied-environment coverage
+- the strategy frontier keeps high-performing decks plus structurally different decks so a counter archetype is not pruned solely because several near-identical decks rank just above it under the old uniform mean
+
+The implementation lives in:
+
+- `src/core/metagame-v12-adaptive.js`
+- final application in `scripts/rate-metagame-v12.mjs`
+
+This is a **ranking/report aggregation change, not a battle-semantics change**. The model/context version and battle semantics stay at:
+
+- `team-battle-v12.5-effective-damage-individual-rank`
+- `opportunity-baseline-v6-target-priority`
+
+Compatible existing V12.5 checkpoints already contain the per-scenario battle vectors required by v9, so heavy 19-runner battle work does not need to be replayed merely to adopt the adaptive distribution. Completed legacy reports are upgraded with `rate-metagame-v12.mjs --finalize-only=true`, rebuilding the adaptive distribution from the durable cache.
+
+Safety rule: `scripts/rerank-metagame-v12-report.mjs` may only rerank a report that already contains `adaptiveMetagame.version == 2`. It must never relabel a fixed-uniform legacy report as v9. Pages likewise requires both the v9 ranking marker and adaptive schema before publishing a shared-pool condition.
 
 ## 9. Current recovery/self-healing design
 
@@ -410,6 +444,41 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-23 — adaptive counter-cycle metagame ranking (v9)
+
+Observed problem:
+
+- final V12.5 rankings still averaged every deck uniformly across the fixed 72 supplied 5v5 scenarios
+- this could value a narrow counter as though its target were always equally common, or undervalue a broadly strong construction because the evaluator never let that construction become popular enough to cause counter adoption
+- the user explicitly wants the final result to reflect PvP's counter cycle: a strong defensive shell such as H・F can make firepower more common, but firepower that exists mainly to answer H・F can become dead weight when H・F is absent; similarly a パプアさん → 水変 → 水シールド → パプアさん cycle should settle as a mixed field rather than being resolved by a fixed matchup bonus
+
+Correction:
+
+- added `src/core/metagame-v12-adaptive.js`
+- the completed shared deck pool is now the measured strategy population
+- strategy adoption and counter-scenario pressure coevolve with multiplicative-weights updates using the **existing exact per-scenario battle values**
+- final scenario and strategy shares are time-averaged after burn-in so rock-paper-scissors/counter loops are represented as a mixture rather than whichever strategy wins the final iterate
+- strategy selection keeps a strong frontier plus structurally different decks so a counter family is not lost behind many near-duplicate high scorers
+- character opportunity value, matched-slot diagnostics, best deck, and baseline deck are recomputed under the adaptive scenario distribution before the existing mean-primary ranking function runs
+- ranking marker is now `full-budget-opportunity-v9-adaptive-metagame`; adaptive report schema is `2`
+- lightweight report-only reranking refuses reports without `adaptiveMetagame.version == 2`
+- shared-pool recompute, watchdog, Pages publication, finalization refresh, and cost-100 rerank guards were aligned so old fixed-uniform reports cannot be mislabeled or published as v9
+
+Compatibility:
+
+- battle semantics did **not** change
+- model/context version remains `team-battle-v12.5-effective-damage-individual-rank`
+- battle semantics remain `opportunity-baseline-v6-target-priority`
+- finalization schema remains `2`
+- existing compatible V12.5 battle caches remain reusable because they already store every evaluated deck's `scenarioValues`
+- completed old reports should be upgraded via `rate-metagame-v12.mjs --finalize-only=true`; no full heavy battle replay is required solely for this v9 aggregation change
+
+Validation / next checks:
+
+- synthetic tests cover structurally diverse strategy retention, broad strength versus a narrow counter, cyclic three-way counters, and adaptive best-deck/opportunity recomputation
+- after CI passes and v9 is published, inspect `fire:100` in detail: H・F-style defense, the firepower shells that answer it, revive/stall cards, and whether a narrow answer's adoption falls when its target is uncommon
+- do not hard-code the desired rank of any of those sanity-check characters; if results are surprising, inspect equilibrium strategy weights, scenario weights, best-deck changes, and opportunity deltas first
+
 ### 2026-09-23 — ghost guard-break and revive-target priority
 
 Battle targeting was refined to match tactical play rather than treating every attacker identically.
@@ -435,7 +504,7 @@ Correction:
 
 - Pages source checkout is pinned to `master`
 - deployment starts from the fallback snapshot and overlays each of the 28 representative conditions independently
-- an overlay is accepted only when `progress.status == "complete"`, model/battle semantics/finalization version match V12.5, the marker is `full-budget-opportunity-v8-mean-primary-slot`, and `report.json` exists
+- an overlay is accepted only when `progress.status == "complete"`, model/battle semantics/finalization version match V12.5, the marker is `full-budget-opportunity-v9-adaptive-metagame`, `report.json` contains `adaptiveMetagame.version == 2`, and the completed checkpoint also stores adaptive schema version 2
 - completed conditions therefore appear on the site on the next results-branch Pages deployment; incomplete conditions keep their previous published version
 - browser-knowledge publication remains optional and independent
 
