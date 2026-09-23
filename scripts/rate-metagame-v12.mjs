@@ -259,32 +259,6 @@ if (stoppedEarly || !allRatingsComplete) {
 
 await saveProgress("finalizing");
 
-// Adaptive v9 reuses the same 72 measured 5v5 scenarios, but needs every
-// supplied environment shell to have its own scenario-value vector. Most are
-// already in the shared cache; evaluate only genuinely missing unique shells.
-const uniqueEnvironmentDecks = [...new Map(environmentDecks.map((deck) => [
-  deck.map((character) => String(character.id)).join("|"),
-  deck,
-])).values()];
-let adaptiveEnvironmentNewEvaluations = 0;
-for (const deck of uniqueEnvironmentDecks) {
-  const key = `${turns}:${deck.map((character) => String(character.id)).join("|")}`;
-  if (evaluationCache.has(key)) continue;
-  if (finalizationDeadlineReached()) { stoppedEarly = true; break; }
-  evaluationCache.set(key, evaluateMetagameV7Deck(deck, teamScenarios, { turns }));
-  adaptiveEnvironmentNewEvaluations += 1;
-  if (adaptiveEnvironmentNewEvaluations % finalizationCheckpointEvery === 0) await saveProgress("finalizing");
-}
-if (adaptiveEnvironmentNewEvaluations) await saveProgress("finalizing");
-if (stoppedEarly) {
-  await saveProgress("finalizing");
-  if (adaptiveEnvironmentNewEvaluations === 0) {
-    throw new Error(`V12 adaptive-environment finalization made no forward progress before its ${timeBudgetSeconds}s time budget expired.`);
-  }
-  console.log(`V12 finalization paused after ${adaptiveEnvironmentNewEvaluations} new adaptive environment deck evaluations.`);
-  process.exit(0);
-}
-
 const globalBaselineCandidates = buildMetagameV12GlobalBaselineDecks(resolvedInput, candidatePools, { baselineDeckLimit, baselineBeamWidth });
 let globalBaselineNewEvaluations = 0;
 for (const entry of globalBaselineCandidates) {
@@ -424,10 +398,8 @@ const counterfactualNewEvaluations = finalizationState.newEvaluationCount ?? 0;
 // rock-paper-scissors style cycles from collapsing to whichever iterate ran last.
 sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
 adaptiveMetagame = buildAdaptiveMetagameV12Equilibrium(
-  uniqueEnvironmentDecks,
+  sharedDeckPool,
   teamScenarios,
-  evaluationCache,
-  { turns },
 );
 const adaptiveByPosition = reconcileAdaptiveMetagameV12RatingsByPosition(
   resultsByPosition,
@@ -477,8 +449,7 @@ const report = {
     finalizationWorkers,
     finalizationPlanLength: finalizationState.plan.length,
     finalizationSegmentCount: finalizationState.segmentCount,
-    adaptiveEnvironmentDeckCount: uniqueEnvironmentDecks.length,
-    adaptiveEnvironmentNewEvaluationCount: adaptiveEnvironmentNewEvaluations,
+    adaptiveMetagameStrategyCount: adaptiveMetagame.strategyCount,
     adaptiveMetagameEffectiveScenarioCount: adaptiveMetagame.effectiveScenarioCount,
     adaptiveMetagameBestResponseGap: adaptiveMetagame.bestResponseGap,
     globalBaselineCandidateCount: globalBaselineCandidates.length,
@@ -502,7 +473,7 @@ const report = {
 await fs.writeFile(path.join(outputDirectory, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 await fs.writeFile(path.join(outputDirectory, "ranking.csv"), csvReport(report), "utf8");
 await saveProgress("complete");
-console.log(`V12 adaptive metagame: ${adaptiveMetagame.environmentDeckCount} strategies / effective ${adaptiveMetagame.effectiveScenarioCount} scenarios / best-response gap ${adaptiveMetagame.bestResponseGap}.`);
+console.log(`V12 adaptive metagame: ${adaptiveMetagame.strategyCount} measured deck strategies / effective ${adaptiveMetagame.effectiveScenarioCount} scenarios / best-response gap ${adaptiveMetagame.bestResponseGap} / counter-pressure gap ${adaptiveMetagame.counterPressureGap}.`);
 console.log(`V12 full opportunity baseline: ${globalBaselineCandidates.length} decks (${globalBaselineNewEvaluations} newly evaluated this segment).`);
 console.log(`V12 matched-slot counterfactuals: ${counterfactualCandidateDeckCount} planned/processed decks (${counterfactualNewEvaluations} newly evaluated since the frozen plan).`);
 console.log(`V12 shared pool: ${sharedDeckPool.length} evaluated decks / ${sharedPoolImprovementCount} ratings changed.`);
