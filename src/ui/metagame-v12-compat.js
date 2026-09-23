@@ -30,7 +30,7 @@ renderMetagameCalculationStatus = function renderMetagameCalculationStatusV12(co
       : "V12で全5枠が完了した条件はまだありません。";
   }
   if (methodology) {
-    methodology.textContent = "V12: 候補キャラ入りの最善デッキと、そのキャラを禁止して全5枠を同じ総コスト上限で再最適化した最善デッキを比較。安定補正後の勝率差を枠別順位に使います。通常条件では、この事前計算で実戦評価済みの完成デッキをブラウザで再利用します。";
+    methodology.textContent = "V12: 単体貢献は候補キャラ入り最善デッキと、そのキャラを禁止して全5枠を再最適化した最善代替デッキで比較します。さらに強い完成デッキ同士の対策→対策返しを反復し、均衡採用率・均衡環境勝率・対策依存度も別軸で表示します。";
   }
 };
 
@@ -46,11 +46,11 @@ renderMetagameDebugRankings = function renderMetagameDebugRankingsV12(container,
   ));
   const heading = metagameUiElement("div", "metagame-debug-rankings-heading");
   heading.append(
-    metagameUiElement("strong", "", "V12 枠別機会価値ランキング"),
+    metagameUiElement("strong", "", "V12 枠別ランキング（単体貢献＋均衡メタ）"),
     metagameUiElement(
       "small",
       "",
-      "候補入り最善デッキと、そのキャラを禁止して全5枠を再最適化した最善代替デッキを比較。安定補正後差を主順位に使います。",
+      "単体貢献順位は全5枠再最適化の機会差、均衡メタ順位は対策循環が落ち着いた最終採用率です。どちらか一方だけで「最強」とは扱いません。",
     ),
   );
   const grid = metagameUiElement("div", "metagame-debug-ranking-grid");
@@ -75,7 +75,7 @@ renderMetagameDebugRankings = function renderMetagameDebugRankingsV12(container,
         metagameUiElement(
           "small",
           "",
-          `機会差 ${metagameUiSigned(opportunity * 100)}pt / 安定補正 ${metagameUiSigned(robust * 100)}pt / 候補 ${metagameUiPercent(candidateWin)} / 代替 ${metagameUiPercent(benchmarkWin)} / ${status}`,
+          `${entry.equilibriumRank ? `均衡 #${entry.equilibriumRank}・採用 ${metagameUiPercent(Number(entry.equilibriumUsageRate) || 0)}・環境勝率 ${metagameUiPercent(Number(entry.equilibriumExpectedWinRate) || 0)}・対策依存 ${metagameUiSigned((Number(entry.equilibriumMetaDependency) || 0) * 100)}pt / ` : ""}機会差 ${metagameUiSigned(opportunity * 100)}pt / 安定補正 ${metagameUiSigned(robust * 100)}pt / 候補 ${metagameUiPercent(candidateWin)} / 代替 ${metagameUiPercent(benchmarkWin)} / ${status}`,
         ),
       );
       list.append(row);
@@ -83,6 +83,35 @@ renderMetagameDebugRankings = function renderMetagameDebugRankingsV12(container,
     card.append(list);
     grid.append(card);
   });
+  const equilibrium = constraint?.equilibrium;
+  if (Array.isArray(equilibrium?.decks) && equilibrium.decks.length) {
+    const equilibriumCard = metagameUiElement("section", "metagame-debug-ranking-slot");
+    const convergence = equilibrium.converged ? "均衡収束" : "近似均衡";
+    equilibriumCard.append(metagameUiElement(
+      "h3",
+      "",
+      `最終メタ 上位デッキ（${convergence} / exploitability ${(Number(equilibrium.exploitability) * 100).toFixed(2)}pt）`,
+    ));
+    const equilibriumList = metagameUiElement("ol", "metagame-debug-ranking-list");
+    equilibrium.decks.slice(0, 12).forEach((deck) => {
+      const row = metagameUiElement("li", "");
+      const dependencyTarget = deck.dependencyTargetNames?.length
+        ? ` / 主な依存先 ${deck.dependencyTargetNames.join(" / ")}`
+        : "";
+      row.append(
+        metagameUiElement("strong", "", `#${deck.rank ?? "-"} ${(deck.names ?? []).join(" / ")}`),
+        metagameUiElement("span", "", `C${deck.totalCost}・均衡採用 ${metagameUiPercent(Number(deck.usageRate) || 0)}`),
+        metagameUiElement(
+          "small",
+          "",
+          `最終環境勝率 ${metagameUiPercent(Number(deck.expectedWinRate) || 0)} / 対策依存 ${metagameUiSigned((Number(deck.metaDependency) || 0) * 100)}pt${dependencyTarget}`,
+        ),
+      );
+      equilibriumList.append(row);
+    });
+    equilibriumCard.append(equilibriumList);
+    grid.prepend(equilibriumCard);
+  }
   container.append(heading, grid);
 };
 
@@ -99,6 +128,14 @@ metagameUiImpactReasons = function metagameUiImpactReasonsV12(character, rating,
     `V12機会勝率差 ${metagameUiSigned((Number.isFinite(opportunity) ? opportunity : 0) * 100)}pt / 安定補正後 ${metagameUiSigned((Number.isFinite(robust) ? robust : opportunity || 0) * 100)}pt`,
     `このキャラを使える最善デッキ ${metagameUiPercent(Number.isFinite(candidateWin) ? candidateWin : rating.expectedWinRate)} / このキャラを禁止して全5枠再最適化 ${metagameUiPercent(Number.isFinite(benchmarkWin) ? benchmarkWin : 0)}`,
   ];
+  if (Number(rating?.equilibriumRank) > 0) {
+    const dependencyTarget = rating?.equilibriumDependencyTarget?.length
+      ? ` / 主な依存先: ${rating.equilibriumDependencyTarget.join(" / ")}`
+      : "";
+    reasons.push(
+      `均衡メタ #${rating.equilibriumRank}: 採用率 ${metagameUiPercent(Number(rating.equilibriumUsageRate) || 0)} / 最終環境勝率 ${metagameUiPercent(Number(rating.equilibriumExpectedWinRate) || 0)} / 対策依存 ${metagameUiSigned((Number(rating.equilibriumMetaDependency) || 0) * 100)}pt${dependencyTarget}`,
+    );
+  }
   if (rating?.evaluationStatus) {
     reasons.push(`V12評価状態: ${rating.evaluationStatus}${rating.evaluationWarning ? `（${rating.evaluationWarning}）` : ""}`);
   }
@@ -106,7 +143,7 @@ metagameUiImpactReasons = function metagameUiImpactReasonsV12(character, rating,
   const baselineNames = rating?.baselineDeck?.names ?? [];
   if (bestNames.length === 5) reasons.push(`V12での候補入り最善例: ${bestNames.join(" / ")}`);
   if (baselineNames.length === 5) reasons.push(`候補禁止時の最善代替例: ${baselineNames.join(" / ")}`);
-  reasons.push("完成デッキの最終順位は、この枠別機会価値だけで決めず、実戦評価済み完成デッキの勝率も使って決定します。");
+  reasons.push("単体貢献と均衡メタは別物です。特定デッキへの対策だけで強い構成は、その標的の採用率が下がると均衡採用率も自然に下がります。");
   return reasons;
 };
 

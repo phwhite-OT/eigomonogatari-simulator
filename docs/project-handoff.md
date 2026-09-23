@@ -41,7 +41,8 @@ Current V12.5 context:
 - context/model version: `team-battle-v12.5-effective-damage-individual-rank`
 - battle semantics: `opportunity-baseline-v6-target-priority`
 - final ranking policy: `full-budget-opportunity-v8-mean-primary-slot`
-- finalization-state schema version: `2`
+- finalization-state schema version: `3`
+- equilibrium model version: `1` (`symmetric-5v5-archetype-no-regret`)
 
 Key modeling principle: a match is a **team battle made from five player decks against five player decks**. Do not regress to a one-deck-vs-one-deck shortcut merely because it is cheaper.
 
@@ -92,7 +93,7 @@ Report root:
 
 This results branch is effectively a durable computation database in Git form. Treat it carefully.
 
-A current completed condition requires compatible metadata, including the current model/context version, battle semantics, finalization state version, and current ranking-policy marker. A checkpoint with candidate ratings present is not automatically final-ranking complete.
+A current completed condition requires compatible metadata, including the current model/context version, battle semantics, finalization state version, equilibrium model version, and current ranking-policy marker. A checkpoint with candidate ratings present is not automatically final-ranking complete.
 
 Do not delete or reset the results branch just to solve a normal workflow problem. A clean reset is justified only when a model/semantics change makes prior evidence invalid and the reset is intentional.
 
@@ -133,8 +134,9 @@ When the step named `Recompute V12 candidate shard` is running, candidate battle
 - run bounded finalize-only logic
 - write current progress to the durable results branch
 - if incomplete, dispatch either the next normal segment or the dedicated finalization fanout
+- if the checkpoint is already in `phase: equilibrium`, continue the resumable strategic matchup matrix on the normal runner instead of sending it back into 19-runner counterfactual fanout
 
-`publish` should not become a multi-hour serial counterfactual engine. Expensive finalization belongs to fanout.
+`publish` should not become a multi-hour serial counterfactual engine. Expensive counterfactual/deep-neighbourhood work belongs to fanout; equilibrium pair evaluation is checkpointed separately and resumes from its pair cache.
 
 ## 7. Distributed finalization workflow
 
@@ -166,7 +168,9 @@ Those shard deltas are the actual output of the expensive fanout. The upload pat
 
 ### `merge`
 
-Merge exact cache deltas back into the checkpoint, advance the frozen finalization cursor/plan, persist results, and continue if needed.
+Merge exact cache deltas back into the checkpoint, advance the frozen finalization cursor/plan, persist results, then run `scripts/reopen-metagame-v12-deep-search.mjs`.
+
+The deep-search convergence check rebuilds the measured elite/diverse frontier. If important frontier seeds remain unexplored, it reopens `counterfactual` finalization for another distributed wave. Only when the frontier is fully covered (or the explicit safety cap is reached) does it advance the checkpoint to `phase: equilibrium`.
 
 The finalization plan must be resumable and stable. Do not silently regenerate a semantically different plan halfway through a compatible checkpoint unless the code explicitly treats it as invalidated.
 
@@ -192,6 +196,53 @@ The implementation details live primarily in:
 - `scripts/reopen-metagame-v12-deep-search.mjs`
 
 When optimizing performance, preserve the meaning of the counterfactual comparison. Faster but semantically different evidence is not a valid optimization unless the model version/ranking policy is deliberately changed.
+
+## 8A. Equilibrium metagame layer
+
+The user-facing strategic question is not just “which deck beats the fixed survey environment?” PvP is an arms race: a strong archetype becomes common, a counter appears, then a counter-counter appears. A narrow counter should not be treated as globally strongest merely because it beats the currently popular target; if that target declines, the counter's own usefulness should decline too.
+
+V12 therefore keeps **two separate strategic outputs**:
+
+1. **Causal individual contribution** — the existing v8 opportunity/matched-slot ranking, which asks how much a character contributes when the deck is reoptimized around its presence or absence.
+2. **Equilibrium metagame prevalence** — a new population layer that asks which complete-deck archetypes continue to be used after counters and counter-counters feed back into the environment.
+
+Implementation:
+
+- core module: `src/core/metagame-v12-equilibrium.js`
+- finalization schema: v3
+- equilibrium schema/model version: v1
+- after deep-neighbourhood convergence, select a bounded pool (default 24) that keeps both broad generalists and scenario specialists
+- each selected ordered five-card deck becomes a pure archetype: five allied players all use that deck against five enemy players all using another archetype
+- each archetype pair is evaluated symmetrically from both sides, across three tactical profiles and three damage multipliers; pair results are cached in `equilibriumMatchups`
+- solve the payoff matrix with multiplicative-weights/no-regret updates and report the **time-averaged** population, which is appropriate for rock-paper-scissors-like cycles that do not settle at one final iterate
+
+New deck-level outputs in `report.equilibrium`:
+
+- `usageRate` — final metagame population share
+- `expectedWinRate` — win value against the final population
+- `metaDependency` — how much the deck's expected win value falls when its most important target archetype is removed from the population
+- `dependencyTargetNames` — the target archetype responsible for that largest positive dependency
+- `rank` — equilibrium prevalence rank
+
+New character-level fields:
+
+- `equilibriumRank`
+- `equilibriumUsageRate`
+- `equilibriumExpectedWinRate`
+- `equilibriumMetaDependency`
+- `equilibriumDependencyTarget`
+
+These fields are **not** allowed to overwrite the v8 causal ranking. A specialized anti-H・F deck can beat H・F head-to-head yet still receive low equilibrium usage if it is mediocre once H・F's own population share falls. Conversely, a robust archetype can remain common even when a dedicated counter exists because that counter pays an opportunity cost against the rest of the field.
+
+Site publication now exposes both axes: the ordinary slot ranking remains visible, while the debug/metagame panel also shows the final equilibrium deck population and each character's equilibrium statistics.
+
+Checkpoint/recompute compatibility:
+
+- battle semantics remain `opportunity-baseline-v6-target-priority`; existing exact v6 battle evidence remains reusable
+- finalization schema changes from v2 to v3, so old “complete” finalization state is reopened for the new equilibrium phase
+- pairwise equilibrium matchups are independently resumable and survive interruptions
+- when deep-search discovers new elite decks, the equilibrium summary is invalidated but cached pair results between unchanged decks remain reusable
+
 
 ## 9. Current recovery/self-healing design
 
@@ -409,6 +460,30 @@ This document is also the canonical rolling handoff log for future Codex/ChatGPT
 For small fixes, a dated entry in the rolling log below is sufficient. If the change alters architecture, battle semantics, ranking policy, checkpoint format, workflow topology/recovery, or the meaning of V12 outputs, also update the relevant explanatory sections above and `AGENTS.md`.
 
 ## 18. Rolling handoff log
+
+### 2026-09-23 — equilibrium metagame / counter-cycle evaluation
+
+User-observed modeling gap: fixed-environment average win rate could say a narrow counter was “strong” without accounting for the fact that the counter only exists because its target is common. PvP behaves as an arms race (strong archetype → counter → counter-counter), so final strategic value should be measured after population feedback.
+
+Implemented on branch `feature/v12-equilibrium-metagame` / PR #84:
+
+- added `src/core/metagame-v12-equilibrium.js`
+- select a bounded strategic pool that deliberately preserves both broad generalists and narrow scenario specialists
+- evaluate complete-deck archetype matchups as symmetric 5v5 battles, averaging both sides, three tactical profiles, and low/mid/max damage multipliers
+- cache pair matchups in `progress.json -> equilibriumMatchups` so interrupted finalization resumes instead of restarting
+- solve the matchup matrix with time-averaged multiplicative-weights/no-regret dynamics; this supports cyclic rock-paper-scissors metas without pretending one last iterate is the answer
+- report deck-level equilibrium usage, final-environment win rate, exploitability/convergence, and a target-dependency diagnostic
+- annotate characters with separate `equilibriumRank / equilibriumUsageRate / equilibriumExpectedWinRate / equilibriumMetaDependency`; the existing v8 causal individual ranking remains unchanged
+- deep-search ordering was corrected so equilibrium is **not** solved until the elite/diverse neighbourhood frontier has converged (or hit the explicit safety cap)
+- finalization state bumped to v3; deep-search convergence transitions `counterfactual -> equilibrium -> complete`
+- 19-runner fanout remains responsible for counterfactual/deep-neighbourhood work; equilibrium resumes on the normal runner from its pair cache
+- Pages/current-complete gates now require finalization v3 + equilibrium v1
+- browser data and V12 debug UI expose the new equilibrium deck population and per-character fields
+- dedicated unit tests cover specialist retention, rock-paper-scissors equilibrium, narrow-counter suppression, dependency measurement, and separation from causal ranking
+
+Compatibility: **battle semantics did not change** in this work. Existing v6-target-priority deck evaluations are reusable. Old v2 finalization completion is no longer considered fully current because it lacks the equilibrium layer; it should be reopened/finalized rather than discarding exact battle evidence.
+
+Validation/current state: PR CI is used for syntax/build/test validation before merge. After merge, confirm the durable queue resumes from the current v6 checkpoint, completes deep-search before equilibrium, and publishes each condition only after equilibrium v1 is present.
 
 ### 2026-09-23 — ghost guard-break and revive-target priority
 

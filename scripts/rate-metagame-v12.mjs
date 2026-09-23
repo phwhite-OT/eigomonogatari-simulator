@@ -31,6 +31,16 @@ import {
   reconcileMetagameV12RatingsByPosition,
   serializeMetagameV12EvaluationCache,
 } from "../src/core/metagame-v12-shared-pool.js";
+import {
+  METAGAME_V12_EQUILIBRIUM_VERSION,
+  annotateMetagameV12RatingsWithEquilibrium,
+  buildMetagameV12EquilibriumMatrix,
+  hydrateMetagameV12EquilibriumMatchupCache,
+  selectMetagameV12EquilibriumDecks,
+  serializeMetagameV12EquilibriumMatchupCache,
+  solveMetagameV12Equilibrium,
+  summarizeMetagameV12Equilibrium,
+} from "../src/core/metagame-v12-equilibrium.js";
 
 function readArgument(name, fallback) {
   const prefix = `--${name}=`;
@@ -54,7 +64,8 @@ function csvCell(value) {
 
 function csvReport(report) {
   const headers = [
-    "枠", "実戦採用順位", "単体貢献順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",
+    "枠", "実戦採用順位", "単体貢献順位", "均衡メタ順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",
+    "均衡採用率", "均衡環境勝率", "対策依存度", "主な依存先",
     "機会勝率差", "安定補正後差", "同一4枠差し替え勝率差", "差し替え安定補正後差",
     "候補勝率", "代替勝率", "候補デッキ", "代替デッキ", "同一4枠差し替えデッキ", "評価状態",
   ];
@@ -62,6 +73,7 @@ function csvReport(report) {
     slot.position,
     character.practicalRank ?? character.rank,
     character.individualRank ?? "",
+    character.equilibriumRank ?? "",
     character.id,
     character.name,
     character.cost,
@@ -69,6 +81,10 @@ function csvReport(report) {
     character.pow,
     character.skillTurn,
     character.skillType,
+    character.equilibriumUsageRate ?? "",
+    character.equilibriumExpectedWinRate ?? "",
+    character.equilibriumMetaDependency ?? "",
+    character.equilibriumDependencyTarget?.join(" / ") ?? "",
     character.opportunityWinGain,
     character.robustOpportunityWinGain,
     character.counterfactualWinGain ?? "",
@@ -127,6 +143,9 @@ const counterfactualAnchorLimit = positiveInteger(readArgument("counterfactual-a
 const finalizationCheckpointEvery = positiveInteger(readArgument("finalization-checkpoint-every", "25"), 25, 1);
 const finalizationCheckpointIntervalSeconds = positiveInteger(readArgument("finalization-checkpoint-interval-seconds", "60"), 60, 5);
 const finalizationWorkers = positiveInteger(readArgument("finalization-workers", "4"), 4, 1);
+const equilibriumDeckLimit = positiveInteger(readArgument("equilibrium-deck-limit", "24"), 24, 4);
+const equilibriumIterations = positiveInteger(readArgument("equilibrium-iterations", "1200"), 1200, 100);
+const equilibriumCheckpointEvery = positiveInteger(readArgument("equilibrium-checkpoint-every", "12"), 12, 1);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
 const requestedPosition = readArgument("position", "all").toLowerCase();
@@ -188,6 +207,9 @@ const loadedCheckpoint = await readCheckpoint(checkpointPath, checkpointContext)
 const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map((loadedCheckpoint?.resultsByPosition?.[index] ?? []).map((rating) => [String(rating.id), rating])));
 const evaluationCache = new Map();
 hydrateMetagameV12EvaluationCache(evaluationCache, loadedCheckpoint?.evaluatedDeckPool);
+const equilibriumMatchupCache = new Map();
+hydrateMetagameV12EquilibriumMatchupCache(equilibriumMatchupCache, loadedCheckpoint?.equilibriumMatchups);
+let equilibriumReport = loadedCheckpoint?.equilibrium ?? null;
 let finalizationState = loadedCheckpoint?.finalizationState ?? null;
 const mergedCheckpoints = await Promise.all(mergeCheckpointPaths.map((entry) => readCheckpoint(entry, checkpointContext)));
 for (const checkpoint of mergedCheckpoints) {
@@ -197,6 +219,8 @@ for (const checkpoint of mergedCheckpoints) {
     for (const rating of ratings ?? []) resultsByPosition[index].set(String(rating.id), rating);
   }
   hydrateMetagameV12EvaluationCache(evaluationCache, checkpoint.evaluatedDeckPool);
+  hydrateMetagameV12EquilibriumMatchupCache(equilibriumMatchupCache, checkpoint.equilibriumMatchups);
+  if (!equilibriumReport && checkpoint.equilibrium) equilibriumReport = checkpoint.equilibrium;
   if (!finalizationState && checkpoint.finalizationState) finalizationState = checkpoint.finalizationState;
 }
 
@@ -210,6 +234,8 @@ async function saveProgress(status = "in_progress") {
     context: checkpointContext,
     sharedPoolVersion: METAGAME_V12_SHARED_POOL_VERSION,
     finalizationState,
+    equilibrium: equilibriumReport,
+    equilibriumMatchups: serializeMetagameV12EquilibriumMatchupCache(equilibriumMatchupCache),
     resultsByPosition: resultsByPosition.map((ratings) => [...ratings.values()]),
     evaluatedDeckPool: serializeMetagameV12EvaluationCache(evaluationCache),
   });
@@ -279,9 +305,10 @@ function applyReconciledRatings() {
 }
 applyReconciledRatings();
 
-const finalizationOptions = { counterfactualAnchorLimit, replacementDeckLimit, replacementBeamWidth };
+const finalizationOptions = { counterfactualAnchorLimit, replacementDeckLimit, replacementBeamWidth, equilibriumDeckLimit, equilibriumIterations };
 if (!isMetagameV12FinalizationStateCompatible(finalizationState, finalizationOptions)) {
   finalizationState = createMetagameV12FinalizationState(resultsByPosition, sharedDeckPool, finalizationOptions);
+  equilibriumReport = null;
   await saveProgress("finalizing");
   console.log(`V12 finalization plan frozen: ${finalizationState.plan.length} anchor shells.`);
 } else {
@@ -304,7 +331,7 @@ async function maybeSaveFinalizationProgress(force = false) {
   evaluationsAtLastCheckpoint = segmentCounterfactualNewEvaluations;
 }
 
-if (finalizationState.phase !== "complete") {
+if (finalizationState.phase === "counterfactual") {
   const evaluationPool = new MetagameV12EvaluationPool({ teamScenarios, turns, workerCount: finalizationWorkers });
   const finalizationBatchSize = Math.max(1, evaluationPool.workerCount * 2);
   console.log(`V12 counterfactual battle pool: ${evaluationPool.workerCount} worker(s), batch size ${finalizationBatchSize}.`);
@@ -371,14 +398,81 @@ if (stoppedEarly) {
   process.exit(0);
 }
 
-finalizationState.phase = "complete";
-finalizationState.cursor = { planIndex: finalizationState.plan.length, replacementIndex: 0 };
-finalizationState.lastProgressAt = new Date().toISOString();
-await maybeSaveFinalizationProgress(true);
+if (finalizationState.phase === "counterfactual") {
+  finalizationState.cursor = { planIndex: finalizationState.plan.length, replacementIndex: 0 };
+  finalizationState.lastProgressAt = new Date().toISOString();
+  await maybeSaveFinalizationProgress(true);
+}
+
 if (segmentCounterfactualNewEvaluations) {
   sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
   reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, { totalCost: resolvedInput.totalCost });
   applyReconciledRatings();
+}
+
+if (finalizationState.phase === "counterfactual") {
+  await saveProgress("finalizing");
+  console.log("V12 bounded counterfactual plan is complete; waiting for the distributed elite-neighbourhood convergence check before equilibrium.");
+  process.exit(0);
+}
+
+if (finalizationState.phase === "complete" && (finalizationState.equilibriumVersion !== METAGAME_V12_EQUILIBRIUM_VERSION || !equilibriumReport)) {
+  finalizationState.phase = "equilibrium";
+  equilibriumReport = null;
+}
+
+if (finalizationState.phase === "equilibrium") {
+  sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
+  reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, { totalCost: resolvedInput.totalCost });
+  applyReconciledRatings();
+
+  const equilibriumDecks = selectMetagameV12EquilibriumDecks(sharedDeckPool, { limit: equilibriumDeckLimit });
+  console.log(`V12 equilibrium metagame: ${equilibriumDecks.length} strategic deck archetypes / ${equilibriumMatchupCache.size} cached matchup(s).`);
+  const matrixResult = await buildMetagameV12EquilibriumMatrix(
+    equilibriumDecks,
+    CHARACTER_CATALOG,
+    {
+      turns,
+      matchupCache: equilibriumMatchupCache,
+      checkpointEvery: equilibriumCheckpointEvery,
+      shouldStop: () => finalizationDeadlineReached(5000),
+      onProgress: async ({ completedPairs, totalPairs, newMatchups }) => {
+        finalizationState.lastProgressAt = new Date().toISOString();
+        await saveProgress("finalizing");
+        console.log(`  equilibrium matchups ${completedPairs}/${totalPairs} (${newMatchups} new, cache ${equilibriumMatchupCache.size})`);
+      },
+    },
+  );
+
+  if (!matrixResult.complete) {
+    finalizationState.lastProgressAt = new Date().toISOString();
+    await saveProgress("finalizing");
+    console.log(`V12 equilibrium matrix paused safely at ${matrixResult.completedPairs}/${matrixResult.totalPairs}; continuing from cached matchups next segment.`);
+    process.exit(0);
+  }
+
+  const equilibriumSolution = solveMetagameV12Equilibrium(matrixResult.matrix, {
+    iterations: equilibriumIterations,
+  });
+  equilibriumReport = summarizeMetagameV12Equilibrium(
+    matrixResult.entries,
+    matrixResult.matrix,
+    equilibriumSolution,
+  );
+  const annotatedByPosition = annotateMetagameV12RatingsWithEquilibrium(resultsByPosition, equilibriumReport);
+  for (const [index, ratings] of annotatedByPosition.entries()) {
+    resultsByPosition[index].clear();
+    for (const rating of ratings) resultsByPosition[index].set(String(rating.id), rating);
+  }
+
+  finalizationState.phase = "complete";
+  finalizationState.equilibriumVersion = METAGAME_V12_EQUILIBRIUM_VERSION;
+  finalizationState.equilibriumDeckCount = equilibriumReport.candidateDeckCount;
+  finalizationState.equilibriumExploitability = equilibriumReport.exploitability;
+  finalizationState.equilibriumConverged = equilibriumReport.converged;
+  finalizationState.lastProgressAt = new Date().toISOString();
+  await saveProgress("finalizing");
+  console.log(`V12 equilibrium solved: value ${equilibriumReport.equilibriumValue.toFixed(4)}, exploitability ${equilibriumReport.exploitability.toFixed(4)}, ${equilibriumReport.converged ? "converged" : "approximate"}.`);
 }
 
 const counterfactualCandidateDeckCount = finalizationState.processedCandidateDeckCount ?? 0;
@@ -396,6 +490,7 @@ const report = {
     costPolicy: "総コストは上限であって目標値ではない。候補を外した際のコストは5枠全体へ再配分し、そこで機会損失を評価する。未使用コストそのものには減点も加点もしない。proxyが同等なら、コストを余らせた合法デッキも探索から落とさない。",
     environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
     performancePolicy: "各候補の直接探索と共有基準デッキは既存キャッシュを再利用する。全shard統合後、各キャラについて構成の異なる強い完成デッキを最大3本だけ一度固定して監査し、各デッキで他4枠固定の差し替え候補を最大24本探索する。監査計画とカーソルをcheckpointへ保存し、再開時に計算範囲を増殖させず未処理位置から継続する。反実仮想の未評価戦闘だけをCPU数に応じたworker poolで並列実行し、評価内容とキャッシュキーは従来と同一に保つ。",
+    equilibriumPolicy: "共有実戦プールから汎用上位とシナリオ特化の完成デッキを残し、各デッキを5人採用した純粋アーキタイプ同士を両陣営・3戦術で対称評価する。得られた対戦行列へno-regret反復を適用し、対策→対策返しが循環する場合も時間平均の均衡採用率・均衡勝率・特定相手への依存度を算出する。単体貢献順位とは別の均衡メタ順位として保持する。",
   },
   context: {
     inputId: resolvedInput.id,
@@ -417,6 +512,12 @@ const report = {
     replacementBeamWidth,
     counterfactualAnchorLimit,
     finalizationWorkers,
+    equilibriumVersion: finalizationState.equilibriumVersion,
+    equilibriumDeckLimit,
+    equilibriumIterations,
+    equilibriumDeckCount: equilibriumReport?.candidateDeckCount ?? 0,
+    equilibriumExploitability: equilibriumReport?.exploitability ?? null,
+    equilibriumConverged: equilibriumReport?.converged ?? null,
     finalizationPlanLength: finalizationState.plan.length,
     finalizationSegmentCount: finalizationState.segmentCount,
     globalBaselineCandidateCount: globalBaselineCandidates.length,
@@ -433,6 +534,7 @@ const report = {
     invalidExamples: resolvedInput.invalidExamples,
     nonExactMatches,
   },
+  equilibrium: equilibriumReport,
   rankingsByPosition,
 };
 
@@ -442,4 +544,5 @@ await saveProgress("complete");
 console.log(`V12 full opportunity baseline: ${globalBaselineCandidates.length} decks (${globalBaselineNewEvaluations} newly evaluated this segment).`);
 console.log(`V12 matched-slot counterfactuals: ${counterfactualCandidateDeckCount} planned/processed decks (${counterfactualNewEvaluations} newly evaluated since the frozen plan).`);
 console.log(`V12 shared pool: ${sharedDeckPool.length} evaluated decks / ${sharedPoolImprovementCount} ratings changed.`);
+console.log(`V12 equilibrium: ${equilibriumReport?.candidateDeckCount ?? 0} archetypes / exploitability ${equilibriumReport?.exploitability ?? "n/a"}.`);
 console.log(`V12 report: ${path.relative(projectRoot, outputDirectory)}`);

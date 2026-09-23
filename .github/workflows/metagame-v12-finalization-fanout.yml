@@ -72,7 +72,7 @@ jobs:
               and .context.inputId == $input_id
               and .context.version == "team-battle-v12.5-effective-damage-individual-rank"
               and .context.battleSemantics == "opportunity-baseline-v6-target-priority"
-              and .finalizationState.version == 2
+              and .finalizationState.version == 3 and .finalizationState.equilibriumVersion == 1
             ' >/dev/null 2>&1; then
               echo "Skipping $output_directory: current completed checkpoint is not available yet."
               continue
@@ -169,7 +169,7 @@ jobs:
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
 
               if [ -n "$progress" ] && \
-                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$progress" >/dev/null 2>&1; then
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 3 and .finalizationState.equilibriumVersion == 1' <<< "$progress" >/dev/null 2>&1; then
                 # Ranking-only policy refreshes are handled separately. They
                 # must never block discovery of a later condition whose battle
                 # finalization is still active.
@@ -177,7 +177,7 @@ jobs:
               fi
 
               if [ -n "$progress" ] && \
-                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array") and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))' <<< "$progress" >/dev/null 2>&1; then
+                 jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 3 and .finalizationState.phase == "counterfactual" and (.finalizationState.plan | type == "array")' <<< "$progress" >/dev/null 2>&1; then
                 cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$progress")"
                 plan_length="$(jq -r '.finalizationState.plan | length' <<< "$progress")"
                 recovery_run_id=""
@@ -429,9 +429,9 @@ jobs:
             --max-rounds=16
 
           ranking_policy="full-budget-opportunity-v8-mean-primary-slot"
-          if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
+          if jq -e '.status == "complete" and .finalizationState.version == 3 and .finalizationState.equilibriumVersion == 1' "$checkpoint_path" >/dev/null; then
             printf '%s\n' "$ranking_policy" > "${output_path}/ranking-policy.txt"
-            echo "Distributed finalization complete for $METAGAME_INPUT after converged deep search."
+            echo "Distributed finalization complete for $METAGAME_INPUT after converged deep search and equilibrium."
           else
             rm -f "${output_path}/ranking-policy.txt"
             cursor="$(jq -r '.finalizationState.cursor.planIndex' "$checkpoint_path")"
@@ -456,12 +456,15 @@ jobs:
         run: |
           set -euo pipefail
           checkpoint_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}/progress.json"
-          if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
+          if jq -e '.status == "complete" and .finalizationState.version == 3 and .finalizationState.equilibriumVersion == 1' "$checkpoint_path" >/dev/null; then
             workflow="metagame-v12-shared-pool-recompute.yml"
             echo "Condition complete; returning control to the normal recompute workflow."
+          elif jq -e '.status == "finalizing" and .finalizationState.phase == "equilibrium"' "$checkpoint_path" >/dev/null; then
+            workflow="metagame-v12-shared-pool-recompute.yml"
+            echo "Elite neighbourhood converged; handing the resumable equilibrium matrix to the normal runner."
           else
             workflow="metagame-v12-finalization-fanout.yml"
-            echo "Condition still finalizing; scheduling another globally deduplicated accelerator segment."
+            echo "Condition still needs counterfactual/deep-search work; scheduling another globally deduplicated accelerator segment."
           fi
 
           output=""

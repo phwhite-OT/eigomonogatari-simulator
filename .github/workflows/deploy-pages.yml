@@ -76,7 +76,8 @@ jobs:
                      '.status == "complete"
                        and .context.version == $version
                        and .context.battleSemantics == $semantics
-                       and .finalizationState.version == 2' \
+                       and .finalizationState.version == 3
+                       and .finalizationState.equilibriumVersion == 1' \
                      >/dev/null 2>&1; then
                   git checkout "$shared_ref" -- "$output_path"
                   published_current+=("$output_directory")

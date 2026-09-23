@@ -1,6 +1,6 @@
-// State v2 pairs the normal bounded per-character audit with distributed,
-// iterative one-slot neighbourhood probes around elite measured complete decks.
-export const METAGAME_V12_FINALIZATION_STATE_VERSION = 2;
+// State v3 adds a resumable strategic-equilibrium phase after the normal
+// bounded counterfactual/deep-neighbourhood audit has produced the elite deck pool.
+export const METAGAME_V12_FINALIZATION_STATE_VERSION = 3;
 
 function sameIds(left, right) {
   if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
@@ -46,6 +46,9 @@ export function metagameV12FinalizationPolicy(options = {}) {
     counterfactualAnchorLimit: Math.max(1, Math.floor(Number(options.counterfactualAnchorLimit) || 3)),
     replacementDeckLimit: Math.max(1, Math.floor(Number(options.replacementDeckLimit) || 24)),
     replacementBeamWidth: Math.max(1, Math.floor(Number(options.replacementBeamWidth) || 4000)),
+    equilibriumDeckLimit: Math.max(4, Math.floor(Number(options.equilibriumDeckLimit) || 24)),
+    equilibriumIterations: Math.max(100, Math.floor(Number(options.equilibriumIterations) || 1200)),
+    equilibriumFeedbackRounds: Math.max(1, Math.floor(Number(options.equilibriumFeedbackRounds) || 5)),
   };
 }
 
@@ -95,12 +98,17 @@ export function createMetagameV12FinalizationState(resultsByPosition, sharedDeck
     newEvaluationCount: 0,
     segmentCount: 0,
     lastProgressAt: null,
+    equilibriumVersion: null,
+    equilibriumDeckCount: 0,
+    equilibriumExploitability: null,
+    equilibriumConverged: null,
+    deepSearchConverged: false,
   };
 }
 
 export function isMetagameV12FinalizationStateCompatible(state, options = {}) {
   if (!state || state.version !== METAGAME_V12_FINALIZATION_STATE_VERSION) return false;
-  if (state.phase !== "counterfactual" && state.phase !== "complete") return false;
+  if (!["counterfactual", "equilibrium", "complete"].includes(state.phase)) return false;
   if (!Array.isArray(state.plan) || !state.cursor) return false;
   const expectedPolicy = metagameV12FinalizationPolicy(options);
   return JSON.stringify(state.policy) === JSON.stringify(expectedPolicy);
