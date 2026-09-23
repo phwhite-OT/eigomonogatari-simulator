@@ -81,15 +81,23 @@ function strategyFromEntry(entry, teamScenarioCount) {
   const result = entry?.result ?? null;
   if (ids.length !== 5 || !Array.isArray(result?.scenarioValues)) return null;
   if (result.scenarioValues.length !== teamScenarioCount) return null;
+  const orderedScenarioValues = [...result.scenarioValues]
+    .map((value) => Number(value) || 0)
+    .sort((left, right) => right - left);
+  const counterTailCount = Math.max(1, Math.ceil(orderedScenarioValues.length * 0.10));
+  const counterTailExpectedWinRate = arithmeticMean(orderedScenarioValues.slice(0, counterTailCount));
+  const uniformExpectedWinRate = Number.isFinite(Number(result.expectedWinRate))
+    ? Number(result.expectedWinRate)
+    : arithmeticMean(result.scenarioValues);
   return {
     key: ids.join("|"),
     ids,
     names,
     totalCost: Number(entry?.totalCost) || 0,
     result,
-    uniformExpectedWinRate: Number.isFinite(Number(result.expectedWinRate))
-      ? Number(result.expectedWinRate)
-      : arithmeticMean(result.scenarioValues),
+    uniformExpectedWinRate,
+    counterTailExpectedWinRate,
+    counterUpside: counterTailExpectedWinRate - uniformExpectedWinRate,
   };
 }
 
@@ -111,20 +119,44 @@ export function selectAdaptiveMetagameV12Strategies(sharedPool, teamScenarioCoun
   ));
   if (ordered.length <= limit) return ordered;
 
-  // Half of the population is the strongest measured frontier. The other half
-  // deliberately preserves structurally different strong decks, so a counter
-  // archetype is not deleted merely because the previous uniform average put
-  // several near-identical decks just above it.
-  const selected = ordered.slice(0, Math.ceil(limit / 2));
-  const searchWindow = ordered.slice(selected.length, Math.min(ordered.length, limit * 6));
+  // Keep three kinds of measured strategies:
+  // 1) broad uniform performers,
+  // 2) genuine specialists with very high upper-tail scenario results,
+  // 3) structurally different strong decks.
+  //
+  // Without the specialist lane, a narrow but real counter can disappear
+  // before the adaptive loop ever gets a chance to raise its adoption.
+  const selected = ordered.slice(0, Math.ceil(limit * 0.50));
+  const selectedKeys = new Set(selected.map((entry) => entry.key));
+  const specialistTarget = Math.min(limit, selected.length + Math.max(1, Math.floor(limit * 0.25)));
+  const specialists = [...ordered].sort((left, right) => (
+    right.counterTailExpectedWinRate - left.counterTailExpectedWinRate ||
+    right.counterUpside - left.counterUpside ||
+    right.uniformExpectedWinRate - left.uniformExpectedWinRate ||
+    left.key.localeCompare(right.key)
+  ));
+  for (const entry of specialists) {
+    if (selected.length >= specialistTarget) break;
+    if (selectedKeys.has(entry.key)) continue;
+    selected.push(entry);
+    selectedKeys.add(entry.key);
+  }
+
+  const searchWindow = ordered.slice(0, Math.min(ordered.length, limit * 8));
   for (const entry of searchWindow) {
     if (selected.length >= limit) break;
+    if (selectedKeys.has(entry.key)) continue;
     const minimumDifference = Math.min(...selected.map((chosen) => deckDifference(entry.ids, chosen.ids)));
-    if (minimumDifference >= 2) selected.push(entry);
+    if (minimumDifference >= 2) {
+      selected.push(entry);
+      selectedKeys.add(entry.key);
+    }
   }
   for (const entry of ordered) {
     if (selected.length >= limit) break;
-    if (!selected.some((chosen) => chosen.key === entry.key)) selected.push(entry);
+    if (selectedKeys.has(entry.key)) continue;
+    selected.push(entry);
+    selectedKeys.add(entry.key);
   }
   return selected;
 }
@@ -242,6 +274,8 @@ export function buildAdaptiveMetagameV12Equilibrium(sharedPool, teamScenarios, o
       weight: rounded(averagedStrategyWeights[index], 10),
       expectedWinRate: rounded(finalStrategyPayoffs[index]),
       uniformExpectedWinRate: rounded(strategy.uniformExpectedWinRate),
+      counterTailExpectedWinRate: rounded(strategy.counterTailExpectedWinRate),
+      counterUpside: rounded(strategy.counterUpside),
     })).sort((left, right) => (
       right.weight - left.weight ||
       right.expectedWinRate - left.expectedWinRate ||
