@@ -46,6 +46,8 @@ export function metagameV12FinalizationPolicy(options = {}) {
     counterfactualAnchorLimit: Math.max(1, Math.floor(Number(options.counterfactualAnchorLimit) || 3)),
     replacementDeckLimit: Math.max(1, Math.floor(Number(options.replacementDeckLimit) || 24)),
     replacementBeamWidth: Math.max(1, Math.floor(Number(options.replacementBeamWidth) || 4000)),
+    equilibriumDeckLimit: Math.max(4, Math.floor(Number(options.equilibriumDeckLimit) || 24)),
+    equilibriumIterations: Math.max(100, Math.floor(Number(options.equilibriumIterations) || 1200)),
   };
 }
 
