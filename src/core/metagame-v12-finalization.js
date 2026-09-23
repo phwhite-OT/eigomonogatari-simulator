@@ -101,6 +101,7 @@ export function createMetagameV12FinalizationState(resultsByPosition, sharedDeck
     equilibriumDeckCount: 0,
     equilibriumExploitability: null,
     equilibriumConverged: null,
+    deepSearchConverged: false,
   };
 }
 
