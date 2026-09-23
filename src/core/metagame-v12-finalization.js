@@ -1,7 +1,6 @@
-// State v3 keeps the bounded counterfactual/deep-neighbourhood audit and also
-// requires the measured environment-deck evidence used by the adaptive
-// metagame equilibrium. Existing battle cache entries remain reusable.
-export const METAGAME_V12_FINALIZATION_STATE_VERSION = 3;
+// State v2 pairs the normal bounded per-character audit with distributed,
+// iterative one-slot neighbourhood probes around elite measured complete decks.
+export const METAGAME_V12_FINALIZATION_STATE_VERSION = 2;
 
 function sameIds(left, right) {
   if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
