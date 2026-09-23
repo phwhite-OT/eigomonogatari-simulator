@@ -7,10 +7,7 @@ import {
   buildMetagameV7CandidatePools,
   resolveMetagameV7Input,
 } from "../src/core/metagame-v7.js";
-import {
-  buildMetagameV12CounterfactualReplacementDecks,
-  createMetagameV12EnvironmentDecks,
-} from "../src/core/metagame-v12.js";
+import { buildMetagameV12CounterfactualReplacementDecks } from "../src/core/metagame-v12.js";
 import { createMetagameV12FinalizationState } from "../src/core/metagame-v12-finalization.js";
 import {
   buildMetagameV12SharedDeckPool,
@@ -119,12 +116,6 @@ const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map(
 const baseEvaluationCache = new Map();
 hydrateMetagameV12EvaluationCache(baseEvaluationCache, checkpoint?.evaluatedDeckPool);
 const sharedDeckPool = buildMetagameV12SharedDeckPool(baseEvaluationCache, CHARACTER_CATALOG, turns);
-const environmentCount = Math.max(9, Number(context.environmentCount) || 72);
-const environmentVariants = Math.max(1, Number(context.environmentVariants) || 2);
-const adaptiveEnvironmentDecks = createMetagameV12EnvironmentDecks(resolvedInput, {
-  count: environmentCount,
-  environmentVariants,
-});
 
 // Source changes can alter the finalization policy while a durable checkpoint
 // still contains an older frozen plan. Do not spend a whole wave evaluating
@@ -164,22 +155,6 @@ function tryAddMissingDeck(ids) {
   if (missingByKey.size >= maxWorkItems) return "full";
   missingByKey.set(key, normalizedIds);
   return "added";
-}
-
-// Adaptive v9 needs one measured scenario-value vector for every supplied
-// environment shell. Put these at the front of the same globally deduplicated
-// fanout so the 19-runner pool, rather than serial merge, pays this one-time
-// cost. Existing cache entries are reused without replay.
-let adaptiveEnvironmentReferenceCount = 0;
-let adaptiveEnvironmentNewEvaluationCount = 0;
-for (const deck of adaptiveEnvironmentDecks) {
-  adaptiveEnvironmentReferenceCount += 1;
-  const addResult = tryAddMissingDeck(deck.map((character) => String(character.id)));
-  if (addResult === "added") adaptiveEnvironmentNewEvaluationCount += 1;
-  if (addResult === "full") {
-    boundedWorkTruncated = true;
-    break;
-  }
 }
 
 boundedPlan:
@@ -333,19 +308,11 @@ await writeJsonAtomic(outputManifestPath, {
     truncated: deepWorkTruncated,
   },
   baseEvaluationCount: baseEvaluationCache.size,
-  adaptiveMetagame: {
-    environmentReferenceCount: adaptiveEnvironmentReferenceCount,
-    newEvaluationCount: adaptiveEnvironmentNewEvaluationCount,
-  },
   totalMissingEvaluationCount: uniqueItems.length,
   shardSizes,
   shards,
 });
 
-console.log(
-  `V12 adaptive environment evidence: ${adaptiveEnvironmentNewEvaluationCount}/${adaptiveEnvironmentReferenceCount} `
-  + `environment shells newly missing before counterfactual/deep work.`,
-);
 console.log(
   `V12 deep neighbourhood search round ${deepSearchRound}: ${deepSeeds.length}/${deepFrontier.length} active/frontier seeds `
   + `(${visitedDeepSeedKeys.size} previously visited), ${deepReplacementReferenceCount} legal one-slot replacements, `
