@@ -31,6 +31,16 @@ import {
   reconcileMetagameV12RatingsByPosition,
   serializeMetagameV12EvaluationCache,
 } from "../src/core/metagame-v12-shared-pool.js";
+import {
+  METAGAME_V12_EQUILIBRIUM_VERSION,
+  annotateMetagameV12RatingsWithEquilibrium,
+  buildMetagameV12EquilibriumMatrix,
+  hydrateMetagameV12EquilibriumMatchupCache,
+  selectMetagameV12EquilibriumDecks,
+  serializeMetagameV12EquilibriumMatchupCache,
+  solveMetagameV12Equilibrium,
+  summarizeMetagameV12Equilibrium,
+} from "../src/core/metagame-v12-equilibrium.js";
 
 function readArgument(name, fallback) {
   const prefix = `--${name}=`;
@@ -54,7 +64,8 @@ function csvCell(value) {
 
 function csvReport(report) {
   const headers = [
-    "枠", "実戦採用順位", "単体貢献順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",
+    "枠", "実戦採用順位", "単体貢献順位", "均衡メタ順位", "キャラID", "名前", "コスト", "HP", "Power", "スキルターン", "スキル種類",
+    "均衡採用率", "均衡環境勝率", "対策依存度", "主な依存先",
     "機会勝率差", "安定補正後差", "同一4枠差し替え勝率差", "差し替え安定補正後差",
     "候補勝率", "代替勝率", "候補デッキ", "代替デッキ", "同一4枠差し替えデッキ", "評価状態",
   ];
@@ -62,6 +73,7 @@ function csvReport(report) {
     slot.position,
     character.practicalRank ?? character.rank,
     character.individualRank ?? "",
+    character.equilibriumRank ?? "",
     character.id,
     character.name,
     character.cost,
@@ -69,6 +81,10 @@ function csvReport(report) {
     character.pow,
     character.skillTurn,
     character.skillType,
+    character.equilibriumUsageRate ?? "",
+    character.equilibriumExpectedWinRate ?? "",
+    character.equilibriumMetaDependency ?? "",
+    character.equilibriumDependencyTarget?.join(" / ") ?? "",
     character.opportunityWinGain,
     character.robustOpportunityWinGain,
     character.counterfactualWinGain ?? "",
@@ -127,6 +143,9 @@ const counterfactualAnchorLimit = positiveInteger(readArgument("counterfactual-a
 const finalizationCheckpointEvery = positiveInteger(readArgument("finalization-checkpoint-every", "25"), 25, 1);
 const finalizationCheckpointIntervalSeconds = positiveInteger(readArgument("finalization-checkpoint-interval-seconds", "60"), 60, 5);
 const finalizationWorkers = positiveInteger(readArgument("finalization-workers", "4"), 4, 1);
+const equilibriumDeckLimit = positiveInteger(readArgument("equilibrium-deck-limit", "24"), 24, 4);
+const equilibriumIterations = positiveInteger(readArgument("equilibrium-iterations", "1200"), 1200, 100);
+const equilibriumCheckpointEvery = positiveInteger(readArgument("equilibrium-checkpoint-every", "12"), 12, 1);
 const turns = Math.min(12, positiveInteger(readArgument("turns", "12"), 12, 1));
 const maxCandidates = Math.max(0, Math.floor(Number(readArgument("max-candidates", "0")) || 0));
 const requestedPosition = readArgument("position", "all").toLowerCase();
@@ -188,6 +207,9 @@ const loadedCheckpoint = await readCheckpoint(checkpointPath, checkpointContext)
 const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map((loadedCheckpoint?.resultsByPosition?.[index] ?? []).map((rating) => [String(rating.id), rating])));
 const evaluationCache = new Map();
 hydrateMetagameV12EvaluationCache(evaluationCache, loadedCheckpoint?.evaluatedDeckPool);
+const equilibriumMatchupCache = new Map();
+hydrateMetagameV12EquilibriumMatchupCache(equilibriumMatchupCache, loadedCheckpoint?.equilibriumMatchups);
+let equilibriumReport = loadedCheckpoint?.equilibrium ?? null;
 let finalizationState = loadedCheckpoint?.finalizationState ?? null;
 const mergedCheckpoints = await Promise.all(mergeCheckpointPaths.map((entry) => readCheckpoint(entry, checkpointContext)));
 for (const checkpoint of mergedCheckpoints) {
@@ -197,6 +219,8 @@ for (const checkpoint of mergedCheckpoints) {
     for (const rating of ratings ?? []) resultsByPosition[index].set(String(rating.id), rating);
   }
   hydrateMetagameV12EvaluationCache(evaluationCache, checkpoint.evaluatedDeckPool);
+  hydrateMetagameV12EquilibriumMatchupCache(equilibriumMatchupCache, checkpoint.equilibriumMatchups);
+  if (!equilibriumReport && checkpoint.equilibrium) equilibriumReport = checkpoint.equilibrium;
   if (!finalizationState && checkpoint.finalizationState) finalizationState = checkpoint.finalizationState;
 }
 
@@ -210,6 +234,8 @@ async function saveProgress(status = "in_progress") {
     context: checkpointContext,
     sharedPoolVersion: METAGAME_V12_SHARED_POOL_VERSION,
     finalizationState,
+    equilibrium: equilibriumReport,
+    equilibriumMatchups: serializeMetagameV12EquilibriumMatchupCache(equilibriumMatchupCache),
     resultsByPosition: resultsByPosition.map((ratings) => [...ratings.values()]),
     evaluatedDeckPool: serializeMetagameV12EvaluationCache(evaluationCache),
   });
@@ -279,9 +305,10 @@ function applyReconciledRatings() {
 }
 applyReconciledRatings();
 
-const finalizationOptions = { counterfactualAnchorLimit, replacementDeckLimit, replacementBeamWidth };
+const finalizationOptions = { counterfactualAnchorLimit, replacementDeckLimit, replacementBeamWidth, equilibriumDeckLimit, equilibriumIterations };
 if (!isMetagameV12FinalizationStateCompatible(finalizationState, finalizationOptions)) {
   finalizationState = createMetagameV12FinalizationState(resultsByPosition, sharedDeckPool, finalizationOptions);
+  equilibriumReport = null;
   await saveProgress("finalizing");
   console.log(`V12 finalization plan frozen: ${finalizationState.plan.length} anchor shells.`);
 } else {
