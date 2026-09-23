@@ -59,16 +59,18 @@ if (!plan.length && progress) {
       position: positionIndex + 1,
       shard: `${positionIndex + 1}-finalize-handoff`,
       candidateIndices: [0],
+      finalizeHandoff: true,
     }];
   }
 }
 
 process.stdout.write(`${JSON.stringify({
-  include: plan.map(({ position, shard, candidateIndices }) => ({
+  include: plan.map(({ position, shard, candidateIndices, finalizeHandoff = false }) => ({
     input: inputId,
     output_directory: inputId.replaceAll(":", "-"),
     position,
     shard,
     candidate_indices: candidateIndices.join(","),
+    finalize_handoff: Boolean(finalizeHandoff),
   })),
 })}\n`);
