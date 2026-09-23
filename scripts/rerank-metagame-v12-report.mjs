@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 
-import { rankMetagameV12Characters } from "../src/core/metagame-v12.js";
+import { METAGAME_V12_RANKING_POLICY, rankMetagameV12Characters } from "../src/core/metagame-v12.js";
 
 function readArgument(name, fallback = "") {
   const prefix = `--${name}=`;
@@ -102,6 +102,9 @@ const csvPath = readArgument("csv");
 if (!inputPath) throw new Error("--report is required.");
 
 const report = JSON.parse(await fs.readFile(inputPath, "utf8"));
+if (Number(report?.adaptiveMetagame?.version) !== 2) {
+  throw new Error("Adaptive V12 rerank requires a report already finalized with adaptiveMetagame.version=2.");
+}
 const totalCost = Math.max(1, Number(report.context?.totalCost) || 1);
 const rankingsByPosition = (report.rankingsByPosition ?? []).map((slot) => ({
   ...slot,
@@ -113,11 +116,11 @@ const rankingsByPosition = (report.rankingsByPosition ?? []).map((slot) => ({
 const updated = {
   ...report,
   rerankedAt: new Date().toISOString(),
-  rankingPolicy: "full-budget-opportunity-v8-mean-primary-slot",
+  rankingPolicy: METAGAME_V12_RANKING_POLICY,
   model: {
     ...(report.model ?? {}),
     objective: "対象キャラを外して浮くコストを5枠全体へ再配分し、再構築後の最善デッキとの差からコスト制約込みの単体価値を評価する。",
-    scoringPolicy: "単体コスパ順位は全5枠再最適化の平均機会勝率差を最優先し、それが同値なら同一4枠差し替えの平均勝率差で直接の枠貢献を比較する。robust・下限値は平均同士でも決まらない場合の信頼性タイブレークに限定し、分散だけで大きい平均貢献を逆転させない。",
+    scoringPolicy: "この軽量再順位付けは、report.json に既に保存された適応メタ後の機会勝率差を並べ直すだけで、固定環境の旧値を適応メタ値へ変換しない。単体順位は平均機会勝率差を最優先し、同一4枠差し替え平均を次の直接貢献証拠、robust値を信頼性タイブレークとして使う。",
     costPolicy: "総コストは上限であって目標値ではない。候補を外した際に浮くコストを5枠全体へ再配分できるため、高コストの機会損失はそこで自然に評価する。未使用コストそのものには減点も加点もしない。",
   },
   rankingsByPosition,

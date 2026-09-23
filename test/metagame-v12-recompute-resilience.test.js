@@ -3,51 +3,66 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const workflow = fs.readFileSync(".github/workflows/metagame-v12-shared-pool-recompute.yml", "utf8");
+const fanout = fs.readFileSync(".github/workflows/metagame-v12-finalization-fanout.yml", "utf8");
 const watchdog = fs.readFileSync(".github/workflows/metagame-v12-watchdog.yml", "utf8");
 const deployWorkflow = fs.readFileSync(".github/workflows/deploy-pages.yml", "utf8");
+const rerankWorkflow = fs.readFileSync(".github/workflows/v12-cost100-rerank.yml", "utf8");
+const rerankScript = fs.readFileSync("scripts/rerank-metagame-v12-report.mjs", "utf8");
 const rateScript = fs.readFileSync("scripts/rate-metagame-v12.mjs", "utf8");
 const metagameV12 = fs.readFileSync("src/core/metagame-v12.js", "utf8");
 
-test("V12 recompute finalization is chunked, resumable, and only marks finished reports complete", () => {
-  assert.match(workflow, /matched-slot-counterfactual-v3-resumable/);
-  assert.match(workflow, /FINALIZE_TIME_BUDGET_SECONDS:\s*"7200"/);
-  assert.match(workflow, /--time-budget-seconds="\$FINALIZE_TIME_BUDGET_SECONDS"/);
-  assert.match(workflow, /\.status == "complete" or \.status == "finalizing"/);
-  assert.match(workflow, /if jq -e '\.status == "complete"' "\$checkpoint_path"/);
+const rankingPolicy = "full-budget-opportunity-v9-adaptive-metagame";
 
-  const saveStep = workflow.indexOf("Save isolated recompute progress");
-  const continueStep = workflow.indexOf("Continue with the next recompute segment");
-  assert.ok(saveStep >= 0 && continueStep > saveStep, "progress must be pushed before continuation is dispatched");
+test("V12 ranking-only upgrades reuse durable battle evidence", () => {
+  assert.match(workflow, /src\/core\/metagame-v12-adaptive\.js/);
+  assert.match(workflow, new RegExp(rankingPolicy));
+  assert.match(workflow, /--finalize-only=true/);
+  assert.match(workflow, /Refreshing .* completed battle evidence under the current adaptive ranking policy/);
 
-  assert.match(rateScript, /saveProgress\("finalizing"\)/);
-  assert.match(rateScript, /finalizationDeadlineReached/);
-  assert.match(rateScript, /counterfactualNewEvaluations % 5 === 0/);
+  assert.match(rateScript, /buildAdaptiveMetagameV12Equilibrium/);
+  assert.match(rateScript, /reconcileAdaptiveMetagameV12RatingsByPosition/);
+  assert.match(rateScript, /adaptiveMetagame/);
   const reportWrite = rateScript.indexOf('path.join(outputDirectory, "report.json")');
   const completeSave = rateScript.lastIndexOf('saveProgress("complete")');
-  assert.ok(reportWrite >= 0 && completeSave > reportWrite, "progress.json may become complete only after report output exists");
+  assert.ok(reportWrite >= 0 && completeSave > reportWrite, "progress.json may become complete only after adaptive report output exists");
 });
 
-test("V12 watchdog restarts abandoned work and cancels stale or looping runs", () => {
+test("V12 heavy work remains resumable and capped at nineteen parallel runners", () => {
+  assert.match(workflow, /max-parallel:\s*19/);
+  assert.match(fanout, /max-parallel:\s*19/);
+  assert.match(rateScript, /saveProgress\("finalizing"\)/);
+  assert.match(rateScript, /finalizationDeadlineReached/);
+  assert.match(rateScript, /finalizationState\.cursor/);
+  assert.match(rateScript, /MetagameV12EvaluationPool/);
+});
+
+test("V12 watchdog recognizes the same adaptive ranking policy", () => {
   assert.match(watchdog, /schedule:/);
-  assert.match(watchdog, /17,47 \* \* \* \*/);
+  assert.match(watchdog, /\*\/10 \* \* \* \*/);
   assert.match(watchdog, /actions:\s*write/);
-  assert.match(watchdog, /actions\/runs\/\$\{run_id\}\/cancel/);
+  assert.match(watchdog, new RegExp(rankingPolicy));
+  assert.match(watchdog, /actions\/runs\/\$\{keep_id\}\/cancel/);
   assert.match(watchdog, /gh workflow run "\$workflow"/);
-  assert.match(watchdog, /progress_age_minutes/);
-  assert.match(watchdog, /completed_without_progress/);
-  assert.match(watchdog, /same-source completed-without-progress/);
 });
 
-test("matched-slot exploration is broadened beyond one proxy-top shell", () => {
+test("legacy reports cannot be relabeled as adaptive reports", () => {
+  assert.match(rerankScript, /adaptiveMetagame\?\.version/);
+  assert.match(rerankScript, /Adaptive V12 rerank requires a report already finalized/);
+  assert.match(rerankWorkflow, /adaptiveMetagame\.version == 2/);
+  assert.match(fanout, /adaptiveMetagame\.version == 2/);
+});
+
+test("matched-slot exploration remains broad while adaptive aggregation is added", () => {
   assert.match(rateScript, /counterfactual-anchor-limit", "3"/);
   assert.match(rateScript, /replacement-deck-limit", "24"/);
-  assert.match(rateScript, /minOtherSlotDifference >= 2/);
   assert.match(metagameV12, /strongest proxy half/);
   assert.match(metagameV12, /const roles = \["precision_attack", "sweep_attack", "defense", "revive", "recovery", "support", "neutral"\]/);
   assert.match(metagameV12, /const byCost = \[\.\.\.legal\]\.sort/);
 });
 
-test("Pages only promotes the same resumable ranking policy", () => {
-  assert.match(deployWorkflow, /ranking_policy="matched-slot-counterfactual-v3-resumable"/);
-  assert.doesNotMatch(deployWorkflow, /matched-slot-counterfactual-v2/);
+test("Pages only publishes fully adaptive V12 conditions", () => {
+  assert.match(deployWorkflow, new RegExp(rankingPolicy));
+  assert.match(deployWorkflow, /\.adaptiveMetagame\.version == 2/);
+  assert.match(deployWorkflow, /\.adaptiveMetagame\.version == 2'/);
+  assert.doesNotMatch(deployWorkflow, /full-budget-opportunity-v8-mean-primary-slot/);
 });
