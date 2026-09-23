@@ -49,7 +49,7 @@ jobs:
               fi
             done
             # Never strand a durable checkpoint because a dispatch failed. This
-            # watchdog runs again every 30 minutes and will keep retrying.
+            # watchdog is scheduled regularly and will keep retrying.
             echo "::warning::Unable to dispatch $workflow after 5 attempts. Durable progress is safe; the next watchdog run will retry."
             return 0
           }
@@ -107,60 +107,108 @@ jobs:
           fi
           echo "Desired continuation workflow: $desired_workflow"
 
-          recompute_runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${recompute_workflow}/runs?per_page=30")"
-          finalization_runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${finalization_workflow}/runs?per_page=30")"
+          # Keep GitHub's large workflow-run payloads out of shell argv.
+          # Passing them through jq --argjson previously exceeded ARG_MAX and
+          # made the watchdog fail before it could heal anything.
+          recompute_runs_file="$RUNNER_TEMP/v12-recompute-runs.json"
+          finalization_runs_file="$RUNNER_TEMP/v12-finalization-runs.json"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${recompute_workflow}/runs?per_page=30" > "$recompute_runs_file"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${finalization_workflow}/runs?per_page=30" > "$finalization_runs_file"
 
           active_json="$(
-            jq -n               --arg rw "$recompute_workflow"               --arg fw "$finalization_workflow"               --argjson rr "$recompute_runs"               --argjson fr "$finalization_runs"               '[
-                ($rr.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending") | {workflow:$rw,id,created_at,status}),
-                ($fr.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending") | {workflow:$fw,id,created_at,status})
-              ] | sort_by(.created_at) | reverse'
+            jq -c -s \
+              --arg rw "$recompute_workflow" \
+              --arg fw "$finalization_workflow" \
+              '.[0] as $rr
+               | .[1] as $fr
+               | [
+                   ($rr.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending") | {workflow:$rw,id,created_at,updated_at,status}),
+                   ($fr.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending") | {workflow:$fw,id,created_at,updated_at,status})
+                 ]' \
+              "$recompute_runs_file" "$finalization_runs_file"
           )"
 
-          desired_active="$(jq -c --arg w "$desired_workflow" '[.[] | select(.workflow == $w)][0] // empty' <<< "$active_json")"
-          if [ -n "$desired_active" ]; then
-            keep_id="$(jq -r '.id' <<< "$desired_active")"
-            keep_status="$(jq -r '.status' <<< "$desired_active")"
-            created_at="$(jq -r '.created_at' <<< "$desired_active")"
+          # A workflow-level concurrency wait legitimately appears as "pending"
+          # with zero jobs while another heavy V12 run owns the shared mutex.
+          # Never kill a healthy running owner merely because a newer pending
+          # continuation exists behind it.
+          running="$(jq -c '[.[] | select(.status == "in_progress")] | sort_by(.updated_at) | reverse | .[0] // empty' <<< "$active_json")"
+          desired_pending="$(jq -c --arg w "$desired_workflow" '
+            [.[] | select(.workflow == $w and (.status == "queued" or .status == "pending"))]
+            | sort_by(.created_at)
+            | reverse
+            | .[0] // empty
+          ' <<< "$active_json")"
 
-            # Cancel queued/running duplicates, including the wrong workflow,
-            # so the shared concurrency group cannot be clogged indefinitely.
-            while IFS= read -r run_id; do
-              [ "$run_id" = "$keep_id" ] && continue
-              echo "Cancelling duplicate/obsolete V12 run $run_id; keeping $keep_id."
-              gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null 2>&1 || true
-            done < <(jq -r '.[].id' <<< "$active_json")
-
-            if [ "$keep_status" = "queued" ] || [ "$keep_status" = "pending" ]; then
-              echo "Desired continuation $keep_id is already $keep_status."
-              exit 0
-            fi
-
+          if [ -n "$running" ]; then
+            running_id="$(jq -r '.id' <<< "$running")"
+            running_workflow="$(jq -r '.workflow' <<< "$running")"
+            running_updated_at="$(jq -r '.updated_at // .created_at' <<< "$running")"
             now_epoch="$(date -u +%s)"
-            created_epoch="$(date -u -d "$created_at" +%s)"
-            age_minutes=$(( (now_epoch - created_epoch) / 60 ))
-            echo "Desired V12 run=$keep_id age=${age_minutes}m."
+            updated_epoch="$(date -u -d "$running_updated_at" +%s)"
+            inactive_minutes=$(( (now_epoch - updated_epoch) / 60 ))
+            echo "Heavy V12 owner=$running_id workflow=$running_workflow inactive=${inactive_minutes}m."
 
-            # Fanout can spend up to ~135m in parallel prefill plus merge time;
-            # normal candidate segments are also long. Anything beyond 180m is
-            # treated as wedged and safely restarted from durable progress.
-            if [ "$age_minutes" -le 180 ]; then
-              echo "Desired continuation is active and within the healthy window."
+            # Use recent activity rather than total run age. Long candidate waves
+            # may legitimately exceed three hours end-to-end while still making
+            # progress. Only recycle a run that has shown no GitHub activity for
+            # three hours.
+            if [ "$inactive_minutes" -le 180 ]; then
+              if [ -n "$desired_pending" ]; then
+                pending_id="$(jq -r '.id' <<< "$desired_pending")"
+                echo "Desired continuation $pending_id is waiting behind healthy owner $running_id; leaving both intact."
+              else
+                echo "Healthy heavy V12 work is active; no recovery action needed."
+              fi
               exit 0
             fi
 
-            echo "Desired run exceeded 180m; cancelling and restarting from durable checkpoint."
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${keep_id}/cancel" >/dev/null 2>&1 || true
+            echo "Heavy V12 owner $running_id has had no activity for more than 180m; cancelling it."
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${running_id}/cancel" >/dev/null 2>&1 || true
             sleep 5
-          else
-            # No correct continuation is active. Cancel anything obsolete before
-            # dispatching the workflow implied by the durable checkpoint itself.
-            while IFS= read -r run_id; do
-              [ -n "$run_id" ] || continue
-              echo "Cancelling obsolete V12 run $run_id before starting $desired_workflow."
-              gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null 2>&1 || true
-            done < <(jq -r '.[].id' <<< "$active_json")
+
+            # If the correct continuation is already pending, releasing the
+            # concurrency owner is enough. Do not create a replacement that
+            # would evict the existing pending run.
+            if [ -n "$desired_pending" ]; then
+              pending_id="$(jq -r '.id' <<< "$desired_pending")"
+              echo "Pending continuation $pending_id can take over after the stale owner releases the mutex."
+              exit 0
+            fi
           fi
+
+          if [ -n "$desired_pending" ]; then
+            pending_id="$(jq -r '.id' <<< "$desired_pending")"
+            pending_created_at="$(jq -r '.created_at' <<< "$desired_pending")"
+            now_epoch="$(date -u +%s)"
+            pending_epoch="$(date -u -d "$pending_created_at" +%s)"
+            pending_age_minutes=$(( (now_epoch - pending_epoch) / 60 ))
+
+            # With no heavy owner, a pending run should leave the concurrency
+            # queue quickly. If it does not, recycle only that orphaned pending
+            # run instead of cancelling valid computation.
+            if [ "$pending_age_minutes" -le 15 ]; then
+              echo "Desired continuation $pending_id is pending with no heavy owner, age=${pending_age_minutes}m; allowing GitHub time to schedule it."
+              exit 0
+            fi
+
+            echo "Desired continuation $pending_id has been orphan-pending for ${pending_age_minutes}m; recycling it."
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${pending_id}/cancel" >/dev/null 2>&1 || true
+            sleep 5
+          fi
+
+          # No healthy owner and no usable desired pending continuation remain.
+          # Remove obsolete queued/pending work from the shared mutex, then
+          # dispatch exactly the workflow implied by the durable checkpoint.
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            echo "Cancelling obsolete queued V12 run $run_id before starting $desired_workflow."
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/cancel" >/dev/null 2>&1 || true
+          done < <(jq -r --arg w "$desired_workflow" '
+            .[]
+            | select((.status == "queued" or .status == "pending") and .workflow != $w)
+            | .id
+          ' <<< "$active_json")
 
           echo "Dispatching self-healing V12 continuation: $desired_workflow"
           dispatch_workflow "$desired_workflow"

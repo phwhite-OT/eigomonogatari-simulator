@@ -448,12 +448,18 @@ jobs:
           output_directory="$(jq -r '.output_directory' <<< "$target")"
           checkpoint_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"
 
-          if [ -f "$checkpoint_path" ] && jq -e '.status == "finalizing"' "$checkpoint_path" >/dev/null 2>&1; then
+          if [ -f "$checkpoint_path" ] && jq -e '
+            .status == "finalizing"
+            and .finalizationState.version == 2
+            and .finalizationState.phase == "counterfactual"
+            and (.finalizationState.plan | type == "array")
+            and (.finalizationState.cursor.planIndex < (.finalizationState.plan | length))
+          ' "$checkpoint_path" >/dev/null 2>&1; then
             workflow="metagame-v12-finalization-fanout.yml"
-            echo "Condition entered finalization; dispatching 19-runner distributed accelerator instead of another serial normal segment."
+            echo "Condition entered counterfactual finalization; dispatching 19-runner distributed accelerator."
           else
             workflow="metagame-v12-shared-pool-recompute.yml"
-            echo "Candidate recompute is still incomplete; scheduling the next normal segment."
+            echo "Condition still needs candidate/baseline finalization work; scheduling the next normal segment."
           fi
 
           output=""
