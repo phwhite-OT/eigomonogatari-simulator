@@ -407,6 +407,19 @@ const adaptiveByPosition = reconcileAdaptiveMetagameV12RatingsByPosition(
   adaptiveMetagame,
   { totalCost: resolvedInput.totalCost },
 );
+const adaptiveUnapplied = adaptiveByPosition.flat().filter((rating) => (
+  rating?.adaptiveMetagameApplied === false &&
+  Array.isArray(rating?.bestDeck?.ids) &&
+  rating.bestDeck.ids.length === 5 &&
+  Array.isArray(rating?.baselineDeck?.ids) &&
+  rating.baselineDeck.ids.length === 5
+));
+if (adaptiveUnapplied.length) {
+  throw new Error(
+    `Adaptive V12 aggregation could not reconcile ${adaptiveUnapplied.length} complete rating(s): `
+    + adaptiveUnapplied.slice(0, 8).map((rating) => `${rating.name ?? rating.id}@${rating.id}`).join(", "),
+  );
+}
 for (const [index, ratings] of adaptiveByPosition.entries()) {
   resultsByPosition[index].clear();
   for (const rating of ratings) resultsByPosition[index].set(String(rating.id), rating);
@@ -450,6 +463,7 @@ const report = {
     finalizationPlanLength: finalizationState.plan.length,
     finalizationSegmentCount: finalizationState.segmentCount,
     adaptiveMetagameStrategyCount: adaptiveMetagame.strategyCount,
+    adaptiveMetagameAppliedRatingCount: adaptiveByPosition.flat().filter((rating) => rating.adaptiveMetagameApplied === true).length,
     adaptiveMetagameEffectiveScenarioCount: adaptiveMetagame.effectiveScenarioCount,
     adaptiveMetagameBestResponseGap: adaptiveMetagame.bestResponseGap,
     globalBaselineCandidateCount: globalBaselineCandidates.length,
