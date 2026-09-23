@@ -45,7 +45,7 @@ jobs:
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
           report_root="reports/metagame-ratings-v12-team-opportunity"
-          ranking_policy="full-budget-opportunity-v8-mean-primary-slot"
+          ranking_policy="full-budget-opportunity-v9-adaptive-metagame"
           if [ -z "$(git ls-remote --heads origin "$results_branch")" ]; then
             echo "No results branch exists yet."
             exit 0
@@ -85,7 +85,14 @@ jobs:
             input_report="$work_root/$output_directory-report.json"
             output_report="$work_root/$output_directory-report-out.json"
             output_csv="$work_root/$output_directory-ranking.csv"
-            git show "$results_ref:$source_path" > "$input_report"
+            if ! git show "$results_ref:$source_path" > "$input_report" 2>/dev/null || [ ! -s "$input_report" ]; then
+              echo "Skipping $output_directory: completed report is missing."
+              continue
+            fi
+            if ! jq -e '.adaptiveMetagame.version == 2' "$input_report" >/dev/null 2>&1; then
+              echo "Skipping $output_directory: legacy fixed-environment report must be upgraded by shared-pool recompute."
+              continue
+            fi
             node scripts/rerank-metagame-v12-report.mjs \
               --report="$input_report" \
               --output="$output_report" \
@@ -140,7 +147,7 @@ jobs:
           set -euo pipefail
           results_branch="metagame-v12-shared-pool-results"
           results_ref="refs/remotes/origin/$results_branch"
-          ranking_policy="full-budget-opportunity-v8-mean-primary-slot"
+          ranking_policy="full-budget-opportunity-v9-adaptive-metagame"
           echo "should_run=false" >> "$GITHUB_OUTPUT"
           echo "input=" >> "$GITHUB_OUTPUT"
           echo "output_directory=" >> "$GITHUB_OUTPUT"
@@ -428,7 +435,7 @@ jobs:
             --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
             --max-rounds=16
 
-          ranking_policy="full-budget-opportunity-v8-mean-primary-slot"
+          ranking_policy="full-budget-opportunity-v9-adaptive-metagame"
           if jq -e '.status == "complete"' "$checkpoint_path" >/dev/null; then
             printf '%s\n' "$ranking_policy" > "${output_path}/ranking-policy.txt"
             echo "Distributed finalization complete for $METAGAME_INPUT after converged deep search."
