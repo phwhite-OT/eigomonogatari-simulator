@@ -444,6 +444,30 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-23 — watchdog pending/concurrency recovery repair
+
+Observed problem:
+
+- the V12 watchdog had been failing deterministically with `/usr/bin/jq: Argument list too long` because it captured two full GitHub Actions workflow-run payloads into shell variables and passed both through `jq --argjson`
+- scheduled watchdog delivery was also not reliable enough to mask that bug; recent scheduled runs were hours apart and the sampled runs failed before healing anything
+- the recovery selector preferred the newest desired run even when that run was only workflow-level `pending`, which could cause a healthy older heavy run that actually owned the shared concurrency mutex to be cancelled
+- this is especially dangerous during ranking-only upgrades such as v9, where an older battle wave is intentionally allowed to finish because its exact per-scenario evidence is reusable
+
+Correction:
+
+- workflow-run payloads are now written to `$RUNNER_TEMP` JSON files and combined with `jq -s`, avoiding shell argument-size limits
+- the watchdog now treats an in-progress heavy run as the concurrency owner and preserves it while it has recent GitHub activity; pending continuations waiting behind that owner are left intact
+- stale detection uses the run's last `updated_at` activity rather than total run age, so a long but progressing wave is not killed merely for exceeding three hours end-to-end
+- if no heavy owner exists and the desired run remains `pending`/queued for more than 15 minutes, only that orphaned pending run is recycled and a fresh continuation is dispatched
+- obsolete queued work is removed only when there is no healthy owner and no usable desired pending continuation
+
+Compatibility / validation:
+
+- no battle semantics, ranking formula, checkpoint schema, or cached battle evidence changed
+- this is scheduling/recovery logic only
+- the resilience test now guards against reintroducing full Actions JSON through `--argjson` and checks the healthy-owner/orphan-pending paths
+- immediate live follow-up should verify that the current old fire:100 owner completes publish and that the v9 continuation leaves `pending` automatically afterward
+
 ### 2026-09-23 — adaptive counter-cycle metagame ranking (v9)
 
 Observed problem:
