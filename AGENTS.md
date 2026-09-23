@@ -77,6 +77,7 @@ This system is intentionally resumable. Preserve that property when changing it.
 - long calculations must save checkpoints/artifacts instead of depending on one uninterrupted run
 - GitHub transport/service failures may be retried
 - `.github/workflows/metagame-v12-watchdog.yml` checks periodically and resumes safe stalled work
+- `publish` must hand work to `metagame-v12-finalization-fanout.yml` only after the checkpoint is in `finalizationState.phase == "counterfactual"` with remaining frozen-plan work; earlier finalization phases such as global baseline must continue through normal shared-pool segments
   - workflow-level `pending` with zero jobs is a legitimate concurrency wait while another heavy V12 run owns `metagame-v12-shared-pool-recompute`; a healthy owner must not be cancelled just because a newer pending continuation exists
   - watchdog workflow-run JSON must be read from files/stdin rather than passed wholesale through shell argv; large Actions payloads can exceed `ARG_MAX`
   - if there is no heavy owner and the desired continuation remains pending for more than 15 minutes, recycle that orphaned pending run and dispatch a fresh continuation
