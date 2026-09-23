@@ -36,12 +36,20 @@ test("V12 heavy work remains resumable and capped at nineteen parallel runners",
   assert.match(rateScript, /MetagameV12EvaluationPool/);
 });
 
-test("V12 watchdog recognizes the same adaptive ranking policy", () => {
+test("V12 watchdog recognizes adaptive policy and safely heals pending concurrency stalls", () => {
   assert.match(watchdog, /schedule:/);
   assert.match(watchdog, /\*\/10 \* \* \* \*/);
   assert.match(watchdog, /actions:\s*write/);
   assert.match(watchdog, new RegExp(rankingPolicy));
-  assert.match(watchdog, /actions\/runs\/\$\{keep_id\}\/cancel/);
+  assert.match(watchdog, /v12-recompute-runs\.json/);
+  assert.match(watchdog, /jq -c -s/);
+  assert.doesNotMatch(watchdog, /--argjson rr/);
+  assert.match(watchdog, /running=.*status == "in_progress"/);
+  assert.match(watchdog, /desired_pending=/);
+  assert.match(watchdog, /waiting behind healthy owner/);
+  assert.match(watchdog, /orphan-pending/);
+  assert.match(watchdog, /actions\/runs\/\$\{running_id\}\/cancel/);
+  assert.match(watchdog, /actions\/runs\/\$\{pending_id\}\/cancel/);
   assert.match(watchdog, /gh workflow run "\$workflow"/);
 });
 
