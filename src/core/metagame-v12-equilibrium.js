@@ -323,6 +323,10 @@ export async function buildMetagameV12EquilibriumMatrix(entries, characters, opt
     key: deckKey(entry),
     deck: hydrateDeck(entry, charactersById),
   })).filter((entry) => entry.deck);
+  const populationWeights = hydrated.length === options.populationWeights?.length
+    ? normalizeWeights(options.populationWeights)
+    : hydrated.map(() => 1 / Math.max(1, hydrated.length));
+  const populationDecks = hydrated.map((entry) => entry.deck);
   const matrix = Array.from({ length: hydrated.length }, () => Array(hydrated.length).fill(0.5));
   const totalPairs = hydrated.length * (hydrated.length - 1) / 2;
   const checkpointEvery = Math.max(1, Math.floor(Number(options.checkpointEvery) || 20));
@@ -334,14 +338,19 @@ export async function buildMetagameV12EquilibriumMatrix(entries, characters, opt
     for (let rightIndex = leftIndex + 1; rightIndex < hydrated.length; rightIndex += 1) {
       const left = hydrated[leftIndex];
       const right = hydrated[rightIndex];
-      const key = matchupCacheKey(left.key, right.key, turns);
+      const key = matchupCacheKey(left.key, right.key, turns, populationWeights);
       let leftWin;
       if (cache.has(key)) {
         const canonicalLeft = left.key.localeCompare(right.key) <= 0;
         const canonicalValue = Number(cache.get(key));
         leftWin = canonicalLeft ? canonicalValue : 1 - canonicalValue;
       } else {
-        leftWin = evaluateMetagameV12EquilibriumMatchup(left.deck, right.deck, { ...options, turns });
+        leftWin = evaluateMetagameV12EquilibriumMatchup(left.deck, right.deck, {
+          ...options,
+          turns,
+          populationDecks,
+          populationWeights,
+        });
         const canonicalLeft = left.key.localeCompare(right.key) <= 0;
         cache.set(key, canonicalLeft ? leftWin : 1 - leftWin);
         newMatchups += 1;
@@ -352,15 +361,16 @@ export async function buildMetagameV12EquilibriumMatrix(entries, characters, opt
       completedPairs += 1;
 
       if (newSinceCheckpoint >= checkpointEvery) {
-        await options.onProgress?.({ completedPairs, totalPairs, newMatchups, cache });
+        await options.onProgress?.({ completedPairs, totalPairs, newMatchups, cache, populationWeights });
         newSinceCheckpoint = 0;
       }
       if (options.shouldStop?.()) {
-        await options.onProgress?.({ completedPairs, totalPairs, newMatchups, cache });
+        await options.onProgress?.({ completedPairs, totalPairs, newMatchups, cache, populationWeights });
         return {
           complete: false,
           entries: hydrated,
           matrix,
+          populationWeights,
           completedPairs,
           totalPairs,
           newMatchups,
@@ -369,12 +379,13 @@ export async function buildMetagameV12EquilibriumMatrix(entries, characters, opt
     }
   }
   if (newSinceCheckpoint > 0) {
-    await options.onProgress?.({ completedPairs, totalPairs, newMatchups, cache });
+    await options.onProgress?.({ completedPairs, totalPairs, newMatchups, cache, populationWeights });
   }
   return {
     complete: true,
     entries: hydrated,
     matrix,
+    populationWeights,
     completedPairs,
     totalPairs,
     newMatchups,
