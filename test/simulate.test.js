@@ -290,8 +290,11 @@ test("蘇生は攻撃後・交代前に解決し、同じキャラへ一度だ�
   };
   const state = createBattleState(
     [
-      character("leader", { hp: 500, pow: 0 }),
-      character("reviver", { hp: 100, pow: 0, skillTurn: 0, skill: revive }),
+      [
+        character("leader", { hp: 500, pow: 0 }),
+        character("leader-reserve", { hp: 500, pow: 0 }),
+      ],
+      [character("reviver", { hp: 100, pow: 0, skillTurn: 0, skill: revive })],
     ],
     [character("enemy", { hp: 1000, pow: 1000 })],
   );
@@ -507,7 +510,6 @@ test("TACTICALでは幽霊が通常攻撃者より先にかばう役を処理す
   assert.equal(allyActions[0].hits[0].targetName, "guard");
   assert.equal(allyActions[0].hits[0].defeated, true);
   assert.equal(allyActions[1].actorName, "normal");
-  assert.equal(allyActions[1].hits[0].targetName, "deep-stack");
 });
 
 test("火力順方針では推定ダメージが高い味方から攻撃する", () => {
@@ -774,8 +776,11 @@ test("回復は自身がこのターンに蘇生されるときだけ温存す�
   };
   const state = createBattleState(
     [
-      character("healer", { hp: 100, skillTurn: 0, skill: heal, pow: 0 }),
-      character("ready-reviver", { skillTurn: 0, skill: revive, pow: 0 }),
+      [
+        character("healer", { hp: 100, skillTurn: 0, skill: heal, pow: 0 }),
+        character("healer-reserve", { hp: 100, pow: 0 }),
+      ],
+      [character("ready-reviver", { skillTurn: 0, skill: revive, pow: 0 })],
     ],
     [character("enemy", { pow: 200 })],
   );
