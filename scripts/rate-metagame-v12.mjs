@@ -12,6 +12,7 @@ import {
 } from "../src/core/metagame-v7.js";
 import {
   METAGAME_V12_MODEL_VERSION,
+  METAGAME_V12_RANKING_POLICY,
   buildMetagameV12CounterfactualReplacementDecks,
   buildMetagameV12GlobalBaselineDecks,
   createMetagameV12EnvironmentDecks,
@@ -19,6 +20,10 @@ import {
   rankMetagameV12Characters,
   rateMetagameV12Character,
 } from "../src/core/metagame-v12.js";
+import {
+  buildAdaptiveMetagameV12Equilibrium,
+  reconcileAdaptiveMetagameV12RatingsByPosition,
+} from "../src/core/metagame-v12-adaptive.js";
 import {
   createMetagameV12FinalizationState,
   isMetagameV12FinalizationStateCompatible,
@@ -189,6 +194,7 @@ const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map((loadedCheckpoi
 const evaluationCache = new Map();
 hydrateMetagameV12EvaluationCache(evaluationCache, loadedCheckpoint?.evaluatedDeckPool);
 let finalizationState = loadedCheckpoint?.finalizationState ?? null;
+let adaptiveMetagame = loadedCheckpoint?.adaptiveMetagame ?? null;
 const mergedCheckpoints = await Promise.all(mergeCheckpointPaths.map((entry) => readCheckpoint(entry, checkpointContext)));
 for (const checkpoint of mergedCheckpoints) {
   if (!checkpoint) continue;
@@ -210,6 +216,7 @@ async function saveProgress(status = "in_progress") {
     context: checkpointContext,
     sharedPoolVersion: METAGAME_V12_SHARED_POOL_VERSION,
     finalizationState,
+    adaptiveMetagame,
     resultsByPosition: resultsByPosition.map((ratings) => [...ratings.values()]),
     evaluatedDeckPool: serializeMetagameV12EvaluationCache(evaluationCache),
   });
@@ -251,6 +258,33 @@ if (stoppedEarly || !allRatingsComplete) {
 }
 
 await saveProgress("finalizing");
+
+// Adaptive v9 reuses the same 72 measured 5v5 scenarios, but needs every
+// supplied environment shell to have its own scenario-value vector. Most are
+// already in the shared cache; evaluate only genuinely missing unique shells.
+const uniqueEnvironmentDecks = [...new Map(environmentDecks.map((deck) => [
+  deck.map((character) => String(character.id)).join("|"),
+  deck,
+])).values()];
+let adaptiveEnvironmentNewEvaluations = 0;
+for (const deck of uniqueEnvironmentDecks) {
+  const key = `${turns}:${deck.map((character) => String(character.id)).join("|")}`;
+  if (evaluationCache.has(key)) continue;
+  if (finalizationDeadlineReached()) { stoppedEarly = true; break; }
+  evaluationCache.set(key, evaluateMetagameV7Deck(deck, teamScenarios, { turns }));
+  adaptiveEnvironmentNewEvaluations += 1;
+  if (adaptiveEnvironmentNewEvaluations % finalizationCheckpointEvery === 0) await saveProgress("finalizing");
+}
+if (adaptiveEnvironmentNewEvaluations) await saveProgress("finalizing");
+if (stoppedEarly) {
+  await saveProgress("finalizing");
+  if (adaptiveEnvironmentNewEvaluations === 0) {
+    throw new Error(`V12 adaptive-environment finalization made no forward progress before its ${timeBudgetSeconds}s time budget expired.`);
+  }
+  console.log(`V12 finalization paused after ${adaptiveEnvironmentNewEvaluations} new adaptive environment deck evaluations.`);
+  process.exit(0);
+}
+
 const globalBaselineCandidates = buildMetagameV12GlobalBaselineDecks(resolvedInput, candidatePools, { baselineDeckLimit, baselineBeamWidth });
 let globalBaselineNewEvaluations = 0;
 for (const entry of globalBaselineCandidates) {
@@ -383,18 +417,42 @@ if (segmentCounterfactualNewEvaluations) {
 
 const counterfactualCandidateDeckCount = finalizationState.processedCandidateDeckCount ?? 0;
 const counterfactualNewEvaluations = finalizationState.newEvaluationCount ?? 0;
+
+// Convert the fixed-sample evidence into an empirical mixed metagame. Strong
+// broad decks gain adoption; counter decks then gain value only to the extent
+// that they actually beat the now-common shells. Time-averaging prevents
+// rock-paper-scissors style cycles from collapsing to whichever iterate ran last.
+sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
+adaptiveMetagame = buildAdaptiveMetagameV12Equilibrium(
+  uniqueEnvironmentDecks,
+  teamScenarios,
+  evaluationCache,
+  { turns },
+);
+const adaptiveByPosition = reconcileAdaptiveMetagameV12RatingsByPosition(
+  resultsByPosition,
+  sharedDeckPool,
+  adaptiveMetagame,
+  { totalCost: resolvedInput.totalCost },
+);
+for (const [index, ratings] of adaptiveByPosition.entries()) {
+  resultsByPosition[index].clear();
+  for (const rating of ratings) resultsByPosition[index].set(String(rating.id), rating);
+}
+
 const rankingsByPosition = resultsByPosition.map((ratings, index) => ({ position: index + 1, characters: rankMetagameV12Characters([...ratings.values()]) }));
 const sharedPoolImprovementCount = rankingsByPosition.reduce((sum, slot) => sum + slot.characters.filter((character) => character.sharedPoolImprovedCandidate || character.sharedPoolImprovedBaseline).length, 0);
 const report = {
   generatedAt: new Date().toISOString(),
+  rankingPolicy: METAGAME_V12_RANKING_POLICY,
   model: {
     version: METAGAME_V12_MODEL_VERSION,
     sharedPoolVersion: METAGAME_V12_SHARED_POOL_VERSION,
     battleFormat: "5v5",
     objective: "対象キャラを外した際に浮くコストを5枠全体へ再配分して最善デッキを再構築し、コスト制約込みの単体価値を評価する。同一4枠差し替えは純粋な枠内戦闘力の診断として併記する。",
-    scoringPolicy: "単体貢献順位とブラウザ候補priorは、全5枠再最適化の機会勝率差を主成分にする。同一4枠差し替えは、全5枠評価の平均値と安定補正後値の間にある不確実性幅の範囲だけ補正に使い、コスト比率では重み付けしない。",
+    scoringPolicy: "固定72シナリオの実測値を捨てず、完成環境デッキの使用率をmultiplicative-weightsで反復更新して時間平均し、その近似混合環境で全5枠再最適化の平均機会勝率差を主成分にする。同一4枠差し替えは直接の枠貢献診断として残し、robust値は信頼性タイブレークに限定する。",
     costPolicy: "総コストは上限であって目標値ではない。候補を外した際のコストは5枠全体へ再配分し、そこで機会損失を評価する。未使用コストそのものには減点も加点もしない。proxyが同等なら、コストを余らせた合法デッキも探索から落とさない。",
-    environmentPolicy: "提示環境だけを使い、10人内の同一キャラ重複を人工的に避けない。伝説判定は『伝』とLEGENDの両方を認識する。",
+    environmentPolicy: "提示環境から作った実測5v5シナリオを支持集合にし、強い完成デッキほど使用率が上がり、その対策が増えると再び分布が変わる適応メタを反復する。循環相性は最終反復値ではなく時間平均した混合分布で評価する。手書きの役割ボーナスや特定キャラ補正は使わない。",
     performancePolicy: "各候補の直接探索と共有基準デッキは既存キャッシュを再利用する。全shard統合後、各キャラについて構成の異なる強い完成デッキを最大3本だけ一度固定して監査し、各デッキで他4枠固定の差し替え候補を最大24本探索する。監査計画とカーソルをcheckpointへ保存し、再開時に計算範囲を増殖させず未処理位置から継続する。反実仮想の未評価戦闘だけをCPU数に応じたworker poolで並列実行し、評価内容とキャッシュキーは従来と同一に保つ。",
   },
   context: {
@@ -419,6 +477,10 @@ const report = {
     finalizationWorkers,
     finalizationPlanLength: finalizationState.plan.length,
     finalizationSegmentCount: finalizationState.segmentCount,
+    adaptiveEnvironmentDeckCount: uniqueEnvironmentDecks.length,
+    adaptiveEnvironmentNewEvaluationCount: adaptiveEnvironmentNewEvaluations,
+    adaptiveMetagameEffectiveScenarioCount: adaptiveMetagame.effectiveScenarioCount,
+    adaptiveMetagameBestResponseGap: adaptiveMetagame.bestResponseGap,
     globalBaselineCandidateCount: globalBaselineCandidates.length,
     globalBaselineNewEvaluationCount: globalBaselineNewEvaluations,
     counterfactualCandidateDeckCount,
@@ -427,6 +489,7 @@ const report = {
     sharedPoolImprovementCount,
     eligibleCandidateCountByPosition: candidatePools.allByPosition.map((pool) => pool.length),
   },
+  adaptiveMetagame,
   inputAudit: {
     source: resolvedInput.source,
     environmentPoolCounts: resolvedInput.environmentPools.map((pool) => pool.length),
@@ -439,6 +502,7 @@ const report = {
 await fs.writeFile(path.join(outputDirectory, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
 await fs.writeFile(path.join(outputDirectory, "ranking.csv"), csvReport(report), "utf8");
 await saveProgress("complete");
+console.log(`V12 adaptive metagame: ${adaptiveMetagame.environmentDeckCount} strategies / effective ${adaptiveMetagame.effectiveScenarioCount} scenarios / best-response gap ${adaptiveMetagame.bestResponseGap}.`);
 console.log(`V12 full opportunity baseline: ${globalBaselineCandidates.length} decks (${globalBaselineNewEvaluations} newly evaluated this segment).`);
 console.log(`V12 matched-slot counterfactuals: ${counterfactualCandidateDeckCount} planned/processed decks (${counterfactualNewEvaluations} newly evaluated since the frozen plan).`);
 console.log(`V12 shared pool: ${sharedDeckPool.length} evaluated decks / ${sharedPoolImprovementCount} ratings changed.`);
