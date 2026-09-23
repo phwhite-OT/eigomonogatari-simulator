@@ -460,6 +460,8 @@ Correction:
 - stale detection uses the run's last `updated_at` activity rather than total run age, so a long but progressing wave is not killed merely for exceeding three hours end-to-end
 - if no heavy owner exists and the desired run remains `pending`/queued for more than 15 minutes, only that orphaned pending run is recycled and a fresh continuation is dispatched
 - obsolete queued work is removed only when there is no healthy owner and no usable desired pending continuation
+- a second live stall was found immediately after fire:100 candidate completion: `publish` dispatched the fanout for any `status == "finalizing"`, but the saved checkpoint was still in the bounded global-baseline phase; fanout intentionally accepts only `finalizationState.phase == "counterfactual"`, so it exited successfully without doing work and no continuation remained
+- `publish` now dispatches fanout only for counterfactual checkpoints with a remaining frozen plan; baseline/other pre-counterfactual finalization stays on the normal shared-pool workflow until it reaches the fanout-compatible phase
 
 Compatibility / validation:
 
