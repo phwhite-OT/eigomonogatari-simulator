@@ -27,6 +27,17 @@ test("V12 ranking-only upgrades reuse durable battle evidence", () => {
   assert.ok(reportWrite >= 0 && completeSave > reportWrite, "progress.json may become complete only after adaptive report output exists");
 });
 
+test("V12 control-plane selection uses compact progress summaries", () => {
+  assert.match(workflow, /progress-summary\.json/);
+  assert.match(workflow, /read_progress_state/);
+  assert.match(workflow, /has_current_ranking "\$output_directory" \|\| return 1/);
+  assert.match(fanout, /progress-summary\.json/);
+  assert.match(watchdog, /progress-summary\.json/);
+  assert.match(workflow, /schemaVersion:\s*1/);
+  assert.match(fanout, /schemaVersion:\s*1/);
+  assert.match(watchdog, /Legacy fallback|summary_path/);
+});
+
 test("V12 heavy work remains resumable and capped at nineteen parallel runners", () => {
   assert.match(workflow, /max-parallel:\s*19/);
   assert.match(fanout, /max-parallel:\s*19/);
