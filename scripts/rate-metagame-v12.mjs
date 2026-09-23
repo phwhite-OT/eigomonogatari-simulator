@@ -399,10 +399,8 @@ if (stoppedEarly) {
 }
 
 if (finalizationState.phase === "counterfactual") {
-  finalizationState.phase = "equilibrium";
   finalizationState.cursor = { planIndex: finalizationState.plan.length, replacementIndex: 0 };
   finalizationState.lastProgressAt = new Date().toISOString();
-  equilibriumReport = null;
   await maybeSaveFinalizationProgress(true);
 }
 
@@ -410,6 +408,12 @@ if (segmentCounterfactualNewEvaluations) {
   sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
   reconciledByPosition = reconcileMetagameV12RatingsByPosition(resultsByPosition, sharedDeckPool, { totalCost: resolvedInput.totalCost });
   applyReconciledRatings();
+}
+
+if (finalizationState.phase === "counterfactual") {
+  await saveProgress("finalizing");
+  console.log("V12 bounded counterfactual plan is complete; waiting for the distributed elite-neighbourhood convergence check before equilibrium.");
+  process.exit(0);
 }
 
 if (finalizationState.phase === "complete" && (finalizationState.equilibriumVersion !== METAGAME_V12_EQUILIBRIUM_VERSION || !equilibriumReport)) {
