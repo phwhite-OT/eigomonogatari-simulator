@@ -9,6 +9,7 @@ const deployWorkflow = fs.readFileSync(".github/workflows/deploy-pages.yml", "ut
 const rerankWorkflow = fs.readFileSync(".github/workflows/v12-cost100-rerank.yml", "utf8");
 const rerankScript = fs.readFileSync("scripts/rerank-metagame-v12-report.mjs", "utf8");
 const rateScript = fs.readFileSync("scripts/rate-metagame-v12.mjs", "utf8");
+const workMatrixScript = fs.readFileSync("scripts/build-metagame-v12-work-matrix.mjs", "utf8");
 const metagameV12 = fs.readFileSync("src/core/metagame-v12.js", "utf8");
 
 const rankingPolicy = "full-budget-opportunity-v9-adaptive-metagame";
@@ -45,6 +46,14 @@ test("V12 heavy work remains resumable and capped at nineteen parallel runners",
   assert.match(rateScript, /finalizationDeadlineReached/);
   assert.match(rateScript, /finalizationState\.cursor/);
   assert.match(rateScript, /MetagameV12EvaluationPool/);
+});
+
+test("finalize-handoff shards stop before serial counterfactual work", () => {
+  assert.match(workMatrixScript, /finalizeHandoff:\s*true/);
+  assert.match(workMatrixScript, /finalize_handoff:\s*Boolean\(finalizeHandoff\)/);
+  assert.match(workflow, /--stop-after-finalization-plan=/);
+  assert.match(rateScript, /stopAfterFinalizationPlan/);
+  assert.match(rateScript, /stopping before serial counterfactual work so distributed fanout can take over/);
 });
 
 test("V12 publish hands off only counterfactual finalization to fanout", () => {
