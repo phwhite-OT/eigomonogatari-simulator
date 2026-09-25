@@ -51,6 +51,8 @@ The 19-runner cap is intentional: it leaves one runner slot available for lightw
 
 A synthetic `*-finalize-handoff` shard exists only to finish any remaining global-baseline work and freeze the counterfactual plan. Once the checkpoint reaches `finalizationState.phase == "counterfactual"`, that shard must exit immediately; it must not spend its long candidate time budget doing serial/4-worker counterfactual evaluation. Counterfactual work belongs to the distributed fanout.
 
+Likewise, the fanout `merge` job is a cache-integration/control-plane phase, not a simulation phase. When `rate-metagame-v12.mjs` is invoked with `--finalize-only=true` plus one or more `--merge-checkpoint-paths`, it must consume only exact battles already present in the merged deltas, advance the frozen cursor through cached replacements, persist progress at the first missing battle, and return control to the next fanout wave. Never let merge fall back to the local four-worker counterfactual pool.
+
 Distributed finalization workflow:
 
 `.github/workflows/metagame-v12-finalization-fanout.yml`
