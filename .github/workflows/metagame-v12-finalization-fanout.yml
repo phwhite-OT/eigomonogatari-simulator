@@ -381,12 +381,13 @@ jobs:
     needs: [select, plan, prefill]
     if: always() && needs.select.outputs.should_run == 'true' && needs.plan.result == 'success' && needs.prefill.result != 'cancelled'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       METAGAME_INPUT: ${{ needs.select.outputs.input }}
       METAGAME_OUTPUT_DIRECTORY: ${{ needs.select.outputs.output_directory }}
-      # Fanout should own expensive simulations. Keep the serial merge short;
-      # any residual cache misses are picked up by the next globally deduped plan.
+      # Fanout owns all expensive simulations. Merge may spend substantial time
+      # parsing large cache deltas, but it must never run missing battles itself;
+      # residual misses are picked up by the next globally deduplicated fanout.
       FINALIZE_TIME_BUDGET_SECONDS: "600"
     steps:
       - uses: actions/checkout@v4

@@ -56,6 +56,15 @@ test("finalize-handoff shards stop before serial counterfactual work", () => {
   assert.match(rateScript, /stopping before serial counterfactual work so distributed fanout can take over/);
 });
 
+test("distributed fanout merge never falls back to serial counterfactual battles", () => {
+  assert.match(rateScript, /distributedCacheMerge = finalizeOnly && mergeCheckpointPaths\.length > 0/);
+  assert.match(rateScript, /advancing the frozen plan through cached exact battles only/);
+  assert.match(rateScript, /if \(!evaluationCache\.has\(key\)\) \{\s*stoppedEarly = true;\s*break counterfactualAudit;/);
+  assert.match(rateScript, /if \(evaluationPool\) await evaluationPool\.close\(\)/);
+  assert.match(fanout, /timeout-minutes:\s*60/);
+  assert.match(fanout, /must never run missing battles itself/);
+});
+
 test("V12 publish hands off only counterfactual finalization to fanout", () => {
   assert.match(workflow, /Condition entered counterfactual finalization/);
   assert.match(workflow, /Condition still needs candidate\/baseline finalization work/);

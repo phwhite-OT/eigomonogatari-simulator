@@ -444,6 +444,30 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-26 — fanout merge 30-minute cancellation loop
+
+Observed live failure:
+
+- multiple distributed-finalization runs completed all 38 prefill shards successfully, then the `merge` job was cancelled almost exactly 30 minutes after it started
+- examples included runs 36187411197, 36167368697, 36134459923, 36104208096, and 36088369889
+- every sampled merge resumed at the same durable cursor, `4704/6846`, then logged `V12 counterfactual battle pool: 4 worker(s)` and was killed by the merge job's `timeout-minutes: 30`
+- because the cancellation happened before `Save distributed finalization progress`, the 38 successful shard deltas and any cursor movement were never pushed to the results branch; the next watchdog wave therefore repeated the same work from 4704
+- this was not a shard-computation error and not a watchdog cancellation: it was a deterministic orchestration bug in merge
+
+Correction:
+
+- `rate-metagame-v12.mjs` now automatically enters distributed-cache-merge mode whenever it is called with `--finalize-only=true` and merged checkpoint paths
+- in that mode it never starts `MetagameV12EvaluationPool` for missing counterfactual battles
+- it walks the frozen plan one replacement at a time, advances through exact battles already present in the merged cache, and stops/persists immediately at the first missing battle so the next fanout planner can assign it
+- a zero-cursor-advance merge is valid in this mode because importing exact deltas can still change the next globally deduplicated plan; it must not be treated as a serial no-progress failure
+- future merge job timeout is raised from 30 to 60 minutes as headroom for parsing/serializing very large checkpoint and delta files, not for running battles
+
+Compatibility:
+
+- no battle semantics, ranking policy, finalization-state schema, or exact battle results change
+- already uploaded shard artifacts remain reusable
+- the live current fanout can pick up the script fix because its jobs checkout `master`; no durable checkpoint reset is required
+
 ### 2026-09-23 — immediate finalize-handoff to 19-runner fanout
 
 Observed problem:
