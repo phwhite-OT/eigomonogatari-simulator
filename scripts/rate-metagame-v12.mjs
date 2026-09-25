@@ -156,6 +156,7 @@ const checkpointPath = checkpointArgument ? path.resolve(projectRoot, checkpoint
 const mergeCheckpointPaths = readArgument("merge-checkpoint-paths", "").split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => path.resolve(projectRoot, entry));
 const finalizeOnly = readArgument("finalize-only", "false").toLowerCase() === "true";
 const stopAfterFinalizationPlan = readArgument("stop-after-finalization-plan", "false").toLowerCase() === "true";
+const distributedCacheMerge = finalizeOnly && mergeCheckpointPaths.length > 0;
 
 const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const nonExactMatches = resolvedInput.audit.filter((entry) => !["exact", "high"].includes(entry.confidence));
@@ -320,9 +321,15 @@ async function maybeSaveFinalizationProgress(force = false) {
 }
 
 if (finalizationState.phase !== "complete") {
-  const evaluationPool = new MetagameV12EvaluationPool({ teamScenarios, turns, workerCount: finalizationWorkers });
-  const finalizationBatchSize = Math.max(1, evaluationPool.workerCount * 2);
-  console.log(`V12 counterfactual battle pool: ${evaluationPool.workerCount} worker(s), batch size ${finalizationBatchSize}.`);
+  const evaluationPool = distributedCacheMerge
+    ? null
+    : new MetagameV12EvaluationPool({ teamScenarios, turns, workerCount: finalizationWorkers });
+  const finalizationBatchSize = Math.max(1, (evaluationPool?.workerCount ?? finalizationWorkers) * 2);
+  if (distributedCacheMerge) {
+    console.log("V12 distributed cache merge: advancing the frozen plan through cached exact battles only; missing battles stay for the next fanout wave.");
+  } else {
+    console.log(`V12 counterfactual battle pool: ${evaluationPool.workerCount} worker(s), batch size ${finalizationBatchSize}.`);
+  }
   try {
     counterfactualAudit:
     for (let planIndex = finalizationState.cursor.planIndex; planIndex < finalizationState.plan.length; planIndex += 1) {
@@ -343,6 +350,21 @@ if (finalizationState.phase !== "complete") {
       if (startReplacementIndex > replacements.length) throw new Error(`V12 finalization cursor is invalid for plan ${planIndex}: ${startReplacementIndex} > ${replacements.length}.`);
       for (let replacementIndex = startReplacementIndex; replacementIndex < replacements.length;) {
         if (finalizationDeadlineReached()) { stoppedEarly = true; break counterfactualAudit; }
+
+        if (distributedCacheMerge) {
+          const entry = replacements[replacementIndex];
+          const key = `${turns}:${entry.deck.map((character) => String(character.id)).join("|")}`;
+          if (!evaluationCache.has(key)) {
+            stoppedEarly = true;
+            break counterfactualAudit;
+          }
+          finalizationState.processedCandidateDeckCount = (finalizationState.processedCandidateDeckCount ?? 0) + 1;
+          finalizationState.cursor = { planIndex, replacementIndex: replacementIndex + 1 };
+          finalizationState.lastProgressAt = new Date().toISOString();
+          replacementIndex += 1;
+          continue;
+        }
+
         const batchEnd = Math.min(replacements.length, replacementIndex + finalizationBatchSize);
         const missingByKey = new Map();
         for (let batchIndex = replacementIndex; batchIndex < batchEnd; batchIndex += 1) {
@@ -372,7 +394,7 @@ if (finalizationState.phase !== "complete") {
       await maybeSaveFinalizationProgress();
     }
   } finally {
-    await evaluationPool.close();
+    if (evaluationPool) await evaluationPool.close();
   }
 }
 
@@ -381,8 +403,17 @@ if (stoppedEarly) {
   const cursorAdvanced = metagameV12FinalizationCursorSignature(finalizationState) !== segmentStartCursor;
   const cacheAdvanced = evaluationCache.size !== segmentStartCacheSize;
   const candidateAdvanced = (finalizationState.processedCandidateDeckCount ?? 0) !== segmentStartProcessedCandidateDeckCount;
-  if (!cursorAdvanced && !cacheAdvanced && !candidateAdvanced) throw new Error(`V12 finalization made no forward progress before its ${timeBudgetSeconds}s time budget expired. Refusing to self-dispatch another silent no-progress segment.`);
-  console.log(`V12 finalization paused at ${finalizationState.cursor.planIndex}/${finalizationState.plan.length} anchor shells (${segmentCounterfactualNewEvaluations} new deck evaluations this segment).`);
+  if (!cursorAdvanced && !cacheAdvanced && !candidateAdvanced && !distributedCacheMerge) {
+    throw new Error(`V12 finalization made no forward progress before its ${timeBudgetSeconds}s time budget expired. Refusing to self-dispatch another silent no-progress segment.`);
+  }
+  if (distributedCacheMerge) {
+    console.log(
+      `V12 distributed cache merge paused at ${finalizationState.cursor.planIndex}/${finalizationState.plan.length} anchor shells; `
+      + "the next missing exact battle remains assigned to a later fanout wave.",
+    );
+  } else {
+    console.log(`V12 finalization paused at ${finalizationState.cursor.planIndex}/${finalizationState.plan.length} anchor shells (${segmentCounterfactualNewEvaluations} new deck evaluations this segment).`);
+  }
   process.exit(0);
 }
 
