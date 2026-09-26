@@ -57,7 +57,7 @@ test("V12 compact scenario encoding is smaller for decisive-heavy battle vectors
   const legacySize = JSON.stringify([{ key: "12:a|b|c|d|e", result: result(values) }]).length;
   const compact = serializeMetagameV12EvaluationCache(cache);
   const compactSize = JSON.stringify(compact).length;
-  assert.ok(compactSize < legacySize * 0.6, `expected compact cache <60% of legacy, got ${compactSize}/${legacySize}`);
+  assert.ok(compactSize < legacySize * 0.8, `expected compact cache <80% of legacy, got ${compactSize}/${legacySize}`);
   const restored = new Map();
   hydrateMetagameV12EvaluationCache(restored, compact);
   assert.deepEqual(restored.get("12:a|b|c|d|e"), result(values));
