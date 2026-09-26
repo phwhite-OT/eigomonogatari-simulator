@@ -1,15 +1,6 @@
 export const METAGAME_V12_SHARED_POOL_VERSION = 2;
 
-function encodeScenarioValuesF64(values) {
-  if (!Array.isArray(values) || !values.length) return "";
-  const buffer = new ArrayBuffer(values.length * 8);
-  const view = new DataView(buffer);
-  for (let index = 0; index < values.length; index += 1) {
-    const value = Number(values[index]);
-    if (!Number.isFinite(value)) return "";
-    view.setFloat64(index * 8, value, true);
-  }
-  const bytes = new Uint8Array(buffer);
+function bytesToBase64(bytes) {
   let binary = "";
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
     binary += String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + 0x8000)));
@@ -17,7 +8,7 @@ function encodeScenarioValuesF64(values) {
   return globalThis.btoa(binary);
 }
 
-function decodeScenarioValuesF64(encoded) {
+function base64ToBytes(encoded) {
   if (typeof encoded !== "string" || !encoded) return null;
   let binary;
   try {
@@ -25,10 +16,72 @@ function decodeScenarioValuesF64(encoded) {
   } catch {
     return null;
   }
-  if (binary.length % 8 !== 0) return null;
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+// Lossless tagged encoding optimized for V12 battle vectors. Decisive scenario
+// values are exactly 0, 0.5, or 1 and therefore need only one byte. Only
+// ongoing-battle projections carry a full Float64 payload.
+function encodeScenarioValuesPackedV1(values) {
+  if (!Array.isArray(values) || !values.length) return "";
+  let extendedCount = 0;
+  for (const rawValue of values) {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) return "";
+    if (value !== 0 && value !== 0.5 && value !== 1) extendedCount += 1;
+  }
+  const bytes = new Uint8Array(values.length + extendedCount * 8);
   const view = new DataView(bytes.buffer);
+  let offset = 0;
+  for (const rawValue of values) {
+    const value = Number(rawValue);
+    if (value === 0) {
+      bytes[offset++] = 0;
+    } else if (value === 0.5) {
+      bytes[offset++] = 1;
+    } else if (value === 1) {
+      bytes[offset++] = 2;
+    } else {
+      bytes[offset++] = 255;
+      view.setFloat64(offset, value, true);
+      offset += 8;
+    }
+  }
+  return bytesToBase64(bytes);
+}
+
+function decodeScenarioValuesPackedV1(encoded) {
+  const bytes = base64ToBytes(encoded);
+  if (!bytes) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const values = [];
+  for (let offset = 0; offset < bytes.length;) {
+    const tag = bytes[offset++];
+    if (tag === 0) {
+      values.push(0);
+    } else if (tag === 1) {
+      values.push(0.5);
+    } else if (tag === 2) {
+      values.push(1);
+    } else if (tag === 255) {
+      if (offset + 8 > bytes.length) return null;
+      values.push(view.getFloat64(offset, true));
+      offset += 8;
+    } else {
+      return null;
+    }
+  }
+  return values;
+}
+
+// Temporary compatibility for checkpoints written by the first compact-cache
+// attempt. Durable results never need to be rewritten before hydration.
+function decodeScenarioValuesF64(encoded) {
+  const bytes = base64ToBytes(encoded);
+  if (!bytes || bytes.length % 8 !== 0) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const values = [];
   for (let offset = 0; offset < bytes.length; offset += 8) values.push(view.getFloat64(offset, true));
   return values;
@@ -103,10 +156,11 @@ export function serializeMetagameV12EvaluationCache(cache) {
     .filter(([key, result]) => typeof key === "string" && Array.isArray(result?.scenarioValues))
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, result]) => {
-      const scenarioValuesF64 = encodeScenarioValuesF64(result.scenarioValues);
-      if (!scenarioValuesF64) return { key, result };
-      const compactResult = { ...result, scenarioValuesF64 };
+      const scenarioValuesPackedV1 = encodeScenarioValuesPackedV1(result.scenarioValues);
+      if (!scenarioValuesPackedV1) return { key, result };
+      const compactResult = { ...result, scenarioValuesPackedV1 };
       delete compactResult.scenarioValues;
+      delete compactResult.scenarioValuesF64;
       return { key, result: compactResult };
     });
 }
@@ -120,9 +174,12 @@ export function hydrateMetagameV12EvaluationCache(cache, entries) {
     if (!storedResult || typeof storedResult !== "object") continue;
     const scenarioValues = Array.isArray(storedResult.scenarioValues)
       ? storedResult.scenarioValues
-      : decodeScenarioValuesF64(storedResult.scenarioValuesF64);
+      : (decodeScenarioValuesPackedV1(storedResult.scenarioValuesPackedV1)
+        ?? decodeScenarioValuesF64(storedResult.scenarioValuesF64));
     if (!Array.isArray(scenarioValues) || !scenarioValues.length || scenarioValues.some((value) => !Number.isFinite(Number(value)))) continue;
+    if (Number(storedResult.scenarioCount) > 0 && scenarioValues.length !== Number(storedResult.scenarioCount)) continue;
     const restoredResult = { ...storedResult, scenarioValues: scenarioValues.map(Number) };
+    delete restoredResult.scenarioValuesPackedV1;
     delete restoredResult.scenarioValuesF64;
     if (!cache.has(entry.key)) cache.set(entry.key, restoredResult);
   }
