@@ -444,6 +444,21 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-26 — recover exact-battle artifacts across multiple failed fanout generations
+
+Observed live after repeated merge/push failures:
+
+- each new fanout selected only the immediately previous run as `recovery_run_id`
+- the original 38-shard wave lived several generations back; later failed runs often contained only one or a few shard artifacts
+- latest planner logged `recoveredEntryCount: 0` and scheduled the full 5,726 missing evaluations again even though those exact battles had already been computed earlier
+
+Correction:
+
+- fanout selection now gathers all recent non-expired runs that contain matching `v12-finalize-cache-<condition>-*` artifacts
+- planner downloads each selected run into its own recovery directory and recursively merges the union before replanning
+- duplicate exact battle keys are harmless and deduplicated by the evaluation cache
+- this changes recovery/orchestration only; battle semantics, ranking policy, and finalization schema are unchanged
+
 ### 2026-09-26 — corrected compact-cache encoding after Git push rejection
 
 Observed after the first compact-cache rollout:
