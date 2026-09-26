@@ -444,6 +444,26 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-26 — corrected compact-cache encoding after Git push rejection
+
+Observed after the first compact-cache rollout:
+
+- the next fire:100 merge finished computation but `git push` failed because `progress.json` grew to 192.76 MB, and the following retry still produced 186.72 MB
+- root cause: the first compact encoding stored every scenario as fixed 8-byte Float64 base64; V12 vectors contain many exact 0 / 0.5 / 1 outcomes that were much shorter in JSON, so the attempted compaction expanded the checkpoint
+- durable results branch was not corrupted because both oversized commits were rejected by GitHub before push
+
+Correction:
+
+- current encoding uses one-byte tags for exact 0 / 0.5 / 1 and appends an 8-byte Float64 payload only for non-decisive projected values
+- the representation is lossless; there is no rounding or scenario reduction
+- hydration remains backward-compatible with legacy JSON arrays and the temporary all-Float64 base64 field
+- tests now assert exact round-trip equality and that a decisive-heavy 72-scenario vector serializes to less than 60% of its legacy JSON size
+
+Recovery:
+
+- no recomputation reset is needed; the failed fanout artifacts can be reused
+- after this fix reaches master, re-run the failed merge job so it can merge the existing shard artifacts and push the now-smaller checkpoint
+
 ### 2026-09-26 — lossless compact V12 checkpoint vectors
 
 Risk found while reviewing the finalization optimization:

@@ -32,8 +32,8 @@ test("V12 evaluation cache survives lossless compact checkpoint serialization", 
   ]);
   const serialized = serializeMetagameV12EvaluationCache(cache);
   assert.equal(Array.isArray(serialized[0].result.scenarioValues), false);
-  assert.equal(typeof serialized[0].result.scenarioValuesF64, "string");
-  assert.ok(serialized[0].result.scenarioValuesF64.length > 0);
+  assert.equal(typeof serialized[0].result.scenarioValuesPackedV1, "string");
+  assert.ok(serialized[0].result.scenarioValuesPackedV1.length > 0);
   const restored = new Map();
   hydrateMetagameV12EvaluationCache(restored, serialized);
   assert.deepEqual([...restored.entries()], [...cache.entries()]);
@@ -47,6 +47,20 @@ test("V12 evaluation cache still hydrates legacy scenario arrays", () => {
   const restored = new Map();
   hydrateMetagameV12EvaluationCache(restored, legacy);
   assert.deepEqual(restored.get("12:b|c|d|e|a"), legacy[0].result);
+});
+
+test("V12 compact scenario encoding is smaller for decisive-heavy battle vectors", () => {
+  const values = Array.from({ length: 72 }, (_, index) => (
+    index % 9 === 0 ? 0.12345678901234568 : [0, 0.5, 1][index % 3]
+  ));
+  const cache = new Map([["12:a|b|c|d|e", result(values)]]);
+  const legacySize = JSON.stringify([{ key: "12:a|b|c|d|e", result: result(values) }]).length;
+  const compact = serializeMetagameV12EvaluationCache(cache);
+  const compactSize = JSON.stringify(compact).length;
+  assert.ok(compactSize < legacySize * 0.8, `expected compact cache <80% of legacy, got ${compactSize}/${legacySize}`);
+  const restored = new Map();
+  hydrateMetagameV12EvaluationCache(restored, compact);
+  assert.deepEqual(restored.get("12:a|b|c|d|e"), result(values));
 });
 
 test("V12 shared pool reuses a stronger deck found while rating another card", () => {
