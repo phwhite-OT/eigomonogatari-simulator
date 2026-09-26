@@ -13,6 +13,8 @@ const workMatrixScript = fs.readFileSync("scripts/build-metagame-v12-work-matrix
 const finalizationPlanScript = fs.readFileSync("scripts/plan-metagame-v12-finalization.mjs", "utf8");
 const finalizationShardScript = fs.readFileSync("scripts/evaluate-metagame-v12-finalization-shard.mjs", "utf8");
 const finalizationAdvanceScript = fs.readFileSync("scripts/advance-metagame-v12-finalization-cache.mjs", "utf8");
+const browserKnowledgePlanScript = fs.readFileSync("scripts/plan-metagame-v12-browser-knowledge.mjs", "utf8");
+const sharedPoolScript = fs.readFileSync("src/core/metagame-v12-shared-pool.js", "utf8");
 const metagameV12 = fs.readFileSync("src/core/metagame-v12.js", "utf8");
 
 const rankingPolicy = "full-budget-opportunity-v9-adaptive-metagame";
@@ -90,6 +92,15 @@ test("intermediate V12 fanout merges defer expensive reconciliation", () => {
   const advance = fanout.indexOf("advance-metagame-v12-finalization-cache.mjs");
   const fullReconcile = fanout.indexOf("rate-metagame-v12.mjs", advance);
   assert.ok(mergeDeltas >= 0 && advance > mergeDeltas && fullReconcile > advance);
+});
+
+test("V12 durable battle vectors use lossless compact storage with legacy hydration", () => {
+  assert.match(sharedPoolScript, /scenarioValuesF64/);
+  assert.match(sharedPoolScript, /setFloat64\(index \* 8, value, true\)/);
+  assert.match(sharedPoolScript, /getFloat64\(offset, true\)/);
+  assert.match(sharedPoolScript, /Array\.isArray\(storedResult\.scenarioValues\)/);
+  assert.match(browserKnowledgePlanScript, /hydrateMetagameV12EvaluationCache/);
+  assert.doesNotMatch(browserKnowledgePlanScript, /for \(const entry of checkpoint\.evaluatedDeckPool/);
 });
 
 test("V12 publish hands off only counterfactual finalization to fanout", () => {
