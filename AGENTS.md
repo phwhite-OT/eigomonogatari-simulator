@@ -178,6 +178,8 @@ Distributed V12 finalization has two execution tiers. Planner jobs may read the 
 
 Intermediate fanout merges are cache/control-plane work only. They merge exact shard deltas, advance the frozen counterfactual cursor through already-cached replacements with `advance-metagame-v12-finalization-cache.mjs`, and persist immediately at the first cache miss. Do not rebuild the shared pool, reconcile every rating, or rerun adaptive aggregation on every intermediate wave. The expensive `rate-metagame-v12.mjs --finalize-only=true` reconcile/adaptive pass runs only after the frozen counterfactual plan is fully cached; the deep-search convergence check may then reopen another distributed round if the measured frontier changed.
 
+Durable V12 cache entries use a backward-compatible compact checkpoint encoding for `scenarioValues`: in-memory values remain ordinary JavaScript Number arrays, while checkpoint serialization stores their exact Float64 bit patterns as base64 in `scenarioValuesF64`. Hydration accepts both the legacy JSON-array form and the compact form and restores the same Number values exactly. Any script that consumes `evaluatedDeckPool` must go through `hydrateMetagameV12EvaluationCache` rather than reading `.result.scenarioValues` directly. This exists to keep long-running checkpoints safely below GitHub's large-file limits without changing battle evidence.
+
 ## Documentation rule for future agents
 
 When a change materially alters architecture, battle semantics, ranking policy, checkpoint format, workflow recovery, or the meaning of V12 outputs, update **both** this file and `docs/project-handoff.md` in the same change. The goal is that a new agent can begin useful work without needing any previous chat history.

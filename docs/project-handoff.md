@@ -444,6 +444,28 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-26 — lossless compact V12 checkpoint vectors
+
+Risk found while reviewing the finalization optimization:
+
+- live fire:100 push logs showed `progress.json` at 91.39 MB, already close to GitHub's normal large-file rejection threshold
+- the current round planned another 5,726 exact evaluations, so a later merge could finish all computation and then fail only at `git push`, losing that wave's durable progress
+- most of the checkpoint bulk is repeated 72-scenario floating-point vectors stored as decimal JSON arrays
+
+Correction:
+
+- `serializeMetagameV12EvaluationCache` now stores each scenario vector losslessly as the exact little-endian Float64 bytes encoded in base64 under `scenarioValuesF64`
+- `hydrateMetagameV12EvaluationCache` accepts both legacy `scenarioValues: [...]` checkpoints and the new compact field, restoring ordinary Number arrays before any ranking/finalization logic sees them
+- no rounding, quantization, scenario removal, battle replay, or ranking-policy change is involved
+- `plan-metagame-v12-browser-knowledge.mjs`, the one direct checkpoint reader found during review, now hydrates through the shared cache helper instead of assuming raw JSON arrays
+- tests cover exact round-trip equality for nontrivial doubles plus legacy-array compatibility
+
+Compatibility / rollout:
+
+- existing 91 MB checkpoints remain readable and are compacted automatically on the next normal checkpoint rewrite
+- shard delta files produced before this change remain readable
+- battle semantics, finalization-state schema, adaptive-metagame schema, and ranking policy are unchanged
+
 ### 2026-09-26 — lightweight fanout workers and cheap intermediate merge
 
 Efficiency work after the fire:100 timeout-loop fix:

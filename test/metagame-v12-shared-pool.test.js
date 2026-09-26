@@ -25,15 +25,28 @@ const characters = "abcdefghij".split("").map((id, index) => ({
   cost: index + 1,
 }));
 
-test("V12 evaluation cache survives checkpoint serialization", () => {
+test("V12 evaluation cache survives lossless compact checkpoint serialization", () => {
   const cache = new Map([
-    ["12:b|c|d|e|a", result([0.5, 0.5, 0.5, 0.5])],
+    ["12:b|c|d|e|a", result([0.5, 0.12345678901234568, 0.9876543210987654, 0.5])],
     ["12:f|g|h|i|a", result([1, 0.5, 1, 0.5])],
   ]);
   const serialized = serializeMetagameV12EvaluationCache(cache);
+  assert.equal(Array.isArray(serialized[0].result.scenarioValues), false);
+  assert.equal(typeof serialized[0].result.scenarioValuesF64, "string");
+  assert.ok(serialized[0].result.scenarioValuesF64.length > 0);
   const restored = new Map();
   hydrateMetagameV12EvaluationCache(restored, serialized);
   assert.deepEqual([...restored.entries()], [...cache.entries()]);
+});
+
+test("V12 evaluation cache still hydrates legacy scenario arrays", () => {
+  const legacy = [{
+    key: "12:b|c|d|e|a",
+    result: result([0.25, 0.5, 0.75, 1]),
+  }];
+  const restored = new Map();
+  hydrateMetagameV12EvaluationCache(restored, legacy);
+  assert.deepEqual(restored.get("12:b|c|d|e|a"), legacy[0].result);
 });
 
 test("V12 shared pool reuses a stronger deck found while rating another card", () => {

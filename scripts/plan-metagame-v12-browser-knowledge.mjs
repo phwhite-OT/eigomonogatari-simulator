@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 
 import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 import { metagameV12RankingContributionEvidence } from "../src/core/metagame-v12.js";
+import { hydrateMetagameV12EvaluationCache } from "../src/core/metagame-v12-shared-pool.js";
 
 function readArgument(name, fallback) {
   const prefix = `--${name}=`;
@@ -251,18 +252,19 @@ const scenarioCount = Math.max(1, Number(report.context?.teamScenarioCount ?? re
 const charactersById = new Map(CHARACTER_CATALOG.map((character) => [String(character.id), character]));
 const prefix = `${turns}:`;
 const decks = [];
-for (const entry of checkpoint.evaluatedDeckPool ?? []) {
-  if (!entry || typeof entry.key !== "string" || !entry.key.startsWith(prefix)) continue;
-  const result = entry.result;
+const evaluationCache = new Map();
+hydrateMetagameV12EvaluationCache(evaluationCache, checkpoint.evaluatedDeckPool);
+for (const [key, result] of evaluationCache) {
+  if (typeof key !== "string" || !key.startsWith(prefix)) continue;
   if (!Array.isArray(result?.scenarioValues) || result.scenarioValues.length !== scenarioCount) continue;
-  const ids = entry.key.slice(prefix.length).split("|");
+  const ids = key.slice(prefix.length).split("|");
   if (ids.length !== 5 || ids.some((id) => !charactersById.has(String(id)))) continue;
   const scenarioValues = result.scenarioValues.map(Number);
   if (scenarioValues.some((value) => !Number.isFinite(value))) continue;
   const mean = Number.isFinite(Number(result.expectedWinRate)) ? Number(result.expectedWinRate) : average(scenarioValues);
   const lower = Number.isFinite(Number(result.expectedWinLowerBound)) ? Number(result.expectedWinLowerBound) : meanLowerBound(scenarioValues);
   decks.push({
-    key: entry.key,
+    key,
     ids: ids.map(String),
     scenarioValues,
     mean,
