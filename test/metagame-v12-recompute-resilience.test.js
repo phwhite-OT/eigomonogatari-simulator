@@ -95,9 +95,10 @@ test("intermediate V12 fanout merges defer expensive reconciliation", () => {
 });
 
 test("V12 durable battle vectors use lossless compact storage with legacy hydration", () => {
-  assert.match(sharedPoolScript, /scenarioValuesF64/);
-  assert.match(sharedPoolScript, /setFloat64\(index \* 8, value, true\)/);
-  assert.match(sharedPoolScript, /getFloat64\(offset, true\)/);
+  assert.match(sharedPoolScript, /scenarioValuesPackedV1/);
+  assert.match(sharedPoolScript, /value === 0\.5/);
+  assert.match(sharedPoolScript, /view\.setFloat64\(offset, value, true\)/);
+  assert.match(sharedPoolScript, /decodeScenarioValuesF64/);
   assert.match(sharedPoolScript, /Array\.isArray\(storedResult\.scenarioValues\)/);
   assert.match(browserKnowledgePlanScript, /hydrateMetagameV12EvaluationCache/);
   assert.doesNotMatch(browserKnowledgePlanScript, /for \(const entry of checkpoint\.evaluatedDeckPool/);
