@@ -72,7 +72,9 @@ function deckSeedKey(entry) {
 const inputId = readArgument("input", "fire:100");
 const inputCheckpointPath = path.resolve(readArgument("input-checkpoint"));
 const outputManifestPath = path.resolve(readArgument("output-manifest"));
-const shardCount = integerArgument("shard-count", 19, 1);
+const requestedShardCount = integerArgument("shard-count", 19, 1);
+const parallelRunnerCount = integerArgument("parallel-runner-count", 19, 1);
+const compactShardThreshold = integerArgument("compact-shard-threshold", 3800, parallelRunnerCount);
 const deepSeedCount = integerArgument("deep-seed-count", 12, 0);
 const deepFrontierCount = integerArgument("deep-frontier-count", 48, deepSeedCount);
 // Hard wall-clock guard: never hand an accidentally huge wave to the fanout
@@ -80,7 +82,7 @@ const deepFrontierCount = integerArgument("deep-frontier-count", 48, deepSeedCou
 // refill freed slots instead of waiting on one expensive tail shard. Any omitted
 // work remains absent from the durable cache and is picked
 // up deterministically by the next wave.
-const maxWorkItems = integerArgument("max-work-items", 9500, shardCount);
+const maxWorkItems = integerArgument("max-work-items", 9500, requestedShardCount);
 const currentAnchorLimit = integerArgument("counterfactual-anchor-limit", 3, 1);
 
 if (!readArgument("input-checkpoint")) throw new Error("--input-checkpoint is required.");
@@ -271,6 +273,9 @@ const uniqueItems = [...missingByKey.entries()]
   // exact battle result, and makes expensive deck families much less likely to
   // create one long-tail shard.
   .sort((left, right) => stableWorkHash(left.key) - stableWorkHash(right.key) || left.key.localeCompare(right.key));
+const shardCount = uniqueItems.length <= compactShardThreshold
+  ? Math.min(parallelRunnerCount, Math.max(1, uniqueItems.length))
+  : requestedShardCount;
 const shards = Array.from({ length: shardCount }, () => []);
 for (let index = 0; index < uniqueItems.length; index += 1) {
   shards[index % shardCount].push(uniqueItems[index]);
@@ -284,6 +289,21 @@ await writeJsonAtomic(outputManifestPath, {
   battleSemantics: context.battleSemantics,
   turns,
   shardCount,
+  requestedShardCount,
+  parallelRunnerCount,
+  compactShardThreshold,
+  evaluationContext: {
+    context: {
+      version: context.version,
+      battleSemantics: context.battleSemantics,
+      inputId: context.inputId,
+      environmentCount: context.environmentCount,
+      environmentVariants: context.environmentVariants,
+      teamScenarioCount: context.teamScenarioCount,
+      turns,
+    },
+    sharedPoolVersion: checkpoint.sharedPoolVersion,
+  },
   maxWorkItems,
   normalizedStalePolicy,
   counterfactualAnchorLimit: currentAnchorLimit,

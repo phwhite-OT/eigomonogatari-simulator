@@ -10,6 +10,9 @@ const rerankWorkflow = fs.readFileSync(".github/workflows/v12-cost100-rerank.yml
 const rerankScript = fs.readFileSync("scripts/rerank-metagame-v12-report.mjs", "utf8");
 const rateScript = fs.readFileSync("scripts/rate-metagame-v12.mjs", "utf8");
 const workMatrixScript = fs.readFileSync("scripts/build-metagame-v12-work-matrix.mjs", "utf8");
+const finalizationPlanScript = fs.readFileSync("scripts/plan-metagame-v12-finalization.mjs", "utf8");
+const finalizationShardScript = fs.readFileSync("scripts/evaluate-metagame-v12-finalization-shard.mjs", "utf8");
+const finalizationAdvanceScript = fs.readFileSync("scripts/advance-metagame-v12-finalization-cache.mjs", "utf8");
 const metagameV12 = fs.readFileSync("src/core/metagame-v12.js", "utf8");
 
 const rankingPolicy = "full-budget-opportunity-v9-adaptive-metagame";
@@ -63,6 +66,30 @@ test("distributed fanout merge never falls back to serial counterfactual battles
   assert.match(rateScript, /if \(evaluationPool\) await evaluationPool\.close\(\)/);
   assert.match(fanout, /timeout-minutes:\s*60/);
   assert.match(fanout, /must never run missing battles itself/);
+});
+
+test("V12 fanout workers use lightweight manifests and dynamic shard counts", () => {
+  assert.match(finalizationPlanScript, /evaluationContext:/);
+  assert.match(finalizationPlanScript, /compactShardThreshold/);
+  assert.match(finalizationPlanScript, /uniqueItems\.length <= compactShardThreshold/);
+  assert.match(finalizationShardScript, /lightweightManifest/);
+  assert.match(finalizationShardScript, /Legacy finalization manifests require --input-checkpoint/);
+  assert.doesNotMatch(fanout, /--input-checkpoint="\$RUNNER_TEMP\/v12-finalize-work\/checkpoint\.json"/);
+  assert.match(fanout, /path: \$\{\{ runner\.temp \}\}\/v12-finalize-work\/manifest\.json/);
+  assert.match(fanout, /fromJSON\(needs\.plan\.outputs\.shard_matrix\)/);
+  assert.match(fanout, /--compact-shard-threshold=3800/);
+});
+
+test("intermediate V12 fanout merges defer expensive reconciliation", () => {
+  assert.match(finalizationAdvanceScript, /evaluationCache\.has\(key\)/);
+  assert.match(finalizationAdvanceScript, /finalizationState\.phase = "complete"/);
+  assert.match(fanout, /without rebuilding rankings/);
+  assert.match(fanout, /skipping full shared-pool reconciliation for this intermediate wave/);
+  assert.match(fanout, /Frozen counterfactual plan is fully cached; running the expensive reconcile\/adaptive pass once/);
+  const mergeDeltas = fanout.indexOf("merge-metagame-v12-finalization-deltas.mjs");
+  const advance = fanout.indexOf("advance-metagame-v12-finalization-cache.mjs");
+  const fullReconcile = fanout.indexOf("rate-metagame-v12.mjs", advance);
+  assert.ok(mergeDeltas >= 0 && advance > mergeDeltas && fullReconcile > advance);
 });
 
 test("V12 publish hands off only counterfactual finalization to fanout", () => {

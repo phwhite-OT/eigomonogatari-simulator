@@ -244,6 +244,8 @@ jobs:
 
   plan:
     needs: select
+    outputs:
+      shard_matrix: ${{ steps.shards.outputs.shard_matrix }}
     if: needs.select.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -276,6 +278,7 @@ jobs:
           node --check scripts/evaluate-metagame-v12-finalization-shard.mjs
           node --check scripts/reopen-metagame-v12-deep-search.mjs
           node --check scripts/merge-metagame-v12-finalization-deltas.mjs
+          node --check scripts/advance-metagame-v12-finalization-cache.mjs
       - name: Download recoverable deltas from the previous interrupted wave
         if: needs.select.outputs.recovery_run_id != ''
         uses: actions/download-artifact@v4
@@ -308,12 +311,22 @@ jobs:
             --input-checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
             --output-manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
             --shard-count=38 \
+            --parallel-runner-count=19 \
+            --compact-shard-threshold=3800 \
             --deep-seed-count=12
-      - name: Upload shared checkpoint and work plan
+      - id: shards
+        name: Build active shard matrix
+        shell: bash
+        run: |
+          shard_count="$(jq -r '.shardCount' "$RUNNER_TEMP/v12-finalize-work/manifest.json")"
+          shard_matrix="$(jq -cn --argjson count "$shard_count" '{shard:[range(0; $count)]}')"
+          echo "shard_matrix=$shard_matrix" >> "$GITHUB_OUTPUT"
+          echo "Scheduling $shard_count finalization shard(s)."
+      - name: Upload lightweight work plan
         uses: actions/upload-artifact@v4
         with:
           name: v12-finalize-work-${{ needs.select.outputs.output_directory }}
-          path: ${{ runner.temp }}/v12-finalize-work
+          path: ${{ runner.temp }}/v12-finalize-work/manifest.json
           if-no-files-found: error
           retention-days: 2
 
@@ -325,8 +338,7 @@ jobs:
     strategy:
       fail-fast: false
       max-parallel: 19
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]
+      matrix: ${{ fromJSON(needs.plan.outputs.shard_matrix) }}
     env:
       METAGAME_INPUT: ${{ needs.select.outputs.input }}
       METAGAME_OUTPUT_DIRECTORY: ${{ needs.select.outputs.output_directory }}
@@ -354,7 +366,6 @@ jobs:
         run: |
           node scripts/evaluate-metagame-v12-finalization-shard.mjs \
             --input="$METAGAME_INPUT" \
-            --input-checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
             --work-manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
             --output-checkpoint="$RUNNER_TEMP/v12-finalize-delta/${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-${{ matrix.shard }}.json" \
             --shard-index=${{ matrix.shard }} \
@@ -429,34 +440,40 @@ jobs:
           output_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}"
           checkpoint_path="${output_path}/progress.json"
           mapfile -t delta_files < <(find "$RUNNER_TEMP/v12-finalize-delta" -maxdepth 1 -type f -name "${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-*.json" -print 2>/dev/null | sort || true)
-          args=()
-          if [ "${#delta_files[@]}" -gt 0 ]; then
-            delta_paths="$(IFS=,; echo "${delta_files[*]}")"
-            args+=("--merge-checkpoint-paths=$delta_paths")
-            echo "Merging ${#delta_files[@]} globally-disjoint cache delta(s)."
-          else
-            echo "::error::No distributed cache deltas were downloaded. Refusing to discard a completed fanout wave and fall back to slow serial finalization."
+          if [ "${#delta_files[@]}" -eq 0 ]; then
+            echo "::error::No distributed cache deltas were downloaded. Refusing to discard a completed fanout wave."
             exit 1
           fi
-          echo "Merging ${#delta_files[@]} distributed cache delta file(s) from this fanout wave."
+          delta_paths="$(IFS=,; echo "${delta_files[*]}")"
+          echo "Merging ${#delta_files[@]} globally-disjoint cache delta(s) without rebuilding rankings."
 
-          node scripts/rate-metagame-v12.mjs \
-            --input="$METAGAME_INPUT" \
-            --position=all \
-            --checkpoint-path="$checkpoint_path" \
-            --time-budget-seconds="$FINALIZE_TIME_BUDGET_SECONDS" \
-            --finalize-only=true \
-            "${args[@]}"
-
-          # A completed bounded counterfactual plan is not enough anymore. The
-          # elite complete-deck neighbourhood must also be fully evaluated, and
-          # if those evaluations change the elite seed set we reopen the plan
-          # and run another distributed round. This continues until stable or
-          # the safety cap is reached.
-          node scripts/reopen-metagame-v12-deep-search.mjs \
+          node scripts/merge-metagame-v12-finalization-deltas.mjs \
             --checkpoint="$checkpoint_path" \
-            --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
-            --max-rounds=16
+            --deltas="$delta_paths"
+
+          node scripts/advance-metagame-v12-finalization-cache.mjs \
+            --input="$METAGAME_INPUT" \
+            --checkpoint="$checkpoint_path"
+
+          if jq -e '.finalizationState.phase == "complete"' "$checkpoint_path" >/dev/null; then
+            echo "Frozen counterfactual plan is fully cached; running the expensive reconcile/adaptive pass once."
+            node scripts/rate-metagame-v12.mjs \
+              --input="$METAGAME_INPUT" \
+              --position=all \
+              --checkpoint-path="$checkpoint_path" \
+              --time-budget-seconds="$FINALIZE_TIME_BUDGET_SECONDS" \
+              --finalize-only=true
+
+            # A completed bounded counterfactual plan is not enough anymore.
+            # Reopen only after the expensive reconcile pass, when the measured
+            # elite frontier can actually have changed.
+            node scripts/reopen-metagame-v12-deep-search.mjs \
+              --checkpoint="$checkpoint_path" \
+              --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
+              --max-rounds=16
+          else
+            echo "Counterfactual plan still has a cache miss; skipping full shared-pool reconciliation for this intermediate wave."
+          fi
 
           jq -c '{
             schemaVersion: 1,
