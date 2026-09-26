@@ -440,34 +440,40 @@ jobs:
           output_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}"
           checkpoint_path="${output_path}/progress.json"
           mapfile -t delta_files < <(find "$RUNNER_TEMP/v12-finalize-delta" -maxdepth 1 -type f -name "${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-*.json" -print 2>/dev/null | sort || true)
-          args=()
-          if [ "${#delta_files[@]}" -gt 0 ]; then
-            delta_paths="$(IFS=,; echo "${delta_files[*]}")"
-            args+=("--merge-checkpoint-paths=$delta_paths")
-            echo "Merging ${#delta_files[@]} globally-disjoint cache delta(s)."
-          else
-            echo "::error::No distributed cache deltas were downloaded. Refusing to discard a completed fanout wave and fall back to slow serial finalization."
+          if [ "${#delta_files[@]}" -eq 0 ]; then
+            echo "::error::No distributed cache deltas were downloaded. Refusing to discard a completed fanout wave."
             exit 1
           fi
-          echo "Merging ${#delta_files[@]} distributed cache delta file(s) from this fanout wave."
+          delta_paths="$(IFS=,; echo "${delta_files[*]}")"
+          echo "Merging ${#delta_files[@]} globally-disjoint cache delta(s) without rebuilding rankings."
 
-          node scripts/rate-metagame-v12.mjs \
-            --input="$METAGAME_INPUT" \
-            --position=all \
-            --checkpoint-path="$checkpoint_path" \
-            --time-budget-seconds="$FINALIZE_TIME_BUDGET_SECONDS" \
-            --finalize-only=true \
-            "${args[@]}"
-
-          # A completed bounded counterfactual plan is not enough anymore. The
-          # elite complete-deck neighbourhood must also be fully evaluated, and
-          # if those evaluations change the elite seed set we reopen the plan
-          # and run another distributed round. This continues until stable or
-          # the safety cap is reached.
-          node scripts/reopen-metagame-v12-deep-search.mjs \
+          node scripts/merge-metagame-v12-finalization-deltas.mjs \
             --checkpoint="$checkpoint_path" \
-            --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
-            --max-rounds=16
+            --deltas="$delta_paths"
+
+          node scripts/advance-metagame-v12-finalization-cache.mjs \
+            --input="$METAGAME_INPUT" \
+            --checkpoint="$checkpoint_path"
+
+          if jq -e '.finalizationState.phase == "complete"' "$checkpoint_path" >/dev/null; then
+            echo "Frozen counterfactual plan is fully cached; running the expensive reconcile/adaptive pass once."
+            node scripts/rate-metagame-v12.mjs \
+              --input="$METAGAME_INPUT" \
+              --position=all \
+              --checkpoint-path="$checkpoint_path" \
+              --time-budget-seconds="$FINALIZE_TIME_BUDGET_SECONDS" \
+              --finalize-only=true
+
+            # A completed bounded counterfactual plan is not enough anymore.
+            # Reopen only after the expensive reconcile pass, when the measured
+            # elite frontier can actually have changed.
+            node scripts/reopen-metagame-v12-deep-search.mjs \
+              --checkpoint="$checkpoint_path" \
+              --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
+              --max-rounds=16
+          else
+            echo "Counterfactual plan still has a cache miss; skipping full shared-pool reconciliation for this intermediate wave."
+          fi
 
           jq -c '{
             schemaVersion: 1,
