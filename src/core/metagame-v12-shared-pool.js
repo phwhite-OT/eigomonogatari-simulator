@@ -1,5 +1,39 @@
 export const METAGAME_V12_SHARED_POOL_VERSION = 2;
 
+function encodeScenarioValuesF64(values) {
+  if (!Array.isArray(values) || !values.length) return "";
+  const buffer = new ArrayBuffer(values.length * 8);
+  const view = new DataView(buffer);
+  for (let index = 0; index < values.length; index += 1) {
+    const value = Number(values[index]);
+    if (!Number.isFinite(value)) return "";
+    view.setFloat64(index * 8, value, true);
+  }
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(bytes.length, offset + 0x8000)));
+  }
+  return globalThis.btoa(binary);
+}
+
+function decodeScenarioValuesF64(encoded) {
+  if (typeof encoded !== "string" || !encoded) return null;
+  let binary;
+  try {
+    binary = globalThis.atob(encoded);
+  } catch {
+    return null;
+  }
+  if (binary.length % 8 !== 0) return null;
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  const view = new DataView(bytes.buffer);
+  const values = [];
+  for (let offset = 0; offset < bytes.length; offset += 8) values.push(view.getFloat64(offset, true));
+  return values;
+}
+
 function clampUnit(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
 }
@@ -68,15 +102,29 @@ export function serializeMetagameV12EvaluationCache(cache) {
   return [...(cache?.entries?.() ?? [])]
     .filter(([key, result]) => typeof key === "string" && Array.isArray(result?.scenarioValues))
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([key, result]) => ({ key, result }));
+    .map(([key, result]) => {
+      const scenarioValuesF64 = encodeScenarioValuesF64(result.scenarioValues);
+      if (!scenarioValuesF64) return { key, result };
+      const compactResult = { ...result, scenarioValuesF64 };
+      delete compactResult.scenarioValues;
+      return { key, result: compactResult };
+    });
 }
 
 /** Merge compatible shard/checkpoint results into the live evaluation cache. */
 export function hydrateMetagameV12EvaluationCache(cache, entries) {
   if (!cache?.set) return cache;
   for (const entry of entries ?? []) {
-    if (!entry || typeof entry.key !== "string" || !Array.isArray(entry.result?.scenarioValues)) continue;
-    if (!cache.has(entry.key)) cache.set(entry.key, entry.result);
+    if (!entry || typeof entry.key !== "string") continue;
+    const storedResult = entry.result;
+    if (!storedResult || typeof storedResult !== "object") continue;
+    const scenarioValues = Array.isArray(storedResult.scenarioValues)
+      ? storedResult.scenarioValues
+      : decodeScenarioValuesF64(storedResult.scenarioValuesF64);
+    if (!Array.isArray(scenarioValues) || !scenarioValues.length || scenarioValues.some((value) => !Number.isFinite(Number(value)))) continue;
+    const restoredResult = { ...storedResult, scenarioValues: scenarioValues.map(Number) };
+    delete restoredResult.scenarioValuesF64;
+    if (!cache.has(entry.key)) cache.set(entry.key, restoredResult);
   }
   return cache;
 }
