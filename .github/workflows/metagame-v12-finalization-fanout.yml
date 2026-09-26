@@ -132,7 +132,7 @@ jobs:
       output_directory: ${{ steps.target.outputs.output_directory }}
       cursor: ${{ steps.target.outputs.cursor }}
       plan_length: ${{ steps.target.outputs.plan_length }}
-      recovery_run_id: ${{ steps.target.outputs.recovery_run_id }}
+      recovery_run_ids: ${{ steps.target.outputs.recovery_run_ids }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -153,7 +153,7 @@ jobs:
           echo "output_directory=" >> "$GITHUB_OUTPUT"
           echo "cursor=0" >> "$GITHUB_OUTPUT"
           echo "plan_length=0" >> "$GITHUB_OUTPUT"
-          echo "recovery_run_id=" >> "$GITHUB_OUTPUT"
+          echo "recovery_run_ids=" >> "$GITHUB_OUTPUT"
 
           if [ -z "$(git ls-remote --heads origin "$results_branch")" ]; then
             echo "No V12 results branch exists yet."
@@ -209,7 +209,7 @@ jobs:
                  jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.phase == "counterfactual" and (.finalizationState.cursor.planIndex < .finalizationState.planLength)' <<< "$state" >/dev/null 2>&1; then
                 cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$state")"
                 plan_length="$(jq -r '.finalizationState.planLength' <<< "$state")"
-                recovery_run_id=""
+                recovery_run_ids=()
                 runs_json="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/metagame-v12-finalization-fanout.yml/runs?per_page=20" 2>/dev/null || true)"
                 if [ -n "$runs_json" ]; then
                   while IFS= read -r candidate_run_id; do
@@ -217,10 +217,13 @@ jobs:
                     [ -n "$artifacts_json" ] || continue
                     prefix="v12-finalize-cache-${output_directory}-"
                     if jq -e --arg prefix "$prefix" '[.artifacts[] | select(.expired == false and (.name | startswith($prefix)))] | length > 0' <<< "$artifacts_json" >/dev/null; then
-                      recovery_run_id="$candidate_run_id"
-                      break
+                      recovery_run_ids+=("$candidate_run_id")
                     fi
                   done < <(jq -r --argjson current "$GITHUB_RUN_ID" '.workflow_runs[] | select(.id != $current) | .id' <<< "$runs_json")
+                fi
+                recovery_run_ids_csv=""
+                if [ "${#recovery_run_ids[@]}" -gt 0 ]; then
+                  recovery_run_ids_csv="$(IFS=,; echo "${recovery_run_ids[*]}")"
                 fi
 
                 echo "should_run=true" >> "$GITHUB_OUTPUT"
@@ -228,9 +231,9 @@ jobs:
                 echo "output_directory=$output_directory" >> "$GITHUB_OUTPUT"
                 echo "cursor=$cursor" >> "$GITHUB_OUTPUT"
                 echo "plan_length=$plan_length" >> "$GITHUB_OUTPUT"
-                echo "recovery_run_id=$recovery_run_id" >> "$GITHUB_OUTPUT"
-                if [ -n "$recovery_run_id" ]; then
-                  echo "Accelerating $input from frozen plan cursor $cursor/$plan_length and recovering deltas from run $recovery_run_id."
+                echo "recovery_run_ids=$recovery_run_ids_csv" >> "$GITHUB_OUTPUT"
+                if [ -n "$recovery_run_ids_csv" ]; then
+                  echo "Accelerating $input from frozen plan cursor $cursor/$plan_length and recovering deltas from runs $recovery_run_ids_csv."
                 else
                   echo "Accelerating $input from frozen plan cursor $cursor/$plan_length."
                 fi
@@ -279,26 +282,36 @@ jobs:
           node --check scripts/reopen-metagame-v12-deep-search.mjs
           node --check scripts/merge-metagame-v12-finalization-deltas.mjs
           node --check scripts/advance-metagame-v12-finalization-cache.mjs
-      - name: Download recoverable deltas from the previous interrupted wave
-        if: needs.select.outputs.recovery_run_id != ''
-        uses: actions/download-artifact@v4
-        with:
-          pattern: v12-finalize-cache-${{ needs.select.outputs.output_directory }}-*
-          merge-multiple: true
-          path: ${{ runner.temp }}/v12-finalize-recovery
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ needs.select.outputs.recovery_run_id }}
+      - name: Download recoverable deltas from recent interrupted waves
+        if: needs.select.outputs.recovery_run_ids != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_RUN_IDS: ${{ needs.select.outputs.recovery_run_ids }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v12-finalize-recovery"
+          IFS=',' read -r -a run_ids <<< "$RECOVERY_RUN_IDS"
+          for run_id in "${run_ids[@]}"; do
+            [ -n "$run_id" ] || continue
+            run_dir="$RUNNER_TEMP/v12-finalize-recovery/$run_id"
+            mkdir -p "$run_dir"
+            gh run download "$run_id" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern "v12-finalize-cache-${METAGAME_OUTPUT_DIRECTORY}-*" \
+              --dir "$run_dir"
+          done
       - name: Merge recovered cache deltas before replanning
-        if: needs.select.outputs.recovery_run_id != ''
+        if: needs.select.outputs.recovery_run_ids != ''
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t delta_files < <(find "$RUNNER_TEMP/v12-finalize-recovery" -maxdepth 1 -type f -name "${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-*.json" -print | sort)
+          mapfile -t delta_files < <(find "$RUNNER_TEMP/v12-finalize-recovery" -type f -name "${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-*.json" -print | sort)
           if [ "${#delta_files[@]}" -eq 0 ]; then
-            echo "::error::Recovery run contained no usable finalization delta files."
+            echo "::error::Recovery runs contained no usable finalization delta files."
             exit 1
           fi
+          echo "Recovering ${#delta_files[@]} cache delta file(s) across prior interrupted waves."
           delta_paths="$(IFS=,; echo "${delta_files[*]}")"
           node scripts/merge-metagame-v12-finalization-deltas.mjs \
             --checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
