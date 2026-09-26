@@ -104,6 +104,15 @@ test("V12 durable battle vectors use lossless compact storage with legacy hydrat
   assert.doesNotMatch(browserKnowledgePlanScript, /for \(const entry of checkpoint\.evaluatedDeckPool/);
 });
 
+test("V12 finalization recovery unions artifacts across interrupted runs", () => {
+  assert.match(fanout, /recovery_run_ids:/);
+  assert.match(fanout, /recovery_run_ids\+=\("\$candidate_run_id"\)/);
+  assert.match(fanout, /gh run download "\$run_id"/);
+  assert.match(fanout, /v12-finalize-recovery\/\$run_id/);
+  assert.match(fanout, /find "\$RUNNER_TEMP\/v12-finalize-recovery" -type f/);
+  assert.match(fanout, /Recovering \$\{#delta_files\[@\]\} cache delta file\(s\) across prior interrupted waves/);
+});
+
 test("V12 publish hands off only counterfactual finalization to fanout", () => {
   assert.match(workflow, /Condition entered counterfactual finalization/);
   assert.match(workflow, /Condition still needs candidate\/baseline finalization work/);
