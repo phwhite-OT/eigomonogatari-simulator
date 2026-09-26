@@ -33,7 +33,8 @@ async function writeJsonAtomic(filePath, value) {
 }
 
 const inputId = readArgument("input", "fire:100");
-const inputCheckpointPath = path.resolve(readArgument("input-checkpoint"));
+const inputCheckpointArgument = readArgument("input-checkpoint");
+const inputCheckpointPath = inputCheckpointArgument ? path.resolve(inputCheckpointArgument) : "";
 const workManifestPath = path.resolve(readArgument("work-manifest"));
 const outputCheckpointPath = path.resolve(readArgument("output-checkpoint"));
 const shardIndex = integerArgument("shard-index", 0, 0);
@@ -44,28 +45,36 @@ const timeBudgetSeconds = Math.max(0, Number(readArgument("time-budget-seconds",
 const checkpointEvery = integerArgument("checkpoint-every", 128, 1);
 const checkpointIntervalSeconds = integerArgument("checkpoint-interval-seconds", 300, 5);
 
-if (!readArgument("input-checkpoint")) throw new Error("--input-checkpoint is required.");
 if (!readArgument("work-manifest")) throw new Error("--work-manifest is required.");
 if (!readArgument("output-checkpoint")) throw new Error("--output-checkpoint is required.");
 
 const input = METAGAME_V8_INPUTS.find((entry) => entry.id === inputId);
 if (!input) throw new Error(`Input ${inputId} was not found.`);
-const checkpoint = JSON.parse(await fs.readFile(inputCheckpointPath, "utf8"));
 const manifest = JSON.parse(await fs.readFile(workManifestPath, "utf8"));
-if (checkpoint?.context?.inputId !== inputId) {
-  throw new Error(`Checkpoint input mismatch: expected ${inputId}, got ${checkpoint?.context?.inputId ?? "missing"}.`);
-}
 if (manifest?.version !== 2 || manifest?.inputId !== inputId || !Array.isArray(manifest?.shards)) {
   throw new Error("Finalization work manifest is missing, stale, or incompatible.");
-}
-if (manifest.contextVersion !== checkpoint.context?.version || manifest.battleSemantics !== checkpoint.context?.battleSemantics) {
-  throw new Error("Finalization work manifest context does not match the checkpoint.");
 }
 if (shardIndex >= manifest.shards.length) {
   throw new Error(`Invalid finalization shard ${shardIndex}/${manifest.shards.length}.`);
 }
 
-const context = checkpoint.context;
+let checkpoint = null;
+let context = manifest?.evaluationContext?.context ?? null;
+let sharedPoolVersion = manifest?.evaluationContext?.sharedPoolVersion ?? null;
+let lightweightManifest = Boolean(context);
+if (!context) {
+  if (!inputCheckpointPath) throw new Error("Legacy finalization manifests require --input-checkpoint.");
+  checkpoint = JSON.parse(await fs.readFile(inputCheckpointPath, "utf8"));
+  if (checkpoint?.context?.inputId !== inputId) {
+    throw new Error(`Checkpoint input mismatch: expected ${inputId}, got ${checkpoint?.context?.inputId ?? "missing"}.`);
+  }
+  context = checkpoint.context;
+  sharedPoolVersion = checkpoint.sharedPoolVersion;
+}
+if (String(manifest.contextVersion ?? "") !== String(context?.version ?? "")
+    || String(manifest.battleSemantics ?? "") !== String(context?.battleSemantics ?? "")) {
+  throw new Error("Finalization work manifest context does not match the evaluator context.");
+}
 const turns = Math.min(12, Math.max(1, Number(context.turns) || 12));
 if (Number(manifest.turns) !== turns) throw new Error("Finalization work manifest turn count does not match the checkpoint.");
 const environmentCount = Math.max(9, Number(context.environmentCount) || 72);
@@ -85,10 +94,12 @@ if (context.teamScenarioCount && teamScenarios.length !== Number(context.teamSce
 
 const characterById = new Map(CHARACTER_CATALOG.map((character) => [String(character.id), character]));
 const baseEvaluationCache = new Map();
-hydrateMetagameV12EvaluationCache(baseEvaluationCache, checkpoint?.evaluatedDeckPool);
+if (!lightweightManifest) hydrateMetagameV12EvaluationCache(baseEvaluationCache, checkpoint?.evaluatedDeckPool);
 const deltaEvaluationCache = new Map();
 const assignedItems = manifest.shards[shardIndex];
-const pendingItems = assignedItems.filter((item) => !baseEvaluationCache.has(String(item.key)));
+const pendingItems = lightweightManifest
+  ? assignedItems
+  : assignedItems.filter((item) => !baseEvaluationCache.has(String(item.key)));
 const deadline = timeBudgetSeconds ? Date.now() + timeBudgetSeconds * 1000 : Infinity;
 const deadlineReached = (guardMs = 15000) => Number.isFinite(deadline) && Date.now() + guardMs >= deadline;
 let lastCheckpointAt = Date.now();
@@ -101,7 +112,7 @@ async function saveDelta() {
     status: "finalizing",
     updatedAt: new Date().toISOString(),
     context,
-    sharedPoolVersion: checkpoint.sharedPoolVersion,
+    sharedPoolVersion,
     evaluatedDeckPool: serializeMetagameV12EvaluationCache(deltaEvaluationCache),
     finalizationPrefill: {
       version: 2,
@@ -144,7 +155,8 @@ const batchSize = Math.max(1, evaluationPool.workerCount * 4);
 console.log(
   `V12 unique-evaluation shard ${shardIndex + 1}/${manifest.shardCount}: `
   + `${pendingItems.length}/${assignedItems.length} pending unique evaluations, `
-  + `${evaluationPool.workerCount} worker(s), batch size ${batchSize}.`,
+  + `${evaluationPool.workerCount} worker(s), batch size ${batchSize}, `
+  + `${lightweightManifest ? "lightweight manifest" : "legacy checkpoint"}.`,
 );
 
 try {
