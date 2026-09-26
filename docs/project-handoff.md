@@ -444,6 +444,31 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-26 — lightweight fanout workers and cheap intermediate merge
+
+Efficiency work after the fire:100 timeout-loop fix:
+
+- planner now embeds a compact evaluator context in the finalization manifest, so distributed prefill workers no longer need the giant durable `progress.json` just to reconstruct scenarios and filter work that the planner already deduplicated
+- workflow uploads only `manifest.json` to the 19/38 prefill jobs; the full checkpoint stays local to planner/merge control-plane jobs
+- small waves dynamically use at most 19 shards; only larger waves retain 38 chunks for long-tail balancing under the same `max-parallel: 19` ceiling
+- new `scripts/advance-metagame-v12-finalization-cache.mjs` advances the frozen counterfactual cursor using cached exact battles only
+- intermediate merge waves now merge deltas + advance cursor and skip the expensive shared-pool/rating/adaptive rebuild
+- the expensive `rate-metagame-v12.mjs --finalize-only=true` reconcile/adaptive pass runs only when the frozen plan is fully cached; deep-search convergence is checked after that pass and can reopen the next distributed round
+
+Why this is safe:
+
+- battle semantics, candidate generation, exact scenario vectors, ranking policy, and finalization-state schema are unchanged
+- counterfactual replacement generation depends on the frozen anchor IDs plus static candidate pools, not on a newly reconciled rating every wave
+- lightweight manifests contain only work the planner already proved missing against the durable/recovered cache
+- legacy manifests with a full checkpoint remain accepted as a fallback by the shard evaluator
+
+Expected effect:
+
+- remove repeated full-checkpoint download/JSON parse/cache hydration from every prefill runner
+- remove repeated full shared-pool/rating/adaptive reconciliation from intermediate merge waves
+- avoid a second GitHub job-startup round for small waves such as the 1,216-item fire:100 wave
+- no durable checkpoint reset or battle replay is required
+
 ### 2026-09-26 — fanout merge 30-minute cancellation loop
 
 Observed live failure:
