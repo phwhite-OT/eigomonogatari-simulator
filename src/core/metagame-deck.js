@@ -1727,6 +1727,47 @@ function metagameV8BoostedCandidates(constraint, characters, boostedIds, fixedSl
   };
 }
 
+export async function generateMetagameDeckCandidates(data, constraintId, characters, options = {}) {
+  const requestedTotalCost = Number(options.totalCost);
+  const costMode = options.costMode === "exact" ? "exact" : "at_most";
+  const constraint = { ...resolveMetagameConstraint(data, constraintId, requestedTotalCost), costMode };
+  const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
+  const configuredAutomaticIds = normalizeMetagameBoostedCharacterIds(options.automaticCharacterIds);
+  const boostedCharacters = characters.map((character) => applyMetagameStatBoost(character, boostedIds));
+  const fixedSlots = metagameFixedSlots(options.fixedSlots);
+
+  if (String(constraint.modelVersion ?? "").startsWith("team-battle-v8")) {
+    const generated = metagameV8BoostedCandidates(
+      constraint,
+      boostedCharacters,
+      boostedIds,
+      fixedSlots,
+      { automaticCharacterIds: configuredAutomaticIds },
+    );
+    return {
+      constraint,
+      generatedAt: data.generatedAt,
+      candidateDeckCount: generated.candidates.length,
+      boostedCharacterIds: [...boostedIds],
+      automaticCharacterIds: [...generated.automaticIds],
+      candidates: generated.candidates,
+    };
+  }
+
+  const candidates = await buildMetagameDeckCandidatesWithProgress(
+    constraint,
+    boostedCharacters,
+    options,
+  );
+  return {
+    constraint,
+    generatedAt: data.generatedAt,
+    candidateDeckCount: candidates.length,
+    boostedCharacterIds: [...boostedIds],
+    automaticCharacterIds: [...configuredAutomaticIds],
+    candidates,
+  };
+}
 export async function findBestMetagameDeck(data, constraintId, characters, options = {}) {
   const requestedTotalCost = Number(options.totalCost);
   const costMode = options.costMode === "exact" ? "exact" : "at_most";
