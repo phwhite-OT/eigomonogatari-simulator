@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const workflow = fs.readFileSync(".github/workflows/metagame-v12-shared-pool-recompute.yml", "utf8");
 const fanout = fs.readFileSync(".github/workflows/metagame-v12-finalization-fanout.yml", "utf8");
+const deployPages = fs.readFileSync(".github/workflows/deploy-pages.yml", "utf8");
 const watchdog = fs.readFileSync(".github/workflows/metagame-v12-watchdog.yml", "utf8");
 const deployWorkflow = fs.readFileSync(".github/workflows/deploy-pages.yml", "utf8");
 const rerankWorkflow = fs.readFileSync(".github/workflows/v12-cost100-rerank.yml", "utf8");
@@ -111,6 +112,15 @@ test("V12 finalization recovery unions artifacts across interrupted runs", () =>
   assert.match(fanout, /v12-finalize-recovery\/\$run_id/);
   assert.match(fanout, /find "\$RUNNER_TEMP\/v12-finalize-recovery" -type f/);
   assert.match(fanout, /Recovering \$\{#delta_files\[@\]\} cache delta file\(s\) across prior interrupted waves/);
+});
+
+test("public site redeploys after V12 result workflows complete", () => {
+  assert.match(deployPages, /workflow_run:/);
+  assert.match(deployPages, /Metagame V12 distributed finalization accelerator/);
+  assert.match(deployPages, /Metagame V12 shared-pool full recompute/);
+  assert.match(deployPages, /V12 cost100 lightweight rerank/);
+  assert.match(deployPages, /Metagame V12 browser knowledge precompute/);
+  assert.match(deployPages, /types: \[completed\]/);
 });
 
 test("V12 publish hands off only counterfactual finalization to fanout", () => {
