@@ -2,6 +2,7 @@ import { attributeClassLabel } from "../data/rules.js";
 import {
   applyMetagameStatBoost,
   findBestMetagameDeck,
+  generateMetagameDeckCandidates,
   inspectMetagameDeckEvidence,
   matchesMetagameFixedConstraint,
   resolveMetagameConstraint,
@@ -675,6 +676,80 @@ function metagameUiResultCard(result, rank, constraint, characters) {
   return card;
 }
 
+function renderMetagameGeneratedCandidates(container, generationResult) {
+  const { constraint, candidates } = generationResult;
+  const preview = candidates.slice(0, 10);
+  container.replaceChildren();
+
+  const overview = metagameUiElement("section", "metagame-result-overview");
+  overview.append(
+    metagameUiElement("strong", "", `${constraint.label}・候補生成`),
+    metagameUiElement(
+      "span",
+      "",
+      `${generationResult.candidateDeckCount.toLocaleString("ja-JP")}候補から上位${preview.length}件を表示`,
+    ),
+    metagameUiElement("span", "", "未対戦候補・最終順位ではありません"),
+  );
+  container.append(overview);
+
+  preview.forEach((candidate, index) => {
+    const card = metagameUiElement("article", `metagame-deck-result${index === 0 ? " is-best" : ""}`);
+    const header = metagameUiElement("header", "metagame-result-header");
+    const title = metagameUiElement("div", "");
+    title.append(
+      metagameUiElement("span", "metagame-result-rank", `CANDIDATE ${index + 1}`),
+      metagameUiElement("h3", "", "生成候補デッキ"),
+    );
+    const state = metagameUiElement("div", "metagame-win-rate");
+    state.append(
+      metagameUiElement("strong", "", `#${index + 1}`),
+      metagameUiElement("span", "", "候補生成順・5対5評価前"),
+    );
+    header.append(title, state);
+
+    const summary = metagameUiElement("div", "metagame-result-summary");
+    summary.append(
+      metagameUiElement("span", "", `総コスト ${candidate.totalCost} / ${constraint.totalCost}`),
+      metagameUiElement("span", "", "枠別評価＋相性で生成"),
+      metagameUiElement("span", "", "評価ボタンで5対5再対戦"),
+    );
+
+    const slots = metagameUiElement("div", "metagame-slot-list");
+    candidate.deck.forEach((character, slotIndex) => {
+      const slot = metagameUiElement("section", "metagame-slot-card");
+      const heading = metagameUiElement("div", "metagame-slot-heading");
+      heading.append(
+        metagameUiElement("h4", "", character.name),
+        metagameUiElement(
+          "span",
+          "",
+          `${attributeClassLabel(character.attributes)}・cost ${character.cost}・スキル${character.skillTurn}T`,
+        ),
+      );
+      const copy = metagameUiElement("div", "metagame-slot-copy");
+      copy.append(
+        metagameUiElement(
+          "small",
+          "",
+          `${metagameUiRoleLabel(candidate.ratings?.[slotIndex] ?? {})}として候補生成に採用`,
+        ),
+      );
+      slot.append(
+        metagameUiElement("span", "metagame-slot-number", String(slotIndex + 1)),
+        heading,
+        copy,
+      );
+      slots.append(slot);
+    });
+    card.append(header, summary, slots);
+    container.append(card);
+  });
+
+  const note = metagameUiElement("p", "metagame-result-note");
+  note.textContent = "ここは候補生成だけの一覧です。勝率や12ターン評価値はまだ計算していません。「候補デッキを評価」を押すと、候補を調査済み5対5環境へ再投入して最終比較します。";
+  container.append(note);
+}
 function renderMetagameSimulatorResult(container, searchResult, characters) {
   container.replaceChildren();
   const overview = metagameUiElement("section", "metagame-result-overview");
@@ -854,6 +929,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   const form = root.querySelector("[data-metagame-form]");
   const select = form.elements.metagameConstraint;
   const totalCostInput = form.querySelector("[data-metagame-total-cost]");
+  const generateButton = form.querySelector("[data-metagame-generate]");
   const submitButton = form.querySelector("[data-metagame-submit]");
   const cancelButton = form.querySelector("[data-metagame-cancel]");
   const status = root.querySelector("[data-metagame-data-status]");
@@ -913,6 +989,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     ? `利用可能 ${data.constraints.length}条件 / 評価完了 ${data.sourceCompletedRuns}/${data.sourceTotalRuns} / ${sourceLabel}`
     : "利用可能な調査済み環境がありません";
   renderMetagameCalculationStatus(calculationStatus, data);
+  generateButton.disabled = data.constraints.length === 0 || !metagameUiHasCurrentSkillEvidence(data);
   submitButton.disabled = data.constraints.length === 0 || !metagameUiHasCurrentSkillEvidence(data);
   const fixedSlotValues = () => Object.fromEntries(
     [...fixedSlots.entries()].map(([position, character]) => [position, character.id]),
@@ -1201,6 +1278,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   }
 
   const setBusy = (busy) => {
+    generateButton.disabled = busy || data.constraints.length === 0 || !metagameUiHasCurrentSkillEvidence(data);
     submitButton.disabled = busy || data.constraints.length === 0 || !metagameUiHasCurrentSkillEvidence(data);
     select.disabled = busy;
     totalCostInput.disabled = busy;
@@ -1232,6 +1310,60 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   };
 
   cancelButton.addEventListener("click", () => abortController?.abort());
+
+  const generateCandidatePreview = async (event) => {
+    event?.preventDefault();
+    if (abortController) return;
+    if (!metagameUiHasCurrentSkillEvidence(data)) {
+      renderMetagameSimulatorMessage(
+        resultRoot,
+        "現在の環境評価が完了するまで候補生成を利用できません。",
+      );
+      return;
+    }
+    const baseConstraint = sourceConstraint();
+    if (!baseConstraint) {
+      renderMetagameSimulatorMessage(resultRoot, "選択した属性縛りの調査データが見つかりません。画面を再読み込みしてから選び直してください。", true);
+      return;
+    }
+
+    displayedPrecomputedConstraintId = null;
+    abortController = new AbortController();
+    setBusy(true);
+    renderMetagameSimulatorMessage(resultRoot, "候補デッキだけを生成しています。5対5の再対戦はまだ行いません。");
+    try {
+      const generationResult = await generateMetagameDeckCandidates(
+        data,
+        baseConstraint.id,
+        activeCharacters,
+        {
+          signal: abortController.signal,
+          totalCost: Number(totalCostInput.value),
+          fixedSlots: fixedSlotValues(),
+          boostedCharacterIds: boostedCharacterIds(),
+          automaticCharacterIds: [...automaticCharacterIds],
+          onProgress: ({ phase, completed, total, slot, slots, retained, valid }) => {
+            if (phase !== "candidate") return;
+            const ratio = Number(total) > 0 ? Number(completed) / Number(total) : 0;
+            progressLabel.textContent = "候補デッキを生成中";
+            progressValue.textContent = `${Number(slot) || 1}/${Number(slots) || 5}枠・候補 ${Number(retained || valid || 0).toLocaleString("ja-JP")}件`;
+            progressBar.style.width = `${Math.max(0, Math.min(100, ratio * 100))}%`;
+          },
+        },
+      );
+      renderMetagameGeneratedCandidates(resultRoot, generationResult);
+    } catch (error) {
+      renderMetagameSimulatorMessage(
+        resultRoot,
+        error.name === "AbortError" ? "候補生成を中止しました。" : error.message,
+        error.name !== "AbortError",
+      );
+    } finally {
+      abortController = null;
+      setBusy(false);
+    }
+  };
+
   const startCalculation = async (event) => {
     event?.preventDefault();
     if (abortController) return;
@@ -1345,6 +1477,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     }
   };
   form.addEventListener("submit", startCalculation);
+  generateButton.addEventListener("click", generateCandidatePreview);
   submitButton.addEventListener("click", startCalculation);
   return {
     setCharacters(nextCharacters, options = {}) {
