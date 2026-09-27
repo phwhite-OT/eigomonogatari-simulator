@@ -6,6 +6,13 @@ on:
       - master
       - metagame-v12-shared-pool-results
       - metagame-v12-browser-knowledge-results
+  workflow_run:
+    workflows:
+      - "Metagame V12 distributed finalization accelerator"
+      - "Metagame V12 shared-pool full recompute"
+      - "V12 cost100 lightweight rerank"
+      - "Metagame V12 browser knowledge precompute"
+    types: [completed]
   workflow_dispatch:
 
 permissions:

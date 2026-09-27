@@ -444,6 +444,26 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-09-27 — publish each completed V12 result to the public site
+
+Issue found after fire:100 completed:
+
+- `deploy-pages.yml` declared pushes to `metagame-v12-shared-pool-results` as a trigger
+- those result pushes are made inside Actions with `GITHUB_TOKEN`
+- GitHub suppresses workflow chaining from those token-generated pushes, so the durable result branch could advance without a Pages deployment
+- observed deployment history confirmed recent Pages runs came from master pushes, not the fire:100 completion push
+
+Correction:
+
+- Pages now also listens to `workflow_run` completion for:
+  - `Metagame V12 distributed finalization accelerator`
+  - `Metagame V12 shared-pool full recompute`
+  - `V12 cost100 lightweight rerank`
+  - `Metagame V12 browser knowledge precompute`
+- deployment still validates ranking policy, adaptive schema, model version, battle semantics, and `status == complete` before overlaying a condition
+- partial/intermediate checkpoints therefore trigger at most a harmless rebuild; they are never published as current results
+- merging this fix to master itself triggers Pages, so the already-complete fire:100 result is published immediately
+
 ### 2026-09-26 — recover exact-battle artifacts across multiple failed fanout generations
 
 Observed live after repeated merge/push failures:
