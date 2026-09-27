@@ -832,3 +832,10 @@ Transition safety: the first lock-aware rerank includes a bounded migration guar
 ### 2026-09-22 — spare-slot rerank workflow syntax repair
 
 The first migration-guard edit accidentally corrupted the rerank YAML because a JavaScript replacement string interpreted the shell fragment `$'	'` as replacement syntax and duplicated the remainder of the workflow. The workflow failed before creating any jobs, so no result data was changed. The file was rebuilt from the last valid rerank workflow, the guard now uses space-delimited `jq` output instead of `$'\t'`, and the self-trigger was restored.
+
+### 2026-09-27 — ブラウザ候補デッキ生成プレビュー
+
+- 対戦デッキのメタ環境UIに「候補デッキを生成」を追加。既存の「候補デッキを評価」は従来どおり候補生成後に5対5環境へ再投入して評価する。
+- 生成だけの操作では、現在の属性・総コスト・固定枠・補正/管理DB対象を候補生成ロジックへ渡し、上位10件を「未対戦候補」と明示して表示する。勝率や12ターン評価値のような実戦結果は表示しない。
+- src/core/metagame-deck.js にブラウザ向けの generateMetagameDeckCandidates を追加し、V8系互換データでは既存の実戦済みベース＋自動差し替え候補、その他では既存の段階的候補生成をそのまま再利用する。
+- この変更は候補生成/表示UIのみで、V12.5の戦闘意味論・ランキング方針・長時間計算の互換性は変更しない。進行中の重い計算を止めないため、まず feat/deck-candidate-generator-ui ブランチで実装する。
