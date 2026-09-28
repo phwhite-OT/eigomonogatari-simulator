@@ -71,6 +71,19 @@ test("distributed fanout merge never falls back to serial counterfactual battles
   assert.match(fanout, /must never run missing battles itself/);
 });
 
+test("V12 prioritizes cost 200 and bounds normal counterfactual work", () => {
+  assert.match(workflow, /representative_costs=\(200 300 500 100\)/);
+  assert.match(fanout, /representative_costs=\(200 300 500 100\)/);
+  assert.match(fanout, /--max-work-items=4800/);
+  assert.match(fanout, /--counterfactual-anchor-limit=2/);
+  assert.match(fanout, /--replacement-deck-limit=12/);
+  assert.match(fanout, /--replacement-beam-width=2500/);
+  assert.match(finalizationPlanScript, /max-work-items", 4800/);
+  assert.match(finalizationPlanScript, /normalized stale counterfactual policy/);
+  assert.match(finalizationAdvanceScript, /normalized stale counterfactual policy/);
+  assert.match(finalizationAdvanceScript, /createMetagameV12FinalizationState/);
+});
+
 test("future V12 conditions use bounded deep-search waves", () => {
   assert.match(finalizationPlanScript, /deep-replacement-limit/);
   assert.match(finalizationPlanScript, /max-deep-evaluations/);
@@ -176,8 +189,8 @@ test("legacy reports cannot be relabeled as adaptive reports", () => {
 });
 
 test("matched-slot exploration remains broad while adaptive aggregation is added", () => {
-  assert.match(rateScript, /counterfactual-anchor-limit", "3"/);
-  assert.match(rateScript, /replacement-deck-limit", "24"/);
+  assert.match(rateScript, /counterfactual-anchor-limit", "2"/);
+  assert.match(rateScript, /replacement-deck-limit", "12"/);
   assert.match(metagameV12, /strongest proxy half/);
   assert.match(metagameV12, /const roles = \["precision_attack", "sweep_attack", "defense", "revive", "recovery", "support", "neutral"\]/);
   assert.match(metagameV12, /const byCost = \[\.\.\.legal\]\.sort/);
