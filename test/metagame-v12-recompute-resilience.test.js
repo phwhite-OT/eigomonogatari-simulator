@@ -125,6 +125,10 @@ test("V12 finalization recovery unions artifacts across interrupted runs", () =>
   assert.match(fanout, /v12-finalize-recovery\/\$run_id/);
   assert.match(fanout, /find "\$RUNNER_TEMP\/v12-finalize-recovery" -type f/);
   assert.match(fanout, /Recovering \$\{#delta_files\[@\]\} cache delta file\(s\) across prior interrupted waves/);
+  assert.match(fanout, /v12-finalize-work\/recovery/);
+  assert.match(fanout, /recovered_delta_files/);
+  assert.match(fanout, /all_delta_files=/);
+  assert.match(fanout, /recovered \+ .* current cache delta/);
 });
 
 test("public site redeploys after V12 result workflows complete", () => {
