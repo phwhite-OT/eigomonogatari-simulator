@@ -43,9 +43,9 @@ export function selectMetagameV12CounterfactualAnchors(rating, position, pool, l
 
 export function metagameV12FinalizationPolicy(options = {}) {
   return {
-    counterfactualAnchorLimit: Math.max(1, Math.floor(Number(options.counterfactualAnchorLimit) || 3)),
-    replacementDeckLimit: Math.max(1, Math.floor(Number(options.replacementDeckLimit) || 24)),
-    replacementBeamWidth: Math.max(1, Math.floor(Number(options.replacementBeamWidth) || 4000)),
+    counterfactualAnchorLimit: Math.max(1, Math.floor(Number(options.counterfactualAnchorLimit) || 2)),
+    replacementDeckLimit: Math.max(1, Math.floor(Number(options.replacementDeckLimit) || 12)),
+    replacementBeamWidth: Math.max(1, Math.floor(Number(options.replacementBeamWidth) || 2500)),
   };
 }
 
