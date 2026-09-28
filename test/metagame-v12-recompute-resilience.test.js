@@ -79,6 +79,7 @@ test("future V12 conditions use bounded deep-search waves", () => {
   assert.match(fanout, /--deep-frontier-count=24/);
   assert.match(fanout, /--deep-replacement-limit=20/);
   assert.match(fanout, /--max-deep-evaluations=2500/);
+  assert.match(fanout, /--min-rounds=2/);
   assert.match(fanout, /--max-rounds=4/);
   assert.match(fanout, /--legacy-max-rounds=16/);
 });
