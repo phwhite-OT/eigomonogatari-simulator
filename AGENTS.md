@@ -34,6 +34,7 @@ The expensive precompute covers exactly **28 representative environments**:
 
 - attribute groups: `fire`, `water`, `wind`, `fire-water`, `fire-wind`, `water-wind`, `fire-water-wind`
 - representative total costs: `100`, `200`, `300`, `500`
+- current execution priority: finish `200` first, then `300`, then `500`, and return to any remaining `100` conditions last
 
 Do **not** expand this into every integer cost from 100–500. Intermediate browser costs are intentionally derived from the neighbouring representative bands.
 
@@ -63,6 +64,8 @@ Distributed finalization workflow:
 4. merge exact cache deltas and advance the frozen finalization plan
 
 The expensive counterfactual/deep-neighbourhood battle work belongs in this fanout workflow, not in a long serial `publish` step.
+
+Normal matched-slot counterfactual auditing is intentionally bounded for runtime without dropping the causal comparison itself. The current policy uses at most **2 structurally distinct anchors per rated character** and **12 replacement decks per anchor**, with replacement selection preserving strongest proxy candidates plus tactical-role and cost-band diversity. The planner caps one distributed wave at **4,800 unique exact deck evaluations**. Old checkpoints using the previous 3-anchor/24-replacement policy are rebuilt onto the current bounded policy while reusing every compatible exact battle already cached; deep-search progress metadata must be preserved across that migration.
 
 Critical artifact invariant: every `prefill` shard must upload its cache delta and `merge` must refuse to continue when zero delta files are downloaded. In GitHub Action `with.path` fields, use GitHub expression syntax such as `${{ needs.select.outputs.output_directory }}`; shell-style `$METAGAME_OUTPUT_DIRECTORY` is not expanded there.
 
