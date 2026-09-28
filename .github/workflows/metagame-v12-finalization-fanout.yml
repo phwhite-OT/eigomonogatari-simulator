@@ -326,7 +326,10 @@ jobs:
             --shard-count=38 \
             --parallel-runner-count=19 \
             --compact-shard-threshold=3800 \
-            --deep-seed-count=12
+            --deep-seed-count=6 \
+            --deep-frontier-count=24 \
+            --deep-replacement-limit=20 \
+            --max-deep-evaluations=2500
       - id: shards
         name: Build active shard matrix
         shell: bash
@@ -483,7 +486,10 @@ jobs:
             node scripts/reopen-metagame-v12-deep-search.mjs \
               --checkpoint="$checkpoint_path" \
               --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
-              --max-rounds=16
+              --max-rounds=4 \
+              --legacy-max-rounds=16 \
+              --frontier-overlap-threshold=0.875 \
+              --frontier-improvement-threshold=0.0025
           else
             echo "Counterfactual plan still has a cache miss; skipping full shared-pool reconciliation for this intermediate wave."
           fi
