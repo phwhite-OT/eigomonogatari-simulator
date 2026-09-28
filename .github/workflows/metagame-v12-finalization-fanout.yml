@@ -486,6 +486,7 @@ jobs:
             node scripts/reopen-metagame-v12-deep-search.mjs \
               --checkpoint="$checkpoint_path" \
               --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
+              --min-rounds=2 \
               --max-rounds=4 \
               --legacy-max-rounds=16 \
               --frontier-overlap-threshold=0.875 \
