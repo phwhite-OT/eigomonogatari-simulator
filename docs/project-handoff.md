@@ -832,3 +832,36 @@ Transition safety: the first lock-aware rerank includes a bounded migration guar
 ### 2026-09-22 — spare-slot rerank workflow syntax repair
 
 The first migration-guard edit accidentally corrupted the rerank YAML because a JavaScript replacement string interpreted the shell fragment `$'	'` as replacement syntax and duplicated the remainder of the workflow. The workflow failed before creating any jobs, so no result data was changed. The file was rebuilt from the last valid rerank workflow, the guard now uses space-delimited `jq` output instead of `$'\t'`, and the self-trigger was restored.
+
+
+### 2026-09-28 — V12 deep search を数時間級に制限
+
+Observed problem:
+
+- water:100 finalization spent many hours in repeated deep-neighbourhood waves even though the 19-runner fanout itself was healthy
+- the old deep search used 12 active seeds from a 48-deck frontier and tried every legal one-slot replacement, commonly producing 12k+ replacement references per round
+- after every deep-search wave the measured frontier could change, causing the full frozen counterfactual shell to reopen and making one condition take far too long
+
+Correction:
+
+- added `src/core/metagame-v12-deep-search.js`
+- future conditions use 6 active seeds from a 24-deck elite/diverse frontier
+- each seed/slot keeps at most 20 replacement candidates, selected from measured deck strength + final individual rating + existing proxy evidence while explicitly preserving tactical-role and cost-band diversity
+- deep-search exact battles are capped at 2,500 new evaluations for the entire condition, not merely per workflow wave
+- deep search stops early when at least 87.5% of the measured frontier is unchanged and best-deck improvement is at most 0.25 percentage points
+- hard round cap is reduced from 16 to 4 for the new bounded policy
+- the normal per-character counterfactual audit remains unchanged: anchor limit 3 and replacement-deck limit 24 are preserved
+- existing exact battle evidence remains reusable; battle semantics and ranking policy are unchanged
+
+Transition safety:
+
+- an already-running legacy deep search (currently water:100) is detected from an existing deep-search round/visited frontier without the new policy marker and keeps the old 12/48/full-replacement/16-round behavior until it finishes
+- a fresh condition starts with bounded deep-search policy version 3; reopened checkpoints retain the policy version and cumulative deep-search evaluation count
+- this avoids changing the meaning of water:100 halfway through while ensuring the next condition gets the bounded runtime policy
+
+Runtime target:
+
+- at the observed 19-runner throughput, the 2,500-evaluation deep-search ceiling is intended to keep the deep-search portion well below the old day-scale behavior; together with the unchanged initial/counterfactual work the target is a few hours per condition, not a month-scale sweep
+- this is a runtime target, not a guaranteed wall-clock SLA; GitHub runner queueing and unusually expensive battle families can still vary
+
+- PR validation: Validate Metagame V12 passed after the bounded deep-search implementation. A follow-up planner guard preserves the deep-search policy version and cumulative evaluation budget if the frozen counterfactual plan is normalized/rebuilt, preventing the new runtime cap from being accidentally reset.
