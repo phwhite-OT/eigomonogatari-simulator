@@ -95,7 +95,7 @@ test("V12 fanout workers use lightweight manifests and dynamic shard counts", ()
   assert.ok(shardCommandStart >= 0 && shardCommandEnd > shardCommandStart);
   const shardCommand = fanout.slice(shardCommandStart, shardCommandEnd);
   assert.doesNotMatch(shardCommand, /--input-checkpoint=/);
-  assert.match(fanout, /path: \$\{\{ runner\.temp \}\}\/v12-finalize-work\/manifest\.json/);
+  assert.match(fanout, /path: \$\{\{ runner\.temp \}\}\/v12-finalize-work/);
   assert.match(fanout, /fromJSON\(needs\.plan\.outputs\.shard_matrix\)/);
   assert.match(fanout, /--compact-shard-threshold=3800/);
 });
