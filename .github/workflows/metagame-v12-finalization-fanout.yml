@@ -465,7 +465,7 @@ jobs:
             exit 1
           fi
           delta_paths="$(IFS=,; echo "${all_delta_files[*]}")"
-          echo "Merging ${#recovered_delta_files[@]} recovered + ${#delta_files[@]} current cache delta(s) before advancing."
+          echo "Merging ${#recovered_delta_files[@]} recovered + ${#delta_files[@]} current cache delta(s) without rebuilding rankings before advancing."
 
           node scripts/merge-metagame-v12-finalization-deltas.mjs \
             --checkpoint="$checkpoint_path" \
