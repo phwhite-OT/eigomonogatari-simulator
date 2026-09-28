@@ -863,3 +863,5 @@ Runtime target:
 
 - at the observed 19-runner throughput, the 2,500-evaluation deep-search ceiling is intended to keep the deep-search portion well below the old day-scale behavior; together with the unchanged initial/counterfactual work the target is a few hours per condition, not a month-scale sweep
 - this is a runtime target, not a guaranteed wall-clock SLA; GitHub runner queueing and unusually expensive battle families can still vary
+
+- PR validation: Validate Metagame V12 passed after the bounded deep-search implementation. A follow-up planner guard preserves the deep-search policy version and cumulative evaluation budget if the frozen counterfactual plan is normalized/rebuilt, preventing the new runtime cap from being accidentally reset.
