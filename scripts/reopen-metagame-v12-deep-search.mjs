@@ -9,6 +9,10 @@ import {
   buildMetagameV12SharedDeckPool,
   hydrateMetagameV12EvaluationCache,
 } from "../src/core/metagame-v12-shared-pool.js";
+import {
+  METAGAME_V12_BOUNDED_DEEP_SEARCH_POLICY_VERSION,
+  assessMetagameV12DeepFrontierConvergence,
+} from "../src/core/metagame-v12-deep-search.js";
 
 function readArgument(name, fallback = "") {
   const prefix = `--${name}=`;
@@ -18,6 +22,11 @@ function readArgument(name, fallback = "") {
 
 function integerArgument(name, fallback, minimum = 0) {
   const parsed = Math.floor(Number(readArgument(name, String(fallback))));
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
+}
+
+function numberArgument(name, fallback, minimum = 0) {
+  const parsed = Number(readArgument(name, String(fallback)));
   return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
 }
 
@@ -67,7 +76,10 @@ const manifestPath = path.resolve(manifestArgument);
 // Twelve active seeds per clean round can cover the 48-deck frontier in four
 // rounds. Keep a generous finite cap for wave truncation and frontier churn;
 // the cap is a safety brake, not the expected number of rounds.
-const maxRounds = integerArgument("max-rounds", 16, 1);
+const configuredMaxRounds = integerArgument("max-rounds", 4, 1);
+const legacyMaxRounds = integerArgument("legacy-max-rounds", 16, 1);
+const frontierOverlapThreshold = numberArgument("frontier-overlap-threshold", 0.875, 0);
+const frontierImprovementThreshold = numberArgument("frontier-improvement-threshold", 0.0025, 0);
 
 const checkpoint = JSON.parse(await fs.readFile(checkpointPath, "utf8"));
 const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
@@ -100,6 +112,30 @@ const currentFrontier = selectDeepSearchSeeds(sharedDeckPool, frontierLimit);
 const currentFrontierKeys = currentFrontier.map(deckSeedKey);
 const currentRound = Math.max(1, Number(manifest?.deepSearch?.round) || Number(checkpoint?.finalizationState?.deepSearchRound) || 1);
 const deepWorkTruncated = manifest?.deepSearch?.truncated === true;
+const deepSearchPolicyVersion = Number(manifest?.deepSearch?.policyVersion) || 2;
+const boundedDeepSearch = deepSearchPolicyVersion >= METAGAME_V12_BOUNDED_DEEP_SEARCH_POLICY_VERSION;
+const maxRounds = boundedDeepSearch ? configuredMaxRounds : legacyMaxRounds;
+const completedDeepEvaluations = missingPlannedCount === 0
+  ? Math.max(0, Number(manifest?.deepSearch?.newEvaluationCount) || 0)
+  : 0;
+const deepSearchEvaluationCount = Math.max(
+  0,
+  Number(checkpoint?.finalizationState?.deepSearchEvaluationCount) || 0,
+) + completedDeepEvaluations;
+const maxDeepEvaluations = Number(manifest?.deepSearch?.maxEvaluationBudget);
+const budgetExhausted = boundedDeepSearch && Number.isFinite(maxDeepEvaluations)
+  && deepSearchEvaluationCount >= maxDeepEvaluations;
+const currentBestWinRate = Number(currentFrontier[0]?.result?.expectedWinRate) || 0;
+const frontierConvergence = assessMetagameV12DeepFrontierConvergence(
+  manifest?.deepSearch?.frontierKeys,
+  currentFrontierKeys,
+  manifest?.deepSearch?.frontierBestWinRate,
+  currentBestWinRate,
+  {
+    overlapThreshold: frontierOverlapThreshold,
+    improvementThreshold: frontierImprovementThreshold,
+  },
+);
 
 // A seed only counts as visited after the entire planned wave is present in the
 // merged exact cache and the neighbourhood itself was not clipped by the wave
@@ -117,13 +153,34 @@ if (missingPlannedCount > 0) {
   reopenReason = `${missingPlannedCount} planned unique evaluations are still missing`;
 } else if (deepWorkTruncated) {
   reopenReason = `deep-search neighbourhood was truncated by the ${manifest?.maxWorkItems ?? "configured"}-evaluation wave cap`;
+} else if (boundedDeepSearch && budgetExhausted) {
+  reopenReason = "";
+} else if (boundedDeepSearch && frontierConvergence.converged) {
+  reopenReason = "";
 } else if (unvisitedFrontierKeys.length > 0 && currentRound < maxRounds) {
   nextRound = currentRound + 1;
   reopenReason = `${unvisitedFrontierKeys.length}/${currentFrontierKeys.length} measured frontier seeds remain unvisited after round ${currentRound}`;
 }
 
 if (!reopenReason) {
-  if (unvisitedFrontierKeys.length > 0 && currentRound >= maxRounds) {
+  checkpoint.finalizationState.deepSearchPolicyVersion = deepSearchPolicyVersion;
+  checkpoint.finalizationState.deepSearchEvaluationCount = deepSearchEvaluationCount;
+  checkpoint.finalizationState.deepSearchFrontierKeys = currentFrontierKeys;
+  checkpoint.finalizationState.deepSearchBestExpectedWinRate = currentBestWinRate;
+  checkpoint.updatedAt = new Date().toISOString();
+  await writeJsonAtomic(checkpointPath, checkpoint);
+
+  if (boundedDeepSearch && budgetExhausted) {
+    console.log(
+      `V12 bounded deep search stopped at the ${maxDeepEvaluations}-evaluation condition budget after round ${currentRound}.`,
+    );
+  } else if (boundedDeepSearch && frontierConvergence.converged) {
+    console.log(
+      `V12 bounded deep search converged after round ${currentRound}: frontier overlap `
+      + `${(frontierConvergence.overlapRatio * 100).toFixed(1)}%, best-deck improvement `
+      + `${(frontierConvergence.improvement * 100).toFixed(3)}pt.`,
+    );
+  } else if (unvisitedFrontierKeys.length > 0 && currentRound >= maxRounds) {
     console.warn(
       `V12 deep search reached safety cap ${maxRounds} with ${unvisitedFrontierKeys.length} `
       + `unvisited measured frontier seed(s); accepting the best measured pool so far.`,
@@ -144,6 +201,10 @@ const policy = checkpoint?.finalizationState?.policy ?? {};
 const reopenedState = createMetagameV12FinalizationState(resultsByPosition, sharedDeckPool, policy);
 reopenedState.deepSearchRound = nextRound;
 reopenedState.deepSearchVisitedSeedKeys = [...visitedSeedKeys].sort();
+reopenedState.deepSearchPolicyVersion = deepSearchPolicyVersion;
+reopenedState.deepSearchEvaluationCount = deepSearchEvaluationCount;
+reopenedState.deepSearchFrontierKeys = currentFrontierKeys;
+reopenedState.deepSearchBestExpectedWinRate = currentBestWinRate;
 reopenedState.lastProgressAt = new Date().toISOString();
 
 checkpoint.status = "finalizing";
