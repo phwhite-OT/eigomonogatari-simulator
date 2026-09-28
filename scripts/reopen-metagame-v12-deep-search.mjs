@@ -76,7 +76,8 @@ const manifestPath = path.resolve(manifestArgument);
 // Twelve active seeds per clean round can cover the 48-deck frontier in four
 // rounds. Keep a generous finite cap for wave truncation and frontier churn;
 // the cap is a safety brake, not the expected number of rounds.
-const configuredMaxRounds = integerArgument("max-rounds", 4, 1);
+const configuredMinRounds = integerArgument("min-rounds", 2, 1);
+const configuredMaxRounds = integerArgument("max-rounds", 4, configuredMinRounds);
 const legacyMaxRounds = integerArgument("legacy-max-rounds", 16, 1);
 const frontierOverlapThreshold = numberArgument("frontier-overlap-threshold", 0.875, 0);
 const frontierImprovementThreshold = numberArgument("frontier-improvement-threshold", 0.0025, 0);
@@ -155,7 +156,7 @@ if (missingPlannedCount > 0) {
   reopenReason = `deep-search neighbourhood was truncated by the ${manifest?.maxWorkItems ?? "configured"}-evaluation wave cap`;
 } else if (boundedDeepSearch && budgetExhausted) {
   reopenReason = "";
-} else if (boundedDeepSearch && frontierConvergence.converged) {
+} else if (boundedDeepSearch && currentRound >= configuredMinRounds && frontierConvergence.converged) {
   reopenReason = "";
 } else if (unvisitedFrontierKeys.length > 0 && currentRound < maxRounds) {
   nextRound = currentRound + 1;
@@ -174,7 +175,7 @@ if (!reopenReason) {
     console.log(
       `V12 bounded deep search stopped at the ${maxDeepEvaluations}-evaluation condition budget after round ${currentRound}.`,
     );
-  } else if (boundedDeepSearch && frontierConvergence.converged) {
+  } else if (boundedDeepSearch && currentRound >= configuredMinRounds && frontierConvergence.converged) {
     console.log(
       `V12 bounded deep search converged after round ${currentRound}: frontier overlap `
       + `${(frontierConvergence.overlapRatio * 100).toFixed(1)}%, best-deck improvement `

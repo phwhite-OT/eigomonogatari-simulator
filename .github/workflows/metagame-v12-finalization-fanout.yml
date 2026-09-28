@@ -316,6 +316,8 @@ jobs:
           node scripts/merge-metagame-v12-finalization-deltas.mjs \
             --checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
             --deltas="$delta_paths"
+          mkdir -p "$RUNNER_TEMP/v12-finalize-work/recovery"
+          cp -R "$RUNNER_TEMP/v12-finalize-recovery/." "$RUNNER_TEMP/v12-finalize-work/recovery/"
       - name: Build globally deduplicated finalization work plan
         shell: bash
         run: |
@@ -342,7 +344,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: v12-finalize-work-${{ needs.select.outputs.output_directory }}
-          path: ${{ runner.temp }}/v12-finalize-work/manifest.json
+          path: ${{ runner.temp }}/v12-finalize-work
           if-no-files-found: error
           retention-days: 2
 
@@ -456,12 +458,14 @@ jobs:
           output_path="reports/metagame-ratings-v12-team-opportunity/${METAGAME_OUTPUT_DIRECTORY}"
           checkpoint_path="${output_path}/progress.json"
           mapfile -t delta_files < <(find "$RUNNER_TEMP/v12-finalize-delta" -maxdepth 1 -type f -name "${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-*.json" -print 2>/dev/null | sort || true)
-          if [ "${#delta_files[@]}" -eq 0 ]; then
-            echo "::error::No distributed cache deltas were downloaded. Refusing to discard a completed fanout wave."
+          mapfile -t recovered_delta_files < <(find "$RUNNER_TEMP/v12-finalize-work/recovery" -type f -name "${METAGAME_OUTPUT_DIRECTORY}-finalization-shard-*.json" -print 2>/dev/null | sort || true)
+          all_delta_files=("${recovered_delta_files[@]}" "${delta_files[@]}")
+          if [ "${#all_delta_files[@]}" -eq 0 ]; then
+            echo "::error::No current or recovered cache deltas were available. Refusing to advance from an incomplete cache."
             exit 1
           fi
-          delta_paths="$(IFS=,; echo "${delta_files[*]}")"
-          echo "Merging ${#delta_files[@]} globally-disjoint cache delta(s) without rebuilding rankings."
+          delta_paths="$(IFS=,; echo "${all_delta_files[*]}")"
+          echo "Merging ${#recovered_delta_files[@]} recovered + ${#delta_files[@]} current cache delta(s) without rebuilding rankings before advancing."
 
           node scripts/merge-metagame-v12-finalization-deltas.mjs \
             --checkpoint="$checkpoint_path" \
@@ -486,6 +490,7 @@ jobs:
             node scripts/reopen-metagame-v12-deep-search.mjs \
               --checkpoint="$checkpoint_path" \
               --manifest="$RUNNER_TEMP/v12-finalize-work/manifest.json" \
+              --min-rounds=2 \
               --max-rounds=4 \
               --legacy-max-rounds=16 \
               --frontier-overlap-threshold=0.875 \

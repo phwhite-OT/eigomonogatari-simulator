@@ -79,6 +79,7 @@ test("future V12 conditions use bounded deep-search waves", () => {
   assert.match(fanout, /--deep-frontier-count=24/);
   assert.match(fanout, /--deep-replacement-limit=20/);
   assert.match(fanout, /--max-deep-evaluations=2500/);
+  assert.match(fanout, /--min-rounds=2/);
   assert.match(fanout, /--max-rounds=4/);
   assert.match(fanout, /--legacy-max-rounds=16/);
 });
@@ -89,8 +90,12 @@ test("V12 fanout workers use lightweight manifests and dynamic shard counts", ()
   assert.match(finalizationPlanScript, /uniqueItems\.length <= compactShardThreshold/);
   assert.match(finalizationShardScript, /lightweightManifest/);
   assert.match(finalizationShardScript, /Legacy finalization manifests require --input-checkpoint/);
-  assert.doesNotMatch(fanout, /--input-checkpoint="\$RUNNER_TEMP\/v12-finalize-work\/checkpoint\.json"/);
-  assert.match(fanout, /path: \$\{\{ runner\.temp \}\}\/v12-finalize-work\/manifest\.json/);
+  const shardCommandStart = fanout.indexOf("node scripts/evaluate-metagame-v12-finalization-shard.mjs");
+  const shardCommandEnd = fanout.indexOf("Upload finalization cache delta", shardCommandStart);
+  assert.ok(shardCommandStart >= 0 && shardCommandEnd > shardCommandStart);
+  const shardCommand = fanout.slice(shardCommandStart, shardCommandEnd);
+  assert.doesNotMatch(shardCommand, /--input-checkpoint=/);
+  assert.match(fanout, /path: \$\{\{ runner\.temp \}\}\/v12-finalize-work/);
   assert.match(fanout, /fromJSON\(needs\.plan\.outputs\.shard_matrix\)/);
   assert.match(fanout, /--compact-shard-threshold=3800/);
 });
@@ -124,6 +129,10 @@ test("V12 finalization recovery unions artifacts across interrupted runs", () =>
   assert.match(fanout, /v12-finalize-recovery\/\$run_id/);
   assert.match(fanout, /find "\$RUNNER_TEMP\/v12-finalize-recovery" -type f/);
   assert.match(fanout, /Recovering \$\{#delta_files\[@\]\} cache delta file\(s\) across prior interrupted waves/);
+  assert.match(fanout, /v12-finalize-work\/recovery/);
+  assert.match(fanout, /recovered_delta_files/);
+  assert.match(fanout, /all_delta_files=/);
+  assert.match(fanout, /recovered \+ .* current cache delta/);
 });
 
 test("public site redeploys after V12 result workflows complete", () => {

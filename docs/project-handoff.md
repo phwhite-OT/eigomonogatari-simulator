@@ -865,3 +865,17 @@ Runtime target:
 - this is a runtime target, not a guaranteed wall-clock SLA; GitHub runner queueing and unusually expensive battle families can still vary
 
 - PR validation: Validate Metagame V12 passed after the bounded deep-search implementation. A follow-up planner guard preserves the deep-search policy version and cumulative evaluation budget if the frozen counterfactual plan is normalized/rebuilt, preventing the new runtime cap from being accidentally reset.
+
+
+### 2026-09-28 — bounded deep-search final verification hardening
+
+- Final audit found that the generic V12 validation workflow did not yet syntax-check the new deep-search helper/planner/reopen scripts and did not execute the new deep-search or recompute-resilience tests. The earlier PR CI was therefore insufficient evidence for the newly added runtime-control path even though existing V12 tests passed.
+- Validation now explicitly checks the deep-search helper plus planner/evaluator/advance/reopen scripts and executes `test/metagame-v12-deep-search.test.js` and `test/metagame-v12-recompute-resilience.test.js`.
+- Bounded deep search now requires at least two completed rounds before frontier-stability early exit. This guarantees that at least 12 of the 24 frontier seeds can be explored before convergence is accepted, while preserving the four-round / 2,500-new-evaluation hard caps.
+
+### 2026-09-28 — recovered finalization delta durability fix
+
+- Final audit found a real cause of the long water:100 stall at cursor 525: the plan job downloaded and merged cache deltas from prior interrupted waves into its temporary checkpoint, so the planner correctly saw those exact battles as already evaluated. However, the later merge job restored the durable results-branch checkpoint and merged only the current run's deltas. The recovered historical deltas were therefore never persisted.
+- This created a split-brain loop: planner logs could report zero missing normal counterfactual evaluations while advance-metagame-v12-finalization-cache.mjs immediately stopped at a key that existed only in the planner's temporary recovered cache. Repeated runs then rediscovered/recovered the same evidence without durably advancing the cursor.
+- The plan artifact now carries the recovered delta files alongside the manifest. The merge job merges both recovered and current deltas into the durable checkpoint before advancing the frozen plan.
+- This fix does not alter battle results, ranking formulas, or search semantics. It only makes already completed exact evaluations durable, so a previously stuck cursor can advance instead of repeatedly recovering the same work.
