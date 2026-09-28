@@ -71,6 +71,18 @@ test("distributed fanout merge never falls back to serial counterfactual battles
   assert.match(fanout, /must never run missing battles itself/);
 });
 
+test("future V12 conditions use bounded deep-search waves", () => {
+  assert.match(finalizationPlanScript, /deep-replacement-limit/);
+  assert.match(finalizationPlanScript, /max-deep-evaluations/);
+  assert.match(finalizationPlanScript, /selectMetagameV12DeepReplacementCandidates/);
+  assert.match(fanout, /--deep-seed-count=6/);
+  assert.match(fanout, /--deep-frontier-count=24/);
+  assert.match(fanout, /--deep-replacement-limit=20/);
+  assert.match(fanout, /--max-deep-evaluations=2500/);
+  assert.match(fanout, /--max-rounds=4/);
+  assert.match(fanout, /--legacy-max-rounds=16/);
+});
+
 test("V12 fanout workers use lightweight manifests and dynamic shard counts", () => {
   assert.match(finalizationPlanScript, /evaluationContext:/);
   assert.match(finalizationPlanScript, /compactShardThreshold/);
