@@ -13,6 +13,11 @@ import {
   buildMetagameV12SharedDeckPool,
   hydrateMetagameV12EvaluationCache,
 } from "../src/core/metagame-v12-shared-pool.js";
+import {
+  METAGAME_V12_BOUNDED_DEEP_SEARCH_POLICY_VERSION,
+  buildMetagameV12MeasuredSlotStrength,
+  selectMetagameV12DeepReplacementCandidates,
+} from "../src/core/metagame-v12-deep-search.js";
 
 function readArgument(name, fallback = "") {
   const prefix = `--${name}=`;
@@ -75,8 +80,10 @@ const outputManifestPath = path.resolve(readArgument("output-manifest"));
 const requestedShardCount = integerArgument("shard-count", 19, 1);
 const parallelRunnerCount = integerArgument("parallel-runner-count", 19, 1);
 const compactShardThreshold = integerArgument("compact-shard-threshold", 3800, parallelRunnerCount);
-const deepSeedCount = integerArgument("deep-seed-count", 12, 0);
-const deepFrontierCount = integerArgument("deep-frontier-count", 48, deepSeedCount);
+const configuredDeepSeedCount = integerArgument("deep-seed-count", 6, 0);
+const configuredDeepFrontierCount = integerArgument("deep-frontier-count", 24, configuredDeepSeedCount);
+const configuredDeepReplacementLimit = integerArgument("deep-replacement-limit", 20, 1);
+const configuredMaxDeepEvaluations = integerArgument("max-deep-evaluations", 2500, 1);
 // Hard wall-clock guard: never hand an accidentally huge wave to the fanout
 // runners. The workflow uses more chunks than concurrent runners so GitHub can
 // refill freed slots instead of waiting on one expensive tail shard. Any omitted
@@ -109,6 +116,20 @@ const checkpointDeepSearchRound = Math.max(1, Number(checkpointFinalizationState
 const visitedDeepSeedKeys = new Set(
   (checkpointFinalizationState.deepSearchVisitedSeedKeys ?? []).map(String),
 );
+const checkpointDeepSearchPolicyVersion = Number(checkpointFinalizationState.deepSearchPolicyVersion) || 0;
+const legacyDeepSearch = checkpointDeepSearchPolicyVersion < METAGAME_V12_BOUNDED_DEEP_SEARCH_POLICY_VERSION
+  && (checkpointDeepSearchRound > 1 || visitedDeepSeedKeys.size > 0);
+const deepSearchPolicyVersion = legacyDeepSearch ? 2 : METAGAME_V12_BOUNDED_DEEP_SEARCH_POLICY_VERSION;
+const deepSeedCount = legacyDeepSearch ? 12 : configuredDeepSeedCount;
+const deepFrontierCount = legacyDeepSearch ? 48 : configuredDeepFrontierCount;
+const deepReplacementLimit = legacyDeepSearch ? Number.POSITIVE_INFINITY : configuredDeepReplacementLimit;
+const maxDeepEvaluations = legacyDeepSearch ? Number.POSITIVE_INFINITY : configuredMaxDeepEvaluations;
+const previousDeepEvaluationCount = legacyDeepSearch
+  ? 0
+  : Math.max(0, Number(checkpointFinalizationState.deepSearchEvaluationCount) || 0);
+const remainingDeepEvaluationBudget = legacyDeepSearch
+  ? Number.POSITIVE_INFINITY
+  : Math.max(0, maxDeepEvaluations - previousDeepEvaluationCount);
 
 const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
@@ -118,6 +139,7 @@ const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map(
 const baseEvaluationCache = new Map();
 hydrateMetagameV12EvaluationCache(baseEvaluationCache, checkpoint?.evaluatedDeckPool);
 const sharedDeckPool = buildMetagameV12SharedDeckPool(baseEvaluationCache, CHARACTER_CATALOG, turns);
+const measuredStrengthByPosition = buildMetagameV12MeasuredSlotStrength(sharedDeckPool);
 
 // Source changes can alter the finalization policy while a durable checkpoint
 // still contains an older frozen plan. Do not spend a whole wave evaluating
@@ -209,18 +231,22 @@ for (let planIndex = startPlanIndex; planIndex < finalizationState.plan.length; 
 // results after every completed wave, so newly discovered elite/diverse shells can enter.
 const deepFrontier = selectDeepSearchSeeds(sharedDeckPool, deepFrontierCount);
 const deepFrontierKeys = deepFrontier.map(deckSeedKey);
-const deepSeeds = deepFrontier
-  .filter((entry) => !visitedDeepSeedKeys.has(deckSeedKey(entry)))
-  .slice(0, deepSeedCount);
+const deepSeeds = remainingDeepEvaluationBudget > 0
+  ? deepFrontier
+    .filter((entry) => !visitedDeepSeedKeys.has(deckSeedKey(entry)))
+    .slice(0, deepSeedCount)
+  : [];
 const deepSeedKeys = deepSeeds.map(deckSeedKey).sort();
 const charactersById = candidatePools.charactersById ?? new Map(
   CHARACTER_CATALOG.map((character) => [String(character.id), character]),
 );
 let deepReplacementReferenceCount = 0;
+let deepLegalReplacementReferenceCount = 0;
 let deepNewEvaluationCount = 0;
 let deepWorkTruncated = boundedWorkTruncated;
+let deepBudgetExhausted = !legacyDeepSearch && remainingDeepEvaluationBudget <= 0;
 
-if (!boundedWorkTruncated) {
+if (!boundedWorkTruncated && !deepBudgetExhausted) {
   deepSearch:
   for (const seed of deepSeeds) {
     const seedCharacters = seed.ids.map((id) => charactersById.get(String(id)));
@@ -234,20 +260,36 @@ if (!boundedWorkTruncated) {
       const fixedLegendCount = seedCharacters.reduce((sum, character, index) => (
         index === positionIndex ? sum : sum + (isLegend(character) ? 1 : 0)
       ), 0);
-      const positionCandidates = candidatePools.allByPosition?.[positionIndex] ?? [];
+      const legalCandidates = (candidatePools.allByPosition?.[positionIndex] ?? []).filter((candidate) => {
+        const candidateId = String(candidate.id);
+        if (candidateId === String(currentCharacter.id) || fixedIds.has(candidateId)) return false;
+        const totalCost = fixedCost + (Number(candidate.cost) || 0);
+        if (totalCost > Number(resolvedInput.totalCost)) return false;
+        if (fixedLegendCount + (isLegend(candidate) ? 1 : 0) > 1) return false;
+        return true;
+      });
+      deepLegalReplacementReferenceCount += legalCandidates.length;
+      const positionCandidates = legacyDeepSearch
+        ? legalCandidates
+        : selectMetagameV12DeepReplacementCandidates(legalCandidates, {
+          limit: deepReplacementLimit,
+          finalRatingsById: resultsByPosition[positionIndex],
+          proxyRatingsById: candidatePools.ratingsByPosition?.[positionIndex],
+          measuredStrengthById: measuredStrengthByPosition[positionIndex],
+        });
 
       for (const candidate of positionCandidates) {
-        const candidateId = String(candidate.id);
-        if (candidateId === String(currentCharacter.id) || fixedIds.has(candidateId)) continue;
-        const totalCost = fixedCost + (Number(candidate.cost) || 0);
-        if (totalCost > Number(resolvedInput.totalCost)) continue;
-        if (fixedLegendCount + (isLegend(candidate) ? 1 : 0) > 1) continue;
-
         const ids = [...seed.ids];
-        ids[positionIndex] = candidateId;
+        ids[positionIndex] = String(candidate.id);
         deepReplacementReferenceCount += 1;
         const addResult = tryAddMissingDeck(ids);
-        if (addResult === "added") deepNewEvaluationCount += 1;
+        if (addResult === "added") {
+          deepNewEvaluationCount += 1;
+          if (!legacyDeepSearch && deepNewEvaluationCount >= remainingDeepEvaluationBudget) {
+            deepBudgetExhausted = true;
+            break deepSearch;
+          }
+        }
         if (addResult === "full") {
           deepWorkTruncated = true;
           break deepSearch;
@@ -314,15 +356,24 @@ await writeJsonAtomic(outputManifestPath, {
   replacementReferenceCount,
   boundedWorkTruncated,
   deepSearch: {
+    policyVersion: deepSearchPolicyVersion,
+    legacyMode: legacyDeepSearch,
     round: deepSearchRound,
     seedLimit: deepSeedCount,
     frontierLimit: deepFrontierCount,
+    replacementLimit: Number.isFinite(deepReplacementLimit) ? deepReplacementLimit : null,
+    maxEvaluationBudget: Number.isFinite(maxDeepEvaluations) ? maxDeepEvaluations : null,
+    evaluationCountBefore: previousDeepEvaluationCount,
+    evaluationCountPlanned: deepNewEvaluationCount,
+    budgetExhausted: deepBudgetExhausted,
+    frontierBestWinRate: Number(deepFrontier[0]?.result?.expectedWinRate) || 0,
     frontierCount: deepFrontier.length,
     frontierKeys: deepFrontierKeys,
     visitedSeedCount: visitedDeepSeedKeys.size,
     visitedSeedKeys: [...visitedDeepSeedKeys].sort(),
     seedCount: deepSeeds.length,
     seedKeys: deepSeedKeys,
+    legalReplacementReferenceCount: deepLegalReplacementReferenceCount,
     replacementReferenceCount: deepReplacementReferenceCount,
     newEvaluationCount: deepNewEvaluationCount,
     truncated: deepWorkTruncated,
@@ -335,8 +386,9 @@ await writeJsonAtomic(outputManifestPath, {
 
 console.log(
   `V12 deep neighbourhood search round ${deepSearchRound}: ${deepSeeds.length}/${deepFrontier.length} active/frontier seeds `
-  + `(${visitedDeepSeedKeys.size} previously visited), ${deepReplacementReferenceCount} legal one-slot replacements, `
-  + `${deepNewEvaluationCount} newly missing evaluations${deepWorkTruncated ? " (wave-capped)" : ""}.`,
+  + `(${visitedDeepSeedKeys.size} previously visited), ${deepLegalReplacementReferenceCount} legal replacements -> `
+  + `${deepReplacementReferenceCount} selected, ${deepNewEvaluationCount} newly missing evaluations`
+  + `${deepBudgetExhausted ? " (condition budget reached)" : ""}${deepWorkTruncated ? " (wave-capped)" : ""}.`,
 );
 console.log(
   `V12 finalization work plan: ${uniqueItems.length}/${maxWorkItems} max unique missing evaluations `
