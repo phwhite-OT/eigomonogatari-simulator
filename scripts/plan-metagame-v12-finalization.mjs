@@ -155,6 +155,8 @@ if (Number(checkpointFinalizationState.policy?.counterfactualAnchorLimit) !== cu
   });
   finalizationState.deepSearchRound = checkpointDeepSearchRound;
   finalizationState.deepSearchVisitedSeedKeys = [...visitedDeepSeedKeys];
+  finalizationState.deepSearchPolicyVersion = deepSearchPolicyVersion;
+  finalizationState.deepSearchEvaluationCount = previousDeepEvaluationCount;
   normalizedStalePolicy = true;
   console.log(
     `V12 finalization planner normalized stale anchor policy `
