@@ -165,7 +165,7 @@ jobs:
             "fire" "water" "wind"
             "fire-water" "fire-wind" "water-wind" "fire-water-wind"
           )
-          representative_costs=(100 200 300 500)
+          representative_costs=(200 300 500 100)
           for cost in "${representative_costs[@]}"; do
             for attribute_group in "${attribute_groups[@]}"; do
               input="${attribute_group}:${cost}"
@@ -328,6 +328,10 @@ jobs:
             --shard-count=38 \
             --parallel-runner-count=19 \
             --compact-shard-threshold=3800 \
+            --max-work-items=4800 \
+            --counterfactual-anchor-limit=2 \
+            --replacement-deck-limit=12 \
+            --replacement-beam-width=2500 \
             --deep-seed-count=6 \
             --deep-frontier-count=24 \
             --deep-replacement-limit=20 \
@@ -473,7 +477,10 @@ jobs:
 
           node scripts/advance-metagame-v12-finalization-cache.mjs \
             --input="$METAGAME_INPUT" \
-            --checkpoint="$checkpoint_path"
+            --checkpoint="$checkpoint_path" \
+            --counterfactual-anchor-limit=2 \
+            --replacement-deck-limit=12 \
+            --replacement-beam-width=2500
 
           if jq -e '.finalizationState.phase == "complete"' "$checkpoint_path" >/dev/null; then
             echo "Frozen counterfactual plan is fully cached; running the expensive reconcile/adaptive pass once."
