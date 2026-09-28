@@ -865,3 +865,10 @@ Runtime target:
 - this is a runtime target, not a guaranteed wall-clock SLA; GitHub runner queueing and unusually expensive battle families can still vary
 
 - PR validation: Validate Metagame V12 passed after the bounded deep-search implementation. A follow-up planner guard preserves the deep-search policy version and cumulative evaluation budget if the frozen counterfactual plan is normalized/rebuilt, preventing the new runtime cap from being accidentally reset.
+
+
+### 2026-09-28 — bounded deep-search final verification hardening
+
+- Final audit found that the generic V12 validation workflow did not yet syntax-check the new deep-search helper/planner/reopen scripts and did not execute the new deep-search or recompute-resilience tests. The earlier PR CI was therefore insufficient evidence for the newly added runtime-control path even though existing V12 tests passed.
+- Validation now explicitly checks the deep-search helper plus planner/evaluator/advance/reopen scripts and executes `test/metagame-v12-deep-search.test.js` and `test/metagame-v12-recompute-resilience.test.js`.
+- Bounded deep search now requires at least two completed rounds before frontier-stability early exit. This guarantees that at least 12 of the 24 frontier seeds can be explored before convergence is accepted, while preserving the four-round / 2,500-new-evaluation hard caps.
