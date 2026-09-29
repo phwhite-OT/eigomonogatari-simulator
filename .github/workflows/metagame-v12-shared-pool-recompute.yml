@@ -135,6 +135,7 @@ jobs:
             "fire" "water" "wind"
             "fire-water" "fire-wind" "water-wind" "fire-water-wind"
           )
+          # Keep this priority order aligned with the watchdog and finalization selector.
           representative_costs=(200 300 500 100)
           input_ids=()
           for cost in "${representative_costs[@]}"; do

@@ -164,6 +164,12 @@ test("V12 publish hands off only counterfactual finalization to fanout", () => {
   assert.match(workflow, /\.finalizationState\.cursor\.planIndex < \(\.finalizationState\.plan \| length\)/);
 });
 
+test("V12 watchdog uses the same cost-priority order as heavy selectors", () => {
+  assert.match(watchdog, /representative_costs=\(200 300 500 100\)/);
+  assert.match(workflow, /representative_costs=\(200 300 500 100\)/);
+  assert.match(fanout, /representative_costs=\(200 300 500 100\)/);
+});
+
 test("V12 watchdog recognizes adaptive policy and safely heals pending concurrency stalls", () => {
   assert.match(watchdog, /schedule:/);
   assert.match(watchdog, /\*\/10 \* \* \* \*/);

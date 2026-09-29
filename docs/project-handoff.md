@@ -912,3 +912,25 @@ Runtime expectation:
 - on wind:100, the old policy generated 114,852 bounded counterfactual references. Scaling 3x24 to 2x12 cuts the nominal matched-slot reference budget to roughly one third before deduplication
 - this should usually make normal counterfactual finalization fit in one or a small number of <=4,800-evaluation waves, while keeping the deep-search 2,500-evaluation condition ceiling introduced previously
 - the target remains a few hours per condition rather than day-scale finalization; actual wall-clock still depends on fresh candidate coverage and GitHub runner scheduling
+
+
+### 2026-09-29 — watchdog cost-priority alignment
+
+Observed problem:
+
+- shared-pool and finalization selectors were correctly changed to cost priority 200 -> 300 -> 500 -> remaining 100
+- the watchdog still scanned 100 -> 200 -> 300 -> 500, so after wind:100 became finalizing it kept dispatching the finalization workflow
+- the finalization selector then correctly saw fire:200 as the first priority condition but found it not ready for distributed finalization, exited successfully, and no shared-pool run was dispatched
+- result: no expensive V12 calculation was active even though 26/28 conditions remained incomplete
+
+Correction:
+
+- watchdog representative cost order is now 200 -> 300 -> 500 -> 100, matching both heavy selectors
+- resilience tests pin the same priority order in watchdog, shared-pool recompute, and finalization fanout
+- shared-pool workflow received a matching invariant comment; because that workflow file is in its own push path filter, merging this fix immediately triggers the normal recompute path
+- the next normal selector target is fire:200 because all cost-200 conditions are currently unstarted
+
+Compatibility:
+
+- no battle semantics, ranking policy, checkpoint schema, or cached battle evidence changes
+- wind:100 remains resumable and is intentionally deprioritized until the higher-priority representative costs are processed

@@ -65,7 +65,7 @@ jobs:
             "fire" "water" "wind"
             "fire-water" "fire-wind" "water-wind" "fire-water-wind"
           )
-          representative_costs=(100 200 300 500)
+          representative_costs=(200 300 500 100)
           incomplete=0
           first_incomplete=""
           first_progress=""
