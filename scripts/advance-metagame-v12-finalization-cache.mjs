@@ -8,12 +8,21 @@ import {
   resolveMetagameV7Input,
 } from "../src/core/metagame-v7.js";
 import { buildMetagameV12CounterfactualReplacementDecks } from "../src/core/metagame-v12.js";
-import { hydrateMetagameV12EvaluationCache } from "../src/core/metagame-v12-shared-pool.js";
+import { createMetagameV12FinalizationState } from "../src/core/metagame-v12-finalization.js";
+import {
+  buildMetagameV12SharedDeckPool,
+  hydrateMetagameV12EvaluationCache,
+} from "../src/core/metagame-v12-shared-pool.js";
 
 function readArgument(name, fallback = "") {
   const prefix = `--${name}=`;
   const argument = process.argv.slice(2).find((value) => value.startsWith(prefix));
   return argument ? argument.slice(prefix.length) : fallback;
+}
+
+function integerArgument(name, fallback, minimum = 0) {
+  const parsed = Math.floor(Number(readArgument(name, String(fallback))));
+  return Number.isFinite(parsed) ? Math.max(minimum, parsed) : fallback;
 }
 
 async function writeJsonAtomic(filePath, value) {
@@ -35,7 +44,7 @@ const checkpoint = JSON.parse(await fs.readFile(checkpointPath, "utf8"));
 if (checkpoint?.context?.inputId !== inputId) {
   throw new Error(`Checkpoint input mismatch: expected ${inputId}, got ${checkpoint?.context?.inputId ?? "missing"}.`);
 }
-const finalizationState = checkpoint?.finalizationState;
+let finalizationState = checkpoint?.finalizationState;
 if (!finalizationState || !Array.isArray(finalizationState.plan)) {
   throw new Error("Checkpoint does not contain a V12 finalization plan.");
 }
@@ -51,8 +60,9 @@ if (finalizationState.phase === "complete") {
 const context = checkpoint.context;
 const turns = Math.min(12, Math.max(1, Number(context.turns) || 12));
 const partnerLimit = Math.max(32, Number(context.partnerLimit) || 48);
-const replacementDeckLimit = Math.max(1, Number(finalizationState.policy?.replacementDeckLimit) || 24);
-const replacementBeamWidth = Math.max(1, Number(finalizationState.policy?.replacementBeamWidth) || 4000);
+const counterfactualAnchorLimit = integerArgument("counterfactual-anchor-limit", 2, 1);
+const replacementDeckLimit = integerArgument("replacement-deck-limit", 12, 1);
+const replacementBeamWidth = integerArgument("replacement-beam-width", 2500, 500);
 const resolvedInput = resolveMetagameV7Input(input, CHARACTER_CATALOG);
 const candidatePools = buildMetagameV7CandidatePools(resolvedInput, CHARACTER_CATALOG, { partnerLimit });
 const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map(
@@ -60,6 +70,39 @@ const resultsByPosition = [0, 1, 2, 3, 4].map((index) => new Map(
 ));
 const evaluationCache = new Map();
 hydrateMetagameV12EvaluationCache(evaluationCache, checkpoint?.evaluatedDeckPool);
+
+const expectedCounterfactualPolicy = {
+  counterfactualAnchorLimit,
+  replacementDeckLimit,
+  replacementBeamWidth,
+};
+const currentCounterfactualPolicy = finalizationState.policy ?? {};
+const counterfactualPolicyChanged = (
+  Number(currentCounterfactualPolicy.counterfactualAnchorLimit) !== expectedCounterfactualPolicy.counterfactualAnchorLimit
+  || Number(currentCounterfactualPolicy.replacementDeckLimit) !== expectedCounterfactualPolicy.replacementDeckLimit
+  || Number(currentCounterfactualPolicy.replacementBeamWidth) !== expectedCounterfactualPolicy.replacementBeamWidth
+);
+if (counterfactualPolicyChanged) {
+  const sharedDeckPool = buildMetagameV12SharedDeckPool(evaluationCache, CHARACTER_CATALOG, turns);
+  const previousState = finalizationState;
+  finalizationState = createMetagameV12FinalizationState(
+    resultsByPosition,
+    sharedDeckPool,
+    expectedCounterfactualPolicy,
+  );
+  finalizationState.deepSearchRound = Math.max(1, Number(previousState.deepSearchRound) || 1);
+  finalizationState.deepSearchVisitedSeedKeys = [...(previousState.deepSearchVisitedSeedKeys ?? [])];
+  finalizationState.deepSearchPolicyVersion = previousState.deepSearchPolicyVersion;
+  finalizationState.deepSearchEvaluationCount = Math.max(0, Number(previousState.deepSearchEvaluationCount) || 0);
+  finalizationState.deepSearchFrontierKeys = [...(previousState.deepSearchFrontierKeys ?? [])];
+  finalizationState.deepSearchBestExpectedWinRate = previousState.deepSearchBestExpectedWinRate ?? null;
+  checkpoint.finalizationState = finalizationState;
+  console.log(
+    `V12 cached finalization normalized stale counterfactual policy `
+    + `${JSON.stringify(currentCounterfactualPolicy)} -> ${JSON.stringify(expectedCounterfactualPolicy)}; `
+    + `reusing ${evaluationCache.size} exact deck evaluations.`,
+  );
+}
 
 const startPlanIndex = Math.max(0, Number(finalizationState.cursor?.planIndex) || 0);
 const startReplacementIndex = Math.max(0, Number(finalizationState.cursor?.replacementIndex) || 0);

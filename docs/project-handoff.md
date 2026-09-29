@@ -879,3 +879,36 @@ Runtime target:
 - This created a split-brain loop: planner logs could report zero missing normal counterfactual evaluations while advance-metagame-v12-finalization-cache.mjs immediately stopped at a key that existed only in the planner's temporary recovered cache. Repeated runs then rediscovered/recovered the same evidence without durably advancing the cursor.
 - The plan artifact now carries the recovered delta files alongside the manifest. The merge job merges both recovered and current deltas into the durable checkpoint before advancing the frozen plan.
 - This fix does not alter battle results, ranking formulas, or search semantics. It only makes already completed exact evaluations durable, so a previously stuck cursor can advance instead of repeatedly recovering the same work.
+
+
+### 2026-09-29 — cost 200 priority + bounded normal counterfactual
+
+Observed problem:
+
+- water:100 completed, but the queue immediately started wind:100 because both heavy selectors still iterated costs as 100 -> 200 -> 300 -> 500
+- the user had explicitly requested that work move to cost 200 after water:100 rather than finishing all cost-100 conditions first
+- wind:100 exposed a second runtime bottleneck before deep search: the normal matched-slot counterfactual planner produced 114,852 replacement references and hit the 9,500-unique-evaluation wave cap before deep search could add any work
+- the previous 3-anchor x 24-replacement audit was too broad for the target of a few hours per condition
+
+Correction:
+
+- both the shared-pool selector and distributed-finalization selector now prioritize costs 200 -> 300 -> 500 -> remaining 100
+- normal counterfactual policy is reduced from 3 anchors x 24 replacements to 2 anchors x 12 replacements
+- anchor selection still keeps structurally distinct measured shells; replacement selection still keeps strong proxy candidates plus tactical-role and cost-band diversity
+- replacement beam width is reduced from 4000 to 2500 because only 12 diverse matched-slot replacements are retained
+- one distributed counterfactual wave is capped at 4,800 unique exact deck evaluations instead of 9,500
+- planner and cache-advance stages both normalize stale 3/24 checkpoints to the current 2/12 policy, rebuilding the frozen plan deterministically while reusing all compatible exact battle cache entries
+- deep-search round, visited seeds, bounded-search policy version, cumulative deep-search evaluation count, frontier keys, and previous best-win marker are preserved during that policy migration
+- battle semantics, adaptive ranking policy, and exact cached battle results are unchanged
+
+Transition:
+
+- the already-running wind:100 fanout wave is allowed to finish so its exact delta artifacts are not thrown away
+- once the new master revision owns the heavy-work mutex, the selectors choose the first incomplete cost-200 condition (fire:200) instead of continuing wind:100
+- wind:100 remains resumable and will migrate to the new bounded counterfactual policy when cost-100 work is eventually resumed
+
+Runtime expectation:
+
+- on wind:100, the old policy generated 114,852 bounded counterfactual references. Scaling 3x24 to 2x12 cuts the nominal matched-slot reference budget to roughly one third before deduplication
+- this should usually make normal counterfactual finalization fit in one or a small number of <=4,800-evaluation waves, while keeping the deep-search 2,500-evaluation condition ceiling introduced previously
+- the target remains a few hours per condition rather than day-scale finalization; actual wall-clock still depends on fresh candidate coverage and GitHub runner scheduling

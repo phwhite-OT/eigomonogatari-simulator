@@ -135,7 +135,7 @@ jobs:
             "fire" "water" "wind"
             "fire-water" "fire-wind" "water-wind" "fire-water-wind"
           )
-          representative_costs=(100 200 300 500)
+          representative_costs=(200 300 500 100)
           input_ids=()
           for cost in "${representative_costs[@]}"; do
             for attribute_group in "${attribute_groups[@]}"; do
@@ -143,7 +143,7 @@ jobs:
             done
           done
 
-          echo "V12 precompute queue: ${#input_ids[@]} conditions (7 attribute groups x representative costs 100,200,300,500)."
+          echo "V12 precompute queue: ${#input_ids[@]} conditions (priority costs 200,300,500, then remaining 100)."
           targets='[]'
           checkpoint_path=""
           checkpoint_exists=false
@@ -466,7 +466,7 @@ jobs:
             "fire" "water" "wind"
             "fire-water" "fire-wind" "water-wind" "fire-water-wind"
           )
-          representative_costs=(100 200 300 500)
+          representative_costs=(200 300 500 100)
           all_completed=true
           for cost in "${representative_costs[@]}"; do
             for attribute_group in "${attribute_groups[@]}"; do

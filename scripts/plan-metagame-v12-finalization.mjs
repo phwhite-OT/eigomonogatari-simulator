@@ -89,8 +89,10 @@ const configuredMaxDeepEvaluations = integerArgument("max-deep-evaluations", 250
 // refill freed slots instead of waiting on one expensive tail shard. Any omitted
 // work remains absent from the durable cache and is picked
 // up deterministically by the next wave.
-const maxWorkItems = integerArgument("max-work-items", 9500, requestedShardCount);
-const currentAnchorLimit = integerArgument("counterfactual-anchor-limit", 3, 1);
+const maxWorkItems = integerArgument("max-work-items", 4800, requestedShardCount);
+const currentAnchorLimit = integerArgument("counterfactual-anchor-limit", 2, 1);
+const configuredReplacementDeckLimit = integerArgument("replacement-deck-limit", 12, 1);
+const configuredReplacementBeamWidth = integerArgument("replacement-beam-width", 2500, 500);
 
 if (!readArgument("input-checkpoint")) throw new Error("--input-checkpoint is required.");
 if (!readArgument("output-manifest")) throw new Error("--output-manifest is required.");
@@ -110,8 +112,8 @@ if (!checkpointFinalizationState || checkpointFinalizationState.phase !== "count
 const context = checkpoint.context;
 const turns = Math.min(12, Math.max(1, Number(context.turns) || 12));
 const partnerLimit = Math.max(32, Number(context.partnerLimit) || 48);
-const replacementDeckLimit = Math.max(1, Number(checkpointFinalizationState.policy?.replacementDeckLimit) || 24);
-const replacementBeamWidth = Math.max(1, Number(checkpointFinalizationState.policy?.replacementBeamWidth) || 4000);
+const replacementDeckLimit = configuredReplacementDeckLimit;
+const replacementBeamWidth = configuredReplacementBeamWidth;
 const checkpointDeepSearchRound = Math.max(1, Number(checkpointFinalizationState.deepSearchRound) || 1);
 const visitedDeepSeedKeys = new Set(
   (checkpointFinalizationState.deepSearchVisitedSeedKeys ?? []).map(String),
@@ -147,20 +149,33 @@ const measuredStrengthByPosition = buildMetagameV12MeasuredSlotStrength(sharedDe
 // every exact battle already present in the durable evaluation cache.
 let finalizationState = checkpointFinalizationState;
 let normalizedStalePolicy = false;
-if (Number(checkpointFinalizationState.policy?.counterfactualAnchorLimit) !== currentAnchorLimit) {
-  finalizationState = createMetagameV12FinalizationState(resultsByPosition, sharedDeckPool, {
-    counterfactualAnchorLimit: currentAnchorLimit,
-    replacementDeckLimit,
-    replacementBeamWidth,
-  });
+const expectedCounterfactualPolicy = {
+  counterfactualAnchorLimit: currentAnchorLimit,
+  replacementDeckLimit,
+  replacementBeamWidth,
+};
+const currentCounterfactualPolicy = checkpointFinalizationState.policy ?? {};
+const counterfactualPolicyChanged = (
+  Number(currentCounterfactualPolicy.counterfactualAnchorLimit) !== expectedCounterfactualPolicy.counterfactualAnchorLimit
+  || Number(currentCounterfactualPolicy.replacementDeckLimit) !== expectedCounterfactualPolicy.replacementDeckLimit
+  || Number(currentCounterfactualPolicy.replacementBeamWidth) !== expectedCounterfactualPolicy.replacementBeamWidth
+);
+if (counterfactualPolicyChanged) {
+  finalizationState = createMetagameV12FinalizationState(
+    resultsByPosition,
+    sharedDeckPool,
+    expectedCounterfactualPolicy,
+  );
   finalizationState.deepSearchRound = checkpointDeepSearchRound;
   finalizationState.deepSearchVisitedSeedKeys = [...visitedDeepSeedKeys];
   finalizationState.deepSearchPolicyVersion = deepSearchPolicyVersion;
   finalizationState.deepSearchEvaluationCount = previousDeepEvaluationCount;
+  finalizationState.deepSearchFrontierKeys = [...(checkpointFinalizationState.deepSearchFrontierKeys ?? [])];
+  finalizationState.deepSearchBestExpectedWinRate = checkpointFinalizationState.deepSearchBestExpectedWinRate ?? null;
   normalizedStalePolicy = true;
   console.log(
-    `V12 finalization planner normalized stale anchor policy `
-    + `${checkpointFinalizationState.policy?.counterfactualAnchorLimit ?? "missing"} -> ${currentAnchorLimit}; `
+    `V12 finalization planner normalized stale counterfactual policy `
+    + `${JSON.stringify(currentCounterfactualPolicy)} -> ${JSON.stringify(expectedCounterfactualPolicy)}; `
     + `reusing ${baseEvaluationCache.size} cached exact deck evaluations.`,
   );
 }
