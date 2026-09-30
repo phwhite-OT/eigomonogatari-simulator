@@ -861,6 +861,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   const progressLabel = progress.querySelector("[data-metagame-progress-label]");
   const progressValue = progress.querySelector("[data-metagame-progress-value]");
   const progressBar = progress.querySelector("[data-metagame-progress-bar]");
+  const progressTrack = progress.querySelector('[role="progressbar"]');
   const resultRoot = root.querySelector("[data-metagame-result]");
   const calculationStatus = root.querySelector("[data-metagame-calculation-status]");
   const surveyedConstraints = root.querySelector("[data-metagame-surveyed-constraints]");
@@ -889,6 +890,12 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   let boostedPickerIndex = createCharacterSearchIndex([]);
   let boostedSearchTimer = null;
   let abortController = null;
+
+  const setGenerationProgress = (value) => {
+    const percent = Math.round(Math.min(100, Math.max(0, Number(value) || 0)));
+    progressBar.style.width = `${percent}%`;
+    progressTrack?.setAttribute("aria-valuenow", String(percent));
+  };
 
   select.replaceChildren();
   const constraintByAttribute = new Map();
@@ -974,7 +981,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     }
     boostedList.replaceChildren();
     if (!boostedCharacters.size) {
-      boostedList.append(metagameUiElement("span", "metagame-boosted-empty", "補正キャラは未指定です。通常の事前評価済みデッキを表示します。"));
+      boostedList.append(metagameUiElement("span", "metagame-boosted-empty", "補正キャラは未指定です。デッキ生成時は事前計算済みの環境評価を使います。"));
       return;
     }
     for (const character of boostedCharacters.values()) {
@@ -993,7 +1000,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
         renderBoostedPickerResults();
         displayedPrecomputedConstraintId = null;
         if (!renderAvailablePrecomputedDeck()) {
-          renderMetagameSimulatorMessage(resultRoot, "補正キャラを変更しました。候補デッキを評価すると、HP・攻撃×1.5を反映して再対戦します。");
+          renderMetagameSimulatorMessage(resultRoot, "補正キャラを変更しました。「デッキを生成」でHP・攻撃×1.5を反映し、ブラウザ内で候補生成と再対戦を行います。");
         }
       });
       chip.append(remove);
@@ -1031,7 +1038,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
         renderBoostedCharacters(selectedConstraint());
         renderBoostedPickerResults();
         displayedPrecomputedConstraintId = null;
-        renderMetagameSimulatorMessage(resultRoot, "補正キャラを追加しました。候補デッキを評価すると、HP・攻撃×1.5を反映して5対5対戦を再計算します。");
+        renderMetagameSimulatorMessage(resultRoot, "補正キャラを追加しました。「デッキを生成」でHP・攻撃×1.5を反映し、ブラウザ内で候補生成と5対5再計算を行います。");
       });
       card.append(choose);
       list.append(card);
@@ -1182,7 +1189,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
   });
   interactiveScenarioSelect.addEventListener("change", () => {
     displayedPrecomputedConstraintId = null;
-    renderMetagameSimulatorMessage(resultRoot, "自動追加環境を含む再検証数を変更しました。計算ボタンで反映します。");
+    renderMetagameSimulatorMessage(resultRoot, "自動追加環境を含む再検証数を変更しました。「デッキを生成」で反映します。");
   });
   surveyedConstraints.addEventListener("click", (event) => {
     const button = event.target.closest("[data-metagame-surveyed-constraint]");
@@ -1222,9 +1229,9 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     cancelButton.hidden = !busy;
     progress.hidden = !busy;
     if (busy) {
-      progressLabel.textContent = "環境と候補デッキを準備中";
-      progressValue.textContent = "調査データを読み込み中";
-      progressBar.style.width = "0%";
+      progressLabel.textContent = "デッキ生成を準備中";
+      progressValue.textContent = "事前計算データを読み込み中";
+      setGenerationProgress(0);
     } else {
       renderBoostedCharacters(selectedConstraint());
       renderBoostedPickerResults();
@@ -1251,7 +1258,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
     const resolvedConstraint = selectedConstraint();
     abortController = new AbortController();
     setBusy(true);
-    renderMetagameSimulatorMessage(resultRoot, `${resolvedConstraint.label}の候補を組み、調査済み環境で再対戦しています。進捗はこの下に表示します。`);
+    renderMetagameSimulatorMessage(resultRoot, `${resolvedConstraint.label}の事前計算情報を使い、ブラウザ内でデッキを生成しています。生成後、有望候補だけを調査済み5対5環境で再評価します。`);
     try {
       const searchResult = await findBestMetagameDeck(data, baseConstraint.id, activeCharacters, {
         signal: abortController.signal,
@@ -1291,7 +1298,7 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
               : stageCount
                 ? `${checkedCount.toLocaleString("ja-JP")} / ${stageCount.toLocaleString("ja-JP")} 通り・候補 ${candidateCount}`
                 : "環境データと候補プールを準備中";
-            progressBar.style.width = `${Math.round(Math.min(1, Math.max(0, ratio)) * 30)}%`;
+            setGenerationProgress(Math.round(Math.min(1, Math.max(0, ratio)) * 30));
             return;
           }
           if (phase === "simulation") {
@@ -1309,12 +1316,12 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
               progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦・段階 ${liveStageNumber}/${liveStageTotal || 3}`;
               const stageBase = 30 + (liveStageNumber - 1) * (70 / Math.max(1, liveStageTotal || 3));
               const stageWidth = 70 / Math.max(1, liveStageTotal || 3);
-              progressBar.style.width = `${Math.round(stageBase + Math.min(1, Math.max(0, ratio)) * stageWidth)}%`;
+              setGenerationProgress(Math.round(stageBase + Math.min(1, Math.max(0, ratio)) * stageWidth));
               return;
             }
             progressLabel.textContent = `最終対戦を検証中（${deckNumber}/${deckTotal}デッキ）`;
             progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦`;
-            progressBar.style.width = `${30 + Math.round(Math.min(1, Math.max(0, ratio)) * 70)}%`;
+            setGenerationProgress(30 + Math.round(Math.min(1, Math.max(0, ratio)) * 70));
             return;
           }
           if (phase === "environment") {
@@ -1322,14 +1329,14 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
             const deckTotal = Number(decks) || 1;
             progressLabel.textContent = `補正・追加キャラを実戦再評価中（${deckNumber}/${deckTotal}デッキ）`;
             progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦`;
-            progressBar.style.width = `${30 + Math.round(Math.min(1, Math.max(0, ratio)) * 20)}%`;
+            setGenerationProgress(30 + Math.round(Math.min(1, Math.max(0, ratio)) * 20));
             return;
           }
           progressLabel.textContent = phase === "candidate" ? "候補デッキを生成" : "完成デッキを再対戦";
           progressValue.textContent = phase === "candidate"
             ? valid ? `${valid.toLocaleString("ja-JP")}候補` : "組み合わせ中"
             : `${completed} / ${total}`;
-          progressBar.style.width = `${Math.round(ratio * 100)}%`;
+          setGenerationProgress(Math.round(ratio * 100));
         },
       });
       renderMetagameSimulatorResult(resultRoot, searchResult, activeCharacters);
