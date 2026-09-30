@@ -75,8 +75,17 @@
           <input type="number" min="1" step="1" data-metagame-total-cost aria-label="環境コスト縛り">
           <small>指定値が調査済み帯の間なら、両側の環境データを使って5対5で検証します。例: 150ならコスト100・200の環境を併用します。</small>
         </label>
-        <button class="button button-search" type="button" data-metagame-submit><span>候補デッキを評価</span><b>→</b></button>
-        <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
+        <div class="metagame-generate-control">
+          <div class="metagame-generate-buttons">
+            <button class="button button-search" type="button" data-metagame-submit><span>デッキを生成</span><b>→</b></button>
+            <button class="button button-cancel" type="button" data-metagame-cancel hidden>中止</button>
+          </div>
+          <div class="metagame-sim-progress" data-metagame-sim-progress hidden aria-live="polite">
+            <div><strong data-metagame-progress-label>デッキ生成を準備中</strong><span data-metagame-progress-value></span></div>
+            <span role="progressbar" aria-label="デッキ生成進捗" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i data-metagame-progress-bar></i></span>
+          </div>
+          <small class="metagame-generate-note">事前計算の環境評価を土台に、ブラウザ内で5体のデッキを生成します。</small>
+        </div>
         <section class="metagame-fixed-slots" data-metagame-fixed-slots>
           <div class="metagame-fixed-slots-heading">
             <div><strong>固定キャラ（任意）</strong><small>キャラ検索から選び、固定した枠以外だけを探索します。選択中の属性・コスト縛りに合う全キャラを検索できます。</small></div>
@@ -107,10 +116,6 @@
       </form>
       <section class="metagame-surveyed-constraints" data-metagame-surveyed-constraints aria-label="実装済みの環境"></section>
       <section class="metagame-debug-rankings" data-metagame-debug-rankings aria-live="polite"></section>
-      <div class="metagame-sim-progress" data-metagame-sim-progress hidden>
-        <div><strong data-metagame-progress-label>候補デッキを生成</strong><span data-metagame-progress-value></span></div>
-        <span><i data-metagame-progress-bar></i></span>
-      </div>
       <div class="metagame-simulator-results" data-metagame-result aria-live="polite">調査済み環境を読み込んでいます…</div>
     </section>
 
