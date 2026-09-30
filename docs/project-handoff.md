@@ -934,3 +934,20 @@ Compatibility:
 
 - no battle semantics, ranking policy, checkpoint schema, or cached battle evidence changes
 - wind:100 remains resumable and is intentionally deprioritized until the higher-priority representative costs are processed
+
+
+### 2026-10-01 — publish completed single-attribute V12 conditions
+
+The public site should expose completed durable V12 conditions as soon as they are current and complete, without waiting for the full 28-condition sweep.
+
+Verified complete on `metagame-v12-shared-pool-results` under the current model, battle semantics, finalization schema, adaptive-metagame schema, and ranking policy:
+
+- `fire:100`
+- `water:100`
+- `fire:200`
+- `water:200`
+- `wind:200`
+
+`wind:100` is still in counterfactual finalization and must not be published as current yet. In-progress `fire-water:200` must likewise stay unpublished until complete.
+
+A master-branch documentation commit is used to trigger the existing `Deploy public site` workflow. That workflow overlays every individually complete current shared-pool condition from the durable results branch before building GitHub Pages, so this publishes the five completed conditions above without exposing incomplete checkpoints.
