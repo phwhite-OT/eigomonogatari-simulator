@@ -951,3 +951,23 @@ Verified complete on `metagame-v12-shared-pool-results` under the current model,
 `wind:100` is still in counterfactual finalization and must not be published as current yet. In-progress `fire-water:200` must likewise stay unpublished until complete.
 
 A master-branch documentation commit is used to trigger the existing `Deploy public site` workflow. That workflow overlays every individually complete current shared-pool condition from the durable results branch before building GitHub Pages, so this publishes the five completed conditions above without exposing incomplete checkpoints.
+
+
+### 2026-10-01 — browser deck-generation UX clarified
+
+User-facing intent:
+
+- the primary metagame action is **deck generation**, not an opaque "candidate evaluation" action
+- generation happens in the browser at request time
+- precomputed V12/V12.5 environment and per-slot evidence are the search prior / candidate pool; the browser composes legal five-card decks from that evidence and then replays only the bounded finalist set in 5v5 simulation
+- while generation is active, progress must be visible immediately below the generation button rather than elsewhere on the page
+
+UI changes:
+
+- renamed the metagame action button from `候補デッキを評価` to `デッキを生成`
+- moved `data-metagame-sim-progress` into the action control directly below that button
+- progress text now explicitly distinguishes browser-side candidate generation from finalist 5v5 verification
+- added progressbar ARIA state and keeps `aria-valuenow` synchronized with the visible bar
+- surrounding messages now say that precomputed environment information is used to generate the deck in the browser
+
+Implementation remains grounded in `findBestMetagameDeck(...)` / `buildMetagameDeckCandidatesWithProgress(...)`: no server-side per-click deck generation was introduced, and no heavy V12 cloud recompute is triggered by the button.
