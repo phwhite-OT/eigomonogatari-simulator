@@ -363,8 +363,14 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-calculation-note, .metagame-calculation-methodology { margin: 0; font-size: 9px; line-height: 1.65; }
 .metagame-calculation-note { color: #53605b; }
 .metagame-calculation-methodology { padding-top: 9px; border-top: 1px solid #e2e7d5; color: #66744a; }
-.metagame-simulator-form { display: grid; grid-template-columns: minmax(260px, 420px) minmax(250px, 330px) auto; gap: 12px; align-items: end; margin-top: 24px; }
+.metagame-simulator-form { display: grid; grid-template-columns: minmax(260px, 420px) minmax(250px, 330px) minmax(230px, 1fr); gap: 12px; align-items: end; margin-top: 24px; }
 .metagame-simulator-form .button { min-height: 52px; }
+.metagame-generate-control { display: grid; gap: 7px; min-width: 0; align-self: end; }
+.metagame-generate-buttons { display: flex; gap: 8px; min-width: 0; }
+.metagame-generate-buttons .button-search { min-width: 0; flex: 1; }
+.metagame-generate-buttons .button-cancel { flex: 0 0 auto; }
+.metagame-generate-note { color: #71807b; font-size: 8px; line-height: 1.55; }
+.metagame-generate-control .metagame-sim-progress { margin-top: 0; padding: 9px 10px; border: 1px solid #cddd9b; border-radius: 10px; background: #f6fae9; }
 .metagame-fixed-slots { grid-column: 1 / -1; padding: 14px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
 .metagame-fixed-slots-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
 .metagame-fixed-slots-heading strong, .metagame-fixed-slots-heading small { display: block; }
@@ -459,6 +465,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
 .metagame-sim-progress > div { display: flex; justify-content: space-between; margin-bottom: 7px; color: var(--ink-soft); font-size: 10px; }
 .metagame-sim-progress > span { display: block; overflow: hidden; height: 8px; border-radius: 99px; background: #e3e6dc; }
 .metagame-sim-progress i { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--lime-dark), var(--lime)); transition: width .2s ease; }
+.metagame-sim-progress[hidden] { display: none; }
 .metagame-simulator-results { display: grid; gap: 12px; margin-top: 20px; }
 .metagame-environment-preview { margin-top: 16px; border: 1px solid #dce2d3; border-radius: 15px; background: rgba(250,252,245,.78); }
 .metagame-environment-preview > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 15px; cursor: pointer; color: #526128; list-style: none; }
@@ -528,6 +535,7 @@ footer span { font-weight: 800; letter-spacing: .1em; }
   .metagame-data-status { justify-self: start; }
   .metagame-simulator-form { grid-template-columns: 1fr; }
   .metagame-simulator-form .button { width: 100%; }
+  .metagame-generate-buttons { align-items: stretch; }
   .metagame-fixed-slot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metagame-fixed-picker-results { grid-template-columns: 1fr; }
   .metagame-boosted-results { grid-template-columns: 1fr; }
