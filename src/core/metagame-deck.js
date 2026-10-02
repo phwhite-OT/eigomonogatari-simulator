@@ -1736,11 +1736,23 @@ export async function inspectMetagameDeckEvidence(deck, constraint, characters, 
   };
 }
 
+function metagameTimeBudgetError() {
+  const error = new Error("ブラウザ内デッキ生成の時間上限に達しました。");
+  error.name = "MetagameTimeBudgetError";
+  return error;
+}
+
+function metagameTimeBudgetExceeded(options = {}) {
+  const deadlineAt = Number(options.deadlineAt);
+  return Number.isFinite(deadlineAt) && deadlineAt > 0 && Date.now() >= deadlineAt;
+}
+
 async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, options) {
   const winValues = [];
   const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
   for (let scenarioIndex = 0; scenarioIndex < scenarios.length; scenarioIndex += 1) {
     if (options.signal?.aborted) throw metagameAbortError();
+    if (metagameTimeBudgetExceeded(options)) throw metagameTimeBudgetError();
     const scenario = scenarios[scenarioIndex];
     const actorIndex = scenarioIndex % 5;
     const allyDecks = [...scenario.allyDecks];
@@ -1772,6 +1784,199 @@ async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, opt
     decisiveDrawRate: outcomes.draw / Math.max(1, winValues.length),
     decisiveLossRate: outcomes.enemies / Math.max(1, winValues.length),
     ongoingRate: outcomes.ongoing / Math.max(1, winValues.length),
+  };
+}
+
+function metagameStagedScenarioSubset(scenarios, count, browserKnowledge) {
+  const target = Math.max(1, Math.min(scenarios.length, Math.floor(Number(count) || 1)));
+  if (target >= scenarios.length) return [...scenarios];
+
+  const preferred = browserKnowledge?.representativeScenarios?.[target]?.indices;
+  if (Array.isArray(preferred) && preferred.length) {
+    const byIndex = new Map(scenarios.map((scenario) => [Number(scenario.scenarioIndex), scenario]));
+    const selected = preferred.map((index) => byIndex.get(Number(index))).filter(Boolean);
+    if (selected.length >= Math.min(target, preferred.length)) return selected.slice(0, target);
+  }
+
+  return Array.from({ length: target }, (_, index) => (
+    scenarios[Math.min(
+      scenarios.length - 1,
+      Math.floor((index + 0.5) * scenarios.length / target),
+    )]
+  ));
+}
+
+function metagameStagedSort(left, right) {
+  const leftBlend = (Number(left.expectedWinRate) || 0) * 0.68 +
+    (Number(left.expectedWinLowerBound) || 0) * 0.32;
+  const rightBlend = (Number(right.expectedWinRate) || 0) * 0.68 +
+    (Number(right.expectedWinLowerBound) || 0) * 0.32;
+  return (
+    rightBlend - leftBlend ||
+    (Number(right.expectedWinRate) || 0) - (Number(left.expectedWinRate) || 0) ||
+    (Number(right.expectedWinLowerBound) || 0) - (Number(left.expectedWinLowerBound) || 0) ||
+    (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0) ||
+    (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
+  );
+}
+
+function metagameSelectStagedSurvivors(evaluated, limit) {
+  const maximum = Math.min(evaluated.length, Math.max(1, Math.floor(Number(limit) || 1)));
+  if (evaluated.length <= maximum) return [...evaluated].sort(metagameStagedSort);
+  const selected = new Map();
+  const add = (entry) => selected.set(metagameDeckKey(entry.deck), entry);
+
+  const blended = [...evaluated].sort(metagameStagedSort);
+  blended.slice(0, Math.ceil(maximum * 0.55)).forEach(add);
+
+  const byMean = [...evaluated].sort((left, right) => (
+    (Number(right.expectedWinRate) || 0) - (Number(left.expectedWinRate) || 0) ||
+    metagameStagedSort(left, right)
+  ));
+  for (const entry of byMean) {
+    if (selected.size >= Math.ceil(maximum * 0.78)) break;
+    add(entry);
+  }
+
+  const byLower = [...evaluated].sort((left, right) => (
+    (Number(right.expectedWinLowerBound) || 0) - (Number(left.expectedWinLowerBound) || 0) ||
+    metagameStagedSort(left, right)
+  ));
+  for (const entry of byLower) {
+    if (selected.size >= Math.ceil(maximum * 0.90)) break;
+    add(entry);
+  }
+
+  const byProxy = [...evaluated].sort((left, right) => (
+    (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0) ||
+    metagameStagedSort(left, right)
+  ));
+  for (const entry of byProxy) {
+    if (selected.size >= maximum) break;
+    add(entry);
+  }
+  for (const entry of blended) {
+    if (selected.size >= maximum) break;
+    add(entry);
+  }
+  return [...selected.values()].sort(metagameStagedSort);
+}
+
+async function metagameEvaluateStagedFinalists(finalists, scenarios, constraint, rules, options = {}) {
+  const finalScenarioCount = scenarios.length;
+  const stageScenarioCounts = [...new Set([
+    Math.min(6, finalScenarioCount),
+    Math.min(12, finalScenarioCount),
+    finalScenarioCount,
+  ].filter((value) => value > 0))];
+
+  let survivors = [...finalists];
+  let lastCompleted = [];
+  const screeningStages = [];
+  let totalCompletedBattles = 0;
+  let timedOut = false;
+
+  for (let stageIndex = 0; stageIndex < stageScenarioCounts.length; stageIndex += 1) {
+    const scenarioCount = stageScenarioCounts[stageIndex];
+    const stageScenarios = metagameStagedScenarioSubset(
+      scenarios,
+      scenarioCount,
+      options.browserKnowledge,
+    );
+    const startingDeckCount = survivors.length;
+    const stageEvaluated = [];
+    const totalStageBattles = startingDeckCount * stageScenarios.length;
+    let completedStageBattles = 0;
+
+    for (let deckIndex = 0; deckIndex < survivors.length; deckIndex += 1) {
+      if (metagameTimeBudgetExceeded(options)) {
+        timedOut = true;
+        break;
+      }
+      try {
+        const result = await metagameEvaluateDeck(
+          survivors[deckIndex],
+          stageScenarios,
+          constraint,
+          rules,
+          {
+            ...options,
+            onScenarioCompleted: () => {
+              completedStageBattles += 1;
+              totalCompletedBattles += 1;
+              options.onProgress?.({
+                phase: "simulation",
+                completed: completedStageBattles,
+                total: totalStageBattles,
+                deck: deckIndex + 1,
+                decks: startingDeckCount,
+                scenarios: stageScenarios.length,
+                liveStage: stageIndex + 1,
+                liveStages: stageScenarioCounts.length,
+                screeningMode: "browser-search",
+                stageScenarioCount: stageScenarios.length,
+              });
+            },
+          },
+        );
+        stageEvaluated.push(result);
+      } catch (error) {
+        if (error?.name !== "MetagameTimeBudgetError") throw error;
+        timedOut = true;
+        break;
+      }
+    }
+
+    if (stageEvaluated.length === startingDeckCount) {
+      lastCompleted = stageEvaluated;
+      const nextLimit = stageIndex === 0
+        ? Math.min(28, Math.max(16, Math.ceil(stageEvaluated.length * 0.5)))
+        : stageIndex === 1
+          ? Math.min(14, Math.max(8, Math.ceil(stageEvaluated.length * 0.5)))
+          : stageEvaluated.length;
+      survivors = stageIndex === stageScenarioCounts.length - 1
+        ? [...stageEvaluated].sort(metagameStagedSort)
+        : metagameSelectStagedSurvivors(stageEvaluated, nextLimit);
+      screeningStages.push({
+        stage: stageIndex + 1,
+        scenarioCount: stageScenarios.length,
+        evaluatedDeckCount: stageEvaluated.length,
+        survivorCount: survivors.length,
+      });
+    } else {
+      break;
+    }
+
+    if (timedOut) break;
+  }
+
+  if (!lastCompleted.length) {
+    // A severely constrained/slow browser should still get a deterministic
+    // answer instead of spinning beyond the hard deadline.
+    lastCompleted = finalists.slice(0, Math.min(3, finalists.length)).map((entry) => ({
+      ...entry,
+      expectedWinRate: Number(entry.proxyScore) || 0,
+      expectedWinLowerBound: Number(entry.proxyScore) || 0,
+      scenarioCount: 0,
+      decisiveWinRate: 0,
+      decisiveDrawRate: 0,
+      decisiveLossRate: 0,
+      ongoingRate: 1,
+    }));
+  }
+
+  return {
+    evaluated: [...lastCompleted].sort((left, right) => (
+      (Number(right.expectedWinLowerBound) || 0) - (Number(left.expectedWinLowerBound) || 0) ||
+      (Number(right.expectedWinRate) || 0) - (Number(left.expectedWinRate) || 0) ||
+      (Number(left.handoffRisk) || 0) - (Number(right.handoffRisk) || 0) ||
+      (Number(right.proxyScore) || 0) - (Number(left.proxyScore) || 0) ||
+      (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
+    )),
+    screeningStages,
+    timedOut,
+    completedBattleCount: totalCompletedBattles,
+    finalCompletedScenarioCount: Number(lastCompleted[0]?.scenarioCount) || 0,
   };
 }
 
@@ -2210,75 +2415,58 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     };
   }
   const boostedCharacters = characters.map((character) => applyMetagameStatBoost(character, boostedIds));
-  const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, boostedCharacters, options);
+  const browserTimeBudgetMs = Math.min(
+    8.5 * 60_000,
+    Math.max(30_000, Number(options.browserTimeBudgetMs) || 8.5 * 60_000),
+  );
+  const deadlineAt = Date.now() + browserTimeBudgetMs;
+  const searchOptions = { ...options, deadlineAt };
+  const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, boostedCharacters, searchOptions);
   const finalists = metagameSelectFinalists(
     candidates,
     options.finalistCount ?? (options.browserKnowledge ? 56 : 40),
     36,
     constraint.totalCost,
   );
-  // The interactive selector is the user's explicit trade-off between speed
-  // and coverage.  V9/V10 data still uses the legacy nine-deck scenario
-  // format, so it reaches this branch rather than the V8 interactive branch
-  // above.  Previously that accidentally replayed every stored scenario even
-  // when the UI said "8 environments", which turned the normal browser
-  // calculation into 36 x 72 full battles.
   const hasInteractiveScenarioLimit = options.interactiveScenarioCount !== undefined
     && options.interactiveScenarioCount !== null;
   const requestedScenarioCount = Number(options.interactiveScenarioCount);
   const maxBaseScenarios = hasInteractiveScenarioLimit
-    ? (requestedScenarioCount === 0 ? undefined : Math.max(1, requestedScenarioCount || 8))
-    : (boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 18) : undefined);
+    ? (requestedScenarioCount === 0 ? undefined : Math.max(1, requestedScenarioCount || 24))
+    : (boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 24) : 24);
   const scenarioSet = metagameBattleScenarios(constraint, charactersById, boostedIds, {
     maxBaseScenarios,
   });
-  const scenarios = scenarioSet.scenarios;
-  const evaluated = [];
-  let completedSimulations = 0;
-  const totalSimulations = finalists.length * scenarios.length;
-  for (let index = 0; index < finalists.length; index += 1) {
-    evaluated.push(await metagameEvaluateDeck(
-      finalists[index],
-      scenarios,
-      constraint,
-      options.rules ?? DEFAULT_RULES,
-      {
-        ...options,
-        onScenarioCompleted: () => {
-          completedSimulations += 1;
-          options.onProgress?.({
-            phase: "simulation",
-            completed: completedSimulations,
-            total: totalSimulations,
-            valid: candidates.length,
-            deck: index + 1,
-            decks: finalists.length,
-            scenarios: scenarios.length,
-          });
-        },
-      },
-    ));
-  }
-  evaluated.sort((left, right) => (
-    right.expectedWinLowerBound - left.expectedWinLowerBound ||
-    right.expectedWinRate - left.expectedWinRate ||
-    left.handoffRisk - right.handoffRisk ||
-    right.proxyScore - left.proxyScore ||
-    left.totalCost - right.totalCost
-  ));
+  const staged = await metagameEvaluateStagedFinalists(
+    finalists,
+    scenarioSet.scenarios,
+    constraint,
+    options.rules ?? DEFAULT_RULES,
+    {
+      ...searchOptions,
+      browserKnowledge: options.browserKnowledge,
+    },
+  );
+  const evaluated = staged.evaluated;
   return {
     constraint,
     generatedAt: data.generatedAt,
     candidateDeckCount: candidates.length,
-    simulatedDeckCount: finalists.length,
-    scenarioCount: scenarios.length,
+    simulatedDeckCount: evaluated.length,
+    screenedDeckCount: finalists.length,
+    scenarioCount: staged.finalCompletedScenarioCount,
+    requestedScenarioCount: scenarioSet.scenarios.length,
     excludedScenarioCount: scenarioSet.excludedScenarioCount,
     boostedCharacterIds: [...boostedIds],
-    boostedScenarioCount: boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 18) : undefined,
+    boostedScenarioCount: boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 24) : undefined,
     interactiveScenarioCount: hasInteractiveScenarioLimit ? requestedScenarioCount : undefined,
     browserKnowledgeUsed: Boolean(options.browserKnowledge?.candidatePriors?.length),
     browserKnowledgeCandidatePriorCount: options.browserKnowledge?.candidatePriors?.length ?? 0,
     browserKnowledgePairPriorCount: options.browserKnowledge?.pairPriors?.length ?? 0,
+    screeningStages: staged.screeningStages,
+    browserTimeBudgetMs,
+    timeBudgetReached: staged.timedOut,
+    completedBattleCount: staged.completedBattleCount,
     results: evaluated.slice(0, 3),
   };
 }
