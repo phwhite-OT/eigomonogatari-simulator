@@ -1050,3 +1050,13 @@ Validation added/updated:
 - V12 exact-cost cache tests now require live reconstruction instead of finished-deck shortcut reuse
 - staged browser verification test pins 6 -> 12 -> requested-final progression
 - Pages runs the focused browser deck/dynamic-cost/cache regressions before deployment
+
+
+Follow-up details after the individual-first correction:
+
+- the Pages knowledge payload now preserves `boostModel` and `neighborhoods`; previously these expensive offline results were dropped by the deploy-time JSON projection
+- boost priors now use up to 6 measured anchor decks per character/position instead of 2
+- the 24-environment default is implemented as staged verification from the **full** surveyed scenario pool, not a 24-scenario pre-truncation
+- when exact browser knowledge exists, the 6/12 early screens use offline-selected representative scenario indices
+- when interpolating two knowledge bands, representative scenarios are combined from both endpoints (half from each, with the upper-band indices offset into the concatenated scenario pool)
+- browser candidate construction and each battle scenario check the same 8.5-minute deadline; later incomplete stages are never mixed with fully evaluated candidates
