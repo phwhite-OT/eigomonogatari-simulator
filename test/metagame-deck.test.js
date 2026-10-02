@@ -784,3 +784,106 @@ test("V8 search automatically evaluates an edited catalogue character in both de
   });
   assert.ok(evidence.samples.some((sample) => sample.enemyDecks.flat().some((entry) => entry.id === added.id)));
 });
+
+
+test("中間コストのbeamは余剰コストを直接ご褒美にせず高使用帯も探索に残す", () => {
+  const characters = [];
+  const slots = [];
+  const costs = [5, 10, 20, 25, 28];
+  for (let position = 1; position <= 5; position += 1) {
+    const candidates = costs.map((cost, index) => {
+      const entry = metagameTestCharacter(`coverage-${position}-${cost}`, cost, "R", 100 + cost);
+      entry.skillTurn = Math.max(0, position - 1);
+      characters.push(entry);
+      return {
+        ...metagameTestRating(entry, index + 1),
+        role: "neutral",
+        practicalValue: Math.max(0.05, 0.95 - index * 0.2),
+        marginalWinGain: Math.max(0.002, 0.16 - index * 0.038),
+        marginalWinGainLowerBound: Math.max(0.001, 0.12 - index * 0.029),
+        costAwareScore: Math.max(0.05, 0.9 - index * 0.2),
+        roleBreakdown: {},
+      };
+    });
+    slots.push({ position, candidates });
+  }
+  const constraint = {
+    id: "fire:150-coverage",
+    allowedAttributes: ["fire"],
+    totalCost: 150,
+    turns: 1,
+    slots,
+  };
+
+  const candidates = buildMetagameDeckCandidates(constraint, characters, { beamWidth: 500 });
+
+  assert.equal(candidates.length, 500);
+  assert.ok(
+    candidates.some((candidate) => candidate.totalCost >= 135),
+    "低コストproxyが強くても、上限近くを使う有力構成を実戦評価前に全滅させない",
+  );
+  assert.ok(
+    candidates.some((candidate) => candidate.totalCost <= 75),
+    "高コストを使うこと自体を正義にせず、低使用帯も同時に残す",
+  );
+});
+
+test("中間コストの最終対戦は高使用帯の候補も実際に検証する", async () => {
+  const firstSlot = Array.from({ length: 50 }, (_, index) => {
+    const cost = index + 1;
+    const entry = metagameTestCharacter(`spend-${cost}`, cost, "R", cost * 1000);
+    entry.hp = 100_000;
+    entry.skillTurn = 0;
+    return entry;
+  });
+  const tail = [2, 3, 4, 5].map((position) => {
+    const entry = metagameTestCharacter(`fixed-tail-${position}`, 25, "R", 10);
+    entry.hp = 100_000;
+    entry.skillTurn = position - 1;
+    return entry;
+  });
+  const enemy = [1, 2, 3, 4, 5].map((position) => {
+    const entry = metagameTestCharacter(`coverage-enemy-${position}`, 1, "N", 1);
+    entry.hp = 52_000;
+    entry.skillTurn = position - 1;
+    return entry;
+  });
+  const rating = (entry, index = 0) => ({
+    ...metagameTestRating(entry, index + 1),
+    role: "neutral",
+    // Deliberately make the proxy prefer cheap cards. The browser must still
+    // send some high-spend constructions to the real battle pass.
+    practicalValue: Math.max(0.01, 1 - index / 50),
+    marginalWinGain: Math.max(0.001, 0.18 - index * 0.0035),
+    marginalWinGainLowerBound: Math.max(0.001, 0.14 - index * 0.0027),
+    costAwareScore: Math.max(0.01, 0.95 - index * 0.018),
+    roleBreakdown: {},
+  });
+  const enemyIds = enemy.map((entry) => entry.id);
+  const constraint = {
+    id: "fire:150-finalist-coverage",
+    label: "火・コスト150",
+    allowedAttributes: ["fire"],
+    totalCost: 150,
+    turns: 1,
+    scenarioCount: 1,
+    slots: [
+      { position: 1, candidates: firstSlot.map((entry, index) => rating(entry, index)) },
+      ...tail.map((entry, index) => ({ position: index + 2, candidates: [rating(entry)] })),
+    ],
+    environmentScenarios: [Array.from({ length: 9 }, () => [...enemyIds])],
+  };
+  const data = { generatedAt: "2026-10-03T00:00:00.000Z", constraints: [constraint] };
+  const result = await findBestMetagameDeck(
+    data,
+    constraint.id,
+    [...firstSlot, ...tail, ...enemy],
+    { beamWidth: 500, finalistCount: 40, interactiveScenarioCount: 1 },
+  );
+
+  assert.ok(result.simulatedDeckCount <= 40);
+  assert.ok(
+    result.results[0].totalCost >= 145,
+    "安いproxyだけで最終候補を埋めず、余った予算で実際に強くなる構成を5対5で比較する",
+  );
+});
