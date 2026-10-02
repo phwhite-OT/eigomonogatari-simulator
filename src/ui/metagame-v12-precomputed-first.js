@@ -40,6 +40,123 @@ async function loadMetagameBrowserKnowledge(constraint) {
   return metagameBrowserKnowledgePromises.get(path);
 }
 
+
+function metagameKnowledgeNumber(left, right, weight, fallback = 0) {
+  const a = Number(left);
+  const b = Number(right);
+  if (Number.isFinite(a) && Number.isFinite(b)) return a + (b - a) * weight;
+  if (Number.isFinite(a)) return a;
+  if (Number.isFinite(b)) return b;
+  return fallback;
+}
+
+function metagameInterpolateKnowledgeEntry(lower, upper, weight, numericKeys) {
+  if (!lower) return upper ? { ...upper } : null;
+  if (!upper) return { ...lower };
+  const base = weight < 0.5 ? lower : upper;
+  const merged = { ...base };
+  for (const key of numericKeys) {
+    if (Number.isFinite(Number(lower?.[key])) || Number.isFinite(Number(upper?.[key]))) {
+      merged[key] = metagameKnowledgeNumber(lower?.[key], upper?.[key], weight);
+    }
+  }
+  return merged;
+}
+
+function metagameMergeKnowledgeLists(lowerEntries, upperEntries, weight, keyFor, numericKeys) {
+  const lower = new Map((lowerEntries ?? []).map((entry) => [keyFor(entry), entry]));
+  const upper = new Map((upperEntries ?? []).map((entry) => [keyFor(entry), entry]));
+  return [...new Set([...lower.keys(), ...upper.keys()])]
+    .map((key) => metagameInterpolateKnowledgeEntry(lower.get(key), upper.get(key), weight, numericKeys))
+    .filter(Boolean);
+}
+
+function metagameMergeBoostKnowledge(lower, upper, weight) {
+  const priors = metagameMergeKnowledgeLists(
+    lower?.boostModel?.priors,
+    upper?.boostModel?.priors,
+    weight,
+    (entry) => `${Number(entry.p)}:${String(entry.i)}`,
+    ["n", "w", "l", "m", "r"],
+  );
+  if (!priors.length) return null;
+  return {
+    multiplier: metagameKnowledgeNumber(
+      lower?.boostModel?.multiplier,
+      upper?.boostModel?.multiplier,
+      weight,
+      1.5,
+    ),
+    candidateCount: priors.length,
+    priors,
+  };
+}
+
+function metagameMergeBrowserKnowledge(lower, upper, interpolation) {
+  if (!lower) return upper;
+  if (!upper) return lower;
+  const weight = Math.min(1, Math.max(0,
+    (Number(interpolation.requestedCost) - Number(interpolation.lowerCost)) /
+      Math.max(1, Number(interpolation.upperCost) - Number(interpolation.lowerCost)),
+  ));
+  return {
+    schemaVersion: Math.max(Number(lower.schemaVersion) || 1, Number(upper.schemaVersion) || 1, 2),
+    generatedAt: [lower.generatedAt, upper.generatedAt].filter(Boolean).join(" / "),
+    inputId: `${String(lower.inputId)}+${String(upper.inputId)}@${interpolation.requestedCost}`,
+    modelVersion: lower.modelVersion ?? upper.modelVersion,
+    context: {
+      totalCost: Number(interpolation.requestedCost),
+      interpolation,
+      sourceConditions: [lower.inputId, upper.inputId],
+    },
+    candidatePriors: metagameMergeKnowledgeLists(
+      lower.candidatePriors,
+      upper.candidatePriors,
+      weight,
+      (entry) => `${Number(entry.p)}:${String(entry.i)}`,
+      ["c", "w", "l", "m", "r", "s", "x", "q", "f", "t"],
+    ),
+    pairPriors: metagameMergeKnowledgeLists(
+      lower.pairPriors,
+      upper.pairPriors,
+      weight,
+      (entry) => `${Number(entry.a)}:${String(entry.i)}|${Number(entry.b)}:${String(entry.j)}`,
+      ["n", "d"],
+    ),
+    boostModel: metagameMergeBoostKnowledge(lower, upper, weight),
+    // Complete decks are deliberately not merged into arbitrary-cost search.
+    // The browser must reconstruct from character/pair evidence at the
+    // requested budget instead of inheriting a neighbouring finished deck.
+    deckLibrary: [],
+    neighborhoods: [],
+  };
+}
+
+async function loadResolvedMetagameBrowserKnowledge(data, constraint) {
+  if (!metagameV12Model(constraint?.modelVersion)) return null;
+  const interpolation = constraint?.interpolation;
+  if (interpolation?.kind === "between") {
+    const [lower, upper] = await Promise.all([
+      loadMetagameBrowserKnowledge({
+        id: interpolation.lowerId,
+        modelVersion: constraint.modelVersion,
+      }),
+      loadMetagameBrowserKnowledge({
+        id: interpolation.upperId,
+        modelVersion: constraint.modelVersion,
+      }),
+    ]);
+    return metagameMergeBrowserKnowledge(lower, upper, interpolation);
+  }
+  if (interpolation?.kind === "nearest" && interpolation.sourceId) {
+    return loadMetagameBrowserKnowledge({
+      id: interpolation.sourceId,
+      modelVersion: constraint.modelVersion,
+    });
+  }
+  return loadMetagameBrowserKnowledge(constraint);
+}
+
 function metagameIncrementalCacheKey(constraint, characters, automaticIds, options, knowledge) {
   return [
     "v1",
@@ -122,18 +239,21 @@ findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(da
   const constraint = { ...resolveMetagameConstraint(data, constraintId, requestedTotalCost), costMode };
   const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
   const automaticIds = normalizeMetagameBoostedCharacterIds(options.automaticCharacterIds);
-  const isV12WithPublishedDecks = metagameV12Model(constraint?.modelVersion)
-    && Array.isArray(constraint.precomputedDecks)
-    && constraint.precomputedDecks.length > 0;
-  const isExactPublishedV12 = isV12WithPublishedDecks && !constraint.interpolation;
+  const isV12 = metagameV12Model(constraint?.modelVersion);
+  const knowledge = isV12
+    ? await loadResolvedMetagameBrowserKnowledge(data, constraint)
+    : null;
+  const nextOptions = {
+    ...options,
+    browserKnowledge: knowledge,
+  };
 
-  if (isV12WithPublishedDecks && hasMetagameLiveCharacters(characters, automaticIds)) {
-    const knowledge = await loadMetagameBrowserKnowledge(constraint);
+  if (isV12 && hasMetagameLiveCharacters(characters, automaticIds)) {
     const cacheKey = metagameIncrementalCacheKey(
       constraint,
       characters,
       automaticIds,
-      options,
+      nextOptions,
       knowledge,
     );
     const cached = readIncrementalSessionCache(cacheKey, characters, constraint);
@@ -160,37 +280,22 @@ findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(da
       data,
       constraintId,
       characters,
-      {
-        ...options,
-        browserKnowledge: knowledge,
-      },
+      nextOptions,
     );
     saveIncrementalSessionCache(cacheKey, result);
     return result;
   }
 
-  // With no live DB character, the exact published V12 snapshot remains the
-  // fastest and most accurate path. Event boosts still use the existing
-  // battle re-evaluation path because stats differ from the published state.
-  if (isExactPublishedV12 && !automaticIds.size && !boostedIds.size) {
-    const fixedSlots = metagameFixedSlots(options.fixedSlots);
-    const reusable = metagameV8PrecomputedResults(constraint, characters, fixedSlots);
-    if (reusable.length) {
-      const result = await findBestMetagameDeckBeforeV12PrecomputedFirst(
-        data,
-        constraintId,
-        characters,
-        options,
-      );
-      return {
-        ...result,
-        usedPrecomputedDeckCache: true,
-        cachePolicy: result.cachePolicy ?? "published-v12-snapshot",
-      };
-    }
-  }
-
-  return findBestMetagameDeckBeforeV12PrecomputedFirst(data, constraintId, characters, options);
+  // V12 always reconstructs a deck in the browser from character-level
+  // evidence. Even an exact representative cost does not short-circuit to a
+  // saved finished deck. Published decks remain environment/evidence inputs,
+  // never the required starting point for generation.
+  return findBestMetagameDeckBeforeV12PrecomputedFirst(
+    data,
+    constraintId,
+    characters,
+    nextOptions,
+  );
 };
 
 const renderMetagameSimulatorResultBeforeV12PrecomputedFirst = renderMetagameSimulatorResult;
@@ -213,7 +318,10 @@ renderMetagameSimulatorResult = function renderMetagameSimulatorResultV12Precomp
     return;
   }
 
-  if (searchResult?.cachePolicy === "published-v12-snapshot") {
-    note.textContent = `${note.textContent} 管理DBに未評価の追加・編集キャラがないため、公開V12スナップショットをそのまま再利用しています。`;
+  if (metagameV12Model(searchResult?.constraint?.modelVersion) && !searchResult?.usedIncrementalLiveEvaluation) {
+    const knowledgeLabel = searchResult?.browserKnowledgeUsed
+      ? "全候補の事前計算済み単体評価・連携評価"
+      : "公開済みの枠別単体評価";
+    note.textContent = `${note.textContent} ${knowledgeLabel}を使って、この条件専用の5体をブラウザ上で組み直しています。完成済みデッキの丸ごと流用ではありません。`;
   }
 };
