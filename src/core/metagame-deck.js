@@ -1046,6 +1046,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
     for (const state of states) {
       for (const entry of pool) {
         if (options.signal?.aborted) throw metagameAbortError();
+        if (metagameTimeBudgetExceeded(options)) throw metagameTimeBudgetError();
         const id = String(entry.character.id);
         const isLegend = entry.character.rarity === "伝";
         const nextCost = state.totalCost + (Number(entry.character.cost) || 0);
@@ -1863,7 +1864,13 @@ function metagameSelectStagedSurvivors(evaluated, limit) {
 }
 
 async function metagameEvaluateStagedFinalists(finalists, scenarios, constraint, rules, options = {}) {
-  const finalScenarioCount = scenarios.length;
+  const finalScenarioCount = Math.max(
+    1,
+    Math.min(
+      scenarios.length,
+      Math.floor(Number(options.finalScenarioCount) || scenarios.length),
+    ),
+  );
   const stageScenarioCounts = [...new Set([
     Math.min(6, finalScenarioCount),
     Math.min(12, finalScenarioCount),
@@ -2431,12 +2438,17 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
   const hasInteractiveScenarioLimit = options.interactiveScenarioCount !== undefined
     && options.interactiveScenarioCount !== null;
   const requestedScenarioCount = Number(options.interactiveScenarioCount);
-  const maxBaseScenarios = hasInteractiveScenarioLimit
-    ? (requestedScenarioCount === 0 ? undefined : Math.max(1, requestedScenarioCount || 24))
+  const requestedFinalScenarioCount = hasInteractiveScenarioLimit
+    ? (requestedScenarioCount === 0 ? Number.MAX_SAFE_INTEGER : Math.max(1, requestedScenarioCount || 24))
     : (boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 24) : 24);
-  const scenarioSet = metagameBattleScenarios(constraint, charactersById, boostedIds, {
-    maxBaseScenarios,
-  });
+  // Keep the complete surveyed scenario pool available to every screening
+  // stage. The 6/12-scenario representative sets were chosen offline from the
+  // full pool and should not be forced through a pre-truncated 24-scenario set.
+  const scenarioSet = metagameBattleScenarios(constraint, charactersById, boostedIds, {});
+  const finalScenarioCount = Math.min(
+    scenarioSet.scenarios.length,
+    requestedFinalScenarioCount,
+  );
   const staged = await metagameEvaluateStagedFinalists(
     finalists,
     scenarioSet.scenarios,
@@ -2445,6 +2457,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     {
       ...searchOptions,
       browserKnowledge: options.browserKnowledge,
+      finalScenarioCount,
     },
   );
   const evaluated = staged.evaluated;
@@ -2455,7 +2468,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     simulatedDeckCount: evaluated.length,
     screenedDeckCount: finalists.length,
     scenarioCount: staged.finalCompletedScenarioCount,
-    requestedScenarioCount: scenarioSet.scenarios.length,
+    requestedScenarioCount: finalScenarioCount,
     excludedScenarioCount: scenarioSet.excludedScenarioCount,
     boostedCharacterIds: [...boostedIds],
     boostedScenarioCount: boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 24) : undefined,
