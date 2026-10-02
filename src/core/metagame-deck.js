@@ -108,6 +108,7 @@ function metagameInterpolateCandidateRating(lower, upper, interpolation) {
     upper?.roleBreakdown,
     weight,
   );
+  merged.budgetSpecificIndividualEvidence = true;
   merged.interpolationEvidence = {
     coverage: "both",
     lowerCost: Number(interpolation.lowerCost),
