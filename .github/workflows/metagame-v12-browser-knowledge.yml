@@ -147,7 +147,7 @@ jobs:
             --output-manifest="$RUNNER_TEMP/browser-knowledge-plan/manifest.json" \
             --output-base="$RUNNER_TEMP/browser-knowledge-plan/base-knowledge.json" \
             --shard-count=38 \
-            --anchor-limit=2 \
+            --anchor-limit=6 \
             --deck-library-limit=60000 \
             --neighbor-deck-limit=20000 \
             --pair-limit=120000 \
