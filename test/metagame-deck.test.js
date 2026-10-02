@@ -937,3 +937,30 @@ test("補正事前計算は補正キャラの単体候補評価へ反映され�
   assert.equal(boostedResult[0].deck[0].id, boosted.id);
   assert.ok(boostedResult[0].ratings[0].boostEvidence.meanDelta > 0);
 });
+
+
+test("ブラウザ最終検証は6→12→指定環境の段階評価で候補を絞る", async () => {
+  const fixture = metagameTestFixture();
+  fixture.constraint.modelVersion = "team-battle-v12.5-effective-damage-individual-rank";
+  fixture.constraint.scenarioCount = 24;
+  fixture.constraint.environmentScenarios = Array.from(
+    { length: 24 },
+    () => fixture.constraint.environmentScenarios[0],
+  );
+  const result = await findBestMetagameDeck(
+    fixture.data,
+    fixture.constraint.id,
+    fixture.characters,
+    { beamWidth: 500, finalistCount: 12, interactiveScenarioCount: 24 },
+  );
+
+  assert.deepEqual(
+    result.screeningStages.map((stage) => stage.scenarioCount),
+    [6, 12, 24],
+  );
+  assert.ok(result.screeningStages[0].evaluatedDeckCount >= result.screeningStages[1].evaluatedDeckCount);
+  assert.ok(result.screeningStages[1].evaluatedDeckCount >= result.screeningStages[2].evaluatedDeckCount);
+  assert.equal(result.scenarioCount, 24);
+  assert.equal(result.timeBudgetReached, false);
+  assert.ok(result.completedBattleCount > 0);
+});
