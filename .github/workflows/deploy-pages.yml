@@ -126,6 +126,7 @@ jobs:
               directory="$(basename "$(dirname "$knowledge_file")")"
               jq '{
                 schemaVersion,
+                policyVersion,
                 generatedAt,
                 inputId,
                 sourceGeneratedAt,
