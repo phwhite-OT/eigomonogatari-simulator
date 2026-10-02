@@ -111,50 +111,11 @@ metagameUiImpactReasons = function metagameUiImpactReasonsV12(character, rating,
 };
 
 const findBestMetagameDeckBeforeV12Cache = findBestMetagameDeck;
-findBestMetagameDeck = async function findBestMetagameDeckV12Cache(data, constraintId, characters, options = {}) {
-  const requestedTotalCost = Number(options.totalCost);
-  const costMode = options.costMode === "exact" ? "exact" : "at_most";
-  const constraint = { ...resolveMetagameConstraint(data, constraintId, requestedTotalCost), costMode };
-  if (String(constraint?.modelVersion ?? "") === METAGAME_V12_UI_MODEL_VERSION) {
-    const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
-    const automaticIds = normalizeMetagameBoostedCharacterIds(options.automaticCharacterIds);
-    const canReusePublishedDecks = !constraint.interpolation
-      && !boostedIds.size
-      && !automaticIds.size
-      && Array.isArray(constraint.precomputedDecks)
-      && constraint.precomputedDecks.length > 0;
-    if (canReusePublishedDecks) {
-      const fixedSlots = metagameFixedSlots(options.fixedSlots);
-      const precomputed = metagameV8PrecomputedResults(constraint, characters, fixedSlots);
-      if (precomputed.length) {
-        options.onProgress?.({
-          phase: "candidate",
-          completed: 5,
-          total: 5,
-          slot: 5,
-          slots: 5,
-          checked: precomputed.length,
-          stageTotal: precomputed.length,
-          retained: precomputed.length,
-          valid: precomputed.length,
-        });
-        return {
-          constraint,
-          generatedAt: data.generatedAt,
-          candidateDeckCount: precomputed.length,
-          simulatedDeckCount: 0,
-          scenarioCount: Number(precomputed[0]?.scenarioCount) || Number(constraint.scenarioCount) || 0,
-          boostedCharacterIds: [],
-          automaticCharacterIds: [],
-          usedPrecomputedDeckCache: true,
-          results: precomputed.slice(0, 3).map((candidate) => ({
-            ...candidate,
-            usedPrecomputedDeckCache: true,
-          })),
-        };
-      }
-    }
-  }
+findBestMetagameDeck = async function findBestMetagameDeckV12NoFinishedDeckShortcut(data, constraintId, characters, options = {}) {
+  // V12 finished decks are evidence and opponent-environment inputs only.
+  // Generation itself must remain flexible for arbitrary costs, fixed slots,
+  // future restrictions and event boosts, so never short-circuit to a saved
+  // five-card construction here.
   return findBestMetagameDeckBeforeV12Cache(data, constraintId, characters, options);
 };
 
@@ -164,8 +125,6 @@ renderMetagameSimulatorResult = function renderMetagameSimulatorResultV12(contai
   if (String(searchResult?.constraint?.modelVersion ?? "") !== METAGAME_V12_UI_MODEL_VERSION) return;
   const note = container.querySelector(".metagame-result-note");
   if (note) {
-    note.textContent = searchResult.usedPrecomputedDeckCache
-      ? `この結果はV12で既に実戦評価済みの完成デッキを再利用しています。ブラウザ側の候補ビーム探索と再対戦は行っていません（事前評価 ${searchResult.scenarioCount}環境）。補正キャラ・新規編集キャラ・未計算コスト・保存済み候補にない固定条件を指定した場合だけ再計算します。`
-      : "V12の枠別順位は『そのキャラを使える最善デッキ』と『そのキャラを禁止し、空いたコストを含め全5枠を再最適化した最善代替デッキ』の勝率差で作成しています。この画面の完成デッキ順位は、そのV12候補を組み合わせた後、選択した環境へ再投入した5対5結果で決定します。";
+    note.textContent = "V12の枠別順位は『そのキャラを使える最善デッキ』と『そのキャラを禁止し、空いたコストを含め全5枠を再最適化した最善代替デッキ』の勝率差で作成しています。ブラウザでは完成済みデッキを固定流用せず、その個体評価を主材料に現在の条件専用デッキを組み直し、最後に5対5で確認します。";
   }
 };
