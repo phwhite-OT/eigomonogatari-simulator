@@ -39,22 +39,17 @@ function createHarness({ precomputed = [{ scenarioCount: 72, deck: [{ id: "a" },
   return { context, fallbackCalls: () => fallbackCalls };
 }
 
-test("V12 browser reuses published completed decks without beam search or battles", async () => {
+test("V12 browser does not short-circuit exact costs to a finished-deck cache", async () => {
   const harness = createHarness();
-  const progress = [];
   const result = await harness.context.findBestMetagameDeck(
     { generatedAt: "2026-08-31T00:00:00Z" },
     "fire:100",
     [],
-    { totalCost: 100, onProgress: (entry) => progress.push(entry) },
+    { totalCost: 100 },
   );
 
-  assert.equal(result.usedPrecomputedDeckCache, true);
-  assert.equal(result.simulatedDeckCount, 0);
-  assert.equal(result.scenarioCount, 72);
-  assert.equal(result.results.length, 1);
-  assert.equal(harness.fallbackCalls(), 0);
-  assert.equal(progress.at(-1).completed, 5);
+  assert.equal(result.fallback, true);
+  assert.equal(harness.fallbackCalls(), 1);
 });
 
 test("V12 browser falls back to live calculation when a boosted character changes battle stats", async () => {
@@ -70,7 +65,7 @@ test("V12 browser falls back to live calculation when a boosted character change
   assert.equal(harness.fallbackCalls(), 1);
 });
 
-test("V12 browser falls back when fixed slots have no matching precomputed deck", async () => {
+test("V12 browser sends fixed-slot searches through live reconstruction instead of requiring a saved deck", async () => {
   const harness = createHarness({ precomputed: [] });
   const result = await harness.context.findBestMetagameDeck(
     {},
