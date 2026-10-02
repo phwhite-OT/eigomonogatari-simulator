@@ -448,9 +448,14 @@ function metagameCandidatePools(constraint, characters, options = {}) {
     }
     return [...ids].flatMap((id) => {
       const character = charactersById.get(String(id));
-      if (!character || !matchesMetagamePositionConstraint(character, constraint, position)) return [];
-      if (fixed.has(position) && String(fixed.get(position)) !== String(id)) return [];
+      if (!character) return [];
       const baseRating = byId.get(String(id));
+      // Published slot candidates have already passed the cloud evaluator's
+      // placement rules. Only knowledge-only additions need a fresh browser
+      // legality check; re-filtering legacy test/report candidates here can
+      // incorrectly erase an already measured slot.
+      if (!baseRating && !matchesMetagamePositionConstraint(character, constraint, position)) return [];
+      if (fixed.has(position) && String(fixed.get(position)) !== String(id)) return [];
       const prior = knowledgePriors[position - 1].get(String(id));
       const boostPrior = boostedIds.has(String(id))
         ? boostPriors.get(`${position}:${String(id)}`)
