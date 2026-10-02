@@ -31,7 +31,94 @@ function metagamePublishedCandidateScore(entry) {
   return Number(entry?.marginalWinGainLowerBound ?? entry?.expectedWinLowerBound) || 0;
 }
 
-function metagameMergeEnvironmentSlot(lowerSlot, upperSlot, position) {
+function metagameInterpolateNumber(lower, upper, weight, fallback = 0) {
+  const left = Number(lower);
+  const right = Number(upper);
+  if (Number.isFinite(left) && Number.isFinite(right)) return left + (right - left) * weight;
+  if (Number.isFinite(left)) return left;
+  if (Number.isFinite(right)) return right;
+  return fallback;
+}
+
+function metagameInterpolateObjectNumbers(lower, upper, weight) {
+  const keys = new Set([
+    ...Object.keys(lower ?? {}),
+    ...Object.keys(upper ?? {}),
+  ]);
+  const result = {};
+  for (const key of keys) {
+    const left = lower?.[key];
+    const right = upper?.[key];
+    if (Number.isFinite(Number(left)) || Number.isFinite(Number(right))) {
+      result[key] = metagameInterpolateNumber(left, right, weight);
+    } else if (left !== undefined || right !== undefined) {
+      result[key] = weight < 0.5 ? (left ?? right) : (right ?? left);
+    }
+  }
+  return result;
+}
+
+function metagameInterpolateCandidateRating(lower, upper, interpolation) {
+  if (!lower) return upper ? { ...upper, interpolationEvidence: { coverage: "upper-only" } } : null;
+  if (!upper) return { ...lower, interpolationEvidence: { coverage: "lower-only" } };
+  const weight = metagameDeckClampUnit(
+    (Number(interpolation.requestedCost) - Number(interpolation.lowerCost)) /
+      Math.max(1, Number(interpolation.upperCost) - Number(interpolation.lowerCost)),
+  );
+  const base = weight < 0.5 ? lower : upper;
+  const numericKeys = [
+    "overallRank",
+    "opportunityWinGain",
+    "robustOpportunityWinGain",
+    "marginalWinGain",
+    "marginalWinGainLowerBound",
+    "candidateExpectedWinRate",
+    "benchmarkExpectedWinRate",
+    "expectedWinRate",
+    "expectedWinLowerBound",
+    "costAwareScore",
+    "practicalValue",
+    "individualScore",
+    "roleFit",
+    "skillActivationRate",
+    "practicalSkillReliability",
+    "allyRetentionRate",
+    "enemyPressureRate",
+    "balancedContribution",
+    "powerPreference",
+    "combinationPotential",
+    "continuationWinGain",
+    "carriedContinuationWinGain",
+    "carriedDefenseRate",
+    "advantageCreation",
+    "counteraction",
+    "tacticalUpside",
+    "tacticalRisk",
+    "counterfactualWinGain",
+    "counterfactualRobustWinGain",
+  ];
+  const merged = { ...base };
+  for (const key of numericKeys) {
+    if (Number.isFinite(Number(lower?.[key])) || Number.isFinite(Number(upper?.[key]))) {
+      merged[key] = metagameInterpolateNumber(lower?.[key], upper?.[key], weight);
+    }
+  }
+  merged.roleBreakdown = metagameInterpolateObjectNumbers(
+    lower?.roleBreakdown,
+    upper?.roleBreakdown,
+    weight,
+  );
+  merged.interpolationEvidence = {
+    coverage: "both",
+    lowerCost: Number(interpolation.lowerCost),
+    upperCost: Number(interpolation.upperCost),
+    requestedCost: Number(interpolation.requestedCost),
+    weight,
+  };
+  return merged;
+}
+
+function metagameMergeEnvironmentSlot(lowerSlot, upperSlot, position, interpolation) {
   const entries = [
     ...(lowerSlot?.environment ?? []),
     ...(upperSlot?.environment ?? []),
@@ -46,21 +133,25 @@ function metagameMergeEnvironmentSlot(lowerSlot, upperSlot, position) {
       byId.set(id, { ...entry, projectedUsageShare: share });
     }
   }
-  const candidatesById = new Map();
-  for (const entry of [...(lowerSlot?.candidates ?? []), ...(upperSlot?.candidates ?? [])]) {
-    const id = String(entry?.id ?? "");
-    if (!id) continue;
-    const current = candidatesById.get(id);
-    const score = metagamePublishedCandidateScore(entry);
-    const currentScore = metagamePublishedCandidateScore(current);
-    if (!current || score > currentScore) candidatesById.set(id, entry);
-  }
-  const candidates = [...candidatesById.values()].sort((left, right) => (
-    metagamePublishedCandidateScore(right) - metagamePublishedCandidateScore(left) ||
-    (Number(right.marginalWinGain ?? right.expectedWinRate) || 0) -
-      (Number(left.marginalWinGain ?? left.expectedWinRate) || 0) ||
-    Number(left.cost) - Number(right.cost)
-  ));
+
+  const lowerById = new Map((lowerSlot?.candidates ?? []).map((entry) => [String(entry.id), entry]));
+  const upperById = new Map((upperSlot?.candidates ?? []).map((entry) => [String(entry.id), entry]));
+  const ids = new Set([...lowerById.keys(), ...upperById.keys()]);
+  const candidates = [...ids]
+    .map((id) => metagameInterpolateCandidateRating(
+      lowerById.get(id),
+      upperById.get(id),
+      interpolation,
+    ))
+    .filter(Boolean)
+    .sort((left, right) => (
+      metagameCandidateScore(right, Number(interpolation.requestedCost)) -
+        metagameCandidateScore(left, Number(interpolation.requestedCost)) ||
+      (Number(right.marginalWinGain ?? right.expectedWinRate) || 0) -
+        (Number(left.marginalWinGain ?? left.expectedWinRate) || 0) ||
+      Number(left.cost) - Number(right.cost)
+    ));
+
   return {
     position: Number(lowerSlot?.position ?? upperSlot?.position ?? position),
     environment: [...byId.values()].sort((left, right) => (
@@ -131,7 +222,7 @@ export function resolveMetagameConstraint(data, constraintId, requestedTotalCost
       (upper.teamScenarios?.length ?? upper.scenarioCount ?? 0),
     reportGeneratedAt: [lower.reportGeneratedAt, upper.reportGeneratedAt].filter(Boolean).join(" / "),
     slots: Array.from({ length: slotCount }, (_, index) => (
-      metagameMergeEnvironmentSlot(lower.slots?.[index], upper.slots?.[index], index + 1)
+      metagameMergeEnvironmentSlot(lower.slots?.[index], upper.slots?.[index], index + 1, interpolation)
     )),
     precomputedDecks: [...(lower.precomputedDecks ?? []), ...(upper.precomputedDecks ?? [])],
     teamScenarios: [...(lower.teamScenarios ?? []), ...(upper.teamScenarios ?? [])],
@@ -426,39 +517,6 @@ function metagameDeckStrategyKey(state) {
   return `a${attackBand}-d${defenseBand}-r${recoveryBand}-s${supportBand}`;
 }
 
-function metagameDeckSpendBand(totalSpent, totalCost, deckLength = 5) {
-  const budget = Math.max(1, Number(totalCost) || 1);
-  const progress = Math.min(1, Math.max(0.2, (Number(deckLength) || 1) / 5));
-  const pacedBudget = budget * progress;
-  const ratio = Math.max(0, Number(totalSpent) || 0) / Math.max(1, pacedBudget);
-  if (ratio < 0.67) return 0;
-  if (ratio < 0.80) return 1;
-  if (ratio < 0.90) return 2;
-  if (ratio < 0.97) return 3;
-  return 4;
-}
-
-function metagameAddSpendCoverage(selected, entries, targetSize, totalCost, keyFor, scoreFor) {
-  if (selected.size >= targetSize) return;
-  const buckets = Array.from({ length: 5 }, () => []);
-  const ordered = [...entries].sort((left, right) => (
-    scoreFor(right) - scoreFor(left) ||
-    (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
-  ));
-  for (const entry of ordered) {
-    const deckLength = entry.deck?.length ?? 5;
-    buckets[metagameDeckSpendBand(entry.totalCost, totalCost, deckLength)].push(entry);
-  }
-  let cursor = 0;
-  while (selected.size < targetSize && buckets.some((bucket) => bucket.length)) {
-    const bucket = buckets[cursor % buckets.length];
-    cursor += 1;
-    const entry = bucket.shift();
-    if (!entry) continue;
-    selected.set(keyFor(entry), entry);
-  }
-}
-
 function metagameTrimDeckBeam(states, width, totalCost) {
   const byId = new Map();
   for (const state of states) {
@@ -472,33 +530,17 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   const selected = new Map();
   const stateKey = (state) => state.deck.map((entry) => entry.character.id).join("|");
   const stateScore = (state) => metagameDeckStateScore(state, totalCost);
-  const primaryCount = Math.max(1, Math.floor(width * 0.6));
+  const primaryCount = Math.max(1, Math.floor(width * 0.72));
   const primary = [...unique].sort((left, right) => (
     stateScore(right) - stateScore(left) ||
     left.totalCost - right.totalCost
   ));
   primary.slice(0, primaryCount).forEach((state) => selected.set(stateKey(state), state));
 
-  // Total cost is a ceiling, not a target.  Do not score a deck up merely for
-  // spending more, but also do not let a cheap-proxy lane crowd every higher
-  // spend construction out before real 5v5 evaluation. Preserve strong states
-  // from several spend bands relative to the current partial-deck progress.
-  const spendCoverageTarget = Math.min(width, Math.max(
-    selected.size,
-    Math.floor(width * 0.72),
-  ));
-  metagameAddSpendCoverage(
-    selected,
-    unique,
-    spendCoverageTarget,
-    totalCost,
-    stateKey,
-    stateScore,
-  );
-
   // Preserve competitive role shapes for the full 5v5 evaluation. Build the
   // buckets from the full unique beam, not only the already-selected primary
-  // slice; otherwise this lane cannot rescue a distinct strategy.
+  // slice; otherwise this lane cannot rescue a distinct strategy. Total cost
+  // is never used as a positive or negative value signal here.
   const byStrategy = new Map();
   for (const state of unique) {
     const key = metagameDeckStrategyKey(state);
@@ -509,10 +551,7 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   const strategyBuckets = [...byStrategy.values()].map((bucket) => (
     bucket.sort((left, right) => stateScore(right) - stateScore(left) || left.totalCost - right.totalCost)
   ));
-  const strategyTarget = Math.min(width, Math.max(
-    selected.size,
-    Math.floor(width * 0.88),
-  ));
+  const strategyTarget = width;
   let strategyCursor = 0;
   while (selected.size < strategyTarget && strategyBuckets.some((bucket) => bucket.length)) {
     const bucket = strategyBuckets[strategyCursor % strategyBuckets.length];
@@ -941,26 +980,6 @@ function metagameSelectFinalists(candidates, limit, minimum = 36, totalCost = 0)
   const selected = new Map();
   const add = (candidate) => selected.set(candidate.deck.map((character) => character.id).join("|"), candidate);
   candidates.slice(0, Math.ceil(maximum * 0.4)).forEach(add);
-
-  // Before the expensive 5v5 pass, deliberately retain good constructions
-  // across several budget-usage bands. This is coverage only: spending more
-  // receives no score bonus, and the final battle result still decides rank.
-  const resolvedBudget = Math.max(
-    1,
-    Number(totalCost) || Math.max(...candidates.map((candidate) => Number(candidate.totalCost) || 0), 1),
-  );
-  const spendCoverageTarget = Math.min(
-    maximum,
-    selected.size + Math.max(5, Math.ceil(maximum * 0.25)),
-  );
-  metagameAddSpendCoverage(
-    selected,
-    candidates,
-    spendCoverageTarget,
-    resolvedBudget,
-    (candidate) => candidate.deck.map((character) => character.id).join("|"),
-    (candidate) => Number(candidate.proxyScore) || 0,
-  );
 
   const bestByStrategy = new Map();
   for (const candidate of candidates) {
