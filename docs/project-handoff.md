@@ -1011,3 +1011,42 @@ Compatibility:
 
 - no battle semantics, V12 durable ranking policy, checkpoint schema, or precomputed battle evidence changed
 - no expensive V12 recompute is required; this changes only browser-side candidate coverage/finalist selection for generated decks, especially intermediate costs such as 150
+
+
+### 2026-10-03 — browser generation architecture corrected to individual-first reconstruction
+
+User clarified that preserving precomputed decks by cost-usage band is the wrong abstraction for the product. Future browser generation must support arbitrary cost limits, many restrictions, fixed characters, and event-boosted characters, so saved finished decks cannot be the primary source of flexibility.
+
+This supersedes the earlier 2026-10-03 spend-band candidate-retention experiment. The direct unused-budget reward remains removed, but explicit low/mid/high spend-band retention has also been removed.
+
+Current design:
+
+- **individual evidence is primary**: per character × position opportunity/contribution evidence drives browser search
+- representative-cost V12 candidates are marked as budget-specific evidence and are not charged a second generic whole-budget penalty
+- for an intermediate cost such as 150, the same character's fire:100 and fire:200 numeric individual evidence is linearly interpolated at 150; the old winner-take-all merge that kept whichever endpoint score was larger is gone
+- if only one endpoint has a browser-knowledge package, arbitrary-cost generation does not apply that one-sided package over the two-band interpolation; it waits until both endpoint knowledge packages exist
+- exact V12 recommendation generation no longer short-circuits to a saved finished deck in either V12 UI compatibility layer
+- lazy browser knowledge can add candidates beyond the compact embedded top-96 slot pool using full `candidatePriors`
+- measured `pairPriors` are a bounded secondary correction, not the main value signal
+- exact 1.5x event-boost deltas from `boostModel` are applied to individual candidate evidence before beam search; the Pages knowledge payload now retains `boostModel` and `neighborhoods`
+- boost precompute was deepened from 2 to 6 anchor decks per character/position. This increases offline work without increasing browser search time
+- browser-knowledge workflow now has an `auto` mode and hourly selector that progressively builds missing/stale packages for completed representative conditions
+- browser search uses a broader knowledge-backed beam (20,000 default) and then bounded real battle verification
+- final verification is progressive: 6 surveyed scenarios -> 12 -> requested final scenarios (24 by default). Early stages are selected from the full surveyed pool rather than from a pre-truncated subset
+- survivor selection keeps candidates strong by blended mean/lower-bound evidence while retaining mean, conservative, and proxy lanes; it does not retain decks merely because of their total cost
+- an internal 8.5-minute deadline applies to browser generation. A later stage that cannot be completed fairly is discarded and the last fully completed equal-scenario stage is used. This preserves the hard requirement that browser generation stay below 10 minutes with safety margin
+
+Important interpretation:
+
+- A cost-96 deck may still beat cost-145 decks and rank first if actual individual priors + combination evidence + 5v5 validation support it.
+- What must not happen is a cost-96 deck winning because cost100 priors leaked unchanged into cost150, because unused budget was rewarded, because high-value characters were missing from the compact candidate pool, or because a precomputed finished deck was treated as the only search neighborhood.
+- Offline/cloud computation can be much heavier than before. Prefer richer per-character, boost, and interaction knowledge over adding more browser runtime.
+
+Validation added/updated:
+
+- arbitrary-cost tests pin same-character lower/upper interpolation
+- knowledge-only character priors must enter browser candidate generation
+- boost priors must change the boosted character's pre-search individual value
+- V12 exact-cost cache tests now require live reconstruction instead of finished-deck shortcut reuse
+- staged browser verification test pins 6 -> 12 -> requested-final progression
+- Pages runs the focused browser deck/dynamic-cost/cache regressions before deployment
