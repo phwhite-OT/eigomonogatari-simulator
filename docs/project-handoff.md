@@ -1060,3 +1060,11 @@ Follow-up details after the individual-first correction:
 - when exact browser knowledge exists, the 6/12 early screens use offline-selected representative scenario indices
 - when interpolating two knowledge bands, representative scenarios are combined from both endpoints (half from each, with the upper-band indices offset into the concatenated scenario pool)
 - browser candidate construction and each battle scenario check the same 8.5-minute deadline; later incomplete stages are never mixed with fully evaluated candidates
+
+
+Browser-knowledge scheduling/freshness policy:
+
+- generated packages carry `policyVersion: 2`; Pages exposes that marker
+- the automatic selector first fills **missing** packages, attribute-by-attribute and cost-by-cost (100 -> 200 -> 300 -> 500), so neighbouring cost bands needed for arbitrary-cost interpolation become available quickly
+- only after all currently completed conditions have a package does it refresh stale source reports or old policy versions
+- this means an existing fire:100 package does not get needlessly rebuilt before the missing fire:200 package needed for fire:150 two-sided knowledge
