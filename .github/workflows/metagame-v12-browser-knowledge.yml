@@ -71,19 +71,26 @@ jobs:
             git show "$results_ref:$base/progress-summary.json" 2>/dev/null | jq -e               --arg version "$model_version"               '.status == "complete" and .context.version == $version' >/dev/null
           }
 
-          needs_refresh() {
+          knowledge_missing() {
+            local input="$1"
+            local directory="${input//:/-}"
+            local knowledge_path="$knowledge_root/$directory/browser-knowledge.json"
+            ! git cat-file -e "$knowledge_ref:$knowledge_path" 2>/dev/null
+          }
+
+          knowledge_stale() {
             local input="$1"
             local directory="${input//:/-}"
             local report_path="$report_root/$directory/report.json"
             local knowledge_path="$knowledge_root/$directory/browser-knowledge.json"
             local report_generated
             local knowledge_generated
+            local policy_version
+            knowledge_missing "$input" && return 1
             report_generated="$(git show "$results_ref:$report_path" | jq -r '.generatedAt // ""')"
-            if ! git cat-file -e "$knowledge_ref:$knowledge_path" 2>/dev/null; then
-              return 0
-            fi
             knowledge_generated="$(git show "$knowledge_ref:$knowledge_path" | jq -r '.sourceGeneratedAt // ""')"
-            [ -z "$report_generated" ] || [ "$knowledge_generated" != "$report_generated" ]
+            policy_version="$(git show "$knowledge_ref:$knowledge_path" | jq -r '.policyVersion // 0')"
+            [ "$policy_version" != "2" ] || { [ -n "$report_generated" ] && [ "$knowledge_generated" != "$report_generated" ]; }
           }
 
           selected=""
@@ -96,18 +103,31 @@ jobs:
           else
             attribute_groups=(fire water wind fire-water fire-wind water-wind fire-water-wind)
             representative_costs=(100 200 300 500)
-            # Complete one attribute's neighbouring knowledge bands together
-            # so arbitrary costs (e.g. fire:150) gain two-sided individual
-            # interpolation as soon as possible.
+            # First fill genuinely missing neighbouring bands. This makes
+            # arbitrary-cost interpolation usable sooner (e.g. existing
+            # fire:100 knowledge causes fire:200 to be selected next).
             for attribute_group in "${attribute_groups[@]}"; do
               for cost in "${representative_costs[@]}"; do
                 input="$attribute_group:$cost"
-                if is_current_complete "$input" && needs_refresh "$input"; then
+                if is_current_complete "$input" && knowledge_missing "$input"; then
                   selected="$input"
                   break 2
                 fi
               done
             done
+            # Only after every currently completed condition has a package do
+            # we spend offline time refreshing older policy/source versions.
+            if [ -z "$selected" ]; then
+              for attribute_group in "${attribute_groups[@]}"; do
+                for cost in "${representative_costs[@]}"; do
+                  input="$attribute_group:$cost"
+                  if is_current_complete "$input" && knowledge_stale "$input"; then
+                    selected="$input"
+                    break 2
+                  fi
+                done
+              done
+            fi
           fi
 
           if [ -z "$selected" ]; then
