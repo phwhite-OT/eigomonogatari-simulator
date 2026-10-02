@@ -146,6 +146,10 @@ async function loadResolvedMetagameBrowserKnowledge(data, constraint) {
         modelVersion: constraint.modelVersion,
       }),
     ]);
+    // Never let one neighbouring band overwrite a genuine arbitrary-cost
+    // interpolation. Until both knowledge packages exist, the resolved
+    // constraint's per-character 100/200 (etc.) interpolation is safer.
+    if (!lower || !upper) return null;
     return metagameMergeBrowserKnowledge(lower, upper, interpolation);
   }
   if (interpolation?.kind === "nearest" && interpolation.sourceId) {
