@@ -96,8 +96,11 @@ jobs:
           else
             attribute_groups=(fire water wind fire-water fire-wind water-wind fire-water-wind)
             representative_costs=(100 200 300 500)
-            for cost in "${representative_costs[@]}"; do
-              for attribute_group in "${attribute_groups[@]}"; do
+            # Complete one attribute's neighbouring knowledge bands together
+            # so arbitrary costs (e.g. fire:150) gain two-sided individual
+            # interpolation as soon as possible.
+            for attribute_group in "${attribute_groups[@]}"; do
+              for cost in "${representative_costs[@]}"; do
                 input="$attribute_group:$cost"
                 if is_current_complete "$input" && needs_refresh "$input"; then
                   selected="$input"
