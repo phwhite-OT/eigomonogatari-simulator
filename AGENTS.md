@@ -69,6 +69,25 @@ Normal matched-slot counterfactual auditing is intentionally bounded for runtime
 
 Critical artifact invariant: every `prefill` shard must upload its cache delta and `merge` must refuse to continue when zero delta files are downloaded. In GitHub Action `with.path` fields, use GitHub expression syntax such as `${{ needs.select.outputs.output_directory }}`; shell-style `$METAGAME_OUTPUT_DIRECTORY` is not expanded there.
 
+## Browser deck generation: individual-first reconstruction
+
+The browser recommendation path must remain flexible for arbitrary user costs, attribute restrictions, fixed slots, and 1.5x event-boosted characters. **Do not make saved finished decks the primary search space and do not require a previously evaluated five-card deck to exist.**
+
+Current browser policy:
+
+- heavy cloud work produces per-character/per-position evidence first; completed decks are supporting battle evidence and opponent-environment material, not templates the browser must reuse
+- exact representative costs use the current condition's individual evidence
+- arbitrary costs between representative bands interpolate the **same character's** lower/upper per-position evidence at the requested cost; never take whichever endpoint score is larger
+- browser-knowledge packages lazily extend the embedded candidate pool with full candidate priors, measured pair residuals, representative scenarios, and exact 1.5x boost deltas
+- pair/continuation evidence is secondary to individual value: it may rescue genuine combinations from pruning but must not replace the individual signal
+- event-boost priors are applied before candidate search so a boosted character can reach final battles instead of relying on post-search stat changes
+- total cost is a ceiling, not a target. Do not reward spending budget and do not reward leaving it unused
+- V12 finished-deck cache shortcuts are disabled for recommendation generation; the browser reconstructs a deck for the current conditions
+- real 5v5 verification is staged from the full surveyed environment: normally 6 scenarios -> 12 scenarios -> the requested final set (24 by default)
+- browser generation has an internal 8.5-minute deadline, leaving safety margin below the user-facing hard requirement of 10 minutes. If a later verification stage cannot finish fairly before the deadline, use the last fully completed equal-scenario stage rather than comparing partially evaluated decks
+
+Offline browser knowledge may be expensive. That is intentional: prefer spending cloud time to improve individual/boost/synergy evidence so browser work stays bounded and accurate.
+
 ## Public-site publication
 
 `.github/workflows/deploy-pages.yml` is triggered by pushes to `master`, `metagame-v12-shared-pool-results`, and the browser-knowledge results branch. It must always check out **master** for application source code, then overlay report data from result branches.
