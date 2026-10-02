@@ -38,6 +38,9 @@ jobs:
         with:
           node-version: 22
 
+      - name: Run browser deck-generation regression tests
+        run: node --test test/metagame-deck.test.js test/metagame-v12-dynamic-cost.test.js test/metagame-v12-browser-cache.test.js
+
       - name: Prepare public site
         shell: bash
         run: |
