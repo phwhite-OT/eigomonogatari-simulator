@@ -135,7 +135,9 @@ jobs:
                 characterIds,
                 candidatePriors,
                 deckLibrary,
-                pairPriors
+                neighborhoods,
+                pairPriors,
+                boostModel
               }' "$knowledge_file" > "_site/metagame-knowledge/$directory.json"
             done < <(find "$knowledge_root" -mindepth 2 -maxdepth 2 -type f -name 'browser-knowledge.json' -print | sort)
           fi
