@@ -37,6 +37,7 @@ function compactV12Candidate(entry, character) {
     role: entry.role ?? "neutral",
     evaluationStatus: entry.evaluationStatus ?? "complete",
     evaluationWarning: entry.evaluationWarning ?? null,
+    budgetSpecificIndividualEvidence: true,
     opportunityWinGain: Number(entry.opportunityWinGain) || 0,
     robustOpportunityWinGain: Number(entry.robustOpportunityWinGain) || 0,
     marginalWinGain: Number(entry.marginalWinGain ?? entry.opportunityWinGain) || 0,
