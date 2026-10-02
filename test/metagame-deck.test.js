@@ -785,105 +785,155 @@ test("V8 search automatically evaluates an edited catalogue character in both de
   assert.ok(evidence.samples.some((sample) => sample.enemyDecks.flat().some((entry) => entry.id === added.id)));
 });
 
-
-test("中間コストのbeamは余剰コストを直接ご褒美にせず高使用帯も探索に残す", () => {
-  const characters = [];
-  const slots = [];
-  const costs = [5, 10, 20, 25, 28];
-  for (let position = 1; position <= 5; position += 1) {
-    const candidates = costs.map((cost, index) => {
-      const entry = metagameTestCharacter(`coverage-${position}-${cost}`, cost, "R", 100 + cost);
-      entry.skillTurn = Math.max(0, position - 1);
-      characters.push(entry);
-      return {
-        ...metagameTestRating(entry, index + 1),
-        role: "neutral",
-        practicalValue: Math.max(0.05, 0.95 - index * 0.2),
-        marginalWinGain: Math.max(0.002, 0.16 - index * 0.038),
-        marginalWinGainLowerBound: Math.max(0.001, 0.12 - index * 0.029),
-        costAwareScore: Math.max(0.05, 0.9 - index * 0.2),
-        roleBreakdown: {},
-      };
-    });
-    slots.push({ position, candidates });
-  }
-  const constraint = {
-    id: "fire:150-coverage",
+test("中間コストは両側の同一キャラ単体評価を補間する", () => {
+  const character = metagameTestCharacter("interpolated", 20);
+  const tail = [2, 3, 4, 5].map((position) => {
+    const entry = metagameTestCharacter(`tail-${position}`, 10);
+    entry.skillTurn = position - 1;
+    return entry;
+  });
+  const candidate = (value) => ({
+    ...metagameTestRating(character, 1),
+    marginalWinGain: value,
+    marginalWinGainLowerBound: value - 0.02,
+    costAwareScore: 0.5 + value,
+    practicalValue: 0.5 + value,
+    individualScore: 0.5 + value,
+  });
+  const tailSlots = tail.map((entry, index) => ({
+    position: index + 2,
+    candidates: [metagameTestRating(entry, 1)],
+  }));
+  const lower = {
+    id: "fire:100",
+    attributeKey: "fire",
+    label: "火・コスト100",
     allowedAttributes: ["fire"],
-    totalCost: 150,
-    turns: 1,
-    slots,
+    totalCost: 100,
+    slots: [{ position: 1, candidates: [candidate(0.04)] }, ...tailSlots],
+    teamScenarios: [],
+    environmentScenarios: [],
   };
+  const upper = {
+    ...lower,
+    id: "fire:200",
+    label: "火・コスト200",
+    totalCost: 200,
+    slots: [{ position: 1, candidates: [candidate(0.16)] }, ...tailSlots],
+  };
+  const resolved = resolveMetagameConstraint({ constraints: [lower, upper] }, lower.id, 150);
+  const rating = resolved.slots[0].candidates.find((entry) => entry.id === character.id);
 
-  const candidates = buildMetagameDeckCandidates(constraint, characters, { beamWidth: 500 });
-
-  assert.equal(candidates.length, 500);
-  assert.ok(
-    candidates.some((candidate) => candidate.totalCost >= 135),
-    "低コストproxyが強くても、上限近くを使う有力構成を実戦評価前に全滅させない",
-  );
-  assert.ok(
-    candidates.some((candidate) => candidate.totalCost <= 75),
-    "高コストを使うこと自体を正義にせず、低使用帯も同時に残す",
-  );
+  assert.ok(rating);
+  assert.ok(Math.abs(rating.marginalWinGain - 0.10) < 1e-9);
+  assert.ok(Math.abs(rating.marginalWinGainLowerBound - 0.08) < 1e-9);
+  assert.equal(rating.interpolationEvidence.coverage, "both");
+  assert.equal(rating.interpolationEvidence.requestedCost, 150);
 });
 
-test("中間コストの最終対戦は高使用帯の候補も実際に検証する", async () => {
-  const firstSlot = Array.from({ length: 50 }, (_, index) => {
-    const cost = index + 1;
-    const entry = metagameTestCharacter(`spend-${cost}`, cost, "R", cost * 1000);
-    entry.hp = 100_000;
-    entry.skillTurn = 0;
-    return entry;
-  });
+test("browser knowledgeの全候補単体評価を候補生成へ追加できる", () => {
+  const hidden = metagameTestCharacter("knowledge-only", 20, "R", 200);
+  hidden.skillTurn = 0;
+  const visible = metagameTestCharacter("visible", 20, "R", 200);
+  visible.skillTurn = 0;
   const tail = [2, 3, 4, 5].map((position) => {
-    const entry = metagameTestCharacter(`fixed-tail-${position}`, 25, "R", 10);
-    entry.hp = 100_000;
+    const entry = metagameTestCharacter(`knowledge-tail-${position}`, 10, "R", 200);
     entry.skillTurn = position - 1;
     return entry;
   });
-  const enemy = [1, 2, 3, 4, 5].map((position) => {
-    const entry = metagameTestCharacter(`coverage-enemy-${position}`, 1, "N", 1);
-    entry.hp = 52_000;
-    entry.skillTurn = position - 1;
-    return entry;
-  });
-  const rating = (entry, index = 0) => ({
-    ...metagameTestRating(entry, index + 1),
-    role: "neutral",
-    // Deliberately make the proxy prefer cheap cards. The browser must still
-    // send some high-spend constructions to the real battle pass.
-    practicalValue: Math.max(0.01, 1 - index / 50),
-    marginalWinGain: Math.max(0.001, 0.18 - index * 0.0035),
-    marginalWinGainLowerBound: Math.max(0.001, 0.14 - index * 0.0027),
-    costAwareScore: Math.max(0.01, 0.95 - index * 0.018),
-    roleBreakdown: {},
-  });
-  const enemyIds = enemy.map((entry) => entry.id);
+  const baseRating = {
+    ...metagameTestRating(visible, 1),
+    marginalWinGain: 0.02,
+    marginalWinGainLowerBound: 0.01,
+    costAwareScore: 0.2,
+  };
   const constraint = {
-    id: "fire:150-finalist-coverage",
-    label: "火・コスト150",
+    id: "fire:150",
     allowedAttributes: ["fire"],
     totalCost: 150,
-    turns: 1,
-    scenarioCount: 1,
     slots: [
-      { position: 1, candidates: firstSlot.map((entry, index) => rating(entry, index)) },
-      ...tail.map((entry, index) => ({ position: index + 2, candidates: [rating(entry)] })),
+      { position: 1, candidates: [baseRating] },
+      ...tail.map((entry, index) => ({ position: index + 2, candidates: [metagameTestRating(entry, 1)] })),
     ],
-    environmentScenarios: [Array.from({ length: 9 }, () => [...enemyIds])],
   };
-  const data = { generatedAt: "2026-10-03T00:00:00.000Z", constraints: [constraint] };
-  const result = await findBestMetagameDeck(
-    data,
-    constraint.id,
-    [...firstSlot, ...tail, ...enemy],
-    { beamWidth: 500, finalistCount: 40, interactiveScenarioCount: 1 },
+  const browserKnowledge = {
+    candidatePriors: [{
+      p: 1,
+      i: hidden.id,
+      c: hidden.cost,
+      w: 0.7,
+      l: 0.6,
+      m: 0.16,
+      r: 0.12,
+      s: 0.82,
+      f: 0.7,
+      k: "neutral",
+      t: 0,
+      y: "none",
+      e: "complete",
+    }],
+    pairPriors: [],
+  };
+
+  const candidates = buildMetagameDeckCandidates(
+    constraint,
+    [visible, hidden, ...tail],
+    { beamWidth: 100, browserKnowledge },
   );
 
-  assert.ok(result.simulatedDeckCount <= 40);
-  assert.ok(
-    result.results[0].totalCost >= 145,
-    "安いproxyだけで最終候補を埋めず、余った予算で実際に強くなる構成を5対5で比較する",
+  assert.ok(candidates.some((entry) => entry.deck[0].id === hidden.id));
+  assert.equal(candidates[0].deck[0].id, hidden.id);
+});
+
+test("補正事前計算は補正キャラの単体候補評価へ反映される", () => {
+  const boosted = metagameTestCharacter("boost-knowledge", 20, "R", 200);
+  boosted.skillTurn = 0;
+  const rival = metagameTestCharacter("boost-rival", 20, "R", 200);
+  rival.skillTurn = 0;
+  const tail = [2, 3, 4, 5].map((position) => {
+    const entry = metagameTestCharacter(`boost-tail-${position}`, 10, "R", 200);
+    entry.skillTurn = position - 1;
+    return entry;
+  });
+  const rating = (entry, score) => ({
+    ...metagameTestRating(entry, 1),
+    marginalWinGain: score,
+    marginalWinGainLowerBound: score,
+    costAwareScore: 0.5 + score,
+  });
+  const constraint = {
+    id: "fire:150",
+    allowedAttributes: ["fire"],
+    totalCost: 150,
+    slots: [
+      { position: 1, candidates: [rating(boosted, 0.03), rating(rival, 0.08)] },
+      ...tail.map((entry, index) => ({ position: index + 2, candidates: [rating(entry, 0.05)] })),
+    ],
+  };
+  const browserKnowledge = {
+    candidatePriors: [
+      { p: 1, i: boosted.id, c: 20, w: 0.55, l: 0.5, m: 0.03, r: 0.03, s: 0.53, f: 0.5, k: "neutral", t: 0, y: "none" },
+      { p: 1, i: rival.id, c: 20, w: 0.6, l: 0.55, m: 0.08, r: 0.08, s: 0.58, f: 0.5, k: "neutral", t: 0, y: "none" },
+    ],
+    pairPriors: [],
+    boostModel: {
+      multiplier: 1.5,
+      priors: [{ p: 1, i: boosted.id, n: 2, w: 0.78, l: 0.68, m: 0.12, r: 0.10 }],
+    },
+  };
+
+  const normal = buildMetagameDeckCandidates(
+    constraint,
+    [boosted, rival, ...tail],
+    { beamWidth: 100, browserKnowledge },
   );
+  const boostedResult = buildMetagameDeckCandidates(
+    constraint,
+    [boosted, rival, ...tail],
+    { beamWidth: 100, browserKnowledge, boostedCharacterIds: [boosted.id] },
+  );
+
+  assert.equal(normal[0].deck[0].id, rival.id);
+  assert.equal(boostedResult[0].deck[0].id, boosted.id);
+  assert.ok(boostedResult[0].ratings[0].boostEvidence.meanDelta > 0);
 });
