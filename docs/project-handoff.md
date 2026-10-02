@@ -971,3 +971,19 @@ UI changes:
 - surrounding messages now say that precomputed environment information is used to generate the deck in the browser
 
 Implementation remains grounded in `findBestMetagameDeck(...)` / `buildMetagameDeckCandidatesWithProgress(...)`: no server-side per-click deck generation was introduced, and no heavy V12 cloud recompute is triggered by the button.
+
+
+### 2026-10-02 — refresh public site with every currently completed V12 condition
+
+Manual publication refresh requested after additional V12 conditions completed.
+
+At refresh time, the current complete conditions on `metagame-v12-shared-pool-results` are:
+
+- `fire:100`
+- `fire:200`
+- `water:100`
+- `water:200`
+- `wind:200`
+- `fire-water:200`
+
+`wind:100` and `fire-wind:200` are still finalizing and are intentionally excluded. Legacy/non-current result directories are also excluded. This documentation-only master commit triggers the existing Pages deploy, which republishes every current complete condition from the durable results branch.
