@@ -426,6 +426,39 @@ function metagameDeckStrategyKey(state) {
   return `a${attackBand}-d${defenseBand}-r${recoveryBand}-s${supportBand}`;
 }
 
+function metagameDeckSpendBand(totalSpent, totalCost, deckLength = 5) {
+  const budget = Math.max(1, Number(totalCost) || 1);
+  const progress = Math.min(1, Math.max(0.2, (Number(deckLength) || 1) / 5));
+  const pacedBudget = budget * progress;
+  const ratio = Math.max(0, Number(totalSpent) || 0) / Math.max(1, pacedBudget);
+  if (ratio < 0.67) return 0;
+  if (ratio < 0.80) return 1;
+  if (ratio < 0.90) return 2;
+  if (ratio < 0.97) return 3;
+  return 4;
+}
+
+function metagameAddSpendCoverage(selected, entries, targetSize, totalCost, keyFor, scoreFor) {
+  if (selected.size >= targetSize) return;
+  const buckets = Array.from({ length: 5 }, () => []);
+  const ordered = [...entries].sort((left, right) => (
+    scoreFor(right) - scoreFor(left) ||
+    (Number(left.totalCost) || 0) - (Number(right.totalCost) || 0)
+  ));
+  for (const entry of ordered) {
+    const deckLength = entry.deck?.length ?? 5;
+    buckets[metagameDeckSpendBand(entry.totalCost, totalCost, deckLength)].push(entry);
+  }
+  let cursor = 0;
+  while (selected.size < targetSize && buckets.some((bucket) => bucket.length)) {
+    const bucket = buckets[cursor % buckets.length];
+    cursor += 1;
+    const entry = bucket.shift();
+    if (!entry) continue;
+    selected.set(keyFor(entry), entry);
+  }
+}
+
 function metagameTrimDeckBeam(states, width, totalCost) {
   const byId = new Map();
   for (const state of states) {
@@ -437,47 +470,70 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   }
   const unique = [...byId.values()];
   const selected = new Map();
+  const stateKey = (state) => state.deck.map((entry) => entry.character.id).join("|");
+  const stateScore = (state) => metagameDeckStateScore(state, totalCost);
   const primaryCount = Math.max(1, Math.floor(width * 0.6));
   const primary = [...unique].sort((left, right) => (
-    metagameDeckStateScore(right, totalCost) - metagameDeckStateScore(left, totalCost) ||
+    stateScore(right) - stateScore(left) ||
     left.totalCost - right.totalCost
   ));
-  primary.slice(0, primaryCount).forEach((state) => selected.set(
-    state.deck.map((entry) => entry.character.id).join("|"),
-    state,
+  primary.slice(0, primaryCount).forEach((state) => selected.set(stateKey(state), state));
+
+  // Total cost is a ceiling, not a target.  Do not score a deck up merely for
+  // spending more, but also do not let a cheap-proxy lane crowd every higher
+  // spend construction out before real 5v5 evaluation. Preserve strong states
+  // from several spend bands relative to the current partial-deck progress.
+  const spendCoverageTarget = Math.min(width, Math.max(
+    selected.size,
+    Math.floor(width * 0.72),
   ));
-  // Preserve competitive role shapes for the full 5v5 evaluation.  This is
-  // deliberately a search-diversity rule, not a requirement that every deck
-  // contain a defense or a revive: a pressure-only deck can still win, but it
-  // must beat the best mixed decks in the actual battle simulation.
+  metagameAddSpendCoverage(
+    selected,
+    unique,
+    spendCoverageTarget,
+    totalCost,
+    stateKey,
+    stateScore,
+  );
+
+  // Preserve competitive role shapes for the full 5v5 evaluation. Build the
+  // buckets from the full unique beam, not only the already-selected primary
+  // slice; otherwise this lane cannot rescue a distinct strategy.
   const byStrategy = new Map();
-  for (const state of primary) {
+  for (const state of unique) {
     const key = metagameDeckStrategyKey(state);
     const bucket = byStrategy.get(key) ?? [];
     bucket.push(state);
     byStrategy.set(key, bucket);
   }
-  const strategyBuckets = [...byStrategy.values()].map((bucket) => [...bucket]);
+  const strategyBuckets = [...byStrategy.values()].map((bucket) => (
+    bucket.sort((left, right) => stateScore(right) - stateScore(left) || left.totalCost - right.totalCost)
+  ));
+  const strategyTarget = Math.min(width, Math.max(
+    selected.size,
+    Math.floor(width * 0.88),
+  ));
   let strategyCursor = 0;
-  while (selected.size < width && strategyBuckets.some((bucket) => bucket.length)) {
+  while (selected.size < strategyTarget && strategyBuckets.some((bucket) => bucket.length)) {
     const bucket = strategyBuckets[strategyCursor % strategyBuckets.length];
     strategyCursor += 1;
     const state = bucket.shift();
     if (!state) continue;
-    selected.set(state.deck.map((entry) => entry.character.id).join("|"), state);
+    selected.set(stateKey(state), state);
   }
-  const costAware = [...unique].sort((left, right) => (
-    metagameDeckStateScore(right, totalCost) - right.totalCost / Math.max(1, totalCost) * 0.05 -
-      (metagameDeckStateScore(left, totalCost) - left.totalCost / Math.max(1, totalCost) * 0.05) ||
-    left.totalCost - right.totalCost
-  ));
-  for (const state of costAware) {
-    if (selected.size >= width) break;
-    selected.set(state.deck.map((entry) => entry.character.id).join("|"), state);
-  }
+
+  // Fill the remaining beam by search quality only.  The previous code
+  // subtracted totalCost/budget directly here, which unintentionally rewarded
+  // leaving budget unused even when a higher-cost deck had the better proxy.
   for (const state of primary) {
     if (selected.size >= width) break;
-    selected.set(state.deck.map((entry) => entry.character.id).join("|"), state);
+    selected.set(stateKey(state), state);
+  }
+  for (const state of [...unique].sort((left, right) => (
+    stateScore(right) - stateScore(left) || left.totalCost - right.totalCost
+  ))) {
+    if (selected.size >= width) break;
+    selected.set(stateKey(state), state);
   }
   return [...selected.values()];
 }
@@ -880,11 +936,32 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
 }
 
-function metagameSelectFinalists(candidates, limit, minimum = 36) {
+function metagameSelectFinalists(candidates, limit, minimum = 36, totalCost = 0) {
   const maximum = Math.min(candidates.length, Math.max(minimum, Number(limit) || 40));
   const selected = new Map();
   const add = (candidate) => selected.set(candidate.deck.map((character) => character.id).join("|"), candidate);
   candidates.slice(0, Math.ceil(maximum * 0.4)).forEach(add);
+
+  // Before the expensive 5v5 pass, deliberately retain good constructions
+  // across several budget-usage bands. This is coverage only: spending more
+  // receives no score bonus, and the final battle result still decides rank.
+  const resolvedBudget = Math.max(
+    1,
+    Number(totalCost) || Math.max(...candidates.map((candidate) => Number(candidate.totalCost) || 0), 1),
+  );
+  const spendCoverageTarget = Math.min(
+    maximum,
+    selected.size + Math.max(5, Math.ceil(maximum * 0.25)),
+  );
+  metagameAddSpendCoverage(
+    selected,
+    candidates,
+    spendCoverageTarget,
+    resolvedBudget,
+    (candidate) => candidate.deck.map((character) => character.id).join("|"),
+    (candidate) => Number(candidate.proxyScore) || 0,
+  );
+
   const bestByStrategy = new Map();
   for (const candidate of candidates) {
     const key = metagameDeckStrategyKey(candidate);
@@ -932,12 +1009,12 @@ function metagameSelectFinalists(candidates, limit, minimum = 36) {
   return [...selected.values()];
 }
 
-function metagameSelectFinalistsWithBoosts(candidates, limit, boostedIds) {
+function metagameSelectFinalistsWithBoosts(candidates, limit, boostedIds, totalCost = 0) {
   // Interactive calculations keep a strategy-diverse finalist set usable in
   // the browser. Every explicitly selected character receives a mandatory
   // full 5v5 evaluation at every generated legal position, even when it has
   // no published environment rating.
-  const selected = new Map(metagameSelectFinalists(candidates, limit, 8).map((candidate) => [
+  const selected = new Map(metagameSelectFinalists(candidates, limit, 8, totalCost).map((candidate) => [
     candidate.deck.map((character) => String(character.id)).join("|"), candidate,
   ]));
   for (const id of boostedIds) {
@@ -1776,7 +1853,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     const candidates = generated.candidates;
     const automaticIds = generated.automaticIds;
     const requiredIds = generated.requiredIds;
-    const finalists = metagameSelectFinalistsWithBoosts(candidates, options.finalistCount ?? 24, requiredIds);
+    const finalists = metagameSelectFinalistsWithBoosts(candidates, options.finalistCount ?? 24, requiredIds, constraint.totalCost);
     const requestedScenarioCount = Number(options.interactiveScenarioCount ?? options.boostedScenarioCount);
     const boostedScenarioCount = requestedScenarioCount === 0
       ? undefined
@@ -1960,7 +2037,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
   }
   const boostedCharacters = characters.map((character) => applyMetagameStatBoost(character, boostedIds));
   const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, boostedCharacters, options);
-  const finalists = metagameSelectFinalists(candidates, options.finalistCount);
+  const finalists = metagameSelectFinalists(candidates, options.finalistCount, 36, constraint.totalCost);
   // The interactive selector is the user's explicit trade-off between speed
   // and coverage.  V9/V10 data still uses the legacy nine-deck scenario
   // format, so it reaches this branch rather than the V8 interactive branch
