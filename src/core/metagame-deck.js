@@ -270,9 +270,14 @@ function metagameCandidateScore(rating, totalCost) {
   const price = Math.max(1, Number(rating.cost) || 1);
   const budgetShare = metagameDeckClampUnit(price / budget);
   const publishedCostAwareScore = Number(rating.costAwareScore);
-  const budgetAdjustedPublishedScore = Number.isFinite(publishedCostAwareScore)
-    ? metagameDeckClampUnit(publishedCostAwareScore) * (1 - budgetShare * 0.65)
+  const publishedScore = Number.isFinite(publishedCostAwareScore)
+    ? metagameDeckClampUnit(publishedCostAwareScore)
     : null;
+  const budgetAdjustedPublishedScore = publishedScore === null
+    ? null
+    : rating.budgetSpecificIndividualEvidence
+      ? publishedScore
+      : publishedScore * (1 - budgetShare * 0.65);
   const marginalLowerBound = Number(rating.marginalWinGainLowerBound);
   const marginalWinGain = Number(rating.marginalWinGain);
   if (Number.isFinite(marginalLowerBound) || Number.isFinite(marginalWinGain)) {
@@ -288,7 +293,9 @@ function metagameCandidateScore(rating, totalCost) {
     // score as a quality prior instead of bypassing current-cost opportunity cost.
     return budgetAdjustedPublishedScore === null
       ? marginalScore
-      : marginalScore * 0.55 + budgetAdjustedPublishedScore * 0.45;
+      : rating.budgetSpecificIndividualEvidence
+        ? marginalScore * 0.80 + budgetAdjustedPublishedScore * 0.20
+        : marginalScore * 0.55 + budgetAdjustedPublishedScore * 0.45;
   }
   if (budgetAdjustedPublishedScore !== null) return budgetAdjustedPublishedScore;
   const advantage = Math.min(1, Math.max(0, Number(rating.advantageCreation) || 0) / 2);
@@ -327,6 +334,156 @@ function metagameCandidateScore(rating, totalCost) {
     tacticalRisk * 0.04 -
     lateSkillRisk * 0.08
   );
+}
+
+function metagameKnowledgeCandidatePriors(knowledge) {
+  const byPosition = Array.from({ length: 5 }, () => new Map());
+  for (const prior of knowledge?.candidatePriors ?? []) {
+    const position = Number(prior?.p);
+    const id = String(prior?.i ?? "");
+    if (position < 1 || position > 5 || !id) continue;
+    byPosition[position - 1].set(id, prior);
+  }
+  return byPosition;
+}
+
+function metagameKnowledgeBoostPriors(knowledge) {
+  const map = new Map();
+  for (const prior of knowledge?.boostModel?.priors ?? []) {
+    const position = Number(prior?.p);
+    const id = String(prior?.i ?? "");
+    if (position < 1 || position > 5 || !id) continue;
+    map.set(`${position}:${id}`, prior);
+  }
+  return map;
+}
+
+function metagameKnowledgePairPriors(knowledge) {
+  const map = new Map();
+  for (const prior of knowledge?.pairPriors ?? []) {
+    const left = Number(prior?.a);
+    const right = Number(prior?.b);
+    const leftId = String(prior?.i ?? "");
+    const rightId = String(prior?.j ?? "");
+    if (!leftId || !rightId || left < 1 || right < 1) continue;
+    map.set(`${left}:${leftId}|${right}:${rightId}`, Number(prior.d) || 0);
+  }
+  return map;
+}
+
+function metagameKnowledgeFinite(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function metagameRatingWithKnowledge(character, position, baseRating, prior, boostPrior) {
+  const rating = {
+    ...metagameFixedFallbackRating(character),
+    ...(baseRating ?? {}),
+    id: String(character.id),
+    name: character.name,
+    attributes: character.attributes,
+    rarity: character.rarity,
+    cost: character.cost,
+    skillTurn: character.skillTurn,
+    skillType: character.skill?.type ?? baseRating?.skillType ?? "none",
+    skillTarget: character.skill?.target ?? baseRating?.skillTarget ?? "self",
+  };
+  if (prior) {
+    rating.costAwareScore = metagameKnowledgeFinite(prior.s, rating.costAwareScore);
+    rating.practicalValue = metagameKnowledgeFinite(prior.s, rating.practicalValue);
+    rating.individualScore = metagameKnowledgeFinite(prior.s, rating.individualScore);
+    rating.marginalWinGain = metagameKnowledgeFinite(prior.m, rating.marginalWinGain);
+    rating.marginalWinGainLowerBound = metagameKnowledgeFinite(prior.r, rating.marginalWinGainLowerBound);
+    rating.opportunityWinGain = metagameKnowledgeFinite(prior.m, rating.opportunityWinGain);
+    rating.robustOpportunityWinGain = metagameKnowledgeFinite(prior.r, rating.robustOpportunityWinGain);
+    rating.expectedWinRate = metagameKnowledgeFinite(prior.w, rating.expectedWinRate);
+    rating.expectedWinLowerBound = metagameKnowledgeFinite(prior.l, rating.expectedWinLowerBound);
+    rating.counterfactualWinGain = metagameKnowledgeFinite(prior.x, rating.counterfactualWinGain);
+    rating.counterfactualRobustWinGain = metagameKnowledgeFinite(prior.q, rating.counterfactualRobustWinGain);
+    rating.roleFit = metagameKnowledgeFinite(prior.f, rating.roleFit);
+    rating.role = prior.k ?? rating.role;
+    rating.evaluationStatus = prior.e ?? rating.evaluationStatus ?? "complete";
+    rating.browserKnowledgePrior = true;
+    rating.budgetSpecificIndividualEvidence = true;
+  }
+  if (boostPrior) {
+    const meanDelta = metagameKnowledgeFinite(boostPrior.m, 0);
+    const robustDelta = metagameKnowledgeFinite(boostPrior.r, meanDelta);
+    rating.unboostedMarginalWinGain = Number(rating.marginalWinGain) || 0;
+    rating.unboostedMarginalWinGainLowerBound = Number(rating.marginalWinGainLowerBound) || 0;
+    rating.marginalWinGain = rating.unboostedMarginalWinGain + meanDelta;
+    rating.marginalWinGainLowerBound = rating.unboostedMarginalWinGainLowerBound + robustDelta;
+    rating.opportunityWinGain = (Number(rating.opportunityWinGain) || 0) + meanDelta;
+    rating.robustOpportunityWinGain = (Number(rating.robustOpportunityWinGain) || 0) + robustDelta;
+    if (Number.isFinite(Number(boostPrior.w))) rating.expectedWinRate = Number(boostPrior.w);
+    if (Number.isFinite(Number(boostPrior.l))) rating.expectedWinLowerBound = Number(boostPrior.l);
+    const boostScoreDelta = 0.5 * Math.tanh((meanDelta * 0.7 + robustDelta * 0.3) / 0.12);
+    rating.costAwareScore = metagameDeckClampUnit((Number(rating.costAwareScore) || 0.5) + boostScoreDelta);
+    rating.practicalValue = metagameDeckClampUnit((Number(rating.practicalValue) || 0.5) + boostScoreDelta);
+    rating.boostEvidence = {
+      multiplier: 1.5,
+      meanDelta,
+      robustDelta,
+      anchorCount: Number(boostPrior.n) || 0,
+    };
+    rating.budgetSpecificIndividualEvidence = true;
+  }
+  return rating;
+}
+
+function metagameCandidatePools(constraint, characters, options = {}) {
+  const charactersById = new Map((characters ?? []).map((character) => [String(character.id), character]));
+  const knowledgePriors = metagameKnowledgeCandidatePriors(options.browserKnowledge);
+  const boostPriors = metagameKnowledgeBoostPriors(options.browserKnowledge);
+  const boostedIds = normalizeMetagameBoostedCharacterIds(options.boostedCharacterIds);
+  const fixed = metagameFixedSlots(options.fixedSlots);
+
+  return (constraint?.slots ?? []).map((slot, index) => {
+    const position = index + 1;
+    const byId = new Map((slot.candidates ?? []).map((rating) => [String(rating.id), rating]));
+    const ids = new Set(byId.keys());
+    if (!fixed.has(position)) {
+      for (const id of knowledgePriors[position - 1].keys()) ids.add(String(id));
+    }
+    return [...ids].flatMap((id) => {
+      const character = charactersById.get(String(id));
+      if (!character || !matchesMetagamePositionConstraint(character, constraint, position)) return [];
+      if (fixed.has(position) && String(fixed.get(position)) !== String(id)) return [];
+      const baseRating = byId.get(String(id));
+      const prior = knowledgePriors[position - 1].get(String(id));
+      const boostPrior = boostedIds.has(String(id))
+        ? boostPriors.get(`${position}:${String(id)}`)
+        : null;
+      const rating = metagameRatingWithKnowledge(character, position, baseRating, prior, boostPrior);
+      return [{
+        character,
+        rating,
+        proxy: metagameCandidateScore(rating, Number(constraint.totalCost) || 0),
+        position,
+      }];
+    }).sort((left, right) => (
+      right.proxy - left.proxy ||
+      Number(left.character.cost) - Number(right.character.cost) ||
+      String(left.character.id).localeCompare(String(right.character.id))
+    ));
+  });
+}
+
+function metagameEmpiricalPairSynergy(source, target, pairPriors) {
+  if (!pairPriors?.size) return 0;
+  const leftPosition = Number(source?.position);
+  const rightPosition = Number(target?.position);
+  if (!leftPosition || !rightPosition || leftPosition === rightPosition) return 0;
+  const leftId = String(source?.character?.id ?? "");
+  const rightId = String(target?.character?.id ?? "");
+  const key = leftPosition < rightPosition
+    ? `${leftPosition}:${leftId}|${rightPosition}:${rightId}`
+    : `${rightPosition}:${rightId}|${leftPosition}:${leftId}`;
+  const residual = Number(pairPriors.get(key)) || 0;
+  // Individual ratings are the primary signal. Pair evidence can rescue a
+  // real combo, but it stays secondary and cannot dominate by itself.
+  return Math.max(-0.075, Math.min(0.075, residual * 0.35));
 }
 
 function metagameSkillMatchesTarget(source, target) {
@@ -750,14 +907,9 @@ function metagameExactCostStillReachable(currentCost, pools, nextPoolIndex, cons
 export function buildMetagameDeckCandidates(constraint, characters, options = {}) {
   constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
   const totalCost = Number(constraint?.totalCost) || 0;
-  const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
-  const charactersById = new Map(characters.map((character) => [String(character.id), character]));
-  const pools = (constraint?.slots ?? []).map((slot, index) => slot.candidates.map((rating) => ({
-    character: charactersById.get(String(rating.id)),
-    rating,
-    proxy: metagameCandidateScore(rating, totalCost),
-    position: index + 1,
-  })).filter((entry) => entry.character));
+  const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
+  const pools = metagameCandidatePools(constraint, characters, options);
+  const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
     throw new Error("この縛りは5枠分の詳細評価データが揃っていません。");
   }
@@ -801,7 +953,8 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           legendCount: state.legendCount + (isLegend ? 1 : 0),
           proxyTotal: state.proxyTotal + entry.proxy,
           synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
-            total + metagameDeckPairSynergy(source, entry)
+            total + metagameDeckPairSynergy(source, entry) +
+              metagameEmpiricalPairSynergy(source, entry, empiricalPairPriors)
           ), 0),
           handoffRisk: state.handoffRisk + (immediatePredecessor
             ? metagameDeckHandoffRisk(immediatePredecessor, entry)
@@ -846,15 +999,10 @@ function metagameYieldToBrowser() {
 async function buildMetagameDeckCandidatesWithProgress(constraint, characters, options = {}) {
   constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
   const totalCost = Number(constraint?.totalCost) || 0;
-  const beamWidth = Math.max(500, Number(options.beamWidth) || 10_000);
+  const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
   const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
-  const charactersById = new Map(characters.map((character) => [String(character.id), character]));
-  const pools = (constraint?.slots ?? []).map((slot, index) => slot.candidates.map((rating) => ({
-    character: charactersById.get(String(rating.id)),
-    rating,
-    proxy: metagameCandidateScore(rating, totalCost),
-    position: index + 1,
-  })).filter((entry) => entry.character));
+  const pools = metagameCandidatePools(constraint, characters, options);
+  const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
     throw new Error("Metagame deck candidates require five populated slots.");
   }
@@ -912,7 +1060,8 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             legendCount: state.legendCount + (isLegend ? 1 : 0),
             proxyTotal: state.proxyTotal + entry.proxy,
             synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
-              total + metagameDeckPairSynergy(source, entry)
+              total + metagameDeckPairSynergy(source, entry) +
+              metagameEmpiricalPairSynergy(source, entry, empiricalPairPriors)
             ), 0),
             handoffRisk: state.handoffRisk + (immediatePredecessor
               ? metagameDeckHandoffRisk(immediatePredecessor, entry)
@@ -2056,7 +2205,12 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
   }
   const boostedCharacters = characters.map((character) => applyMetagameStatBoost(character, boostedIds));
   const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, boostedCharacters, options);
-  const finalists = metagameSelectFinalists(candidates, options.finalistCount, 36, constraint.totalCost);
+  const finalists = metagameSelectFinalists(
+    candidates,
+    options.finalistCount ?? (options.browserKnowledge ? 56 : 40),
+    36,
+    constraint.totalCost,
+  );
   // The interactive selector is the user's explicit trade-off between speed
   // and coverage.  V9/V10 data still uses the legacy nine-deck scenario
   // format, so it reaches this branch rather than the V8 interactive branch
@@ -2116,6 +2270,9 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
     boostedCharacterIds: [...boostedIds],
     boostedScenarioCount: boostedIds.size ? Math.max(1, Number(options.boostedScenarioCount) || 18) : undefined,
     interactiveScenarioCount: hasInteractiveScenarioLimit ? requestedScenarioCount : undefined,
+    browserKnowledgeUsed: Boolean(options.browserKnowledge?.candidatePriors?.length),
+    browserKnowledgeCandidatePriorCount: options.browserKnowledge?.candidatePriors?.length ?? 0,
+    browserKnowledgePairPriorCount: options.browserKnowledge?.pairPriors?.length ?? 0,
     results: evaluated.slice(0, 3),
   };
 }
