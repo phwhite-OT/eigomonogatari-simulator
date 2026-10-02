@@ -987,3 +987,27 @@ At refresh time, the current complete conditions on `metagame-v12-shared-pool-re
 - `fire-water:200`
 
 `wind:100` and `fire-wind:200` are still finalizing and are intentionally excluded. Legacy/non-current result directories are also excluded. This documentation-only master commit triggers the existing Pages deploy, which republishes every current complete condition from the durable results branch.
+
+
+### 2026-10-03 — intermediate-cost browser search no longer rewards unused budget
+
+Observed problem:
+
+- generating a fire deck at cost 150 produced a cost-96 deck as rank 1 even though substantially stronger 100/200-band combinations should be available under the 150 cap
+- browser beam trimming had a direct `- totalCost / budget * 0.05` term in one fill lane, so leaving budget unused received a search advantage
+- the role-diversity lane was built only from the already-selected primary 60% of the beam, so it could not rescue distinct candidates that the primary slice had dropped
+- the final 5v5 finalist set had no explicit coverage across budget-usage bands, allowing cheap proxy candidates to crowd out stronger higher-cost constructions before real battle evaluation
+
+Fix:
+
+- removed the direct whole-deck spend penalty from beam filling; total cost remains a ceiling, not a target
+- added budget-usage coverage lanes that preserve strong candidates from several spend bands during partial beam search and again before the bounded final 5v5 pass
+- spend-band coverage is exploration only: higher spend gets no score bonus, and a low-cost deck can still rank first if it actually wins the final battles
+- rebuilt strategy-diversity buckets from the full unique beam rather than only the already-selected primary slice
+- added regressions ensuring both low- and high-usage bands survive, and that a high-cost construction which is actually stronger reaches the final battle pass
+- Pages deployment now runs the focused browser deck-generation/dynamic-cost/cache tests before publishing; V12 validation also includes `metagame-deck.js` and the dynamic-cost/deck tests
+
+Compatibility:
+
+- no battle semantics, V12 durable ranking policy, checkpoint schema, or precomputed battle evidence changed
+- no expensive V12 recompute is required; this changes only browser-side candidate coverage/finalist selection for generated decks, especially intermediate costs such as 150
