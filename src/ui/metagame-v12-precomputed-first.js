@@ -71,6 +71,23 @@ function metagameMergeKnowledgeLists(lowerEntries, upperEntries, weight, keyFor,
     .filter(Boolean);
 }
 
+function metagameMergeRepresentativeScenarios(lower, upper) {
+  const lowerCount = Math.max(0, Number(lower?.context?.scenarioCount) || 0);
+  const result = {};
+  for (const size of [6, 12, 18]) {
+    const lowerIndices = lower?.representativeScenarios?.[size]?.indices ?? [];
+    const upperIndices = upper?.representativeScenarios?.[size]?.indices ?? [];
+    const lowerTarget = Math.ceil(size / 2);
+    const upperTarget = Math.floor(size / 2);
+    const selected = [
+      ...lowerIndices.slice(0, lowerTarget).map(Number),
+      ...upperIndices.slice(0, upperTarget).map((index) => lowerCount + Number(index)),
+    ].filter(Number.isFinite);
+    if (selected.length) result[size] = { indices: [...new Set(selected)].slice(0, size) };
+  }
+  return result;
+}
+
 function metagameMergeBoostKnowledge(lower, upper, weight) {
   const priors = metagameMergeKnowledgeLists(
     lower?.boostModel?.priors,
@@ -106,9 +123,11 @@ function metagameMergeBrowserKnowledge(lower, upper, interpolation) {
     modelVersion: lower.modelVersion ?? upper.modelVersion,
     context: {
       totalCost: Number(interpolation.requestedCost),
+      scenarioCount: (Number(lower?.context?.scenarioCount) || 0) + (Number(upper?.context?.scenarioCount) || 0),
       interpolation,
       sourceConditions: [lower.inputId, upper.inputId],
     },
+    representativeScenarios: metagameMergeRepresentativeScenarios(lower, upper),
     candidatePriors: metagameMergeKnowledgeLists(
       lower.candidatePriors,
       upper.candidatePriors,
