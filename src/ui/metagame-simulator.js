@@ -695,6 +695,16 @@ function renderMetagameSimulatorResult(container, searchResult, characters) {
       `対戦環境: 指定環境 ${mix.baselineScenarioCount}件を主軸 / 事前成績上位の完成デッキ ${mix.precomputedTopDeckCount}件 / 実戦再評価済み補正デッキ ${mix.liveEnvironmentDeckCount}件`,
     ));
   }
+  if ((searchResult.screeningStages ?? []).length) {
+    const stages = searchResult.screeningStages
+      .map((stage) => `${stage.scenarioCount}環境×${stage.evaluatedDeckCount}候補`)
+      .join(" → ");
+    overview.append(metagameUiElement(
+      "span",
+      "metagame-environment-mix",
+      `段階検証: ${stages}${searchResult.timeBudgetReached ? "（時間上限で確定）" : ""}`,
+    ));
+  }
   if (Number(searchResult.excludedScenarioCount) > 0) {
     overview.append(metagameUiElement(
       "span",
@@ -1281,6 +1291,8 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
           decks,
           liveStage,
           liveStages,
+          screeningMode,
+          stageScenarioCount,
         }) => {
           const ratio = total > 0 ? completed / total : 0;
           if (phase === "candidate") {
@@ -1307,11 +1319,15 @@ export function initializeMetagameSimulator(root, data, characters, initialOptio
             const liveStageNumber = Number(liveStage) || 0;
             const liveStageTotal = Number(liveStages) || 0;
             if (liveStageNumber) {
-              const stageLabel = liveStageNumber === 1
-                ? "追加・編集キャラ候補を代表12戦で選別中"
-                : liveStageNumber === 2
-                  ? "有望候補を代表24戦で再選別中"
-                  : "最終候補を全環境で検証中";
+              const stageLabel = screeningMode === "browser-search"
+                ? (liveStageNumber < liveStageTotal
+                  ? `候補を代表${Number(stageScenarioCount) || Number(scenarios) || 0}環境で選別中`
+                  : `上位候補を${Number(stageScenarioCount) || Number(scenarios) || 0}環境で最終検証中`)
+                : liveStageNumber === 1
+                  ? "追加・編集キャラ候補を代表12戦で選別中"
+                  : liveStageNumber === 2
+                    ? "有望候補を代表24戦で再選別中"
+                    : "最終候補を全環境で検証中";
               progressLabel.textContent = `${stageLabel}（${deckNumber}/${deckTotal}デッキ）`;
               progressValue.textContent = `${Number(completed).toLocaleString("ja-JP")} / ${Number(total).toLocaleString("ja-JP")} 対戦・段階 ${liveStageNumber}/${liveStageTotal || 3}`;
               const stageBase = 30 + (liveStageNumber - 1) * (70 / Math.max(1, liveStageTotal || 3));
