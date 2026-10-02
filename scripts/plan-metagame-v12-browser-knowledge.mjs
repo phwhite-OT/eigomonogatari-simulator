@@ -399,6 +399,7 @@ for (const shard of shards) shard.sort((left, right) => left.n - right.n);
 
 const baseKnowledge = {
   schemaVersion: 1,
+  policyVersion: 2,
   generatedAt: new Date().toISOString(),
   inputId,
   sourceGeneratedAt: report.generatedAt ?? checkpoint.updatedAt ?? null,
