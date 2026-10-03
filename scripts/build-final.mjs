@@ -11,6 +11,7 @@ const sourceFiles = [
   "src/data/characters.js",
   "src/data/character-database.js",
   "src/data/workbook-characters.js",
+  "src/data/character-supplements-2026.js",
   "src/data/character-catalog.js",
   "src/data/character-image-manifest.js",
   "src/data/character-images.js",
