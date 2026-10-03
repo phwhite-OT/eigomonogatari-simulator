@@ -4,7 +4,7 @@ import {
   evaluateMetagameV7Deck,
 } from "./metagame-v7.js";
 
-export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.5-effective-damage-individual-rank";
+export const METAGAME_V12_MODEL_VERSION = "team-battle-v12.6-character-catalog-20261003-individual-rank";
 export const METAGAME_V12_RANKING_POLICY = "full-budget-opportunity-v9-adaptive-metagame";
 
 const PARTIAL_SKILL_TYPES = new Set(["delay", "skill_reduction"]);
