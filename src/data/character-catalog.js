@@ -1,4 +1,5 @@
 import { WORKBOOK_CHARACTERS, WORKBOOK_DATA_SUMMARY } from "./workbook-characters.js";
+import { VERIFIED_2026_CHARACTER_SUPPLEMENTS } from "./character-supplements-2026.js";
 
 // The workbook is the primary source. Keep exceptional, externally verified
 // characters separate so regenerating Book1.xlsx never silently drops them.
@@ -43,6 +44,24 @@ export const MANUAL_CHARACTER_SUPPLEMENTS = Object.freeze([
   }),
 ]);
 
+export const CHARACTER_NAME_CORRECTIONS = Object.freeze({
+  "em-7b3f53eed84e": "πちゃん先輩",
+  "em-e49404c0e4be": "πてぃしえ先生",
+  "em-6cd949ff7539": "πんしゅたいん教授",
+  "em-dd80c8492923": "どろたにょん",
+  "em-2c2759ede728": "どろんにょ先輩",
+  "em-d77542ffe604": "女天下！どろーニャ",
+  "em-c4b0b6848f16": "ぴんおんぱんちゃん",
+  "em-215080a7a05b": "饅頭祭ぴよ子",
+  "em-cc1dd429dace": "ぴんおんぱん娘。",
+  "em-5e67f5f55234": "四悪妖★土蜘蛛",
+  "em-3de6064f1850": "俊敏源氏！牛若。",
+  "em-5b1667b398d0": "ソルジャーL.RED",
+  "em-bc2106c87bcd": "カ",
+  "em-0f3dc5f343f5": "カマドウマ",
+  "em-628e695d4365": "カラクム先生",
+});
+
 export const CHARACTER_ATTRIBUTE_CORRECTIONS = Object.freeze({
   "em-c87499b64151": Object.freeze(["water", "wind"]),
 });
@@ -84,20 +103,24 @@ function correctWorkbookAttackModeTarget(character) {
 export const CHARACTER_CATALOG = Object.freeze([
   ...WORKBOOK_CHARACTERS.map((rawCharacter) => {
     const character = correctWorkbookAttackModeTarget(rawCharacter);
+    const name = CHARACTER_NAME_CORRECTIONS[character.id];
     const attributes = CHARACTER_ATTRIBUTE_CORRECTIONS[character.id];
     const skillTurn = CHARACTER_SKILL_TURN_CORRECTIONS[character.id];
-    if (!attributes && skillTurn === undefined) return character;
+    if (!name && !attributes && skillTurn === undefined) return character;
     return Object.freeze({
       ...character,
+      ...(name ? { name } : {}),
       ...(attributes ? { attributes } : {}),
       ...(skillTurn === undefined ? {} : { skillTurn }),
     });
   }),
   ...MANUAL_CHARACTER_SUPPLEMENTS,
+  ...VERIFIED_2026_CHARACTER_SUPPLEMENTS,
 ]);
 
 export const CHARACTER_CATALOG_SUMMARY = Object.freeze({
   ...WORKBOOK_DATA_SUMMARY,
   manualSupplements: MANUAL_CHARACTER_SUPPLEMENTS.length,
+  verified2026Supplements: VERIFIED_2026_CHARACTER_SUPPLEMENTS.length,
   totalCharacters: CHARACTER_CATALOG.length,
 });
