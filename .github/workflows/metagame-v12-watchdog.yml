@@ -98,7 +98,7 @@ jobs:
                 }' || true)"
               fi
               marker="$(git show "$results_ref:$marker_path" 2>/dev/null || true)"
-              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$state" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
+              if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.6-character-catalog-20261003-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$state" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
                 incomplete=$((incomplete + 1))
                 if [ -z "$first_incomplete" ]; then
                   first_incomplete="${attribute_group}:${cost}"
@@ -115,7 +115,7 @@ jobs:
 
           desired_workflow="$recompute_workflow"
           if [ -n "$first_progress" ] &&              jq -e '.status == "finalizing"
-               and .context.version == "team-battle-v12.5-effective-damage-individual-rank"
+               and .context.version == "team-battle-v12.6-character-catalog-20261003-individual-rank"
                and .context.battleSemantics == "opportunity-baseline-v6-target-priority"
                and .finalizationState.phase == "counterfactual"
                and (.finalizationState.cursor.planIndex < .finalizationState.planLength)' <<< "$first_progress" >/dev/null 2>&1; then
