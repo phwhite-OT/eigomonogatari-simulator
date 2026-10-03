@@ -111,7 +111,7 @@ jobs:
             has_current_ranking "$output_directory" || return 1
             state="$(read_progress_state "$output_directory")"
             [ -n "$state" ] && \
-              jq -e '.schemaVersion == 1 and .status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$state" >/dev/null 2>&1
+              jq -e '.schemaVersion == 1 and .status == "complete" and .context.version == "team-battle-v12.6-character-catalog-20261003-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$state" >/dev/null 2>&1
           }
 
           find_recovery_run() {
@@ -181,12 +181,12 @@ jobs:
             # old normal workflow used to spend two hours here with only four
             # local workers, repeatedly starving the pending fanout workflow.
             if [ "$checkpoint_exists" = true ] && \
-               jq -e '.status == "finalizing" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.phase == "counterfactual"' "$checkpoint_path" >/dev/null 2>&1; then
+               jq -e '.status == "finalizing" and .context.version == "team-battle-v12.6-character-catalog-20261003-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.phase == "counterfactual"' "$checkpoint_path" >/dev/null 2>&1; then
               handoff_finalizing=true
               work_matrix='{"include":[]}'
               echo "Handing $input_id directly to distributed finalization; normal recompute will not run serial counterfactual battles."
             elif [ "$checkpoint_exists" = true ] && \
-                 jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority"' "$checkpoint_path" >/dev/null 2>&1; then
+                 jq -e '.status == "complete" and .context.version == "team-battle-v12.6-character-catalog-20261003-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority"' "$checkpoint_path" >/dev/null 2>&1; then
               # Completed battle evidence is reusable across ranking-only changes.
               # finalize-only rebuilds the report from the durable scenario-value cache,
               # including the adaptive metagame distribution, without replaying battles.
@@ -460,7 +460,7 @@ jobs:
             local progress_path="$1"
             local marker_path="$2"
             [ -f "$progress_path" ] && \
-              jq -e '.status == "complete" and .context.version == "team-battle-v12.5-effective-damage-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' "$progress_path" >/dev/null && \
+              jq -e '.status == "complete" and .context.version == "team-battle-v12.6-character-catalog-20261003-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' "$progress_path" >/dev/null && \
               [ -f "$marker_path" ] && [ "$(cat "$marker_path")" = "$ranking_policy" ]
           }
           attribute_groups=(
