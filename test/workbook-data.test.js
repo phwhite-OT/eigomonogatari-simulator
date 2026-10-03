@@ -119,3 +119,17 @@ test("回復・蘇生・属性変更の対象範囲と全属性を復元する",
     { attribute: "wind" },
   ]);
 });
+
+
+test("2026年補完キャラと公式表記の名称修正をカタログへ反映する", () => {
+  assert.equal(CHARACTER_CATALOG.filter((character) => character.name === "?????").length, 0);
+  assert.equal(CHARACTER_CATALOG.filter((character) => String(character.id).startsWith("y26-")).length, 34);
+  assert.ok(CHARACTER_CATALOG.some((character) => character.name === "罪作りな永恵さん"));
+  assert.ok(CHARACTER_CATALOG.some((character) => character.name === "ブレビスタ先輩"));
+  assert.ok(CHARACTER_CATALOG.some((character) => character.name === "四悪妖・大百足"));
+  assert.ok(CHARACTER_CATALOG.some((character) => character.name === "酒血肉☆凛"));
+  assert.ok(CHARACTER_CATALOG.some((character) => character.name === "トリック☆アナンシ君"));
+  assert.ok(CHARACTER_CATALOG.some((character) => character.name === "カラクム先生"));
+  assert.equal(CHARACTER_CATALOG.some((character) => character.name === "カクラム先生"), false);
+  assert.equal(new Set(CHARACTER_CATALOG.map((character) => String(character.id))).size, CHARACTER_CATALOG.length);
+});
