@@ -5,9 +5,9 @@ import { VERIFIED_2026_CHARACTER_SUPPLEMENTS } from "./character-supplements-202
 // characters separate so regenerating Book1.xlsx never silently drops them.
 export const MANUAL_CHARACTER_SUPPLEMENTS = Object.freeze([
   Object.freeze({
-    source: Object.freeze({ sheet: "手動補完", row: "二条城☆浴衣モード" }),
+    source: Object.freeze({ sheet: "手動補完", row: "二条嬢☆浴衣モード" }),
     id: "manual-nijo-yukata-mode",
-    name: "二条城☆浴衣モード",
+    name: "二条嬢☆浴衣モード",
     attributes: Object.freeze(["fire", "water"]),
     cost: 19,
     hp: 2656,
