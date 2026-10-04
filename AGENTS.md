@@ -8,15 +8,15 @@ This repository is an **英語物語 PvP deck simulator and recommendation app**
 
 The browser application is generated into `index.html`. Core simulation and metagame logic lives under `src/core/`; data under `src/data/`; long-running evaluators under `scripts/`; GitHub Actions under `.github/workflows/`; durable metagame outputs are maintained separately from source on the `metagame-v12-shared-pool-results` branch.
 
-Read `docs/project-handoff.md` for the detailed architecture, current V12.5 computation design, recovery rules, and the current work state.
+Read `docs/project-handoff.md` for the detailed architecture, current V12.7 computation design, recovery rules, and the current work state.
 
 ## Current highest-priority work
 
-As of 2026-09-23, the main background task is the **V12.5 shared-pool metagame recompute/finalization**.
+As of 2026-09-23, the main background task is the **V12.7 shared-pool metagame recompute/finalization**.
 
 Important identifiers:
 
-- model/context version: `team-battle-v12.5-effective-damage-individual-rank`
+- model/context version: `team-battle-v12.7-character-catalog-20261004-individual-rank`
 - battle semantics: `opportunity-baseline-v6-target-priority`
 - ranking policy: `full-budget-opportunity-v9-adaptive-metagame`
 - adaptive metagame schema: `2`

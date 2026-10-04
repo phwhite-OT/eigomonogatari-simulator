@@ -36,9 +36,9 @@ Do not treat the project as a spreadsheet ranker. Important ranking conclusions 
 
 The current model line grew out of older V7/V8/V11 code, so some filenames/export names are historical. Use the explicit model/context version to determine compatibility, not the age implied by a filename.
 
-Current V12.5 context:
+Current V12.7 context:
 
-- context/model version: `team-battle-v12.5-effective-damage-individual-rank`
+- context/model version: `team-battle-v12.7-character-catalog-20261004-individual-rank`
 - battle semantics: `opportunity-baseline-v6-target-priority`
 - final ranking policy: `full-budget-opportunity-v9-adaptive-metagame`
 - adaptive-metagame schema version: `2`
@@ -1098,3 +1098,13 @@ Browser-knowledge scheduling/freshness policy:
 - 詳細なWiki矛盾・現在採用値・今後の更新ルールは `docs/character-data-caveats.md` に集約した。
 - `src/data/character-supplements-2026.js` の7件の `notes` にも `⚠暫定` と上記ドキュメントへの参照を付与済み。
 - 7体はすでに補完データに存在していたため、重複追加はしていない。
+
+
+### 2026-10-04 — latest character catalogue forces a clean V12 evidence generation
+
+- New character supplements discovered during the 2026-10-04 Wiki audit are now part of the live catalogue. The supplement set is 74 characters total, including the newly added limited/yuru-hunting/battle/Fukubiki entries and the seven records explicitly marked provisional in `docs/character-data-caveats.md`.
+- V12 model/context generation was advanced from `team-battle-v12.6-character-catalog-20261003-individual-rank` to `team-battle-v12.7-character-catalog-20261004-individual-rank`.
+- This is a **catalogue compatibility reset**, not a battle-semantics or ranking-policy change. Battle semantics remain `opportunity-baseline-v6-target-priority`; ranking remains `full-budget-opportunity-v9-adaptive-metagame`.
+- Old V12 checkpoints/reports generated from the 2026-10-03 catalogue must not be treated as current for the new catalogue. The normal 28 representative environments are recomputed under the new model/context version.
+- Browser arbitrary-cost handling is unchanged: heavy precompute stays at costs 100/200/300/500 and intermediate integer costs are reconstructed from neighbouring per-character evidence.
+- Source push of this commit intentionally triggers the shared-pool recompute workflow. Any run still executing from the obsolete 2026-10-03 source is stale work and must not publish as current.
