@@ -17,6 +17,7 @@ on:
       - "src/data/metagame-v8-inputs.js"
       - "src/data/metagame-v12-sweep-inputs.js"
       - ".github/workflows/metagame-v12-shared-pool-recompute.yml"
+      - "ops/v12-preempt-stale-now.txt"
 
 permissions:
   actions: write

@@ -5,6 +5,9 @@ name: Metagame V12 stale-run preemptor
 # active recompute wave merely because master moved.
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "ops/v12-preempt-stale-now.txt"
 
 permissions:
   actions: write

@@ -1,0 +1,6 @@
+# V12 stale-run preemption signal
+
+Updated: 2026-10-04
+Reason: restart V12 from the current catalogue/model generation after the 2026-10-04 character additions.
+
+Changing this file is an explicit destructive-preemption request. It triggers the stale-run preemptor and the normal shared-pool recompute workflow on the same source revision.

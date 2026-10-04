@@ -1118,3 +1118,11 @@ Browser-knowledge scheduling/freshness policy:
 - Do not optimize final rankings only for this supplied environment set, and do not treat absence from the supplied set as evidence that a new character or strategy is weak/unimportant.
 - Final evaluation should continue to rely on generated/adaptive metagame diversity, counter-strategy discovery, and broader simulated battle evidence; the supplied environment is one stabilizing component among those signals.
 - When new characters are added, they must still be allowed to enter candidate generation and reshape the simulated metagame even if they are absent from the supplied environment set.
+
+
+### 2026-10-04 — explicit stale-run preemption signal
+
+- Added `ops/v12-preempt-stale-now.txt` as an explicit restart signal.
+- Only a change to that signal file (or a manual workflow dispatch) triggers the destructive stale-run preemptor; ordinary source pushes still do not cancel an active V12 wave.
+- The same signal also triggers the shared-pool recompute workflow, so obsolete-source runs are cancelled and a recompute from the same current source revision is queued immediately.
+- This was used to replace the obsolete `d5cce4d...` water:200 run with a current-catalogue run after the 2026-10-04 character refresh.
