@@ -1068,3 +1068,15 @@ Browser-knowledge scheduling/freshness policy:
 - the automatic selector first fills **missing** packages, attribute-by-attribute and cost-by-cost (100 -> 200 -> 300 -> 500), so neighbouring cost bands needed for arbitrary-cost interpolation become available quickly
 - only after all currently completed conditions have a package does it refresh stale source reports or old policy versions
 - this means an existing fire:100 package does not get needlessly rebuilt before the missing fire:200 package needed for fire:150 two-sided knowledge
+
+
+### 2026-10-04 — 2026年限定20体をWiki差分から補完
+
+- `src/data/character-supplements-2026.js` に、Book1.xlsx/既存カタログとの差分として先に特定していた2026/06〜2026/11の限定20体を追加。
+- 調査元は英語物語Wikiの `限定（図鑑）` のみ。属性はソースの色セル（赤=fire / 青=water / 緑=wind、2色=複属性）を直接採用し、Cost、通常HP/Power、限界突破HP/Power、rare、ターン、ゆるスキルも同じ行から転記。
+- 対象: マンジェリこん / イワシ祭りのジェリ子 / 鰯売り恋のマンンジェリ子 / ほおずきおこしん / 鬼灯ズキ子 / ほおずき市の浅子さん / 悩める織女 / 恋する牛郎 / 超おり姫！ / 夏の筒彦さん / せとっくん / 瀬戸際先生 / あんたが瀬戸大将 / わらしちゃん（絵コンテ） / わらしちゃん（原画） / ぱいにゃ(演出)CV:わらし / カラベラ・ユカたん / 死者の日☆パレンケ / パレンケリーナ（姉） / 秋ｱﾆﾒ「伝説のぱいにゃ」。
+- Wikiソース上の名称は `鰯売り恋のマンンジェリ子`（「ン」が重複）なので、外部サイトで推測修正せず、そのまま補完データへ保持した。
+- この限定表はCRを含め全対象が通常Lv99・限界突破7・Lv237表記。既存の補完ヘルパーがCRをLv132/限界突破6へ固定していたため、ヘルパーに `maxLevel`/`limitBreak` の個別指定を追加し、この20体は237/7を明示した。既存補完キャラの既定値は変更していない。
+- これは「20体が未登録かを再照合した」作業ではない。20体は事前の Wiki 2294体 − リポジトリ収録名の差分で既に未収録と特定済みであり、今回の作業はその追加用データ確定と実装。
+- Source commit: `f64ed373a420e548c26a95087f53d096c39e8ddd`.
+- 次チェック: npm test / npm run build を通し、カタログ件数増加と20体の検索・デッキ候補への露出を確認する。長時間のV12再計算は、データ追加の妥当性確認が終わるまで自動で開始しない。
