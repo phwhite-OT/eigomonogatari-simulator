@@ -1080,3 +1080,13 @@ Browser-knowledge scheduling/freshness policy:
 - これは「20体が未登録かを再照合した」作業ではない。20体は事前の Wiki 2294体 − リポジトリ収録名の差分で既に未収録と特定済みであり、今回の作業はその追加用データ確定と実装。
 - Source commit: `f64ed373a420e548c26a95087f53d096c39e8ddd`.
 - 検証: 更新後の `character-supplements-2026.js` をJavaScriptとして評価し、補完54体中 `y26-limited-*` が20体、ID重複0、代表3体（せとっくん/夏の筒彦さん/パレンケリーナ（姉））の属性・数値・スキル構造が期待通りであることを確認。ローカル `npm test` / `npm run build` は実行環境からGitHubへDNS接続できずリポジトリを取得できなかったため未実施。長時間のV12再計算は自動で開始していない。
+
+
+### 2026-10-04 — catalogue差分調査の訂正
+
+- 大容量の `src/data/workbook-characters.js` を通常の file fetch で読むと本文が空になりうる。これを「既存Book1に存在しない」と誤認し、進化17体・協力53体を一時的に補完へ重複追加してしまった。
+- 正しい差分判定では、`workbook-characters.js` のGit blob本体（2216 entries）を取得し、その `name` と `character-supplements-2026.js` / 手動補完を合わせて照合すること。
+- 再照合の結果、進化17体・協力54体・その他93体は既存Book1に収録済みだった。誤追加した `wiki-evo-*` / `wiki-coop-*` 70件は削除済み。
+- `二条嬢☆浴衣モード` を独断で `二条城☆浴衣モード` に変更した修正も撤回し、元の `二条嬢☆浴衣モード` に復元済み。
+- 今後は、Wiki表記と既存データの差異を見つけても、ユーザー確認なしに既存名を改名しない。外部データの誤記推定も、既存データを上書きする根拠にはしない。
+- 現在確認済み: `character-supplements-2026.js` は74件、`wiki-evo-*`/`wiki-coop-*` は0件、補完側の重複名0件。
