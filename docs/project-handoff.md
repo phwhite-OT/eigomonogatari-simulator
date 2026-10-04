@@ -1108,3 +1108,13 @@ Browser-knowledge scheduling/freshness policy:
 - Old V12 checkpoints/reports generated from the 2026-10-03 catalogue must not be treated as current for the new catalogue. The normal 28 representative environments are recomputed under the new model/context version.
 - Browser arbitrary-cost handling is unchanged: heavy precompute stays at costs 100/200/300/500 and intermediate integer costs are reconstructed from neighbouring per-character evidence.
 - Source push of this commit intentionally triggers the shared-pool recompute workflow. Any run still executing from the obsolete 2026-10-03 source is stale work and must not publish as current.
+
+
+### 2026-10-04 — user-provided environment set is an anchor, not ground truth
+
+- The user-provided environment/deck set is **not intended to be an exhaustive representation of the real PvP metagame**.
+- It may lag newly added characters and cannot cover the full space of real player strategies.
+- Use it as a **stability anchor / variance-reduction support** so ratings do not swing wildly between recomputes.
+- Do not optimize final rankings only for this supplied environment set, and do not treat absence from the supplied set as evidence that a new character or strategy is weak/unimportant.
+- Final evaluation should continue to rely on generated/adaptive metagame diversity, counter-strategy discovery, and broader simulated battle evidence; the supplied environment is one stabilizing component among those signals.
+- When new characters are added, they must still be allowed to enter candidate generation and reshape the simulated metagame even if they are absent from the supplied environment set.
