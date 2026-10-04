@@ -1126,3 +1126,13 @@ Browser-knowledge scheduling/freshness policy:
 - Only a change to that signal file (or a manual workflow dispatch) triggers the destructive stale-run preemptor; ordinary source pushes still do not cancel an active V12 wave.
 - The same signal also triggers the shared-pool recompute workflow, so obsolete-source runs are cancelled and a recompute from the same current source revision is queued immediately.
 - This was used to replace the obsolete `d5cce4d...` water:200 run with a current-catalogue run after the 2026-10-04 character refresh.
+
+
+### 2026-10-04 — keep the 19-runner candidate pool fed with three shard waves
+
+- Observed during current fire:200: 20 total candidate shards meant 11 could finish while only 9 long-running shards remained, leaving roughly 10 runner slots idle.
+- The candidate matrix now plans up to **57 shards per condition** instead of 20, while workflow `max-parallel` remains **19**.
+- This creates roughly three waves of smaller work items. As one shard finishes, a queued shard immediately occupies that runner, so utilization stays near the intended 19-runner ceiling for much more of the condition.
+- This does **not** increase simultaneous runner usage above 19 and still leaves one of the usual 20 hosted-runner slots free for control/rerank work.
+- Conditions are still finalized independently and in priority order; this is a scheduling/granularity optimization only. Battle semantics, candidate coverage, ranking policy, and model version are unchanged.
+- The already-running fire:200 wave is not cancelled/restarted merely to apply this optimization; the finer 57-shard scheduling applies from the next normal candidate wave onward.

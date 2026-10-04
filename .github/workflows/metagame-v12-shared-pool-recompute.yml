@@ -203,7 +203,11 @@ jobs:
                 work_matrix='{"include":[]}'
                 echo "Recovering $input_id from workflow run $recovery_run_id artifacts."
               else
-                work_matrix="$(node scripts/build-metagame-v12-work-matrix.mjs --input="$input_id" --checkpoint-path="$checkpoint_path" --max-workers=20)"
+                # Queue three waves of candidate shards (57 = 19 runners × 3) so that
+                # completed runners immediately pick up more work instead of sitting idle
+                # behind a few long-tail shards. max-parallel remains 19, preserving
+                # one normal GitHub-hosted runner slot for control/lightweight work.
+                work_matrix="$(node scripts/build-metagame-v12-work-matrix.mjs --input="$input_id" --checkpoint-path="$checkpoint_path" --max-workers=57)"
                 if [ "$(jq -r '.include | length' <<< "$work_matrix")" -eq 0 ]; then
                   echo "No candidate shards selected for incomplete input $input_id" >&2
                   exit 1
