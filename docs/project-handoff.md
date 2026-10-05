@@ -1193,3 +1193,14 @@ Browser-knowledge scheduling/freshness policy:
 - These mappings affect icon association only; catalogue names/data were not rewritten.
 - Numeric HTML entities are now decoded (e.g. `&#x2642;`), and a literal trailing `アイコン` is stripped only for exact-name matching.
 - Ambiguous items such as `keibi2`, `unknown`, and skin images without a dedicated catalogue row remain deliberately unmatched.
+
+
+### 2026-10-05 — lets-eiigo icon refresh completed
+
+- Site-only refresh completed successfully after the confirmed alias pass.
+- Newly downloaded icons: 10; download failures: 0.
+- Character image manifest increased from 1,854 to 1,864 mapped catalogue rows.
+- Current catalogue size is 2,291, leaving 427 rows without a local image.
+- The remaining lets-eiigo unmatched set is 261 repeated rows / 25 unique alt names. Final review found no remaining case that is both (a) a currently image-missing catalogue row and (b) uniquely/safely identifiable from the lets-eiigo name.
+- Remaining unmatched names are site chrome/article thumbnails, already-covered spelling variants, skin/rare-skin images without separate catalogue rows, ambiguous names, or site characters with no current catalogue row (for example おこしん無双).
+- Imported asset commit: `f63e6530c27844beb5a65f0ffd442dadbe81d397`.
