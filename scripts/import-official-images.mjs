@@ -159,11 +159,91 @@ for (const character of CHARACTER_CATALOG) {
 const missingIds = new Set(missingCharacters.map((character) => String(character.id)));
 console.log(`Missing before official import: ${missingCharacters.length}/${CHARACTER_CATALOG.length}`);
 
+const OFFICIAL_NAME_ALIASES = new Map([
+  // Confirmed official-site spellings that differ from the current catalogue.
+  [normalizeName("はみぎタンさん"), normalizeName("はぎみタンさん")],
+  [normalizeName("νにゅーさん"), normalizeName("vにゅーさん")],
+]);
+
 function matchingCharacters(name) {
   const normalized = normalizeName(name)
     .replace(/[【\[][^】\]]*[】\]]$/u, "")
     .replace(/アイコン$/u, "");
-  return (byName.get(normalized) ?? []).filter((character) => missingIds.has(String(character.id)));
+  const lookup = OFFICIAL_NAME_ALIASES.get(normalized) ?? normalized;
+  return (byName.get(lookup) ?? []).filter((character) => missingIds.has(String(character.id)));
+}
+
+const normalizedMissingNames = missingCharacters.map((character) => ({
+  character,
+  normalized: normalizeName(character.name),
+}));
+for (const [officialName, catalogueName] of OFFICIAL_NAME_ALIASES) {
+  const character = (byName.get(catalogueName) ?? []).find((entry) => missingIds.has(String(entry.id)));
+  if (character) normalizedMissingNames.push({ character, normalized: officialName });
+}
+
+function mentionedMissingCharacters(value) {
+  const normalizedText = normalizeName(textFromHtml(value));
+  if (!normalizedText) return [];
+  const found = new Map();
+  for (const entry of normalizedMissingNames) {
+    if (entry.normalized && normalizedText.includes(entry.normalized)) {
+      found.set(String(entry.character.id), entry.character);
+    }
+  }
+  return [...found.values()];
+}
+
+function imageSourceFromTag(tag) {
+  return sameOfficialUrl(
+    readAttribute(tag, "data-src")
+    || readAttribute(tag, "data-lazy-src")
+    || readAttribute(tag, "src"),
+  );
+}
+
+function contextualImageEntriesFromHtml(html, pageUrl) {
+  const entries = [];
+  const source = String(html ?? "");
+
+  // Official gacha/event tables often have a generic image alt and put the
+  // character name elsewhere in the same row.
+  for (const rowMatch of source.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)) {
+    const row = rowMatch[1];
+    const characters = mentionedMissingCharacters(row);
+    const imageTags = [...row.matchAll(/<img\b[^>]*>/giu)].map((match) => match[0]);
+    if (characters.length !== 1 || imageTags.length !== 1) continue;
+    const sourceUrl = imageSourceFromTag(imageTags[0]);
+    if (!sourceUrl) continue;
+    entries.push({
+      name: characters[0].name,
+      sourceUrl: sourceUrl.href,
+      pageUrl,
+      sourceKind: "official-table-context",
+    });
+  }
+
+  // Many event articles use: character name -> image -> next character name -> image.
+  // Only associate an image when the text since the previous image identifies
+  // exactly one missing character.
+  const withoutTables = source.replace(/<table\b[^>]*>[\s\S]*?<\/table>/giu, " ");
+  const imageMatches = [...withoutTables.matchAll(/<img\b[^>]*>/giu)];
+  let previousEnd = 0;
+  for (const match of imageMatches) {
+    const before = withoutTables.slice(Math.max(previousEnd, match.index - 1200), match.index);
+    const characters = mentionedMissingCharacters(before);
+    const sourceUrl = imageSourceFromTag(match[0]);
+    if (sourceUrl && characters.length === 1) {
+      entries.push({
+        name: characters[0].name,
+        sourceUrl: sourceUrl.href,
+        pageUrl,
+        sourceKind: "official-sequential-context",
+      });
+    }
+    previousEnd = match.index + match[0].length;
+  }
+  return entries;
 }
 
 const candidates = [];
@@ -207,7 +287,9 @@ for (const [endpoint, label] of [["/wp-json/wp/v2/posts", "official posts"], ["/
     for (const item of items) {
       const pageUrl = sameOfficialUrl(String(item.link ?? ""));
       if (!pageUrl) continue;
-      for (const entry of imageEntriesFromHtml(String(item.content?.rendered ?? ""), pageUrl.href)) addEntry(entry);
+      const rendered = String(item.content?.rendered ?? "");
+      for (const entry of imageEntriesFromHtml(rendered, pageUrl.href)) addEntry(entry);
+      for (const entry of contextualImageEntriesFromHtml(rendered, pageUrl.href)) addEntry(entry);
     }
   } catch (error) {
     console.warn(`${label} API unavailable: ${error.message}`);
