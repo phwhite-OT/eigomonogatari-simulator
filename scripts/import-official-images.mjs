@@ -276,6 +276,14 @@ function imageSourceFromTag(tag) {
   );
 }
 
+function isSafeContextualCharacterImage(pageUrl, sourceUrl) {
+  const pagePath = decodeURIComponent(new URL(pageUrl).pathname).toLowerCase();
+  const imagePath = decodeURIComponent(new URL(sourceUrl).pathname).toLowerCase();
+  if (/\/fanart-|\/spring-study-|\/eimonoyouturu\//u.test(pagePath)) return false;
+  if (/(screenshot|fanart|訴求|banner|bnr|header|logo)/iu.test(imagePath)) return false;
+  return true;
+}
+
 function contextualImageEntriesFromHtml(html, pageUrl) {
   const entries = [];
   const source = String(html ?? "");
@@ -288,7 +296,7 @@ function contextualImageEntriesFromHtml(html, pageUrl) {
     const imageTags = [...row.matchAll(/<img\b[^>]*>/giu)].map((match) => match[0]);
     if (characters.length !== 1 || imageTags.length !== 1) continue;
     const sourceUrl = imageSourceFromTag(imageTags[0]);
-    if (!sourceUrl) continue;
+    if (!sourceUrl || !isSafeContextualCharacterImage(pageUrl, sourceUrl.href)) continue;
     entries.push({
       name: characters[0].name,
       sourceUrl: sourceUrl.href,
@@ -307,7 +315,7 @@ function contextualImageEntriesFromHtml(html, pageUrl) {
     const before = withoutTables.slice(Math.max(previousEnd, match.index - 1200), match.index);
     const characters = mentionedMissingCharacters(before);
     const sourceUrl = imageSourceFromTag(match[0]);
-    if (sourceUrl && characters.length === 1) {
+    if (sourceUrl && characters.length === 1 && isSafeContextualCharacterImage(pageUrl, sourceUrl.href)) {
       entries.push({
         name: characters[0].name,
         sourceUrl: sourceUrl.href,
