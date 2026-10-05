@@ -3,46 +3,8 @@ import { WIKI_CHARACTER_ADDITIONS } from "./wiki-character-additions.js";
 
 // The workbook remains the primary snapshot. Wiki additions use canonical
 // source.sheet categories so they appear in the same catalogue sections as workbook rows.
-export const MANUAL_CHARACTER_SUPPLEMENTS = Object.freeze([
-  Object.freeze({
-    source: Object.freeze({ sheet: "手動補完", row: "二条嬢☆浴衣モード" }),
-    id: "manual-nijo-yukata-mode",
-    name: "二条嬢☆浴衣モード",
-    attributes: Object.freeze(["fire", "water"]),
-    cost: 19,
-    hp: 2656,
-    pow: 2495,
-    baseHp: 1650,
-    basePow: 1550,
-    maxLevel: 132,
-    limitBreak: 6,
-    rarity: "CR",
-    region: "協力",
-    owned: true,
-    pvpTier: "normal",
-    allowedPositions: Object.freeze([1, 2, 3, 4, 5]),
-    preferredPositions: Object.freeze([1, 2, 3, 4, 5]),
-    positionRule: "free",
-    skillTurn: 1,
-    maxUses: 2,
-    skill: Object.freeze({
-      type: "attribute_guard",
-      multiplier: 0.2,
-      hits: 1,
-      amount: 0,
-      target: "self",
-      targetCount: 1,
-      duration: 1,
-      priority: "normal",
-      conditions: Object.freeze([Object.freeze({ type: "enemy_attribute", attribute: "wind" })]),
-      effects: Object.freeze([Object.freeze({ attribute: "wind" })]),
-    }),
-    skillName: "1ターンの間、風属性の攻撃を自身に集中させる(80%カット)",
-    skillCategory: "敵色かばう",
-    roleTags: Object.freeze(["attribute_guard", "tank"]),
-    notes: "協力：夏祭り2019ボス。Book1.xlsx未収録のため手動補完。",
-  }),
-]);
+// No manual-only catalogue rows remain. Duplicates should live only in their canonical category.
+export const MANUAL_CHARACTER_SUPPLEMENTS = Object.freeze([]);
 
 export const CHARACTER_NAME_CORRECTIONS = Object.freeze({
   "em-7b3f53eed84e": "πちゃん先輩",
