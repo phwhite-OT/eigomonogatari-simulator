@@ -1145,3 +1145,15 @@ Browser-knowledge scheduling/freshness policy:
 - Recovery now calls the merger with `--skip-incompatible=true`. Context compatibility checks remain strict; incompatible deltas are skipped, never merged.
 - If every recovered artifact is obsolete, finalization continues from the durable current-generation checkpoint instead of failing.
 - Default merger behavior remains strict/fail-fast unless the explicit recovery flag is used.
+
+
+### 2026-10-05 — Wiki追加74体を正規図鑑カテゴリへ移動
+
+- ユーザー指示により、2026年に追加調査した74体を `手動補完2026` 扱いから外した。
+- `src/data/character-supplements-2026.js` は廃止し、`src/data/wiki-character-additions.js` を正規のWiki追加データとして使用する。
+- 74体の `source.sheet` は英語物語Wiki/既存Book1のカテゴリに揃え、`限定` / `ゆる狩` / `対戦` / `福引` / `EXTRA` のいずれかにした。図鑑UIは `source.sheet` でグループ化するため、既存Book1キャラと同じカテゴリへ表示される。
+- 福引S5の7体はシーズン情報をnotesに残しつつ、正規カテゴリとして `region: "福引"` / `source.sheet: "福引"` に統一した。
+- キャラID、属性、Cost、HP/Power、スキル、暫定7体の採用値は変更していない。分類・データ所有元の整理のみ。
+- `docs/character-data-caveats.md` の更新先も `src/data/wiki-character-additions.js` に変更した。
+- 回帰テストはWiki追加が74体、`手動補完2026` が0体、source.sheetが上記5カテゴリだけであることを固定する。
+- 過去ログ中の `character-supplements-2026.js` 記述は当時の履歴として残るが、**現在の正本は `wiki-character-additions.js`**。

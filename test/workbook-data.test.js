@@ -121,9 +121,13 @@ test("回復・蘇生・属性変更の対象範囲と全属性を復元する",
 });
 
 
-test("2026年補完キャラと公式表記の名称修正をカタログへ反映する", () => {
+test("Wiki追加キャラを正規図鑑カテゴリへ反映する", () => {
   assert.equal(CHARACTER_CATALOG.filter((character) => character.name === "?????").length, 0);
-  assert.equal(CHARACTER_CATALOG.filter((character) => String(character.id).startsWith("y26-")).length, 34);
+  const wikiAdditions = CHARACTER_CATALOG.filter((character) => String(character.id).startsWith("y26-"));
+  assert.equal(wikiAdditions.length, 74);
+  assert.equal(wikiAdditions.some((character) => character.source?.sheet === "手動補完2026"), false);
+  assert.deepEqual(new Set(wikiAdditions.map((character) => character.source?.sheet)), new Set(["限定", "ゆる狩", "対戦", "福引", "EXTRA"]));
+  assert.equal(CHARACTER_CATALOG.find((character) => character.name === "ビオチン")?.region, "福引");
   assert.ok(CHARACTER_CATALOG.some((character) => character.name === "罪作りな永恵さん"));
   assert.ok(CHARACTER_CATALOG.some((character) => character.name === "ブレビスタ先輩"));
   assert.ok(CHARACTER_CATALOG.some((character) => character.name === "四悪妖・大百足"));

@@ -1,8 +1,8 @@
 import { WORKBOOK_CHARACTERS, WORKBOOK_DATA_SUMMARY } from "./workbook-characters.js";
-import { VERIFIED_2026_CHARACTER_SUPPLEMENTS } from "./character-supplements-2026.js";
+import { WIKI_CHARACTER_ADDITIONS } from "./wiki-character-additions.js";
 
-// The workbook is the primary source. Keep exceptional, externally verified
-// characters separate so regenerating Book1.xlsx never silently drops them.
+// The workbook remains the primary snapshot. Wiki additions use canonical
+// source.sheet categories so they appear in the same catalogue sections as workbook rows.
 export const MANUAL_CHARACTER_SUPPLEMENTS = Object.freeze([
   Object.freeze({
     source: Object.freeze({ sheet: "手動補完", row: "二条嬢☆浴衣モード" }),
@@ -115,12 +115,12 @@ export const CHARACTER_CATALOG = Object.freeze([
     });
   }),
   ...MANUAL_CHARACTER_SUPPLEMENTS,
-  ...VERIFIED_2026_CHARACTER_SUPPLEMENTS,
+  ...WIKI_CHARACTER_ADDITIONS,
 ]);
 
 export const CHARACTER_CATALOG_SUMMARY = Object.freeze({
   ...WORKBOOK_DATA_SUMMARY,
   manualSupplements: MANUAL_CHARACTER_SUPPLEMENTS.length,
-  verified2026Supplements: VERIFIED_2026_CHARACTER_SUPPLEMENTS.length,
+  wikiAdditions: WIKI_CHARACTER_ADDITIONS.length,
   totalCharacters: CHARACTER_CATALOG.length,
 });
