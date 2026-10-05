@@ -1204,3 +1204,11 @@ Browser-knowledge scheduling/freshness policy:
 - The remaining lets-eiigo unmatched set is 261 repeated rows / 25 unique alt names. Final review found no remaining case that is both (a) a currently image-missing catalogue row and (b) uniquely/safely identifiable from the lets-eiigo name.
 - Remaining unmatched names are site chrome/article thumbnails, already-covered spelling variants, skin/rare-skin images without separate catalogue rows, ambiguous names, or site characters with no current catalogue row (for example おこしん無双).
 - Imported asset commit: `f63e6530c27844beb5a65f0ffd442dadbe81d397`.
+
+
+### 2026-10-05 — lets-eiigo画像反映後のPagesビルド修復
+
+- lets-eiigo由来のキャラ画像更新はmasterへ反映済みだったが、公開サイトのPagesビルドが `src/data/character-supplements-2026.js` の削除後も旧ファイル名を参照して失敗していた。
+- `scripts/build-final.mjs` のビルド対象を現行正本 `src/data/wiki-character-additions.js` に変更した。キャラ評価・V12計算・戦闘ロジックには変更なし。
+- commit `9be5a6e59247c73bcb40649cf7626a56c97fc367` の Deploy public site で、回帰テスト・Prepare public site・GitHub Pages deploy がすべて成功した。
+- これにより直前の lets-eiigo アイコン更新を含む公開サイトが配信可能な状態へ復旧した。
