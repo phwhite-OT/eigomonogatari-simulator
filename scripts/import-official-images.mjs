@@ -54,7 +54,10 @@ function sameOfficialUrl(value) {
 async function officialFetch(value, options = {}) {
   const url = sameOfficialUrl(String(value));
   if (!url) throw new Error(`Blocked non-official URL: ${String(value)}`);
-  return fetch(url, options);
+  return fetch(url, {
+    ...options,
+    signal: options.signal ?? AbortSignal.timeout(20_000),
+  });
 }
 
 async function fileExists(path) {
@@ -121,30 +124,43 @@ async function fetchPaginated(endpoint, label) {
   const pageCount = Math.max(1, Number(first.headers.get("x-wp-totalpages") ?? 1));
   const items = [...firstItems];
   let skippedPages = 0;
-  for (let page = 2; page <= pageCount; page += 1) {
-    requestUrl.searchParams.set("page", String(page));
+  const concurrency = 8;
+
+  async function fetchPage(page) {
+    const url = new URL(requestUrl);
+    url.searchParams.set("page", String(page));
     try {
-      const response = await officialFetch(requestUrl, { headers: requestHeaders });
+      const response = await officialFetch(url, { headers: requestHeaders });
       if (!response.ok) {
-        skippedPages += 1;
         console.warn(`Skipped ${label} page ${page}/${pageCount}: HTTP ${response.status}`);
-        continue;
+        return null;
       }
       const text = await response.text();
       try {
         const parsed = JSON.parse(text);
-        if (Array.isArray(parsed)) items.push(...parsed);
-      } catch (error) {
-        skippedPages += 1;
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
         console.warn(`Skipped ${label} page ${page}/${pageCount}: non-JSON response`);
+        return null;
       }
     } catch (error) {
-      skippedPages += 1;
       console.warn(`Skipped ${label} page ${page}/${pageCount}: ${error.message}`);
+      return null;
     }
-    if (page % 20 === 0 || page === pageCount) {
-      console.log(`Fetched ${label}: ${page}/${pageCount} (kept ${items.length}, skipped pages ${skippedPages})`);
+  }
+
+  for (let page = 2; page <= pageCount; page += concurrency) {
+    const batch = Array.from(
+      { length: Math.min(concurrency, pageCount - page + 1) },
+      (_, index) => page + index,
+    );
+    const results = await Promise.all(batch.map(fetchPage));
+    for (const result of results) {
+      if (result) items.push(...result);
+      else skippedPages += 1;
     }
+    const completed = Math.min(pageCount, page + concurrency - 1);
+    console.log(`Fetched ${label}: ${completed}/${pageCount} (kept ${items.length}, skipped pages ${skippedPages})`);
   }
   return items;
 }
