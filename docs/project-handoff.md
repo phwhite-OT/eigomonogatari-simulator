@@ -1157,3 +1157,13 @@ Browser-knowledge scheduling/freshness policy:
 - `docs/character-data-caveats.md` の更新先も `src/data/wiki-character-additions.js` に変更した。
 - 回帰テストはWiki追加が74体、`手動補完2026` が0体、source.sheetが上記5カテゴリだけであることを固定する。
 - 過去ログ中の `character-supplements-2026.js` 記述は当時の履歴として残るが、**現在の正本は `wiki-character-additions.js`**。
+
+
+### 2026-10-05 — lets-eiigo-only icon refresh
+
+- User explicitly restricted this icon task to `https://lets-eiigo.com/`; do not browse/fetch another content site for this task.
+- `scripts/import-lets-eiigo-images.mjs` is now hard-restricted to the `lets-eiigo.com` origin for content/image fetches; the previous official-site fallback was removed from the importer.
+- lets-eiigo's `二条壌☆浴衣モード` is mapped only for icon matching to the existing catalogue name `二条嬢☆浴衣モード`; the character name itself remains unchanged.
+- Added `.github/workflows/import-lets-eiigo-images.yml`: it scans lets-eiigo catalogue/detail/posts/pages/media, downloads every safely exact-matched missing icon, rebuilds `src/data/character-image-manifest.js`, records coverage, and commits imported assets.
+- Ambiguous unmatched images must remain unmatched rather than being guessed onto a character.
+- Before this refresh, the manifest had 1,854 mapped images and `character-images/lets-eiigo-sources.json` had 1,726 source records.
