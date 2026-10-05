@@ -1,0 +1,5 @@
+# lets-eiigo icon refresh signal
+
+Requested: 2026-10-05
+Source restriction: https://lets-eiigo.com/ only
+Reason: retry full catalogue-page import after making WordPress API enrichment optional.
