@@ -1,0 +1,55 @@
+name: Import official character images
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/import-official-images.yml"
+      - "scripts/import-official-images.mjs"
+      - "ops/refresh-official-images.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: import-official-character-images
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Import safely matched images from official site only
+        run: node scripts/import-official-images.mjs
+      - name: Rebuild image manifest
+        run: node scripts/build-character-image-manifest.mjs
+      - name: Record coverage
+        run: |
+          node --input-type=module <<'NODE'
+          import { CHARACTER_CATALOG } from "./src/data/character-catalog.js";
+          import { CHARACTER_IMAGE_BY_ID } from "./src/data/character-image-manifest.js";
+          const covered = Object.keys(CHARACTER_IMAGE_BY_ID).length;
+          const total = CHARACTER_CATALOG.length;
+          console.log(JSON.stringify({ totalCharacters: total, iconCount: covered, missing: total - covered }, null, 2));
+          NODE
+      - name: Commit official assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add character-images src/data/character-image-manifest.js
+          if git diff --cached --quiet; then
+            echo "No new official-site images found."
+            exit 0
+          fi
+          git commit -m "assets: import character images from official site"
+          git pull --rebase origin master
+          git push origin HEAD:master
