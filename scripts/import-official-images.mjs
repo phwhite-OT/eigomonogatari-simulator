@@ -279,7 +279,19 @@ function imageSourceFromTag(tag) {
 function isSafeContextualCharacterImage(pageUrl, sourceUrl) {
   const pagePath = decodeURIComponent(new URL(pageUrl).pathname).toLowerCase();
   const imagePath = decodeURIComponent(new URL(sourceUrl).pathname).toLowerCase();
-  if (/\/fanart-|\/spring-study-|\/eimonoyouturu\//u.test(pagePath)) return false;
+
+  // Context inference is intentionally limited to official game/app content.
+  // Exact media-metadata matches may still come from any official page.
+  const gameContentPage = (
+    pagePath.startsWith("/event-")
+    || /^\/lotteryseason\d*\/?$/u.test(pagePath)
+    || /-new-items\d*\/?$/u.test(pagePath)
+    || /^\/ver\d+\/?$/u.test(pagePath)
+    || /^\/contents-ver-/u.test(pagePath)
+    || /^\/gacha-/u.test(pagePath)
+    || /^\/\d+anniversary\/?$/u.test(pagePath)
+  );
+  if (!gameContentPage) return false;
   if (/(screenshot|fanart|訴求|banner|bnr|header|logo)/iu.test(imagePath)) return false;
   return true;
 }
@@ -363,6 +375,8 @@ try {
   console.warn(`Official media API unavailable: ${error.message}`);
 }
 
+const directPageUrls = new Set();
+
 const contentCollections = new Map([
   ["/wp-json/wp/v2/posts", "official posts"],
   ["/wp-json/wp/v2/pages", "official pages"],
@@ -397,10 +411,43 @@ for (const [endpoint, label] of contentCollections) {
       const rendered = String(item.content?.rendered ?? "");
       for (const entry of imageEntriesFromHtml(rendered, pageUrl.href)) addEntry(entry);
       for (const entry of contextualImageEntriesFromHtml(rendered, pageUrl.href)) addEntry(entry);
+
+      // WordPress REST sometimes strips or rewrites the actual image layout.
+      // Only fetch the public page when its REST body mentions at least one
+      // currently-missing character, keeping the fallback targeted.
+      if (mentionedMissingCharacters(rendered).length > 0) {
+        directPageUrls.add(pageUrl.href);
+      }
     }
   } catch (error) {
     console.warn(`${label} API unavailable: ${error.message}`);
   }
+}
+
+async function fetchDirectOfficialPage(pageUrl) {
+  try {
+    const response = await officialFetch(pageUrl, {
+      headers: requestHeaders,
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!response.ok) {
+      console.warn(`Skipped direct official page ${pageUrl}: HTTP ${response.status}`);
+      return;
+    }
+    const html = await response.text();
+    for (const entry of imageEntriesFromHtml(html, pageUrl)) addEntry(entry);
+    for (const entry of contextualImageEntriesFromHtml(html, pageUrl)) addEntry(entry);
+  } catch (error) {
+    console.warn(`Skipped direct official page ${pageUrl}: ${error.message}`);
+  }
+}
+
+const directPages = [...directPageUrls];
+const directConcurrency = 6;
+for (let index = 0; index < directPages.length; index += directConcurrency) {
+  const batch = directPages.slice(index, index + directConcurrency);
+  await Promise.all(batch.map(fetchDirectOfficialPage));
+  console.log(`Fetched direct official pages: ${Math.min(index + directConcurrency, directPages.length)}/${directPages.length}`);
 }
 
 const selectedByCharacter = new Map();
