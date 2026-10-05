@@ -107,6 +107,27 @@ function extensionFor(response, sourceUrl) {
   return supportedExtensions.has(extension) ? extension : ".jpg";
 }
 
+function parseOfficialJsonArray(text) {
+  const source = String(text ?? "").trim();
+  try {
+    const parsed = JSON.parse(source);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    // The official WordPress endpoint occasionally prefixes PHP warnings/HTML
+    // before an otherwise valid JSON array. Keep the JSON payload only.
+    const startCandidates = [source.indexOf("[{"), source.indexOf("[")].filter((value) => value >= 0);
+    const start = startCandidates.length ? Math.min(...startCandidates) : -1;
+    const end = source.lastIndexOf("]");
+    if (start < 0 || end <= start) return null;
+    try {
+      const parsed = JSON.parse(source.slice(start, end + 1));
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
 async function fetchPaginated(endpoint, label) {
   const requestUrl = new URL(endpoint, sourceOrigin);
   requestUrl.searchParams.set("per_page", "100");
@@ -114,12 +135,8 @@ async function fetchPaginated(endpoint, label) {
   const first = await officialFetch(requestUrl, { headers: requestHeaders });
   if (!first.ok) throw new Error(`${label} page 1: HTTP ${first.status}`);
 
-  let firstItems;
-  try {
-    firstItems = JSON.parse(await first.text());
-  } catch (error) {
-    throw new Error(`${label} page 1 returned non-JSON: ${error.message}`);
-  }
+  const firstItems = parseOfficialJsonArray(await first.text());
+  if (!firstItems) throw new Error(`${label} page 1 returned unusable non-JSON`);
 
   const pageCount = Math.max(1, Number(first.headers.get("x-wp-totalpages") ?? 1));
   const items = [...firstItems];
@@ -129,24 +146,35 @@ async function fetchPaginated(endpoint, label) {
   async function fetchPage(page) {
     const url = new URL(requestUrl);
     url.searchParams.set("page", String(page));
-    try {
-      const response = await officialFetch(url, { headers: requestHeaders });
-      if (!response.ok) {
-        console.warn(`Skipped ${label} page ${page}/${pageCount}: HTTP ${response.status}`);
-        return null;
-      }
-      const text = await response.text();
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
-        const parsed = JSON.parse(text);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch {
-        console.warn(`Skipped ${label} page ${page}/${pageCount}: non-JSON response`);
+        const response = await officialFetch(url, {
+          headers: requestHeaders,
+          signal: AbortSignal.timeout(attempt === 1 ? 20_000 : 40_000),
+        });
+        if (!response.ok) {
+          if (attempt === 1 && response.status >= 500) continue;
+          console.warn(`Skipped ${label} page ${page}/${pageCount}: HTTP ${response.status}`);
+          return null;
+        }
+        const parsed = parseOfficialJsonArray(await response.text());
+        if (parsed) return parsed;
+        if (attempt === 1) {
+          console.warn(`Retrying ${label} page ${page}/${pageCount}: warning-prefixed/non-JSON response`);
+          continue;
+        }
+        console.warn(`Skipped ${label} page ${page}/${pageCount}: unusable non-JSON response`);
+        return null;
+      } catch (error) {
+        if (attempt === 1) {
+          console.warn(`Retrying ${label} page ${page}/${pageCount}: ${error.message}`);
+          continue;
+        }
+        console.warn(`Skipped ${label} page ${page}/${pageCount}: ${error.message}`);
         return null;
       }
-    } catch (error) {
-      console.warn(`Skipped ${label} page ${page}/${pageCount}: ${error.message}`);
-      return null;
     }
+    return null;
   }
 
   for (let page = 2; page <= pageCount; page += concurrency) {
@@ -340,6 +368,7 @@ try {
       const restBase = String(type?.rest_base ?? "").trim();
       if (!restBase || restBase === "media" || restBase === "posts" || restBase === "pages") continue;
       if (type?.viewable === false) continue;
+      if (restBase !== "download") continue;
       contentCollections.set(`/wp-json/wp/v2/${restBase}`, `official ${restBase}`);
     }
   } else {
