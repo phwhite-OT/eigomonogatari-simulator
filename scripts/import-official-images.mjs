@@ -281,7 +281,31 @@ try {
   console.warn(`Official media API unavailable: ${error.message}`);
 }
 
-for (const [endpoint, label] of [["/wp-json/wp/v2/posts", "official posts"], ["/wp-json/wp/v2/pages", "official pages"]]) {
+const contentCollections = new Map([
+  ["/wp-json/wp/v2/posts", "official posts"],
+  ["/wp-json/wp/v2/pages", "official pages"],
+]);
+
+try {
+  const response = await officialFetch("/wp-json/wp/v2/types", { headers: requestHeaders });
+  if (response.ok) {
+    const types = await response.json();
+    for (const type of Object.values(types ?? {})) {
+      const restBase = String(type?.rest_base ?? "").trim();
+      if (!restBase || restBase === "media" || restBase === "posts" || restBase === "pages") continue;
+      if (type?.viewable === false) continue;
+      contentCollections.set(`/wp-json/wp/v2/${restBase}`, `official ${restBase}`);
+    }
+  } else {
+    console.warn(`Official post-types API unavailable: HTTP ${response.status}`);
+  }
+} catch (error) {
+  console.warn(`Official post-types discovery failed: ${error.message}`);
+}
+
+console.log(`Official content collections: ${[...contentCollections.keys()].join(", ")}`);
+
+for (const [endpoint, label] of contentCollections) {
   try {
     const items = await fetchPaginated(endpoint, label);
     for (const item of items) {
