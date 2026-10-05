@@ -1205,16 +1205,6 @@
     "category": "限定"
   },
   {
-    "id": "em-252e0359c5e1",
-    "name": "巳ーちゃん",
-    "category": "限定"
-  },
-  {
-    "id": "em-82e546e8de79",
-    "name": "ランたん",
-    "category": "限定"
-  },
-  {
     "id": "em-9ac3c0929f90",
     "name": "オコオコ",
     "category": "限定"
@@ -1222,11 +1212,6 @@
   {
     "id": "em-5ad05ec11a09",
     "name": "三連星のオコオコ",
-    "category": "限定"
-  },
-  {
-    "id": "em-f3be7c12380c",
-    "name": "魔女ランダ",
     "category": "限定"
   },
   {
@@ -1240,11 +1225,6 @@
     "category": "限定"
   },
   {
-    "id": "em-5ae7ac6baf45",
-    "name": "ɚすぃとRuru？",
-    "category": "限定"
-  },
-  {
     "id": "em-449c3db6bb4d",
     "name": "猫フェース",
     "category": "限定"
@@ -1252,11 +1232,6 @@
   {
     "id": "em-5116ae81bf04",
     "name": "猫をまといし者",
-    "category": "限定"
-  },
-  {
-    "id": "em-03ca4c2f4e9d",
-    "name": "勝手にストゥッツさん",
     "category": "限定"
   },
   {
@@ -1275,11 +1250,6 @@
     "category": "限定"
   },
   {
-    "id": "em-f9383e2e4919",
-    "name": "ユハンヌスのサウナー",
-    "category": "限定"
-  },
-  {
     "id": "em-166bce10d212",
     "name": "ギューちゃん",
     "category": "限定"
@@ -1287,11 +1257,6 @@
   {
     "id": "em-bccc8308e871",
     "name": "ぶうやれギュウちゃん",
-    "category": "限定"
-  },
-  {
-    "id": "em-14cb05f591ca",
-    "name": "牛鬼だうわーっ！",
     "category": "限定"
   },
   {
@@ -1320,11 +1285,6 @@
     "category": "限定"
   },
   {
-    "id": "em-78804a795640",
-    "name": "ズンビージョンきゅん",
-    "category": "限定"
-  },
-  {
     "id": "em-18cdc04bd0d0",
     "name": "ｼﾞｬｯｸｵｰ・ランちゃん",
     "category": "限定"
@@ -1332,11 +1292,6 @@
   {
     "id": "em-b8872ecc31c1",
     "name": "オバケな☆らんちぇん",
-    "category": "限定"
-  },
-  {
-    "id": "em-599b57f2e5c4",
-    "name": "Halloweenの蘭子さん",
     "category": "限定"
   },
   {
@@ -1450,11 +1405,6 @@
     "category": "限定"
   },
   {
-    "id": "em-cc1dd429dace",
-    "name": "ぴんおんぱん娘。",
-    "category": "限定"
-  },
-  {
     "id": "em-d07cd0c8b0b0",
     "name": "二条城☆浴衣モード",
     "category": "協力"
@@ -1467,11 +1417,6 @@
   {
     "id": "em-971ee3677529",
     "name": "ポディアさま",
-    "category": "福引"
-  },
-  {
-    "id": "em-d7aa913cd61c",
-    "name": "チョーカーちゃん",
     "category": "福引"
   },
   {
@@ -1545,11 +1490,6 @@
     "category": "福引"
   },
   {
-    "id": "em-a78326864213",
-    "name": "発音王・S・サイアン",
-    "category": "福引"
-  },
-  {
     "id": "em-2d3e693a8406",
     "name": "ツキマシモン",
     "category": "EXTRA"
@@ -1602,11 +1542,6 @@
   {
     "id": "em-1e3b5bb54d35",
     "name": "ナナフシ",
-    "category": "EXTRA"
-  },
-  {
-    "id": "em-9cbbb04818bd",
-    "name": "シミ",
     "category": "EXTRA"
   },
   {
@@ -1677,6 +1612,11 @@
   {
     "id": "em-5b1667b398d0",
     "name": "ソルジャーL.RED",
+    "category": "EXTRA"
+  },
+  {
+    "id": "em-bc2106c87bcd",
+    "name": "カ",
     "category": "EXTRA"
   },
   {
@@ -1945,11 +1885,6 @@
     "category": "限定"
   },
   {
-    "id": "y26-limited-asako",
-    "name": "ほおずき市の浅子さん",
-    "category": "限定"
-  },
-  {
     "id": "y26-limited-orihime-nayameru",
     "name": "悩める織女",
     "category": "限定"
@@ -1957,11 +1892,6 @@
   {
     "id": "y26-limited-gyuro-koisuru",
     "name": "恋する牛郎",
-    "category": "限定"
-  },
-  {
-    "id": "y26-limited-super-orihime",
-    "name": "超おり姫！",
     "category": "限定"
   },
   {
@@ -1980,11 +1910,6 @@
     "category": "限定"
   },
   {
-    "id": "y26-limited-setotaisho",
-    "name": "あんたが瀬戸大将",
-    "category": "限定"
-  },
-  {
     "id": "y26-limited-warashi-storyboard",
     "name": "わらしちゃん（絵コンテ）",
     "category": "限定"
@@ -1992,11 +1917,6 @@
   {
     "id": "y26-limited-warashi-genga",
     "name": "わらしちゃん（原画）",
-    "category": "限定"
-  },
-  {
-    "id": "y26-limited-painya-enshutsu",
-    "name": "ぱいにゃ(演出)CV:わらし",
     "category": "限定"
   },
   {

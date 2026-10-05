@@ -76,13 +76,6 @@
     "sourceKind": "official-sequential-context",
     "file": "em-3c2628783368.png"
   },
-  "em-bc2106c87bcd": {
-    "characterName": "カ",
-    "sourcePage": "https://eigomonogatari.com/tagrules/",
-    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/03/tagBattle.jpg",
-    "sourceKind": "official-sequential-context",
-    "file": "em-bc2106c87bcd.jpg"
-  },
   "em-7d5a30231904": {
     "characterName": "「ふ」じゃなくてふゅーま",
     "sourcePage": "https://eigomonogatari.com/lotteryseason3/",
@@ -110,5 +103,124 @@
     "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/04/kabukiWEB-min.png",
     "sourceKind": "official-sequential-context",
     "file": "em-0984e8e9ee06.png"
+  },
+  "y26-limited-painya-enshutsu": {
+    "characterName": "ぱいにゃ(演出)CV:わらし",
+    "sourcePage": "https://eigomonogatari.com/oct-new-items2026/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2026/10/Card2229101.png",
+    "sourceKind": "official-sequential-context",
+    "file": "y26-limited-painya-enshutsu.png"
+  },
+  "y26-limited-setotaisho": {
+    "characterName": "あんたが瀬戸大将",
+    "sourcePage": "https://eigomonogatari.com/sep-new-items2026/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2026/09/Card2228801.png",
+    "sourceKind": "official-sequential-context",
+    "file": "y26-limited-setotaisho.png"
+  },
+  "y26-limited-super-orihime": {
+    "characterName": "超おり姫！",
+    "sourcePage": "https://eigomonogatari.com/aug-new-items2026/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2026/07/%E8%B6%85%E3%81%8A%E3%82%8A%E5%A7%AB%EF%BC%81%E3%82%B9%E3%82%AD%E3%83%B3-1.png",
+    "sourceKind": "official-sequential-context",
+    "file": "y26-limited-super-orihime.png"
+  },
+  "y26-limited-asako": {
+    "characterName": "ほおずき市の浅子さん",
+    "sourcePage": "https://eigomonogatari.com/jul-new-items2026/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2026/06/Card2224901.png",
+    "sourceKind": "official-sequential-context",
+    "file": "y26-limited-asako.png"
+  },
+  "em-9cbbb04818bd": {
+    "characterName": "シミ",
+    "sourcePage": "https://eigomonogatari.com/eimonoyouturu/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2026/05/Screenshot_20260519-213941-1-300x174.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-9cbbb04818bd.png"
+  },
+  "em-cc1dd429dace": {
+    "characterName": "ぴんおんぱん娘。",
+    "sourcePage": "https://eigomonogatari.com/may-new-items2026/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2026/04/Card2222301.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-cc1dd429dace.png"
+  },
+  "em-d7aa913cd61c": {
+    "characterName": "チョーカーちゃん",
+    "sourcePage": "https://eigomonogatari.com/fanart-20250930/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/10/fanart250930-1-173x300.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-d7aa913cd61c.png"
+  },
+  "em-599b57f2e5c4": {
+    "characterName": "Halloweenの蘭子さん",
+    "sourcePage": "https://eigomonogatari.com/oct-new-items2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/09/Card2215701.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-599b57f2e5c4.png"
+  },
+  "em-78804a795640": {
+    "characterName": "ズンビージョンきゅん",
+    "sourcePage": "https://eigomonogatari.com/sep-new-items2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/09/%E3%82%BA%E3%83%B3%E3%83%93%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3%E3%81%8D%E3%82%85%E3%82%93%EF%BC%88%E3%82%B9%E3%82%AD%E3%83%B3%EF%BC%89-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-78804a795640.png"
+  },
+  "em-a78326864213": {
+    "characterName": "発音王・S・サイアン",
+    "sourcePage": "https://eigomonogatari.com/ver1460/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/07/Fukubiki742WEB-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-a78326864213.png"
+  },
+  "em-14cb05f591ca": {
+    "characterName": "牛鬼だうわーっ！",
+    "sourcePage": "https://eigomonogatari.com/jul-new-items2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/06/%E7%89%9B%E9%AC%BC%E3%81%A0%E3%81%86%E3%82%8F%E3%83%BC%E3%81%A3%EF%BC%81%EF%BC%88%E3%82%B9%E3%82%AD%E3%83%B3%EF%BC%89.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-14cb05f591ca.png"
+  },
+  "em-f9383e2e4919": {
+    "characterName": "ユハンヌスのサウナー",
+    "sourcePage": "https://eigomonogatari.com/jun-new-items2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/05/Card2212001-1.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-f9383e2e4919.png"
+  },
+  "em-03ca4c2f4e9d": {
+    "characterName": "勝手にストゥッツさん",
+    "sourcePage": "https://eigomonogatari.com/may-new-items2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/05/Card2209701.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-03ca4c2f4e9d.png"
+  },
+  "em-5ae7ac6baf45": {
+    "characterName": "ɚすぃとRuru？",
+    "sourcePage": "https://eigomonogatari.com/spring-study-2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/03/%E3%83%97%E3%83%A9%E3%82%B9%E8%A8%B4%E6%B1%8220251-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-5ae7ac6baf45.png"
+  },
+  "em-f3be7c12380c": {
+    "characterName": "魔女ランダ",
+    "sourcePage": "https://eigomonogatari.com/mar-new-items2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/02/25mar_6.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-f3be7c12380c.png"
+  },
+  "em-82e546e8de79": {
+    "characterName": "ランたん",
+    "sourcePage": "https://eigomonogatari.com/feb-new-items2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/01/25feb_4.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-82e546e8de79.png"
+  },
+  "em-252e0359c5e1": {
+    "characterName": "巳ーちゃん",
+    "sourcePage": "https://eigomonogatari.com/jan-new-items2025/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2025/01/25jan_3-1.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-252e0359c5e1.png"
   }
 }
