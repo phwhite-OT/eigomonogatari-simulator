@@ -1,0 +1,55 @@
+name: Refresh lets-eiigo character icons
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/import-lets-eiigo-images.yml"
+      - "ops/refresh-lets-eiigo-images.txt"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-lets-eiigo-character-icons
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Import every safely matched icon from lets-eiigo.com
+        run: node scripts/import-lets-eiigo-images.mjs --delay-ms=125
+      - name: Rebuild image manifest
+        run: node scripts/build-character-image-manifest.mjs
+      - name: Record coverage
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { CHARACTER_CATALOG } from "./src/data/character-catalog.js";
+          import { CHARACTER_IMAGE_BY_ID } from "./src/data/character-image-manifest.js";
+          const covered = Object.keys(CHARACTER_IMAGE_BY_ID).length;
+          const total = CHARACTER_CATALOG.length;
+          console.log(JSON.stringify({ totalCharacters: total, iconCount: covered, missing: total - covered }, null, 2));
+          NODE
+      - name: Commit imported lets-eiigo assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add character-images src/data/character-image-manifest.js
+          if git diff --cached --quiet; then
+            echo "No new lets-eiigo icons found."
+            exit 0
+          fi
+          git commit -m "assets: refresh character icons from lets-eiigo"
+          git pull --rebase origin master
+          git push origin HEAD:master
