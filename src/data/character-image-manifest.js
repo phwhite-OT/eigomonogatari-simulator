@@ -75,6 +75,7 @@ export const CHARACTER_IMAGE_BY_ID = Object.freeze({
   "em-0933d818ee52": "./character-images/em-0933d818ee52.jpg",
   "em-093a94ca0f33": "./character-images/em-093a94ca0f33.jpg",
   "em-0968ff35f616": "./character-images/em-0968ff35f616.jpg",
+  "em-0984e8e9ee06": "./character-images/em-0984e8e9ee06.png",
   "em-0985c7675d5c": "./character-images/em-0985c7675d5c.jpg",
   "em-09abce425d92": "./character-images/em-09abce425d92.jpg",
   "em-09c253fd0a61": "./character-images/em-09c253fd0a61.jpg",
