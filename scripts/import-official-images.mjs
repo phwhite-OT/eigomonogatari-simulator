@@ -173,10 +173,14 @@ function matchingCharacters(name) {
   return (byName.get(lookup) ?? []).filter((character) => missingIds.has(String(character.id)));
 }
 
-const normalizedMissingNames = missingCharacters.map((character) => ({
-  character,
-  normalized: normalizeName(character.name),
-}));
+const normalizedMissingNames = missingCharacters
+  .map((character) => ({
+    character,
+    normalized: normalizeName(character.name),
+  }))
+  // One-character names are too ambiguous for surrounding-text inference.
+  // They may still match exact official media metadata through matchingCharacters().
+  .filter(({ normalized }) => [...normalized].length >= 2);
 for (const [officialName, catalogueName] of OFFICIAL_NAME_ALIASES) {
   const character = (byName.get(catalogueName) ?? []).find((entry) => missingIds.has(String(entry.id)));
   if (character) normalizedMissingNames.push({ character, normalized: officialName });
