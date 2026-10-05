@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: import-official-character-images
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   import:
