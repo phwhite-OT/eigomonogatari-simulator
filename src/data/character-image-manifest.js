@@ -94,6 +94,7 @@ export const CHARACTER_IMAGE_BY_ID = Object.freeze({
   "em-0c3e6f251b0b": "./character-images/em-0c3e6f251b0b.jpg",
   "em-0c5139ae3833": "./character-images/em-0c5139ae3833.jpg",
   "em-0c67088a1447": "./character-images/em-0c67088a1447.jpg",
+  "em-0c70f71e4c1a": "./character-images/em-0c70f71e4c1a.png",
   "em-0c931777e175": "./character-images/em-0c931777e175.jpg",
   "em-0ccc51b405ca": "./character-images/em-0ccc51b405ca.jpg",
   "em-0d41ec5f78f0": "./character-images/em-0d41ec5f78f0.jpg",
@@ -243,6 +244,7 @@ export const CHARACTER_IMAGE_BY_ID = Object.freeze({
   "em-22dd126a0f3a": "./character-images/em-22dd126a0f3a.jpg",
   "em-22dd952da197": "./character-images/em-22dd952da197.jpg",
   "em-22f9adeaa0c2": "./character-images/em-22f9adeaa0c2.jpg",
+  "em-22f9d46fe6f4": "./character-images/em-22f9d46fe6f4.png",
   "em-231cdc0f0757": "./character-images/em-231cdc0f0757.jpg",
   "em-2325681e1b59": "./character-images/em-2325681e1b59.jpg",
   "em-233989ddac07": "./character-images/em-233989ddac07.jpg",
@@ -279,6 +281,7 @@ export const CHARACTER_IMAGE_BY_ID = Object.freeze({
   "em-280cb07103f9": "./character-images/em-280cb07103f9.jpg",
   "em-2837181f6574": "./character-images/em-2837181f6574.jpg",
   "em-285738d60a75": "./character-images/em-285738d60a75.jpg",
+  "em-28604c08091f": "./character-images/em-28604c08091f.png",
   "em-287f0053ada3": "./character-images/em-287f0053ada3.jpg",
   "em-28a408b64836": "./character-images/em-28a408b64836.jpg",
   "em-28a4ccf4cbfc": "./character-images/em-28a4ccf4cbfc.png",
@@ -1862,6 +1865,5 @@ export const CHARACTER_IMAGE_BY_ID = Object.freeze({
   "em-ff9248487a17": "./character-images/em-ff9248487a17.jpg",
   "em-ffd239fbc2e4": "./character-images/em-ffd239fbc2e4.jpg",
   "em-ffdcaffc4a41": "./character-images/em-ffdcaffc4a41.png",
-  "em-ffde6d61f228": "./character-images/em-ffde6d61f228.jpg",
-  "manual-nijo-yukata-mode": "./character-images/manual-nijo-yukata-mode.png"
+  "em-ffde6d61f228": "./character-images/em-ffde6d61f228.jpg"
 });
