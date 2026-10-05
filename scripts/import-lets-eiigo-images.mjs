@@ -40,6 +40,8 @@ function baseCharacterName(value) {
 
 function decodeHtml(value) {
   return String(value ?? "")
+    .replace(/&#x([0-9a-f]+);/giu, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#(\d+);/gu, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)))
     .replace(/&amp;/gu, "&")
     .replace(/&quot;/gu, "\"")
     .replace(/&#39;|&apos;/gu, "'")
@@ -253,7 +255,18 @@ const imageLimit = positiveInteger(readArgument("image-limit", "0"), 0);
 const delayMilliseconds = positiveInteger(readArgument("delay-ms", "175"), 175);
 const imagePages = new Set();
 const LETS_EIIGO_NAME_ALIASES = new Map([
+  // Image-only aliases for confirmed lets-eiigo spelling differences.
   [normalizeName("二条壌☆浴衣モード"), normalizeName("二条嬢☆浴衣モード")],
+  [normalizeName("ﾀｰｷｰﾃﾞｰなじとっこ君"), normalizeName("ﾀｰｷｰﾃﾞ-なじとっこ君")],
+  [normalizeName("草カロ四郎"), normalizeName("草カロ四朗")],
+  [normalizeName("ガジランガ守り隊員"), normalizeName("カジランガ守り隊員")],
+  [normalizeName("オロモ君は鬱気味"), normalizeName("オロモ君は欝気味")],
+  [normalizeName("ヌッと出る☆ウィス君"), normalizeName("ﾇｯと出る☆ウイス君")],
+  [normalizeName("伊予まっつぁん"), normalizeName("伊予まぁつぁん")],
+  [normalizeName("なるとびくんの海中浮遊"), normalizeName("なるとびくんの海中遊泳")],
+  [normalizeName("超蝶ペッパーくん"), normalizeName("蝶々ペッパーくん")],
+  [normalizeName("ツノザヤ君は能天気"), normalizeName("ツノザヤ君は脳天気")],
+  [normalizeName("スポッて言うとイナフ君"), normalizeName("ｽﾎﾟｯって言うとｲﾅﾌ君")],
 ]);
 const byName = new Map();
 for (const character of CHARACTER_CATALOG) {
@@ -265,7 +278,10 @@ for (const character of CHARACTER_CATALOG) {
 function charactersForImageName(name) {
   const isColourVariant = isColourVariantName(name);
   const normalized = normalizeName(baseCharacterName(name));
-  const lookupName = LETS_EIIGO_NAME_ALIASES.get(normalized) ?? normalized;
+  const withoutIconSuffix = normalized.replace(/アイコン$/u, "");
+  const lookupName = LETS_EIIGO_NAME_ALIASES.get(normalized)
+    ?? LETS_EIIGO_NAME_ALIASES.get(withoutIconSuffix)
+    ?? (byName.has(normalized) ? normalized : withoutIconSuffix);
   const characters = byName.get(lookupName) ?? [];
   const matchingVariation = characters.filter((character) => (
     String(character.source?.sheet ?? "") === "色違い"
