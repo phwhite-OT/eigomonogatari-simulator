@@ -1174,3 +1174,22 @@ Browser-knowledge scheduling/freshness policy:
 - First icon-refresh run reached the normal lets-eiigo catalogue pages but failed when `/wp-json/wp/v2/categories` returned HTTP 403.
 - WordPress category/posts/pages/media APIs are now optional enrichment only. A blocked API logs a warning and the importer continues with the ordinary lets-eiigo catalogue pages instead of aborting the entire refresh.
 - Source restriction remains unchanged: only `lets-eiigo.com` is allowed for content/image fetches.
+
+
+### 2026-10-05 — confirmed lets-eiigo image-name aliases
+
+- After the site-only crawl, 286 unmatched rows collapsed to 45 unique alt names; most were repeated store banners/article thumbnails rather than character icons.
+- Cross-checking only against lets-eiigo pages and the current local catalogue identified ten missing-character icons with one-to-one spelling differences. Added image-only aliases for:
+  - `ﾀｰｷｰﾃﾞｰなじとっこ君` → `ﾀｰｷｰﾃﾞ-なじとっこ君`
+  - `草カロ四郎` → `草カロ四朗`
+  - `ガジランガ守り隊員` → `カジランガ守り隊員`
+  - `オロモ君は鬱気味` → `オロモ君は欝気味`
+  - `ヌッと出る☆ウィス君` → `ﾇｯと出る☆ウイス君`
+  - `伊予まっつぁん` → `伊予まぁつぁん`
+  - `なるとびくんの海中浮遊` → `なるとびくんの海中遊泳`
+  - `超蝶ペッパーくん` → `蝶々ペッパーくん`
+  - `ツノザヤ君は能天気` → `ツノザヤ君は脳天気`
+  - `スポッて言うとイナフ君` → `ｽﾎﾟｯって言うとｲﾅﾌ君`
+- These mappings affect icon association only; catalogue names/data were not rewritten.
+- Numeric HTML entities are now decoded (e.g. `&#x2642;`), and a literal trailing `アイコン` is stripped only for exact-name matching.
+- Ambiguous items such as `keibi2`, `unknown`, and skin images without a dedicated catalogue row remain deliberately unmatched.
