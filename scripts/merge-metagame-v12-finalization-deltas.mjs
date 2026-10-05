@@ -49,15 +49,26 @@ const checkpoint = await readJson(checkpointPath);
 const cache = new Map();
 hydrateMetagameV12EvaluationCache(cache, checkpoint?.evaluatedDeckPool);
 const before = cache.size;
+const skipIncompatible = readArgument("skip-incompatible", "false") === "true";
 let accepted = 0;
+let skippedIncompatible = 0;
 
 for (const deltaPath of deltaPaths) {
   const delta = await readJson(deltaPath);
   if (!compatibleContext(checkpoint, delta)) {
-    throw new Error(`Incompatible finalization delta: ${deltaPath}`);
+    if (!skipIncompatible) {
+      throw new Error(`Incompatible finalization delta: ${deltaPath}`);
+    }
+    skippedIncompatible += 1;
+    console.warn(`Skipping incompatible finalization delta: ${deltaPath}`);
+    continue;
   }
   hydrateMetagameV12EvaluationCache(cache, delta?.evaluatedDeckPool);
   accepted += 1;
+}
+
+if (skipIncompatible && accepted === 0) {
+  console.warn("No compatible recovery deltas were found; continuing from the durable checkpoint only.");
 }
 
 checkpoint.evaluatedDeckPool = serializeMetagameV12EvaluationCache(cache);
@@ -65,6 +76,7 @@ checkpoint.updatedAt = new Date().toISOString();
 checkpoint.recoveredFinalizationDeltas = {
   version: 1,
   accepted,
+  skippedIncompatible,
   cacheEntriesBefore: before,
   cacheEntriesAfter: cache.size,
   recoveredEntryCount: cache.size - before,

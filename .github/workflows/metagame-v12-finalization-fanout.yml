@@ -315,7 +315,8 @@ jobs:
           delta_paths="$(IFS=,; echo "${delta_files[*]}")"
           node scripts/merge-metagame-v12-finalization-deltas.mjs \
             --checkpoint="$RUNNER_TEMP/v12-finalize-work/checkpoint.json" \
-            --deltas="$delta_paths"
+            --deltas="$delta_paths" \
+            --skip-incompatible=true
           mkdir -p "$RUNNER_TEMP/v12-finalize-work/recovery"
           cp -R "$RUNNER_TEMP/v12-finalize-recovery/." "$RUNNER_TEMP/v12-finalize-work/recovery/"
       - name: Build globally deduplicated finalization work plan

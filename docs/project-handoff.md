@@ -1136,3 +1136,12 @@ Browser-knowledge scheduling/freshness policy:
 - This does **not** increase simultaneous runner usage above 19 and still leaves one of the usual 20 hosted-runner slots free for control/rerank work.
 - Conditions are still finalized independently and in priority order; this is a scheduling/granularity optimization only. Battle semantics, candidate coverage, ranking policy, and model version are unchanged.
 - The already-running fire:200 wave is not cancelled/restarted merely to apply this optimization; the finer 57-shard scheduling applies from the next normal candidate wave onward.
+
+
+### 2026-10-05 — ignore obsolete finalization recovery deltas instead of failing
+
+- fire:200 candidate evaluation reached counterfactual finalization under V12.7, but the recovery selector also found old fire:200 artifacts from the previous catalogue generation.
+- `merge-metagame-v12-finalization-deltas.mjs` correctly rejected those artifacts as incompatible, but that rejection aborted the whole fanout plan and caused repeated finalization failures.
+- Recovery now calls the merger with `--skip-incompatible=true`. Context compatibility checks remain strict; incompatible deltas are skipped, never merged.
+- If every recovered artifact is obsolete, finalization continues from the durable current-generation checkpoint instead of failing.
+- Default merger behavior remains strict/fail-fast unless the explicit recovery flag is used.
