@@ -1167,3 +1167,10 @@ Browser-knowledge scheduling/freshness policy:
 - Added `.github/workflows/import-lets-eiigo-images.yml`: it scans lets-eiigo catalogue/detail/posts/pages/media, downloads every safely exact-matched missing icon, rebuilds `src/data/character-image-manifest.js`, records coverage, and commits imported assets.
 - Ambiguous unmatched images must remain unmatched rather than being guessed onto a character.
 - Before this refresh, the manifest had 1,854 mapped images and `character-images/lets-eiigo-sources.json` had 1,726 source records.
+
+
+### 2026-10-05 — lets-eiigo WordPress API 403 fallback
+
+- First icon-refresh run reached the normal lets-eiigo catalogue pages but failed when `/wp-json/wp/v2/categories` returned HTTP 403.
+- WordPress category/posts/pages/media APIs are now optional enrichment only. A blocked API logs a warning and the importer continues with the ordinary lets-eiigo catalogue pages instead of aborting the entire refresh.
+- Source restriction remains unchanged: only `lets-eiigo.com` is allowed for content/image fetches.
