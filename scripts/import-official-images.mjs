@@ -110,15 +110,41 @@ async function fetchPaginated(endpoint, label) {
   requestUrl.searchParams.set("page", "1");
   const first = await officialFetch(requestUrl, { headers: requestHeaders });
   if (!first.ok) throw new Error(`${label} page 1: HTTP ${first.status}`);
-  const firstItems = await first.json();
+
+  let firstItems;
+  try {
+    firstItems = JSON.parse(await first.text());
+  } catch (error) {
+    throw new Error(`${label} page 1 returned non-JSON: ${error.message}`);
+  }
+
   const pageCount = Math.max(1, Number(first.headers.get("x-wp-totalpages") ?? 1));
   const items = [...firstItems];
+  let skippedPages = 0;
   for (let page = 2; page <= pageCount; page += 1) {
     requestUrl.searchParams.set("page", String(page));
-    const response = await officialFetch(requestUrl, { headers: requestHeaders });
-    if (!response.ok) throw new Error(`${label} page ${page}: HTTP ${response.status}`);
-    items.push(...await response.json());
-    if (page % 20 === 0 || page === pageCount) console.log(`Fetched ${label}: ${page}/${pageCount}`);
+    try {
+      const response = await officialFetch(requestUrl, { headers: requestHeaders });
+      if (!response.ok) {
+        skippedPages += 1;
+        console.warn(`Skipped ${label} page ${page}/${pageCount}: HTTP ${response.status}`);
+        continue;
+      }
+      const text = await response.text();
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) items.push(...parsed);
+      } catch (error) {
+        skippedPages += 1;
+        console.warn(`Skipped ${label} page ${page}/${pageCount}: non-JSON response`);
+      }
+    } catch (error) {
+      skippedPages += 1;
+      console.warn(`Skipped ${label} page ${page}/${pageCount}: ${error.message}`);
+    }
+    if (page % 20 === 0 || page === pageCount) {
+      console.log(`Fetched ${label}: ${page}/${pageCount} (kept ${items.length}, skipped pages ${skippedPages})`);
+    }
   }
   return items;
 }
@@ -331,6 +357,9 @@ for (const entry of candidates) {
 }
 
 const registry = await readJson(sourceRegistryPath, {});
+for (const characterId of Object.keys(registry)) {
+  if (!await existingImagePath(characterId)) delete registry[characterId];
+}
 let downloaded = 0;
 let failed = 0;
 for (const entry of selectedByCharacter.values()) {
