@@ -19,5 +19,89 @@
     "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/10/%E3%82%A6%E3%82%B5%E3%82%A6%E3%82%B5%E5%85%AB%E5%B9%A1.png",
     "sourceKind": "wp-media",
     "file": "em-22f9d46fe6f4.png"
+  },
+  "em-4533a7697d48": {
+    "characterName": "謀反人ミッツ",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason4/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/04/mittsuWEB-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-4533a7697d48.png"
+  },
+  "em-ceb860c3dbdd": {
+    "characterName": "美姫お市",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason4/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/04/oichiWEB-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-ceb860c3dbdd.png"
+  },
+  "em-4e3940289203": {
+    "characterName": "スーパー軍師兵衛ズ",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason4/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/10/gunshiWEB-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-4e3940289203.png"
+  },
+  "em-e795d2bbe2f0": {
+    "characterName": "北政所ねね様",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason4/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/10/neneWEB-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-e795d2bbe2f0.png"
+  },
+  "em-cc181917eaeb": {
+    "characterName": "無双中な宗茂さん",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason4/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/10/musoWEB-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-cc181917eaeb.png"
+  },
+  "em-66075c4def49": {
+    "characterName": "K・Y・イマガワ",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason4/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2024/04/KYimaWEB-min-1.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-66075c4def49.png"
+  },
+  "em-45d954b40bc4": {
+    "characterName": "ジェラする？かめ姫",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason4/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2024/04/kameWEB-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-45d954b40bc4.png"
+  },
+  "em-3c2628783368": {
+    "characterName": "すまぁとヤスマサニキ",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason4/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2024/04/yasuWEB-min.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-3c2628783368.png"
+  },
+  "em-bc2106c87bcd": {
+    "characterName": "カ",
+    "sourcePage": "https://eigomonogatari.com/tagrules/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2023/03/tagBattle.jpg",
+    "sourceKind": "official-sequential-context",
+    "file": "em-bc2106c87bcd.jpg"
+  },
+  "em-7d5a30231904": {
+    "characterName": "「ふ」じゃなくてふゅーま",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason3/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2022/06/%E3%81%B5%E3%83%BC%E3%81%BEtext-min-300x187.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-7d5a30231904.png"
+  },
+  "em-b7d1205bd3a7": {
+    "characterName": "すーぱーサイアン",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason3/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2022/06/%E3%82%B5%E3%82%A4%E3%82%A2%E3%83%B3text-min-300x187.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-b7d1205bd3a7.png"
+  },
+  "em-454ebee4a0cd": {
+    "characterName": "3人はフォニピュア",
+    "sourcePage": "https://eigomonogatari.com/lotteryseason3/",
+    "sourceImage": "https://eigomonogatari.com/wp/wp-content/uploads/2022/06/%E3%83%95%E3%82%A9%E3%83%8B%E3%83%92%E3%82%9A%E3%83%A5%E3%82%A2text-min-300x187.png",
+    "sourceKind": "official-sequential-context",
+    "file": "em-454ebee4a0cd.png"
   }
 }
