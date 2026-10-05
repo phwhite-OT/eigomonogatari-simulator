@@ -5,11 +5,9 @@ import { CHARACTER_CATALOG } from "../src/data/character-catalog.js";
 
 const projectRoot = resolve(import.meta.dirname, "..");
 const sourceOrigin = "https://lets-eiigo.com";
-const officialOrigin = "https://eigomonogatari.com";
 const catalogueIndexUrl = `${sourceOrigin}/zukan-kanto`;
 const imageDirectory = resolve(projectRoot, "character-images");
 const sourceRegistryPath = resolve(imageDirectory, "lets-eiigo-sources.json");
-const officialSourceRegistryPath = resolve(imageDirectory, "official-eigomonogatari-sources.json");
 const unmatchedPath = resolve(imageDirectory, "lets-eiigo-unmatched.json");
 const supportedExtensions = new Set([".avif", ".jpg", ".jpeg", ".png", ".webp"]);
 const requestHeaders = { "User-Agent": "DeckCompass authorised image importer" };
@@ -63,6 +61,12 @@ function sameOriginUrl(value) {
   }
 }
 
+async function sourceFetch(value, options = {}) {
+  const url = sameOriginUrl(String(value));
+  if (!url) throw new Error(`Blocked non-lets-eiigo URL: ${String(value)}`);
+  return fetch(url, options);
+}
+
 function extractCatalogueUrls(html) {
   const urls = new Set([catalogueIndexUrl]);
   for (const match of html.matchAll(/<a\b[^>]*\bhref\s*=\s*(["'])(.*?)\1[^>]*>/giu)) {
@@ -95,39 +99,8 @@ function officialCharacterName(value) {
   return textFromHtml(value).replace(/[【\[][^】\]]*[】\]]\s*$/gu, "").trim();
 }
 
-function extractOfficialImageEntries(html, pageUrl) {
-  const entries = [];
-  const seenEntries = new Set();
-  const addEntry = (name, sourceValue) => {
-    let sourceUrl;
-    try {
-      sourceUrl = new URL(sourceValue, officialOrigin);
-    } catch {
-      return;
-    }
-    if (!name || !/^https?:$/iu.test(sourceUrl.protocol) || !/(^|\.)englishstoryserver\.com$/iu.test(sourceUrl.hostname)) return;
-    const key = `${name}\u0000${sourceUrl.href}`;
-    if (seenEntries.has(key)) return;
-    seenEntries.add(key);
-    entries.push({ name, sourceUrl: sourceUrl.href, pageUrl, sourceRegistry: "official-eigomonogatari" });
-  };
-  for (const row of String(html ?? "").matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)) {
-    const imageTag = row[1].match(/<img\b[^>]*>/iu)?.[0];
-    const sourceValue = imageTag ? (readAttribute(imageTag, "data-src") || readAttribute(imageTag, "src")) : "";
-    const cells = [...row[1].matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/giu)].map((cell) => textFromHtml(cell[1]));
-    const name = officialCharacterName(cells[1]);
-    addEntry(name, sourceValue);
-  }
-  for (const tag of String(html ?? "").matchAll(/<img\b[^>]*>/giu)) {
-    const name = officialCharacterName(readAttribute(tag[0], "alt"));
-    const sourceValue = readAttribute(tag[0], "data-src") || readAttribute(tag[0], "src");
-    addEntry(name, sourceValue);
-  }
-  return entries;
-}
-
 async function fetchWordPressJson(url) {
-  const response = await fetch(url, { headers: requestHeaders });
+  const response = await sourceFetch(url, { headers: requestHeaders });
   if (!response.ok) throw new Error(`Could not fetch ${url}: ${response.status}`);
   return { response, json: await response.json() };
 }
@@ -222,13 +195,6 @@ async function fetchLetsPages() {
   return fetchWordPressPosts(sourceOrigin, "lets-eiigo fixed", "/wp-json/wp/v2/pages");
 }
 
-async function fetchOfficialPosts() {
-  return fetchWordPressPosts(officialOrigin, "official");
-}
-
-async function fetchOfficialPages() {
-  return fetchWordPressPosts(officialOrigin, "official fixed", "/wp-json/wp/v2/pages");
-}
 
 function extensionFor(response, sourceUrl) {
   const contentType = String(response.headers.get("content-type") ?? "").split(";")[0].toLowerCase();
@@ -286,6 +252,9 @@ async function pruneMissingSourceRecords(sourceRegistry) {
 const imageLimit = positiveInteger(readArgument("image-limit", "0"), 0);
 const delayMilliseconds = positiveInteger(readArgument("delay-ms", "175"), 175);
 const imagePages = new Set();
+const LETS_EIIGO_NAME_ALIASES = new Map([
+  [normalizeName("二条壌☆浴衣モード"), normalizeName("二条嬢☆浴衣モード")],
+]);
 const byName = new Map();
 for (const character of CHARACTER_CATALOG) {
   const key = normalizeName(character.name);
@@ -295,7 +264,9 @@ for (const character of CHARACTER_CATALOG) {
 
 function charactersForImageName(name) {
   const isColourVariant = isColourVariantName(name);
-  const characters = byName.get(normalizeName(baseCharacterName(name))) ?? [];
+  const normalized = normalizeName(baseCharacterName(name));
+  const lookupName = LETS_EIIGO_NAME_ALIASES.get(normalized) ?? normalized;
+  const characters = byName.get(lookupName) ?? [];
   const matchingVariation = characters.filter((character) => (
     String(character.source?.sheet ?? "") === "色違い"
   ) === isColourVariant);
@@ -315,7 +286,7 @@ function addCandidate(entry, candidates, seenCharacters) {
   }
 }
 
-const indexResponse = await fetch(catalogueIndexUrl, {
+const indexResponse = await sourceFetch(catalogueIndexUrl, {
   headers: requestHeaders,
 });
 if (!indexResponse.ok) throw new Error(`Could not fetch catalogue index: ${indexResponse.status}`);
@@ -327,7 +298,7 @@ const seenCharacters = new Set();
 for (const pageUrl of [...imagePages]) {
   const response = pageUrl === catalogueIndexUrl
     ? { ok: true, text: async () => indexHtml }
-    : await fetch(pageUrl, { headers: requestHeaders });
+    : await sourceFetch(pageUrl, { headers: requestHeaders });
   if (!response.ok) {
     console.warn(`Skipped page ${pageUrl}: ${response.status}`);
     continue;
@@ -363,32 +334,17 @@ for (const entry of letsMediaEntries) {
   addCandidate(entry, candidates, seenCharacters);
 }
 
-const officialPosts = await fetchOfficialPosts();
-for (const { pageUrl, html } of officialPosts) {
-  for (const entry of extractOfficialImageEntries(html, pageUrl)) {
-    addCandidate(entry, candidates, seenCharacters);
-  }
-}
-
-const officialPages = await fetchOfficialPages();
-for (const { pageUrl, html } of officialPages) {
-  for (const entry of extractOfficialImageEntries(html, pageUrl)) {
-    addCandidate(entry, candidates, seenCharacters);
-  }
-}
-
 const unmatched = candidates.filter(({ status }) => status !== "matched").map(({ name, sourceUrl, pageUrl, sourceRegistry, status }) => ({ name, sourceUrl, pageUrl, sourceRegistry, status }));
 const matched = candidates.filter(({ status }) => status === "matched");
 const selected = imageLimit ? matched.slice(0, imageLimit) : matched;
 await mkdir(imageDirectory, { recursive: true });
 const sources = await readJson(sourceRegistryPath, {});
-const officialSources = await readJson(officialSourceRegistryPath, {});
 let downloaded = 0;
 let skipped = 0;
 let failed = 0;
 
 for (const [index, entry] of selected.entries()) {
-  const sourceRegistry = entry.sourceRegistry === "official-eigomonogatari" ? officialSources : sources;
+  const sourceRegistry = sources;
   const sourceRecord = {
     characterName: entry.character.name,
     sourcePage: entry.pageUrl,
@@ -405,7 +361,7 @@ for (const [index, entry] of selected.entries()) {
     continue;
   }
   try {
-    const response = await fetch(entry.sourceUrl, { headers: requestHeaders });
+    const response = await sourceFetch(entry.sourceUrl, { headers: requestHeaders });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const extension = extensionFor(response, entry.sourceUrl);
     const fileName = `${encodeURIComponent(String(entry.character.id))}${extension}`;
@@ -426,9 +382,7 @@ for (const [index, entry] of selected.entries()) {
 }
 
 await pruneMissingSourceRecords(sources);
-await pruneMissingSourceRecords(officialSources);
 await writeJson(sourceRegistryPath, sources);
-await writeJson(officialSourceRegistryPath, officialSources);
 await writeJson(unmatchedPath, unmatched);
 console.log(JSON.stringify({
   pages: imagePages.size,
@@ -436,8 +390,6 @@ console.log(JSON.stringify({
   letsPosts: letsPosts.length,
   letsPages: letsPages.length,
   letsMediaEntries: letsMediaEntries.length,
-  officialPosts: officialPosts.length,
-  officialPages: officialPages.length,
   matched: matched.length,
   selected: selected.length,
   downloaded,
