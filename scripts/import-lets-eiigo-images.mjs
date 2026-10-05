@@ -308,28 +308,48 @@ for (const pageUrl of [...imagePages]) {
   }
 }
 
-const detailPages = await fetchDetailPages();
+let detailPages = [];
+try {
+  detailPages = await fetchDetailPages();
+} catch (error) {
+  console.warn(`WordPress category API unavailable; continuing with normal lets-eiigo catalogue pages: ${error.message}`);
+}
 for (const { pageUrl, html } of detailPages) {
   for (const entry of extractImageEntries(html, pageUrl)) {
     addCandidate(entry, candidates, seenCharacters);
   }
 }
 
-const letsPosts = await fetchLetsPosts();
+let letsPosts = [];
+try {
+  letsPosts = await fetchLetsPosts();
+} catch (error) {
+  console.warn(`WordPress posts API unavailable; continuing without it: ${error.message}`);
+}
 for (const { pageUrl, html } of letsPosts) {
   for (const entry of extractImageEntries(html, pageUrl)) {
     addCandidate(entry, candidates, seenCharacters);
   }
 }
 
-const letsPages = await fetchLetsPages();
+let letsPages = [];
+try {
+  letsPages = await fetchLetsPages();
+} catch (error) {
+  console.warn(`WordPress pages API unavailable; continuing without it: ${error.message}`);
+}
 for (const { pageUrl, html } of letsPages) {
   for (const entry of extractImageEntries(html, pageUrl)) {
     addCandidate(entry, candidates, seenCharacters);
   }
 }
 
-const letsMediaEntries = await fetchLetsMediaEntries();
+let letsMediaEntries = [];
+try {
+  letsMediaEntries = await fetchLetsMediaEntries();
+} catch (error) {
+  console.warn(`WordPress media API unavailable; continuing without it: ${error.message}`);
+}
 for (const entry of letsMediaEntries) {
   addCandidate(entry, candidates, seenCharacters);
 }
