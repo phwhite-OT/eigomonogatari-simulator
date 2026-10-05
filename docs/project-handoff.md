@@ -1212,3 +1212,10 @@ Browser-knowledge scheduling/freshness policy:
 - `scripts/build-final.mjs` のビルド対象を現行正本 `src/data/wiki-character-additions.js` に変更した。キャラ評価・V12計算・戦闘ロジックには変更なし。
 - commit `9be5a6e59247c73bcb40649cf7626a56c97fc367` の Deploy public site で、回帰テスト・Prepare public site・GitHub Pages deploy がすべて成功した。
 - これにより直前の lets-eiigo アイコン更新を含む公開サイトが配信可能な状態へ復旧した。
+
+
+### 2026-10-05 — 手動補完の重複キャラを削除
+
+- サイト上で「手動補完」と「協力」に同一キャラが重複していたため、手動補完側の「二条嬢☆浴衣モード」(`manual-nijo-yukata-mode`) を削除した。
+- 協力側の正規データは残す方針。評価ロジック・V12計算・戦闘挙動には変更なし。
+- `MANUAL_CHARACTER_SUPPLEMENTS` は空配列となり、今後は正規カテゴリに存在するキャラを手動補完へ重複登録しない。
