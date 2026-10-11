@@ -1219,3 +1219,12 @@ Browser-knowledge scheduling/freshness policy:
 - サイト上で「手動補完」と「協力」に同一キャラが重複していたため、手動補完側の「二条嬢☆浴衣モード」(`manual-nijo-yukata-mode`) を削除した。
 - 協力側の正規データは残す方針。評価ロジック・V12計算・戦闘挙動には変更なし。
 - `MANUAL_CHARACTER_SUPPLEMENTS` は空配列となり、今後は正規カテゴリに存在するキャラを手動補完へ重複登録しない。
+
+
+### 2026-10-11 — enforce lets-eiigo-only icon source
+
+- User restriction for the current icon task is strict: only `https://lets-eiigo.com/` may be used as the icon research/import source.
+- A later series of commits starting with the official-site importer added 29 mapped icons from another source. Those content changes are intentionally reverted.
+- The restored lets-eiigo-only baseline contains 1,864 mapped character images and 25 unique unmatched lets-eiigo image names.
+- Do not reintroduce official-site or other-site image importers for this task.
+- Remaining unmatched names may be mapped only when the relationship can be established from lets-eiigo itself or by deterministic spelling/markup normalization against the existing catalogue; ambiguous guesses remain unmatched.
