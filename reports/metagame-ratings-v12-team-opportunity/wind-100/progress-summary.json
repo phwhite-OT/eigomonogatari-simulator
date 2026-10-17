@@ -1,0 +1,1 @@
+{"schemaVersion":1,"status":"finalizing","updatedAt":"2026-09-29T01:02:02.440Z","context":{"version":"team-battle-v12.5-effective-damage-individual-rank","battleSemantics":"opportunity-baseline-v6-target-priority","inputId":"wind:100"},"finalizationState":{"version":2,"phase":"counterfactual","cursor":{"planIndex":62},"planLength":4365},"adaptiveMetagameVersion":null}
