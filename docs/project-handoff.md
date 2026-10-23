@@ -54,30 +54,13 @@ The ranking system tries to separate a character's own measurable value from the
 
 ## 4. V12.5 representative precompute
 
-The expensive browser-supporting precompute intentionally covers only 28 representative conditions.
+The planned browser-supporting grid is 7 attribute groups × planned costs 100/200/300/500 = 28 slots. **A planned slot is not eligible for official cloud precompute until an exact user-supplied environment exists for that cost.**
 
-Seven attribute groups:
+As of 2026-10-24, exact environments exist for costs 100 and 200 only, so the active heavy queue contains 14 conditions. Cost 300 and cost 500 remain planned but blocked. The previous implementation used the nearest environment anchor for missing representative costs, which meant official cost-300/500 runs reused cost-200 environment data; that behaviour is now prohibited for heavy precompute.
 
-- `fire`
-- `water`
-- `wind`
-- `fire-water`
-- `fire-wind`
-- `water-wind`
-- `fire-water-wind`
+`METAGAME_V12_PLANNED_PRECOMPUTE_COSTS` keeps the planned 100/200/300/500 grid. `METAGAME_V12_PRECOMPUTE_COSTS` and `METAGAME_V12_SWEEP_INPUTS` contain only costs backed by exact supplied environments. Workflows read the current eligible queue through `scripts/list-metagame-v12-precompute-inputs.mjs`.
 
-Four representative costs:
-
-- `100`
-- `200`
-- `300`
-- `500`
-
-Total: `7 × 4 = 28` conditions.
-
-Do **not** change this into 401 separate cost conditions. Intermediate user-entered costs from 100–500 are intentionally resolved from the representative cost bands during browser-side / deck-generation logic.
-
-The definitions live around `src/data/metagame-v12-sweep-inputs.js` and the V12 input plumbing.
+Do **not** change this into 401 separate cost conditions. Arbitrary browser-entered costs may still be reconstructed from neighbouring exact bands; that interactive synthetic resolution is separate from official cloud evidence.
 
 ## 5. Durable results and checkpoint policy
 
@@ -1228,3 +1211,12 @@ Browser-knowledge scheduling/freshness policy:
 - The restored lets-eiigo-only baseline contains 1,864 mapped character images and 25 unique unmatched lets-eiigo image names.
 - Do not reintroduce official-site or other-site image importers for this task.
 - Remaining unmatched names may be mapped only when the relationship can be established from lets-eiigo itself or by deterministic spelling/markup normalization against the existing catalogue; ambiguous guesses remain unmatched.
+
+### 2026-10-24 — runner priority and exact-environment gate
+
+Two orchestration/data-integrity problems were corrected together:
+
+- `Metagame V12 browser knowledge precompute` had `max-parallel: 19` and an hourly schedule, so it could occupy nearly the full GitHub-hosted runner pool while the main shared-pool recompute was running. Browser knowledge now checks for active/queued heavy workflows and exits without work; heavy recompute/finalization also cancels active browser-knowledge runs before expensive fanout. Browser-workflow concurrency now cancels older browser runs when a newer run supersedes them.
+- Cost-300 and cost-500 representative inputs had no user-supplied environment. `resolveMetagameV12SweepInput` legitimately supports nearest-anchor synthetic inputs for interactive arbitrary-cost reconstruction, but those synthetic inputs were incorrectly included in the official heavy sweep. Official precompute now contains only exact environment costs. At the time of this correction those are 100 and 200.
+
+Existing durable 300/500 outputs are not considered authoritative current outputs and are excluded from the current publish/precompute queue until exact environments are supplied.
