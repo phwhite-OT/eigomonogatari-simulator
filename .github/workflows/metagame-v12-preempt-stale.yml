@@ -87,9 +87,12 @@ jobs:
             echo "Stale V12 run $run_id is still $status after cancellation; force-cancelling it."
             gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/force-cancel" >/dev/null
 
-            if ! wait_for_completion "$run_id" 6; then
+            # GitHub-hosted matrix jobs can take well over 30 seconds to drain
+            # after force-cancel is accepted. Give the service enough time to
+            # tear down every active runner before declaring preemption broken.
+            if ! wait_for_completion "$run_id" 24; then
               status="$(run_status "$run_id")"
-              echo "Stale V12 run $run_id survived force-cancel (status=$status). Refusing to report success." >&2
+              echo "Stale V12 run $run_id survived force-cancel after the extended drain window (status=$status). Refusing to report success." >&2
               exit 1
             fi
 
