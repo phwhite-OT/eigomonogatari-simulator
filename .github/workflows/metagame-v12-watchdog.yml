@@ -21,6 +21,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Detect stalled V12 work and self-heal
         shell: bash
         env:
@@ -61,17 +64,13 @@ jobs:
           fi
           git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
 
-          attribute_groups=(
-            "fire" "water" "wind"
-            "fire-water" "fire-wind" "water-wind" "fire-water-wind"
-          )
-          representative_costs=(200 300 500 100)
+          mapfile -t input_ids < <(node scripts/list-metagame-v12-precompute-inputs.mjs)
+          total_conditions="${#input_ids[@]}"
           incomplete=0
           first_incomplete=""
           first_progress=""
-          for cost in "${representative_costs[@]}"; do
-            for attribute_group in "${attribute_groups[@]}"; do
-              output_directory="${attribute_group}-${cost}"
+          for input_id in "${input_ids[@]}"; do
+              output_directory="${input_id//:/-}"
               progress_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"
               summary_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress-summary.json"
               marker_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/ranking-policy.txt"
@@ -101,15 +100,14 @@ jobs:
               if ! jq -e '.status == "complete" and .context.version == "team-battle-v12.7-character-catalog-20261004-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' <<< "$state" >/dev/null 2>&1 || [ "$marker" != "$ranking_policy" ]; then
                 incomplete=$((incomplete + 1))
                 if [ -z "$first_incomplete" ]; then
-                  first_incomplete="${attribute_group}:${cost}"
+                  first_incomplete="$input_id"
                   first_progress="$state"
                 fi
               fi
-            done
           done
 
           if [ "$incomplete" -eq 0 ]; then
-            echo "All 28 V12 conditions are complete under $ranking_policy."
+            echo "All $total_conditions ready exact-environment V12 conditions are complete under $ranking_policy."
             exit 0
           fi
 
@@ -122,9 +120,9 @@ jobs:
             desired_workflow="$finalization_workflow"
             cursor="$(jq -r '.finalizationState.cursor.planIndex' <<< "$first_progress")"
             plan_length="$(jq -r '.finalizationState.planLength' <<< "$first_progress")"
-            echo "$incomplete/28 conditions incomplete; first=$first_incomplete is finalizing at $cursor/$plan_length."
+            echo "$incomplete/$total_conditions ready conditions incomplete; first=$first_incomplete is finalizing at $cursor/$plan_length."
           else
-            echo "$incomplete/28 conditions incomplete; first=$first_incomplete needs normal recompute."
+            echo "$incomplete/$total_conditions ready conditions incomplete; first=$first_incomplete needs normal recompute."
           fi
           echo "Desired continuation workflow: $desired_workflow"
 
