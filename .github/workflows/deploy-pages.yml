@@ -63,6 +63,29 @@ jobs:
             fi
           fi
 
+          # Remove planned representative directories that are not currently
+          # backed by exact supplied environments, including any stale fallback
+          # snapshot from the old nearest-anchor behaviour.
+          mapfile -t ready_inputs < <(node scripts/list-metagame-v12-precompute-inputs.mjs)
+          declare -A ready_report_dirs=()
+          for input_id in "${ready_inputs[@]}"; do
+            ready_report_dirs["${input_id//:/-}"]=1
+          done
+          if [ -d "$report_root" ]; then
+            while IFS= read -r directory; do
+              name="$(basename "$directory")"
+              cost="${name##*-}"
+              case "$cost" in
+                100|200|300|500)
+                  if [ -z "${ready_report_dirs[$name]+x}" ]; then
+                    rm -rf "$directory"
+                    echo "Removing published representative result without exact environment: $name"
+                  fi
+                  ;;
+              esac
+            done < <(find "$report_root" -mindepth 1 -maxdepth 1 -type d -print)
+          fi
+
           published_current=()
           if git fetch --depth=1 origin "+refs/heads/$shared_branch:refs/remotes/origin/$shared_branch"; then
             shared_ref="refs/remotes/origin/$shared_branch"
