@@ -138,6 +138,9 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - id: target
         name: Select active counterfactual finalization
         shell: bash
@@ -161,15 +164,9 @@ jobs:
           fi
           git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
 
-          attribute_groups=(
-            "fire" "water" "wind"
-            "fire-water" "fire-wind" "water-wind" "fire-water-wind"
-          )
-          representative_costs=(200 300 500 100)
-          for cost in "${representative_costs[@]}"; do
-            for attribute_group in "${attribute_groups[@]}"; do
-              input="${attribute_group}:${cost}"
-              output_directory="${attribute_group}-${cost}"
+          mapfile -t input_ids < <(node scripts/list-metagame-v12-precompute-inputs.mjs)
+          for input in "${input_ids[@]}"; do
+              output_directory="${input//:/-}"
               progress_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress.json"
               summary_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/progress-summary.json"
               marker_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}/ranking-policy.txt"
@@ -226,6 +223,15 @@ jobs:
                   recovery_run_ids_csv="$(IFS=,; echo "${recovery_run_ids[*]}")"
                 fi
 
+                browser_runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/metagame-v12-browser-knowledge.yml/runs?per_page=30" 2>/dev/null || true)"
+                if [ -n "$browser_runs" ]; then
+                  while IFS= read -r browser_run_id; do
+                    [ -n "$browser_run_id" ] || continue
+                    echo "Cancelling browser-knowledge run $browser_run_id before distributed finalization."
+                    gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${browser_run_id}/cancel" >/dev/null 2>&1 || true
+                  done < <(jq -r '.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending") | .id' <<< "$browser_runs")
+                fi
+
                 echo "should_run=true" >> "$GITHUB_OUTPUT"
                 echo "input=$input" >> "$GITHUB_OUTPUT"
                 echo "output_directory=$output_directory" >> "$GITHUB_OUTPUT"
@@ -241,9 +247,8 @@ jobs:
                 echo "First incomplete condition $input is not ready for distributed finalization."
               fi
               exit 0
-            done
           done
-          echo "All 28 V12 conditions already have the current ranking policy."
+          echo "All ready exact-environment V12 conditions already have the current ranking policy."
 
   plan:
     needs: select
