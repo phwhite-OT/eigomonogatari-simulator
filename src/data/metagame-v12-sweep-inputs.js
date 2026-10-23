@@ -4,10 +4,11 @@
 import { METAGAME_V7_INPUTS } from "./metagame-v7-inputs.js";
 import { METAGAME_V8_COST_200_INPUTS } from "./metagame-v8-cost-200-inputs.js";
 
-// Only these representative cost bands are expensive precompute targets.
-// Browser deck generation resolves finer user-entered costs from the saved
-// neighbouring bands instead of recomputing every integer cost.
-export const METAGAME_V12_PRECOMPUTE_COSTS = Object.freeze([100, 200, 300, 500]);
+// Planned representative cost bands. A band becomes an expensive cloud
+// precompute target only after the user has supplied an exact environment for
+// that cost. Never silently reuse a neighbouring environment as official
+// precompute evidence.
+export const METAGAME_V12_PLANNED_PRECOMPUTE_COSTS = Object.freeze([100, 200, 300, 500]);
 export const METAGAME_V12_SWEEP_MIN_COST = 100;
 export const METAGAME_V12_SWEEP_MAX_COST = 500;
 // Kept for backwards compatibility with older imports. The precompute queue
@@ -28,6 +29,15 @@ export const METAGAME_V12_REPRESENTATIVE_INPUTS = Object.freeze([
   ...METAGAME_V7_INPUTS,
   ...METAGAME_V8_COST_200_INPUTS,
 ]);
+
+// At present the repository contains exact user-supplied environments for
+// cost 100 and cost 200 only. Cost 300 / 500 remain planned bands and must not
+// enter the expensive recompute queue until their own environment data exists.
+export const METAGAME_V12_PRECOMPUTE_COSTS = Object.freeze(
+  [...new Set(METAGAME_V12_REPRESENTATIVE_INPUTS.map((input) => Number(input.totalCost)))]
+    .filter((cost) => METAGAME_V12_PLANNED_PRECOMPUTE_COSTS.includes(cost))
+    .sort((left, right) => left - right),
+);
 
 const ATTRIBUTE_ORDER = Object.freeze(["fire", "water", "wind"]);
 const ATTRIBUTE_LABEL = Object.freeze({ fire: "火", water: "水", wind: "風" });
