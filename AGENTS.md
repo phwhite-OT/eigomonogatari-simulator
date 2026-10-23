@@ -30,13 +30,15 @@ Target selection semantics:
 - durable results branch: `metagame-v12-shared-pool-results`
 - report root: `reports/metagame-ratings-v12-team-opportunity/`
 
-The expensive precompute covers exactly **28 representative environments**:
+The planned expensive precompute has **28 representative slots** (7 attribute groups × planned costs 100/200/300/500), but cloud computation must include **only costs with an exact user-supplied environment**.
 
-- attribute groups: `fire`, `water`, `wind`, `fire-water`, `fire-wind`, `water-wind`, `fire-water-wind`
-- representative total costs: `100`, `200`, `300`, `500`
-- current execution priority: finish `200` first, then `300`, then `500`, and return to any remaining `100` conditions last
+As of 2026-10-24:
+- exact environment data exists for costs `100` and `200` only, so the active cloud queue is 14 conditions
+- costs `300` and `500` are planned but blocked until their own environment data is supplied
+- never treat the nearest lower-cost environment (for example cost 200) as official cost-300/500 metagame evidence
+- `scripts/list-metagame-v12-precompute-inputs.mjs` is the workflow source of truth for the currently eligible queue
 
-Do **not** expand this into every integer cost from 100–500. Intermediate browser costs are intentionally derived from the neighbouring representative bands.
+Do **not** expand this into every integer cost from 100–500. Arbitrary browser costs may still use/interpolate neighbouring exact bands for interactive reconstruction, but that synthetic behaviour must never enter the official heavy precompute queue.
 
 ## V12.5 execution flow
 
@@ -218,3 +220,9 @@ Do not rely on chat history to preserve current work context.
 After **every source/workflow/evaluation fix**, update the rolling handoff log in `docs/project-handoff.md` during the same work session. Record the change, reason, compatibility/recompute implications, validation/current state, and next checks as relevant. Minor fixes only need a short dated log entry there.
 
 If the fix materially changes architecture, battle semantics, ranking policy, checkpoint format, workflow recovery/topology, or the meaning of V12 outputs, update the explanatory sections in both this file and `docs/project-handoff.md` as well.
+
+## 2026-10-24 runner-priority / missing-environment correction
+
+Browser-knowledge precompute previously used up to 19 GitHub-hosted runners on an hourly schedule while the main shared-pool recompute also expected 19 runners. This starved the main calculation. Browser knowledge now yields whenever shared-pool/finalization work is active or queued, newer browser runs cancel older browser runs, and heavy workflows cancel any active browser-knowledge run before launching expensive work.
+
+A second issue was found at the same time: cost-300 and cost-500 sweep inputs were being synthesized from the nearest available environment anchor. Because the repository only contains user-supplied environments for costs 100 and 200, official 300/500 precompute was actually using cost-200 opponent/environment data with only the deck budget changed. Official cloud precompute now excludes synthetic representative bands until exact environment data is supplied.
