@@ -19,11 +19,14 @@ on:
       - ".github/workflows/metagame-v12-browser-knowledge.yml"
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
   group: metagame-v12-browser-knowledge-${{ github.event.inputs.input || 'auto' }}
-  cancel-in-progress: false
+  # A newer browser-knowledge run replaces an older one. This also lets a
+  # workflow-source fix stop an already-running 19-runner background wave.
+  cancel-in-progress: true
 
 jobs:
   plan:
@@ -44,6 +47,7 @@ jobs:
         id: select
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           REQUESTED_INPUT: ${{ github.event.inputs.input || 'auto' }}
         run: |
           set -euo pipefail
@@ -93,39 +97,52 @@ jobs:
             [ "$policy_version" != "2" ] || { [ -n "$report_generated" ] && [ "$knowledge_generated" != "$report_generated" ]; }
           }
 
+          # Never consume the 19-runner pool while the main recompute or its
+          # finalization accelerator is active/queued.
+          for heavy_workflow in metagame-v12-shared-pool-recompute.yml metagame-v12-finalization-fanout.yml; do
+            active_count="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/${heavy_workflow}/runs?per_page=30"               --jq '[.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending")] | length' 2>/dev/null || echo 0)"
+            if [ "${active_count:-0}" -gt 0 ]; then
+              echo "Heavy V12 work is active/queued in $heavy_workflow; browser knowledge yields all runner capacity."
+              echo "input=" >> "$GITHUB_OUTPUT"
+              echo "has_work=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          mapfile -t ready_inputs < <(node scripts/list-metagame-v12-precompute-inputs.mjs)
+          for input in "${ready_inputs[@]}"; do
+            if ! is_current_complete "$input"; then
+              echo "Ready V12 condition $input is not complete yet; browser knowledge waits for the main recompute."
+              echo "input=" >> "$GITHUB_OUTPUT"
+              echo "has_work=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
           selected=""
           if [ "$REQUESTED_INPUT" != "auto" ]; then
+            if ! printf '%s\n' "${ready_inputs[@]}" | grep -Fxq "$REQUESTED_INPUT"; then
+              echo "Requested condition has no exact supplied environment and is not eligible for browser precompute: $REQUESTED_INPUT" >&2
+              exit 1
+            fi
             if ! is_current_complete "$REQUESTED_INPUT"; then
               echo "Requested condition is not complete/current: $REQUESTED_INPUT" >&2
               exit 1
             fi
             selected="$REQUESTED_INPUT"
           else
-            attribute_groups=(fire water wind fire-water fire-wind water-wind fire-water-wind)
-            representative_costs=(100 200 300 500)
-            # First fill genuinely missing neighbouring bands. This makes
-            # arbitrary-cost interpolation usable sooner (e.g. existing
-            # fire:100 knowledge causes fire:200 to be selected next).
-            for attribute_group in "${attribute_groups[@]}"; do
-              for cost in "${representative_costs[@]}"; do
-                input="$attribute_group:$cost"
-                if is_current_complete "$input" && knowledge_missing "$input"; then
-                  selected="$input"
-                  break 2
-                fi
-              done
+            for input in "${ready_inputs[@]}"; do
+              if knowledge_missing "$input"; then
+                selected="$input"
+                break
+              fi
             done
-            # Only after every currently completed condition has a package do
-            # we spend offline time refreshing older policy/source versions.
             if [ -z "$selected" ]; then
-              for attribute_group in "${attribute_groups[@]}"; do
-                for cost in "${representative_costs[@]}"; do
-                  input="$attribute_group:$cost"
-                  if is_current_complete "$input" && knowledge_stale "$input"; then
-                    selected="$input"
-                    break 2
-                  fi
-                done
+              for input in "${ready_inputs[@]}"; do
+                if knowledge_stale "$input"; then
+                  selected="$input"
+                  break
+                fi
               done
             fi
           fi
