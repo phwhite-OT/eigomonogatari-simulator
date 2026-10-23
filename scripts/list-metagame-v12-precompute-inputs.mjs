@@ -10,4 +10,10 @@ const ordered = [...METAGAME_V12_SWEEP_INPUTS].sort((left, right) => {
   return METAGAME_V12_SWEEP_INPUTS.indexOf(left) - METAGAME_V12_SWEEP_INPUTS.indexOf(right);
 });
 
-for (const input of ordered) console.log(input.id);
+if (process.argv.includes("--json")) {
+  console.log(JSON.stringify(ordered.map((input) => input.id)));
+} else if (process.argv.includes("--costs-json")) {
+  console.log(JSON.stringify([...new Set(ordered.map((input) => Number(input.totalCost)))].sort((left, right) => left - right)));
+} else {
+  for (const input of ordered) console.log(input.id);
+}
