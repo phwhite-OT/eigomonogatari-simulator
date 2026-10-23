@@ -15,6 +15,8 @@ const finalizationPlanScript = fs.readFileSync("scripts/plan-metagame-v12-finali
 const finalizationShardScript = fs.readFileSync("scripts/evaluate-metagame-v12-finalization-shard.mjs", "utf8");
 const finalizationAdvanceScript = fs.readFileSync("scripts/advance-metagame-v12-finalization-cache.mjs", "utf8");
 const browserKnowledgePlanScript = fs.readFileSync("scripts/plan-metagame-v12-browser-knowledge.mjs", "utf8");
+const browserKnowledgeWorkflow = fs.readFileSync(".github/workflows/metagame-v12-browser-knowledge.yml", "utf8");
+const precomputeInputScript = fs.readFileSync("scripts/list-metagame-v12-precompute-inputs.mjs", "utf8");
 const sharedPoolScript = fs.readFileSync("src/core/metagame-v12-shared-pool.js", "utf8");
 const metagameV12 = fs.readFileSync("src/core/metagame-v12.js", "utf8");
 
@@ -54,6 +56,16 @@ test("V12 heavy work remains resumable and capped at nineteen parallel runners",
   assert.match(rateScript, /MetagameV12EvaluationPool/);
 });
 
+test("browser knowledge yields runner capacity to main V12 work", () => {
+  assert.match(browserKnowledgeWorkflow, /cancel-in-progress:\s*true/);
+  assert.match(browserKnowledgeWorkflow, /metagame-v12-shared-pool-recompute\.yml/);
+  assert.match(browserKnowledgeWorkflow, /metagame-v12-finalization-fanout\.yml/);
+  assert.match(browserKnowledgeWorkflow, /browser knowledge yields all runner capacity/);
+  assert.match(browserKnowledgeWorkflow, /list-metagame-v12-precompute-inputs\.mjs/);
+  assert.match(workflow, /Cancelling browser-knowledge run/);
+  assert.match(fanout, /Cancelling browser-knowledge run/);
+});
+
 test("finalize-handoff shards stop before serial counterfactual work", () => {
   assert.match(workMatrixScript, /finalizeHandoff:\s*true/);
   assert.match(workMatrixScript, /finalize_handoff:\s*Boolean\(finalizeHandoff\)/);
@@ -71,9 +83,10 @@ test("distributed fanout merge never falls back to serial counterfactual battles
   assert.match(fanout, /must never run missing battles itself/);
 });
 
-test("V12 prioritizes cost 200 and bounds normal counterfactual work", () => {
-  assert.match(workflow, /representative_costs=\(200 300 500 100\)/);
-  assert.match(fanout, /representative_costs=\(200 300 500 100\)/);
+test("V12 uses the exact-environment precompute queue and bounds normal counterfactual work", () => {
+  assert.match(workflow, /list-metagame-v12-precompute-inputs\.mjs/);
+  assert.match(fanout, /list-metagame-v12-precompute-inputs\.mjs/);
+  assert.match(precomputeInputScript, /preferredCostOrder = \[200, 300, 500, 100\]/);
   assert.match(fanout, /--max-work-items=4800/);
   assert.match(fanout, /--counterfactual-anchor-limit=2/);
   assert.match(fanout, /--replacement-deck-limit=12/);
@@ -164,10 +177,10 @@ test("V12 publish hands off only counterfactual finalization to fanout", () => {
   assert.match(workflow, /\.finalizationState\.cursor\.planIndex < \(\.finalizationState\.plan \| length\)/);
 });
 
-test("V12 watchdog uses the same cost-priority order as heavy selectors", () => {
-  assert.match(watchdog, /representative_costs=\(200 300 500 100\)/);
-  assert.match(workflow, /representative_costs=\(200 300 500 100\)/);
-  assert.match(fanout, /representative_costs=\(200 300 500 100\)/);
+test("V12 watchdog and heavy selectors share the exact-environment queue", () => {
+  assert.match(watchdog, /list-metagame-v12-precompute-inputs\.mjs/);
+  assert.match(workflow, /list-metagame-v12-precompute-inputs\.mjs/);
+  assert.match(fanout, /list-metagame-v12-precompute-inputs\.mjs/);
 });
 
 test("V12 watchdog recognizes adaptive policy and safely heals pending concurrency stalls", () => {
