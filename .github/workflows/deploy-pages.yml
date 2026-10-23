@@ -53,8 +53,8 @@ jobs:
           battle_semantics="opportunity-baseline-v6-target-priority"
 
           # Start from the last broadly complete public snapshot so unfinished
-          # conditions remain usable. Each newly completed shared-pool condition
-          # is then overlaid independently instead of waiting for all 28.
+          # conditions remain usable. Only conditions backed by exact supplied
+          # environments are eligible for a current shared-pool overlay.
           if git fetch --depth=1 origin "+refs/heads/$fallback_branch:refs/remotes/origin/$fallback_branch"; then
             fallback_ref="refs/remotes/origin/$fallback_branch"
             if git cat-file -e "$fallback_ref:$report_root" 2>/dev/null; then
@@ -66,12 +66,10 @@ jobs:
           published_current=()
           if git fetch --depth=1 origin "+refs/heads/$shared_branch:refs/remotes/origin/$shared_branch"; then
             shared_ref="refs/remotes/origin/$shared_branch"
-            attribute_groups=(fire water wind fire-water fire-wind water-wind fire-water-wind)
-            representative_costs=(100 200 300 500)
+            mapfile -t ready_inputs < <(node scripts/list-metagame-v12-precompute-inputs.mjs)
 
-            for cost in "${representative_costs[@]}"; do
-              for attribute_group in "${attribute_groups[@]}"; do
-                output_directory="${attribute_group}-${cost}"
+            for input_id in "${ready_inputs[@]}"; do
+                output_directory="${input_id//:/-}"
                 output_path="$report_root/$output_directory"
                 marker="$(git show "$shared_ref:$output_path/ranking-policy.txt" 2>/dev/null || true)"
 
@@ -96,7 +94,6 @@ jobs:
                   published_current+=("$output_directory")
                   echo "Publishing current shared-pool result: $output_directory"
                 fi
-              done
             done
           fi
 
@@ -115,6 +112,23 @@ jobs:
             if git cat-file -e "$knowledge_ref:$knowledge_root" 2>/dev/null; then
               git checkout "$knowledge_ref" -- "$knowledge_root"
             fi
+          fi
+
+          # Do not ship stale browser-knowledge packages for planned costs that
+          # still lack their own environment data.
+          if [ -d "$knowledge_root" ]; then
+            mapfile -t ready_inputs < <(node scripts/list-metagame-v12-precompute-inputs.mjs)
+            declare -A ready_knowledge_dirs=()
+            for input_id in "${ready_inputs[@]}"; do
+              ready_knowledge_dirs["${input_id//:/-}"]=1
+            done
+            while IFS= read -r directory; do
+              name="$(basename "$directory")"
+              if [ -z "${ready_knowledge_dirs[$name]+x}" ]; then
+                rm -rf "$directory"
+                echo "Skipping browser knowledge without exact supplied environment: $name"
+              fi
+            done < <(find "$knowledge_root" -mindepth 1 -maxdepth 1 -type d -print)
           fi
 
           npm run build
