@@ -132,20 +132,12 @@ jobs:
             return 1
           }
 
-          attribute_groups=(
-            "fire" "water" "wind"
-            "fire-water" "fire-wind" "water-wind" "fire-water-wind"
-          )
-          # Keep this priority order aligned with the watchdog and finalization selector.
-          representative_costs=(200 300 500 100)
-          input_ids=()
-          for cost in "${representative_costs[@]}"; do
-            for attribute_group in "${attribute_groups[@]}"; do
-              input_ids+=("${attribute_group}:${cost}")
-            done
-          done
+          # The queue is sourced from exact user-supplied environment inputs.
+          # Planned bands such as 300/500 are absent until their own environment
+          # data is added; never synthesize official cloud evidence from 200.
+          mapfile -t input_ids < <(node scripts/list-metagame-v12-precompute-inputs.mjs)
 
-          echo "V12 precompute queue: ${#input_ids[@]} conditions (priority costs 200,300,500, then remaining 100)."
+          echo "V12 precompute queue: ${#input_ids[@]} exact-environment conditions."
           targets='[]'
           checkpoint_path=""
           checkpoint_exists=false
@@ -171,6 +163,20 @@ jobs:
           rerank_only=false
           handoff_finalizing=false
           recovery_run_id=""
+
+          # Heavy V12 work always has priority over browser-knowledge precompute.
+          # If a background browser package is using runners, stop it before
+          # launching the expensive candidate/finalization wave.
+          if [ "$targets" != '[]' ]; then
+            browser_runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/metagame-v12-browser-knowledge.yml/runs?per_page=30" 2>/dev/null || true)"
+            if [ -n "$browser_runs" ]; then
+              while IFS= read -r browser_run_id; do
+                [ -n "$browser_run_id" ] || continue
+                echo "Cancelling browser-knowledge run $browser_run_id so heavy V12 work keeps runner priority."
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/actions/runs/${browser_run_id}/cancel" >/dev/null 2>&1 || true
+              done < <(jq -r '.workflow_runs[] | select(.status == "in_progress" or .status == "queued" or .status == "pending") | .id' <<< "$browser_runs")
+            fi
+          fi
 
           if [ "$targets" = '[]' ]; then
             work_matrix='{"include":[]}'
@@ -439,24 +445,30 @@ jobs:
         shell: bash
         run: |
           mkdir -p reports/metagame-ratings-v12-team-opportunity
+          ready_costs_json="$(node scripts/list-metagame-v12-precompute-inputs.mjs --costs-json)"
+          ready_inputs_json="$(node scripts/list-metagame-v12-precompute-inputs.mjs --json)"
           jq -n \
             --arg source_commit "${{ github.sha }}" \
             --arg source_ref "${{ github.ref_name }}" \
             --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson representative_costs "$ready_costs_json" \
+            --argjson ready_inputs "$ready_inputs_json" \
             '{
               strategy:"shared-evaluated-deck-pool-representative-cost-precompute",
               sourceCommit:$source_commit,
               sourceRef:$source_ref,
               generatedAt:$generated_at,
               attributeGroups:["fire","water","wind","fire-water","fire-wind","water-wind","fire-water-wind"],
-              representativeCosts:[100,200,300,500],
-              intermediateCostPolicy:"compose from neighbouring precomputed cost bands during deck generation",
+              plannedRepresentativeCosts:[100,200,300,500],
+              representativeCosts:$representative_costs,
+              readyInputIds:$ready_inputs,
+              intermediateCostPolicy:"compose from neighbouring exact precomputed cost bands during deck generation",
               rankingPolicy:"full-budget-opportunity-v9-adaptive-metagame",
-              conditionCount:28
+              conditionCount:($ready_inputs | length)
             }' \
             > reports/metagame-ratings-v12-team-opportunity/recompute-provenance.json
       - id: status
-        name: Check 28-condition recompute completion
+        name: Check ready-environment recompute completion
         shell: bash
         run: |
           set -euo pipefail
@@ -468,21 +480,15 @@ jobs:
               jq -e '.status == "complete" and .context.version == "team-battle-v12.7-character-catalog-20261004-individual-rank" and .context.battleSemantics == "opportunity-baseline-v6-target-priority" and .finalizationState.version == 2' "$progress_path" >/dev/null && \
               [ -f "$marker_path" ] && [ "$(cat "$marker_path")" = "$ranking_policy" ]
           }
-          attribute_groups=(
-            "fire" "water" "wind"
-            "fire-water" "fire-wind" "water-wind" "fire-water-wind"
-          )
-          representative_costs=(200 300 500 100)
+          mapfile -t input_ids < <(node scripts/list-metagame-v12-precompute-inputs.mjs)
           all_completed=true
-          for cost in "${representative_costs[@]}"; do
-            for attribute_group in "${attribute_groups[@]}"; do
-              output_directory="${attribute_group}-${cost}"
-              output_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}"
-              if ! is_complete_file "${output_path}/progress.json" "${output_path}/ranking-policy.txt"; then
-                all_completed=false
-                break 2
-              fi
-            done
+          for input_id in "${input_ids[@]}"; do
+            output_directory="${input_id//:/-}"
+            output_path="reports/metagame-ratings-v12-team-opportunity/${output_directory}"
+            if ! is_complete_file "${output_path}/progress.json" "${output_path}/ranking-policy.txt"; then
+              all_completed=false
+              break
+            fi
           done
           echo "all_completed=$all_completed" >> "$GITHUB_OUTPUT"
       - name: Save isolated recompute progress
