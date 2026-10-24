@@ -756,12 +756,18 @@ function metagameTrimDeckBeam(states, width, totalCost) {
     bucket.sort((left, right) => stateScore(right) - stateScore(left) || left.totalCost - right.totalCost)
   ));
   const strategyTarget = width;
+  const strategyOffsets = Array(strategyBuckets.length).fill(0);
+  let remainingStrategyBuckets = strategyBuckets.filter((bucket) => bucket.length).length;
   let strategyCursor = 0;
-  while (selected.size < strategyTarget && strategyBuckets.some((bucket) => bucket.length)) {
-    const bucket = strategyBuckets[strategyCursor % strategyBuckets.length];
+  while (selected.size < strategyTarget && remainingStrategyBuckets > 0) {
+    const bucketIndex = strategyCursor % strategyBuckets.length;
+    const bucket = strategyBuckets[bucketIndex];
+    const offset = strategyOffsets[bucketIndex];
     strategyCursor += 1;
-    const state = bucket.shift();
-    if (!state) continue;
+    if (offset >= bucket.length) continue;
+    const state = bucket[offset];
+    strategyOffsets[bucketIndex] = offset + 1;
+    if (strategyOffsets[bucketIndex] >= bucket.length) remainingStrategyBuckets -= 1;
     selected.set(stateKey(state), state);
   }
 
@@ -977,7 +983,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
 
   let states = [{
     deck: [],
-    ids: new Set(),
+    ids: [],
     totalCost: 0,
     legendCount: 0,
     proxyTotal: 0,
@@ -998,13 +1004,12 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
         const isLegend = entry.character.rarity === "伝";
         const nextCost = state.totalCost + (Number(entry.character.cost) || 0);
         if (
-          state.ids.has(id) ||
+          state.ids.includes(id) ||
           nextCost > totalCost ||
           (isLegend && state.legendCount >= 1) ||
           !metagameExactCostStillReachable(nextCost, exactCostBounds, poolIndex + 1, constraint)
         ) continue;
-        const ids = new Set(state.ids);
-        ids.add(id);
+        const ids = [...state.ids, id];
         const costShare = (Number(entry.character.cost) || 0) / Math.max(1, totalCost);
         const immediatePredecessor = state.deck.at(-1);
         expanded.push({
@@ -1071,7 +1076,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
 
   let states = [{
     deck: [],
-    ids: new Set(),
+    ids: [],
     totalCost: 0,
     legendCount: 0,
     proxyTotal: 0,
@@ -1107,13 +1112,12 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
         const isLegend = entry.character.rarity === "伝";
         const nextCost = state.totalCost + (Number(entry.character.cost) || 0);
         if (
-          !state.ids.has(id) &&
+          !state.ids.includes(id) &&
           nextCost <= totalCost &&
           (!isLegend || state.legendCount < 1) &&
           metagameExactCostStillReachable(nextCost, exactCostBounds, poolIndex + 1, constraint)
         ) {
-          const ids = new Set(state.ids);
-          ids.add(id);
+          const ids = [...state.ids, id];
           const costShare = (Number(entry.character.cost) || 0) / Math.max(1, totalCost);
           const immediatePredecessor = state.deck.at(-1);
           expanded.push({
