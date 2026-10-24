@@ -128,29 +128,34 @@ export function activateGhost(combatant, ghostPower = 1000) {
   });
 }
 
-export function resolveDefeatedCombatants(state, options = {}) {
-  const next = cloneState(state);
+export function resolveDefeatedCombatantsInPlace(next, options = {}) {
+  const collectTransitions = options.collectTransitions !== false;
   const transitions = [];
   const ghostPower = Number(options.ghostPower) || 1000;
   for (const side of ["allies", "enemies"]) {
     for (let index = 0; index < next[side].length; index += 1) {
       const combatant = next[side][index];
       if (combatant.alive || combatant.isGhost) continue;
-      const defeatedName = combatant.character?.name ?? "不明";
       const replacement = combatant.deck[combatant.deckIndex + 1]
         ? activateNextCharacter(combatant)
         : activateGhost(combatant, ghostPower);
       next[side][index] = replacement;
-      transitions.push({
-        side,
-        playerIndex: index,
-        from: defeatedName,
-        to: replacement.character.name,
-        type: replacement.isGhost ? "ghost" : "replacement",
-      });
+      if (collectTransitions) {
+        transitions.push({
+          side,
+          playerIndex: index,
+          from: combatant.character?.name ?? "不明",
+          to: replacement.character.name,
+          type: replacement.isGhost ? "ghost" : "replacement",
+        });
+      }
     }
   }
   return { state: next, transitions };
+}
+
+export function resolveDefeatedCombatants(state, options = {}) {
+  return resolveDefeatedCombatantsInPlace(cloneState(state), options);
 }
 
 export function updateCombatant(state, side, index, updater) {
@@ -226,8 +231,7 @@ export function evaluateBoard(state, perspective = "allies") {
   return ownValue - opponentValue;
 }
 
-export function advanceTurn(state) {
-  const next = cloneState(state);
+export function advanceTurnInPlace(next) {
   next.turn += 1;
   for (const side of ["allies", "enemies"]) {
     for (const combatant of next[side]) {
@@ -260,4 +264,8 @@ export function advanceTurn(state) {
     .map((effect) => ({ ...effect, remainingTurns: effect.remainingTurns - 1 }))
     .filter((effect) => effect.remainingTurns > 0);
   return next;
+}
+
+export function advanceTurn(state) {
+  return advanceTurnInPlace(cloneState(state));
 }
