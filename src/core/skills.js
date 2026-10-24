@@ -133,7 +133,7 @@ function addEffect(combatant, type, skill, activationOrder, sourceCharacterId) {
   };
 }
 
-function consumeSkillInPlace(state, actorSide, actorIndex) {
+export function consumeSkillInPlace(state, actorSide, actorIndex) {
   const actor = state[actorSide]?.[actorIndex];
   if (!actor || actor.isGhost) return;
   actor.skillUses += 1;
@@ -146,10 +146,9 @@ export function consumeSkill(state, actorSide, actorIndex) {
   return next;
 }
 
-export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, options = {}) {
-  const next = structuredClone(state);
+export function resolveAttackActionInPlace(next, actorSide, actorIndex, rules, skill, options = {}) {
   const targetSide = actorSide === "allies" ? "enemies" : "allies";
-  const actor = structuredClone(options.actorSnapshot ?? next[actorSide]?.[actorIndex]);
+  const actor = options.actorSnapshot ?? next[actorSide]?.[actorIndex];
   const preferredTargetIndex = options.targetIndex;
   const hits = [];
   if (!actor || (!actor.alive && !options.actorSnapshot)) {
@@ -281,8 +280,20 @@ export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, 
   };
 }
 
-export function applySupportSkill(state, actorSide, actorIndex, skill, options = {}) {
+
+export function resolveAttackAction(state, actorSide, actorIndex, rules, skill, options = {}) {
   const next = structuredClone(state);
+  const actorSnapshot = structuredClone(options.actorSnapshot ?? next[actorSide]?.[actorIndex]);
+  return resolveAttackActionInPlace(
+    next,
+    actorSide,
+    actorIndex,
+    rules,
+    skill,
+    { ...options, actorSnapshot },
+  );
+}
+export function applySupportSkillInPlace(next, actorSide, actorIndex, skill, options = {}) {
   const allies = next[actorSide];
 
   const sourceCharacterId = allies[actorIndex]?.activeCharacterId;
@@ -327,6 +338,16 @@ export function applySupportSkill(state, actorSide, actorIndex, skill, options =
   return next;
 }
 
+
+export function applySupportSkill(state, actorSide, actorIndex, skill, options = {}) {
+  return applySupportSkillInPlace(
+    structuredClone(state),
+    actorSide,
+    actorIndex,
+    skill,
+    options,
+  );
+}
 export function canUseSkill(state, actorSide, actorIndex) {
   const actor = state[actorSide]?.[actorIndex];
   const rawMaxUses = Number(actor?.character.maxUses);
