@@ -7,6 +7,7 @@ import {
   findBestMetagameDeck,
   inspectMetagameDeckEvidence,
   matchesMetagameFixedConstraint,
+  metagameSelectFinalists,
   resolveMetagameConstraint,
 } from "../src/core/metagame-deck.js";
 
@@ -963,4 +964,108 @@ test("ブラウザ最終検証は6→12→指定環境の段階評価で候補�
   assert.equal(result.scenarioCount, 24);
   assert.equal(result.timeBudgetReached, false);
   assert.ok(result.completedBattleCount > 0);
+});
+
+
+test("最終候補の高速選抜は従来の安定フルソートと完全に同じ候補順を返す", () => {
+  const strategyKey = (candidate) => {
+    const roles = candidate.roleCounts ?? {};
+    const attackBand = Math.min(3, Math.floor((candidate.attackCommitment ?? 0) + 0.35));
+    const defenseBand = Math.min(2, Number(roles.defense) || 0);
+    const recoveryBand = Math.min(2, (Number(roles.revive) || 0) + (Number(roles.recovery) || 0));
+    const supportBand = Math.min(2, Number(roles.support) || 0);
+    return `a${attackBand}-d${defenseBand}-r${recoveryBand}-s${supportBand}`;
+  };
+  const legacySelect = (candidates, limit, minimum = 36) => {
+    const maximum = Math.min(candidates.length, Math.max(minimum, Number(limit) || 40));
+    const selected = new Map();
+    const keyFor = (candidate) => candidate.deck.map((character) => character.id).join("|");
+    const add = (candidate) => selected.set(keyFor(candidate), candidate);
+    candidates.slice(0, Math.ceil(maximum * 0.4)).forEach(add);
+
+    const bestByStrategy = new Map();
+    for (const candidate of candidates) {
+      const key = strategyKey(candidate);
+      if (!bestByStrategy.has(key)) bestByStrategy.set(key, candidate);
+    }
+    [...bestByStrategy.values()]
+      .sort((left, right) => right.proxyScore - left.proxyScore)
+      .forEach((candidate) => {
+        if (selected.size < maximum) add(candidate);
+      });
+
+    const ratingTotal = (candidate, key) => candidate.ratings.reduce((sum, rating) => (
+      sum + Math.max(0, Number(rating[key]) || 0)
+    ), 0);
+    const stabilityTotal = (candidate) => {
+      const roles = candidate.roleCounts ?? {};
+      return (Number(roles.defense) || 0) +
+        (Number(roles.revive) || 0) +
+        (Number(roles.recovery) || 0);
+    };
+    const selectors = [
+      (left, right) => right.advantageCount - left.advantageCount || right.proxyScore - left.proxyScore,
+      (left, right) => right.counterCount - left.counterCount || right.proxyScore - left.proxyScore,
+      (left, right) => stabilityTotal(right) - stabilityTotal(left) || right.proxyScore - left.proxyScore,
+      (left, right) => left.firepowerSurplus - right.firepowerSurplus || right.proxyScore - left.proxyScore,
+      (left, right) => right.synergyScore - left.synergyScore || right.proxyScore - left.proxyScore,
+      (left, right) => left.handoffRisk - right.handoffRisk || right.proxyScore - left.proxyScore,
+      (left, right) => ratingTotal(right, "carriedContinuationWinGain") -
+        ratingTotal(left, "carriedContinuationWinGain") || right.proxyScore - left.proxyScore,
+      (left, right) => ratingTotal(right, "combinationPotential") -
+        ratingTotal(left, "combinationPotential") || right.proxyScore - left.proxyScore,
+      (left, right) => ratingTotal(right, "tacticalUpside") -
+        ratingTotal(left, "tacticalUpside") || right.proxyScore - left.proxyScore,
+      (left, right) => (right.proxyScore - right.budgetStrain) -
+        (left.proxyScore - left.budgetStrain) || left.totalCost - right.totalCost,
+    ];
+    const selectorQuota = Math.max(1, Math.floor((maximum - selected.size) / selectors.length));
+    for (const selector of selectors) {
+      let added = 0;
+      for (const candidate of [...candidates].sort(selector)) {
+        if (selected.size >= maximum || added >= selectorQuota) break;
+        const key = keyFor(candidate);
+        if (selected.has(key)) continue;
+        add(candidate);
+        added += 1;
+      }
+    }
+    for (const candidate of candidates) {
+      if (selected.size >= maximum) break;
+      add(candidate);
+    }
+    return [...selected.values()];
+  };
+
+  const candidates = Array.from({ length: 240 }, (_, index) => {
+    const makeCharacter = (position) => ({ id: `candidate-${index}-${position}` });
+    const roleCycle = index % 7;
+    return {
+      deck: [1, 2, 3, 4, 5].map(makeCharacter),
+      ratings: [0, 1, 2, 3, 4].map((offset) => ({
+        carriedContinuationWinGain: ((index + offset * 3) % 17) / 100,
+        combinationPotential: ((index * 2 + offset) % 19) / 100,
+        tacticalUpside: ((index * 5 + offset) % 23) / 100,
+      })),
+      proxyScore: 1 - index / 1000,
+      totalCost: 50 + (index % 51),
+      advantageCount: index % 4,
+      counterCount: (index * 3) % 5,
+      synergyScore: ((index * 7) % 31) / 100,
+      handoffRisk: ((index * 11) % 29) / 100,
+      budgetStrain: ((index * 13) % 37) / 100,
+      firepowerSurplus: ((index * 17) % 11) / 10,
+      attackCommitment: (index % 9) / 2,
+      roleCounts: {
+        defense: roleCycle === 0 || roleCycle === 4 ? 1 : 0,
+        revive: roleCycle === 1 ? 1 : 0,
+        recovery: roleCycle === 2 ? 1 : 0,
+        support: roleCycle === 3 || roleCycle === 5 ? 1 : 0,
+      },
+    };
+  });
+
+  const expected = legacySelect(candidates, 56).map((candidate) => candidate.deck[0].id);
+  const actual = metagameSelectFinalists(candidates, 56).map((candidate) => candidate.deck[0].id);
+  assert.deepEqual(actual, expected);
 });
