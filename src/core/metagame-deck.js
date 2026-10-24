@@ -463,11 +463,25 @@ function metagameCandidatePools(constraint, characters, options = {}) {
         ? boostPriors.get(`${position}:${String(id)}`)
         : null;
       const rating = metagameRatingWithKnowledge(character, position, baseRating, prior, boostPrior);
+      const totalCost = Number(constraint.totalCost) || 0;
+      const cost = Math.max(0, Number(character.cost) || 0);
+      const costShare = cost / Math.max(1, totalCost);
+      const role = metagameDeckRole(rating);
       return [{
         character,
         rating,
-        proxy: metagameCandidateScore(rating, Number(constraint.totalCost) || 0),
+        proxy: metagameCandidateScore(rating, totalCost),
         position,
+        searchId: String(character.id),
+        searchCost: cost,
+        searchIsLegend: character.rarity === "伝",
+        searchBudgetStrain: Math.max(0, costShare - 0.28) ** 2 * (
+          0.2 + (1 - metagameDeckClampUnit(rating.practicalValue ?? rating.expectedWinLowerBound)) * 0.8
+        ),
+        searchAdvantageCount: rating.advantageCreation > 0 ? 1 : 0,
+        searchCounterCount: rating.counteraction > 0 ? 1 : 0,
+        searchRole: role,
+        searchAttackCommitment: metagameDeckAttackCommitment(rating),
       }];
     }).sort((left, right) => (
       right.proxy - left.proxy ||
@@ -954,7 +968,9 @@ function metagameExactCostSuffixBounds(pools) {
     let minimum = Infinity;
     let maximum = -Infinity;
     for (const entry of pool) {
-      const cost = Math.max(0, Number(entry.character?.cost) || 0);
+      const cost = Number.isFinite(entry.searchCost)
+        ? entry.searchCost
+        : Math.max(0, Number(entry.character?.cost) || 0);
       if (cost < minimum) minimum = cost;
       if (cost > maximum) maximum = cost;
     }
@@ -1004,9 +1020,9 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     const expanded = [];
     for (const state of states) {
       for (const entry of pool) {
-        const id = String(entry.character.id);
-        const isLegend = entry.character.rarity === "伝";
-        const nextCost = state.totalCost + (Number(entry.character.cost) || 0);
+        const id = entry.searchId;
+        const isLegend = entry.searchIsLegend;
+        const nextCost = state.totalCost + entry.searchCost;
         if (
           state.ids.includes(id) ||
           nextCost > totalCost ||
@@ -1014,7 +1030,6 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           !metagameExactCostStillReachable(nextCost, exactCostBounds, poolIndex + 1, constraint)
         ) continue;
         const ids = [...state.ids, id];
-        const costShare = (Number(entry.character.cost) || 0) / Math.max(1, totalCost);
         const immediatePredecessor = state.deck.at(-1);
         expanded.push({
           deck: [...state.deck, entry],
@@ -1028,15 +1043,14 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           handoffRisk: state.handoffRisk + (immediatePredecessor
             ? pairEvaluationCache.handoff(immediatePredecessor, entry)
             : 0),
-          budgetStrain: state.budgetStrain + (
-            Math.max(0, costShare - 0.28) ** 2 * (
-              0.2 + (1 - metagameDeckClampUnit(entry.rating.practicalValue ?? entry.rating.expectedWinLowerBound)) * 0.8
-            )
-          ),
-          advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
-          counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
-          roleCounts: metagameDeckRoleCountsAdd(state.roleCounts, entry.rating),
-          attackCommitment: state.attackCommitment + metagameDeckAttackCommitment(entry.rating),
+          budgetStrain: state.budgetStrain + entry.searchBudgetStrain,
+          advantageCount: state.advantageCount + entry.searchAdvantageCount,
+          counterCount: state.counterCount + entry.searchCounterCount,
+          roleCounts: {
+            ...state.roleCounts,
+            [entry.searchRole]: (state.roleCounts[entry.searchRole] ?? 0) + 1,
+          },
+          attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
         });
       }
     }
@@ -1112,9 +1126,9 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
       for (const entry of pool) {
         if (options.signal?.aborted) throw metagameAbortError();
         if (metagameTimeBudgetExceeded(options)) throw metagameTimeBudgetError();
-        const id = String(entry.character.id);
-        const isLegend = entry.character.rarity === "伝";
-        const nextCost = state.totalCost + (Number(entry.character.cost) || 0);
+        const id = entry.searchId;
+        const isLegend = entry.searchIsLegend;
+        const nextCost = state.totalCost + entry.searchCost;
         if (
           !state.ids.includes(id) &&
           nextCost <= totalCost &&
@@ -1136,15 +1150,14 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             handoffRisk: state.handoffRisk + (immediatePredecessor
               ? pairEvaluationCache.handoff(immediatePredecessor, entry)
               : 0),
-            budgetStrain: state.budgetStrain + (
-              Math.max(0, costShare - 0.28) ** 2 * (
-                0.2 + (1 - metagameDeckClampUnit(entry.rating.practicalValue ?? entry.rating.expectedWinLowerBound)) * 0.8
-              )
-            ),
-            advantageCount: state.advantageCount + (entry.rating.advantageCreation > 0 ? 1 : 0),
-            counterCount: state.counterCount + (entry.rating.counteraction > 0 ? 1 : 0),
-            roleCounts: metagameDeckRoleCountsAdd(state.roleCounts, entry.rating),
-            attackCommitment: state.attackCommitment + metagameDeckAttackCommitment(entry.rating),
+            budgetStrain: state.budgetStrain + entry.searchBudgetStrain,
+            advantageCount: state.advantageCount + entry.searchAdvantageCount,
+            counterCount: state.counterCount + entry.searchCounterCount,
+            roleCounts: {
+              ...state.roleCounts,
+              [entry.searchRole]: (state.roleCounts[entry.searchRole] ?? 0) + 1,
+            },
+            attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
           });
         }
         checked += 1;
