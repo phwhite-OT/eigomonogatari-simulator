@@ -368,7 +368,7 @@ function predictedAttackPhaseState(state, defendingSide, rules, options = {}) {
     ["attack_buff", "aoe_attack", "multi_hit_attack"],
     ["damage_reduction", "guard", "attribute_guard"],
   ]) {
-    preview = applySupportPhase(preview, plannedIntents, skillTypes).state;
+    preview = applySupportPhase(preview, plannedIntents, skillTypes, false, true).state;
   }
 
   const enemySide = opponentSide(defendingSide);
@@ -381,6 +381,8 @@ function predictedAttackPhaseState(state, defendingSide, rules, options = {}) {
     ...options,
     targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
     random: () => 0,
+    mutateState: true,
+    collectBattleHistory: false,
   }).state;
   predictionCache?.set(predictionKey, predicted);
   return predicted;
