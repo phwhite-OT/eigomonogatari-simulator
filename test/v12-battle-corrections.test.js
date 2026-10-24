@@ -50,12 +50,17 @@ test("skills are capped at two uses even when card data is higher", () => {
 test("revive reacts to cumulative guaranteed damage from multiple attackers", () => {
   const r = rules();
   const target = card("target", { hp: 100, pow: 1 });
+  const targetReserve = card("target-reserve", { hp: 100, pow: 1 });
   const reviver = card("reviver", {
     hp: 1000, pow: 1, skillTurn: 0, maxUses: 1,
     skill: { type: "revive", multiplier: 1, hits: 1, duration: 1, target: "ally_all", conditions: [], effects: [] },
   });
+  // Target selection prioritizes the player with more remaining characters,
+  // then an unspent reviver when remaining counts tie. Give the target a
+  // reserve so both enemies correctly focus it; each minimum hit is
+  // individually nonlethal, while their cumulative damage is lethal.
   const result = simulateBattle(
-    createBattleState([[target], [reviver]], [[card("enemy-a")], [card("enemy-b")]]),
+    createBattleState([[target, targetReserve], [reviver]], [[card("enemy-a")], [card("enemy-b")]]),
     r,
     { turns: 1 },
   );
