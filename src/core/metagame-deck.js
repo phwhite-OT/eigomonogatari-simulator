@@ -485,8 +485,8 @@ function metagameCandidatePools(constraint, characters, options = {}) {
       }];
     }).sort((left, right) => (
       right.proxy - left.proxy ||
-      Number(left.character.cost) - Number(right.character.cost) ||
-      String(left.character.id).localeCompare(String(right.character.id))
+      left.searchCost - right.searchCost ||
+      left.searchId.localeCompare(right.searchId)
     ));
   });
 }
@@ -738,11 +738,11 @@ function metagameDeckStrategyKey(state) {
 }
 
 function metagameTrimDeckBeam(states, width, totalCost) {
-  const scoreCache = new WeakMap();
-  const stateScore = (state) => {
-    if (!scoreCache.has(state)) scoreCache.set(state, metagameDeckStateScore(state, totalCost));
-    return scoreCache.get(state);
-  };
+  const stateScore = (state) => (
+    Number.isFinite(state.searchScore)
+      ? state.searchScore
+      : metagameDeckStateScore(state, totalCost)
+  );
 
   // Partial decks are unique by construction: every slot pool contains each
   // character ID at most once, each previous state is unique, and expansion
@@ -982,6 +982,11 @@ function metagameExactCostStillReachable(currentCost, costBounds, nextPoolIndex,
   return currentCost + minimumRemaining <= target && currentCost + maximumRemaining >= target;
 }
 
+function metagameSearchStateWithScore(state, totalCost) {
+  state.searchScore = metagameDeckStateScore(state, totalCost);
+  return state;
+}
+
 function metagameCompletedCandidateFromState(state, totalCost) {
   const roleCounts = state.deck.reduce(
     (counts, entry) => metagameDeckRoleCountsAdd(counts, entry.rating),
@@ -991,7 +996,9 @@ function metagameCompletedCandidateFromState(state, totalCost) {
     deck: state.deck.map((entry) => entry.character),
     ratings: state.deck.map((entry) => entry.rating),
     totalCost: state.totalCost,
-    proxyScore: metagameDeckStateScore(state, totalCost),
+    proxyScore: Number.isFinite(state.searchScore)
+      ? state.searchScore
+      : metagameDeckStateScore(state, totalCost),
     synergyScore: state.synergyScore,
     handoffRisk: state.handoffRisk,
     budgetStrain: state.budgetStrain,
@@ -1048,7 +1055,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
         ) continue;
         const ids = [...state.ids, id];
         const immediatePredecessor = state.deck.at(-1);
-        expanded.push({
+        expanded.push(metagameSearchStateWithScore({
           deck: [...state.deck, entry],
           ids,
           totalCost: nextCost,
@@ -1068,7 +1075,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
           searchSupportCount: state.searchSupportCount + (entry.searchRole === "support" ? 1 : 0),
           attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
-        });
+        }, totalCost));
       }
     }
     states = metagameTrimDeckBeam(expanded, beamWidth, totalCost);
@@ -1146,7 +1153,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
         ) {
           const ids = [...state.ids, id];
           const immediatePredecessor = state.deck.at(-1);
-          expanded.push({
+          expanded.push(metagameSearchStateWithScore({
             deck: [...state.deck, entry],
             ids,
             totalCost: nextCost,
@@ -1179,7 +1186,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
           checked,
           stageTotal,
           retained: expanded.length,
-        });
+        }, totalCost));
         await metagameYieldToBrowser();
       }
     }
