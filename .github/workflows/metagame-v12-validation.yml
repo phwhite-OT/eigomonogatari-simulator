@@ -1,6 +1,17 @@
 name: Validate Metagame V12
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - "src/core/**"
+      - "src/ui/**"
+      - "src/data/rules.js"
+      - "scripts/build-final.mjs"
+      - "test/**"
+      - ".github/workflows/deploy-pages.yml"
+      - ".github/workflows/metagame-v12-validation.yml"
   pull_request:
     paths:
       - "src/core/simulate.js"
@@ -71,6 +82,7 @@ jobs:
           node --check src/core/metagame-v12-deep-search.js
           node --check src/core/metagame-live.js
           node --check src/core/metagame-deck.js
+          node --check src/core/metagame-worker.js
           node --check src/data/metagame-v8-inputs.js
           node --check src/data/metagame-v12-sweep-inputs.js
           node --check src/ui/eigomonogatari-ui.js
@@ -91,4 +103,4 @@ jobs:
       - name: Verify public bundle builds with cache policy
         run: node scripts/build-final.mjs --skip-metagame-data
       - name: Run battle, V12, sweep and browser cache focused tests
-        run: node --test test/team-battle-ai-regression.test.js test/simulate.test.js test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-deck.test.js test/metagame-v12-dynamic-cost.test.js test/metagame-v12.test.js test/metagame-v12-finalization.test.js test/metagame-v12-deep-search.test.js test/metagame-v12-recompute-resilience.test.js test/metagame-v12-shared-pool.test.js test/metagame-v12-browser-cache.test.js test/metagame-live.test.js test/metagame-v12-sweep-inputs.test.js
+        run: node --test test/team-battle-ai-regression.test.js test/simulate.test.js test/skills.test.js test/attack-mode-target-routing.test.js test/metagame-deck.test.js test/metagame-v12-dynamic-cost.test.js test/metagame-v12.test.js test/metagame-v12-finalization.test.js test/metagame-v12-deep-search.test.js test/metagame-v12-recompute-resilience.test.js test/metagame-v12-shared-pool.test.js test/metagame-v12-browser-cache.test.js test/metagame-worker.test.js test/metagame-live.test.js test/metagame-v12-sweep-inputs.test.js test/v12-battle-corrections.test.js test/battle-state.test.js
