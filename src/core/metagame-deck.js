@@ -1019,7 +1019,8 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
   const totalCost = Number(constraint?.totalCost) || 0;
   const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
   const pools = metagameCandidatePools(constraint, characters, options);
-  const exactCostBounds = metagameExactCostSuffixBounds(pools);
+  const requiresExactCost = constraint?.costMode === "exact";
+  const exactCostBounds = requiresExactCost ? metagameExactCostSuffixBounds(pools) : null;
   const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
   const pairEvaluationCache = metagameCreatePairEvaluationCache(empiricalPairPriors);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
@@ -1028,7 +1029,6 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
 
   let states = [{
     deck: [],
-    ids: [],
     totalCost: 0,
     legendCount: 0,
     proxyTotal: 0,
@@ -1052,16 +1052,19 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
         const isLegend = entry.searchIsLegend;
         const nextCost = state.totalCost + entry.searchCost;
         if (
-          state.ids.includes(id) ||
+          state.deck.some((source) => source.searchId === id) ||
           nextCost > totalCost ||
           (isLegend && state.legendCount >= 1) ||
-          !metagameExactCostStillReachable(nextCost, exactCostBounds, poolIndex + 1, constraint)
+          (requiresExactCost && !metagameExactCostStillReachable(
+            nextCost,
+            exactCostBounds,
+            poolIndex + 1,
+            constraint,
+          ))
         ) continue;
-        const ids = [...state.ids, id];
         const immediatePredecessor = state.deck.at(-1);
         expanded.push(metagameSearchStateWithScore({
           deck: [...state.deck, entry],
-          ids,
           totalCost: nextCost,
           legendCount: state.legendCount + (isLegend ? 1 : 0),
           proxyTotal: state.proxyTotal + entry.proxy,
@@ -1102,7 +1105,8 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
   const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
   const pools = metagameCandidatePools(constraint, characters, options);
-  const exactCostBounds = metagameExactCostSuffixBounds(pools);
+  const requiresExactCost = constraint?.costMode === "exact";
+  const exactCostBounds = requiresExactCost ? metagameExactCostSuffixBounds(pools) : null;
   const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
   const pairEvaluationCache = metagameCreatePairEvaluationCache(empiricalPairPriors);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
@@ -1111,7 +1115,6 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
 
   let states = [{
     deck: [],
-    ids: [],
     totalCost: 0,
     legendCount: 0,
     proxyTotal: 0,
@@ -1150,16 +1153,19 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
         const isLegend = entry.searchIsLegend;
         const nextCost = state.totalCost + entry.searchCost;
         if (
-          !state.ids.includes(id) &&
+          !state.deck.some((source) => source.searchId === id) &&
           nextCost <= totalCost &&
           (!isLegend || state.legendCount < 1) &&
-          metagameExactCostStillReachable(nextCost, exactCostBounds, poolIndex + 1, constraint)
+          (!requiresExactCost || metagameExactCostStillReachable(
+            nextCost,
+            exactCostBounds,
+            poolIndex + 1,
+            constraint,
+          ))
         ) {
-          const ids = [...state.ids, id];
           const immediatePredecessor = state.deck.at(-1);
           expanded.push(metagameSearchStateWithScore({
             deck: [...state.deck, entry],
-            ids,
             totalCost: nextCost,
             legendCount: state.legendCount + (isLegend ? 1 : 0),
             proxyTotal: state.proxyTotal + entry.proxy,
