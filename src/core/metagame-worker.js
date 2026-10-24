@@ -7,6 +7,7 @@ globalThis.addEventListener("message", async (event) => {
   if (message.type !== "search") return;
   const jobId = String(message.jobId ?? "");
   try {
+    let lastProgressAt = 0;
     const result = await findBestMetagameDeck(
       message.data,
       message.constraintId,
@@ -14,6 +15,11 @@ globalThis.addEventListener("message", async (event) => {
       {
         ...(message.options ?? {}),
         onProgress: (progress) => {
+          const now = globalThis.performance?.now?.() ?? Date.now();
+          const total = Number(progress?.total) || 0;
+          const completed = Number(progress?.completed) || 0;
+          if (total > 0 && completed < total && now - lastProgressAt < 50) return;
+          lastProgressAt = now;
           globalThis.postMessage({ type: "progress", jobId, progress });
         },
       },
