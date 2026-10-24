@@ -707,8 +707,9 @@ function metagameDeckRoleBalance(roleCounts, deckLength, attackCommitment = 0) {
 }
 
 function metagameDeckStateScore(state, totalCost) {
-  const averageScore = state.proxyTotal / Math.max(1, state.deck.length);
-  const deckProgress = state.deck.length / 5;
+  const deckLength = Number.isInteger(state.depth) ? state.depth : state.deck.length;
+  const averageScore = state.proxyTotal / Math.max(1, deckLength);
+  const deckProgress = deckLength / 5;
   const budgetShare = state.totalCost / Math.max(1, totalCost);
   const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
   // V12.1: role composition is search diversity only, never a value
@@ -986,27 +987,39 @@ function metagameExactCostStillReachable(currentCost, costBounds, nextPoolIndex,
   return currentCost + minimumRemaining <= target && currentCost + maximumRemaining >= target;
 }
 
+function metagameSearchStateEntries(state) {
+  if (Array.isArray(state.deck)) return state.deck;
+  const entries = Array(Math.max(0, Number(state.depth) || 0));
+  let cursor = state;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    entries[index] = cursor.entry;
+    cursor = cursor.parent;
+  }
+  return entries;
+}
+
 function metagameSearchStateWithScore(state, totalCost) {
   state.searchScore = metagameDeckStateScore(state, totalCost);
   return state;
 }
 
 function metagameCompletedCandidateFromState(state, totalCost) {
-  const roleCounts = state.deck.reduce(
+  const entries = metagameSearchStateEntries(state);
+  const roleCounts = entries.reduce(
     (counts, entry) => metagameDeckRoleCountsAdd(counts, entry.rating),
     {},
   );
-  const advantageCount = state.deck.reduce(
+  const advantageCount = entries.reduce(
     (count, entry) => count + (entry.rating.advantageCreation > 0 ? 1 : 0),
     0,
   );
-  const counterCount = state.deck.reduce(
+  const counterCount = entries.reduce(
     (count, entry) => count + (entry.rating.counteraction > 0 ? 1 : 0),
     0,
   );
   return {
-    deck: state.deck.map((entry) => entry.character),
-    ratings: state.deck.map((entry) => entry.rating),
+    deck: entries.map((entry) => entry.character),
+    ratings: entries.map((entry) => entry.rating),
     totalCost: state.totalCost,
     proxyScore: Number.isFinite(state.searchScore)
       ? state.searchScore
@@ -1036,7 +1049,9 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
   }
 
   let states = [{
-    deck: [],
+    parent: null,
+    entry: null,
+    depth: 0,
     totalCost: 0,
     legendCount: 0,
     proxyTotal: 0,
@@ -1058,7 +1073,6 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
         const isLegend = entry.searchIsLegend;
         const nextCost = state.totalCost + entry.searchCost;
         if (
-          state.deck.some((source) => source.searchId === id) ||
           nextCost > totalCost ||
           (isLegend && state.legendCount >= 1) ||
           (requiresExactCost && !metagameExactCostStillReachable(
@@ -1068,15 +1082,25 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
             constraint,
           ))
         ) continue;
-        const immediatePredecessor = state.deck.at(-1);
+        let duplicate = false;
+        let synergyGain = 0;
+        for (let cursor = state; cursor.entry; cursor = cursor.parent) {
+          if (cursor.entry.searchId === id) {
+            duplicate = true;
+            break;
+          }
+          synergyGain += pairEvaluationCache.synergy(cursor.entry, entry);
+        }
+        if (duplicate) continue;
+        const immediatePredecessor = state.entry;
         expanded.push(metagameSearchStateWithScore({
-          deck: [...state.deck, entry],
+          parent: state,
+          entry,
+          depth: state.depth + 1,
           totalCost: nextCost,
           legendCount: state.legendCount + (isLegend ? 1 : 0),
           proxyTotal: state.proxyTotal + entry.proxy,
-          synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
-            total + pairEvaluationCache.synergy(source, entry)
-          ), 0),
+          synergyScore: state.synergyScore + synergyGain,
           handoffRisk: state.handoffRisk + (immediatePredecessor
             ? pairEvaluationCache.handoff(immediatePredecessor, entry)
             : 0),
@@ -1118,7 +1142,9 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   }
 
   let states = [{
-    deck: [],
+    parent: null,
+    entry: null,
+    depth: 0,
     totalCost: 0,
     legendCount: 0,
     proxyTotal: 0,
@@ -1155,7 +1181,6 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
         const isLegend = entry.searchIsLegend;
         const nextCost = state.totalCost + entry.searchCost;
         if (
-          !state.deck.some((source) => source.searchId === id) &&
           nextCost <= totalCost &&
           (!isLegend || state.legendCount < 1) &&
           (!requiresExactCost || metagameExactCostStillReachable(
@@ -1165,25 +1190,36 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             constraint,
           ))
         ) {
-          const immediatePredecessor = state.deck.at(-1);
-          expanded.push(metagameSearchStateWithScore({
-            deck: [...state.deck, entry],
-            totalCost: nextCost,
-            legendCount: state.legendCount + (isLegend ? 1 : 0),
-            proxyTotal: state.proxyTotal + entry.proxy,
-            synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
-              total + pairEvaluationCache.synergy(source, entry)
-            ), 0),
-            handoffRisk: state.handoffRisk + (immediatePredecessor
-              ? pairEvaluationCache.handoff(immediatePredecessor, entry)
-              : 0),
+          let duplicate = false;
+          let synergyGain = 0;
+          for (let cursor = state; cursor.entry; cursor = cursor.parent) {
+            if (cursor.entry.searchId === id) {
+              duplicate = true;
+              break;
+            }
+            synergyGain += pairEvaluationCache.synergy(cursor.entry, entry);
+          }
+          if (!duplicate) {
+            const immediatePredecessor = state.entry;
+            expanded.push(metagameSearchStateWithScore({
+              parent: state,
+              entry,
+              depth: state.depth + 1,
+              totalCost: nextCost,
+              legendCount: state.legendCount + (isLegend ? 1 : 0),
+              proxyTotal: state.proxyTotal + entry.proxy,
+              synergyScore: state.synergyScore + synergyGain,
+              handoffRisk: state.handoffRisk + (immediatePredecessor
+                ? pairEvaluationCache.handoff(immediatePredecessor, entry)
+                : 0),
             budgetStrain: state.budgetStrain + entry.searchBudgetStrain,
             searchDefenseCount: state.searchDefenseCount + (entry.searchRole === "defense" ? 1 : 0),
             searchReviveCount: state.searchReviveCount + (entry.searchRole === "revive" ? 1 : 0),
             searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
-            searchSupportCount: state.searchSupportCount + (entry.searchRole === "support" ? 1 : 0),
-            attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
-          }, totalCost));
+              searchSupportCount: state.searchSupportCount + (entry.searchRole === "support" ? 1 : 0),
+              attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
+            }, totalCost));
+          }
         }
         checked += 1;
         if (checked % progressYieldEvery !== 0) continue;
