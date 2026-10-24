@@ -711,22 +711,29 @@ function metagameDeckStrategyKey(state) {
 }
 
 function metagameTrimDeckBeam(states, width, totalCost) {
+  const keyCache = new WeakMap();
+  const scoreCache = new WeakMap();
+  const stateKey = (state) => {
+    if (!keyCache.has(state)) {
+      keyCache.set(state, state.deck.map((entry) => entry.character.id).join("|"));
+    }
+    return keyCache.get(state);
+  };
+  const stateScore = (state) => {
+    if (!scoreCache.has(state)) scoreCache.set(state, metagameDeckStateScore(state, totalCost));
+    return scoreCache.get(state);
+  };
+
   const byId = new Map();
   for (const state of states) {
-    const key = state.deck.map((entry) => entry.character.id).join("|");
+    const key = stateKey(state);
     const current = byId.get(key);
-    if (!current || metagameDeckStateScore(state, totalCost) > metagameDeckStateScore(current, totalCost)) {
+    if (!current || stateScore(state) > stateScore(current)) {
       byId.set(key, state);
     }
   }
   const unique = [...byId.values()];
   const selected = new Map();
-  const stateKey = (state) => state.deck.map((entry) => entry.character.id).join("|");
-  const scoreCache = new WeakMap();
-  const stateScore = (state) => {
-    if (!scoreCache.has(state)) scoreCache.set(state, metagameDeckStateScore(state, totalCost));
-    return scoreCache.get(state);
-  };
   const primaryCount = Math.max(1, Math.floor(width * 0.72));
   const primary = [...unique].sort((left, right) => (
     stateScore(right) - stateScore(left) ||
@@ -758,16 +765,10 @@ function metagameTrimDeckBeam(states, width, totalCost) {
     selected.set(stateKey(state), state);
   }
 
-  // Fill the remaining beam by search quality only.  The previous code
-  // subtracted totalCost/budget directly here, which unintentionally rewarded
-  // leaving budget unused even when a higher-cost deck had the better proxy.
+  // `primary` is already the complete unique set in the exact same quality
+  // order that the old final fallback sort rebuilt. Reusing it removes a
+  // second full O(n log n) sort without changing one selected state or tie.
   for (const state of primary) {
-    if (selected.size >= width) break;
-    selected.set(stateKey(state), state);
-  }
-  for (const state of [...unique].sort((left, right) => (
-    stateScore(right) - stateScore(left) || left.totalCost - right.totalCost
-  ))) {
     if (selected.size >= width) break;
     selected.set(stateKey(state), state);
   }
@@ -930,16 +931,34 @@ function metagameConstraintWithFixedSlots(constraint, characters, options = {}) 
   return { ...constraint, slots };
 }
 
-function metagameExactCostStillReachable(currentCost, pools, nextPoolIndex, constraint) {
-  if (constraint?.costMode !== "exact") return currentCost <= (Number(constraint?.totalCost) || 0);
-  let minimumRemaining = 0;
-  let maximumRemaining = 0;
-  for (let index = nextPoolIndex; index < pools.length; index += 1) {
-    const costs = pools[index].map((entry) => Math.max(0, Number(entry.character?.cost) || 0));
-    if (!costs.length) return false;
-    minimumRemaining += Math.min(...costs);
-    maximumRemaining += Math.max(...costs);
+function metagameExactCostSuffixBounds(pools) {
+  const minimumSuffix = Array(pools.length + 1).fill(0);
+  const maximumSuffix = Array(pools.length + 1).fill(0);
+  for (let index = pools.length - 1; index >= 0; index -= 1) {
+    const pool = pools[index];
+    if (!pool.length) {
+      minimumSuffix[index] = Infinity;
+      maximumSuffix[index] = -Infinity;
+      continue;
+    }
+    let minimum = Infinity;
+    let maximum = -Infinity;
+    for (const entry of pool) {
+      const cost = Math.max(0, Number(entry.character?.cost) || 0);
+      if (cost < minimum) minimum = cost;
+      if (cost > maximum) maximum = cost;
+    }
+    minimumSuffix[index] = minimum + minimumSuffix[index + 1];
+    maximumSuffix[index] = maximum + maximumSuffix[index + 1];
   }
+  return { minimumSuffix, maximumSuffix };
+}
+
+function metagameExactCostStillReachable(currentCost, costBounds, nextPoolIndex, constraint) {
+  if (constraint?.costMode !== "exact") return currentCost <= (Number(constraint?.totalCost) || 0);
+  const minimumRemaining = costBounds.minimumSuffix[nextPoolIndex];
+  const maximumRemaining = costBounds.maximumSuffix[nextPoolIndex];
+  if (!Number.isFinite(minimumRemaining) || !Number.isFinite(maximumRemaining)) return false;
   const target = Number(constraint.totalCost) || 0;
   return currentCost + minimumRemaining <= target && currentCost + maximumRemaining >= target;
 }
@@ -949,6 +968,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
   const totalCost = Number(constraint?.totalCost) || 0;
   const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
   const pools = metagameCandidatePools(constraint, characters, options);
+  const exactCostBounds = metagameExactCostSuffixBounds(pools);
   const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
   const pairEvaluationCache = metagameCreatePairEvaluationCache(empiricalPairPriors);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
@@ -981,7 +1001,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           state.ids.has(id) ||
           nextCost > totalCost ||
           (isLegend && state.legendCount >= 1) ||
-          !metagameExactCostStillReachable(nextCost, pools, poolIndex + 1, constraint)
+          !metagameExactCostStillReachable(nextCost, exactCostBounds, poolIndex + 1, constraint)
         ) continue;
         const ids = new Set(state.ids);
         ids.add(id);
@@ -1042,6 +1062,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
   const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
   const pools = metagameCandidatePools(constraint, characters, options);
+  const exactCostBounds = metagameExactCostSuffixBounds(pools);
   const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
   const pairEvaluationCache = metagameCreatePairEvaluationCache(empiricalPairPriors);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
@@ -1089,7 +1110,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
           !state.ids.has(id) &&
           nextCost <= totalCost &&
           (!isLegend || state.legendCount < 1) &&
-          metagameExactCostStillReachable(nextCost, pools, poolIndex + 1, constraint)
+          metagameExactCostStillReachable(nextCost, exactCostBounds, poolIndex + 1, constraint)
         ) {
           const ids = new Set(state.ids);
           ids.add(id);
@@ -1165,10 +1186,57 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
 }
 
-function metagameSelectFinalists(candidates, limit, minimum = 36, totalCost = 0) {
+function metagameStableTopN(candidates, comparator, limit, excludedKeys, keyFor) {
+  const maximum = Math.max(0, Math.floor(Number(limit) || 0));
+  if (!maximum) return [];
+  const top = [];
+  for (const candidate of candidates) {
+    if (excludedKeys?.has(keyFor(candidate))) continue;
+    let insertionIndex = top.length;
+    while (
+      insertionIndex > 0 &&
+      comparator(candidate, top[insertionIndex - 1]) < 0
+    ) {
+      insertionIndex -= 1;
+    }
+    if (insertionIndex >= maximum && top.length >= maximum) continue;
+    top.splice(insertionIndex, 0, candidate);
+    if (top.length > maximum) top.pop();
+  }
+  return top;
+}
+
+export function metagameSelectFinalists(candidates, limit, minimum = 36, totalCost = 0) {
   const maximum = Math.min(candidates.length, Math.max(minimum, Number(limit) || 40));
   const selected = new Map();
-  const add = (candidate) => selected.set(candidate.deck.map((character) => character.id).join("|"), candidate);
+  const keyCache = new WeakMap();
+  const metricCache = new WeakMap();
+  const candidateKey = (candidate) => {
+    if (!keyCache.has(candidate)) {
+      keyCache.set(candidate, candidate.deck.map((character) => character.id).join("|"));
+    }
+    return keyCache.get(candidate);
+  };
+  const add = (candidate) => selected.set(candidateKey(candidate), candidate);
+  const metrics = (candidate) => {
+    if (!metricCache.has(candidate)) {
+      const ratingTotals = {};
+      for (const key of ["carriedContinuationWinGain", "combinationPotential", "tacticalUpside"]) {
+        ratingTotals[key] = candidate.ratings.reduce((sum, rating) => (
+          sum + Math.max(0, Number(rating[key]) || 0)
+        ), 0);
+      }
+      const roles = candidate.roleCounts ?? {};
+      metricCache.set(candidate, {
+        ratingTotals,
+        stability: (Number(roles.defense) || 0) +
+          (Number(roles.revive) || 0) +
+          (Number(roles.recovery) || 0),
+      });
+    }
+    return metricCache.get(candidate);
+  };
+
   candidates.slice(0, Math.ceil(maximum * 0.4)).forEach(add);
 
   const bestByStrategy = new Map();
@@ -1181,35 +1249,35 @@ function metagameSelectFinalists(candidates, limit, minimum = 36, totalCost = 0)
     .forEach((candidate) => {
       if (selected.size < maximum) add(candidate);
     });
-  const ratingTotal = (candidate, key) => candidate.ratings.reduce((sum, rating) => (
-    sum + Math.max(0, Number(rating[key]) || 0)
-  ), 0);
-  const stabilityTotal = (candidate) => {
-    const roles = candidate.roleCounts ?? {};
-    return (Number(roles.defense) || 0) + (Number(roles.revive) || 0) + (Number(roles.recovery) || 0);
-  };
+
   const selectors = [
     (left, right) => right.advantageCount - left.advantageCount || right.proxyScore - left.proxyScore,
     (left, right) => right.counterCount - left.counterCount || right.proxyScore - left.proxyScore,
-    (left, right) => stabilityTotal(right) - stabilityTotal(left) || right.proxyScore - left.proxyScore,
+    (left, right) => metrics(right).stability - metrics(left).stability || right.proxyScore - left.proxyScore,
     (left, right) => left.firepowerSurplus - right.firepowerSurplus || right.proxyScore - left.proxyScore,
     (left, right) => right.synergyScore - left.synergyScore || right.proxyScore - left.proxyScore,
     (left, right) => left.handoffRisk - right.handoffRisk || right.proxyScore - left.proxyScore,
-    (left, right) => ratingTotal(right, "carriedContinuationWinGain") - ratingTotal(left, "carriedContinuationWinGain") || right.proxyScore - left.proxyScore,
-    (left, right) => ratingTotal(right, "combinationPotential") - ratingTotal(left, "combinationPotential") || right.proxyScore - left.proxyScore,
-    (left, right) => ratingTotal(right, "tacticalUpside") - ratingTotal(left, "tacticalUpside") || right.proxyScore - left.proxyScore,
-    (left, right) => (right.proxyScore - right.budgetStrain) - (left.proxyScore - left.budgetStrain) || left.totalCost - right.totalCost,
+    (left, right) => metrics(right).ratingTotals.carriedContinuationWinGain -
+      metrics(left).ratingTotals.carriedContinuationWinGain || right.proxyScore - left.proxyScore,
+    (left, right) => metrics(right).ratingTotals.combinationPotential -
+      metrics(left).ratingTotals.combinationPotential || right.proxyScore - left.proxyScore,
+    (left, right) => metrics(right).ratingTotals.tacticalUpside -
+      metrics(left).ratingTotals.tacticalUpside || right.proxyScore - left.proxyScore,
+    (left, right) => (right.proxyScore - right.budgetStrain) -
+      (left.proxyScore - left.budgetStrain) || left.totalCost - right.totalCost,
   ];
   const selectorQuota = Math.max(1, Math.floor((maximum - selected.size) / selectors.length));
   for (const selector of selectors) {
-    let added = 0;
-    for (const candidate of [...candidates].sort(selector)) {
-      if (selected.size >= maximum || added >= selectorQuota) break;
-      const key = candidate.deck.map((character) => character.id).join("|");
-      if (selected.has(key)) continue;
-      add(candidate);
-      added += 1;
-    }
+    if (selected.size >= maximum) break;
+    const remainingQuota = Math.min(selectorQuota, maximum - selected.size);
+    const best = metagameStableTopN(
+      candidates,
+      selector,
+      remainingQuota,
+      selected,
+      candidateKey,
+    );
+    best.forEach(add);
   }
   for (const candidate of candidates) {
     if (selected.size >= maximum) break;
