@@ -315,6 +315,112 @@ function saveExactSearchSessionCache(key, result) {
   }
 }
 
+let metagameWorkerJobSequence = 0;
+
+function metagameWorkerError(name, message, stack = "") {
+  const error = new Error(message);
+  error.name = name || "Error";
+  if (stack) error.stack = stack;
+  return error;
+}
+
+function runMetagameDeckSearchWorker(data, constraintId, characters, options = {}) {
+  if (typeof globalThis.Worker !== "function") return Promise.resolve(null);
+
+  let worker;
+  try {
+    worker = new Worker("./src/core/metagame-worker.js", { type: "module" });
+  } catch {
+    return Promise.resolve(null);
+  }
+
+  const jobId = `metagame-${++metagameWorkerJobSequence}`;
+  const { signal, onProgress, ...workerOptions } = options;
+  return new Promise((resolve, reject) => {
+    let ready = false;
+    let started = false;
+    let settled = false;
+
+    const cleanup = () => {
+      signal?.removeEventListener?.("abort", abort);
+      worker.removeEventListener("message", handleMessage);
+      worker.removeEventListener("error", handleError);
+      worker.terminate();
+    };
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback(value);
+    };
+    const abort = () => {
+      const error = new Error("デッキシミュレーションを中止しました。");
+      error.name = "AbortError";
+      finish(reject, error);
+    };
+    const handleError = (event) => {
+      if (!started) {
+        // A browser that cannot load module workers should transparently use
+        // the exact same main-thread implementation.
+        finish(resolve, null);
+        return;
+      }
+      finish(reject, metagameWorkerError(
+        "MetagameWorkerError",
+        event?.message || "Web Workerでのデッキ計算に失敗しました。",
+      ));
+    };
+    const handleMessage = (event) => {
+      const message = event.data ?? {};
+      if (message.type === "ready" && !ready) {
+        ready = true;
+        if (signal?.aborted) {
+          abort();
+          return;
+        }
+        try {
+          worker.postMessage({
+            type: "search",
+            jobId,
+            data,
+            constraintId,
+            characters,
+            options: workerOptions,
+          });
+          started = true;
+        } catch {
+          // Structured-clone support differs across older browsers. Falling
+          // back before work starts preserves exact behavior.
+          finish(resolve, null);
+        }
+        return;
+      }
+      if (String(message.jobId ?? "") !== jobId) return;
+      if (message.type === "progress") {
+        onProgress?.(message.progress ?? {});
+        return;
+      }
+      if (message.type === "result") {
+        finish(resolve, message.result);
+        return;
+      }
+      if (message.type === "error") {
+        const payload = message.error ?? {};
+        finish(reject, metagameWorkerError(
+          payload.name,
+          payload.message || "Web Workerでのデッキ計算に失敗しました。",
+          payload.stack,
+        ));
+      }
+    };
+
+    signal?.addEventListener?.("abort", abort, { once: true });
+    worker.addEventListener("message", handleMessage);
+    worker.addEventListener("error", handleError);
+    if (signal?.aborted) abort();
+  });
+}
+
 const findBestMetagameDeckBeforeV12PrecomputedFirst = findBestMetagameDeck;
 findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(data, constraintId, characters, options = {}) {
   const requestedTotalCost = Number(options.totalCost);
@@ -400,7 +506,13 @@ findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(da
         cachePolicy: "v12-exact-session-cache",
       };
     }
-    const result = await findBestMetagameDeckBeforeV12PrecomputedFirst(
+    const workerResult = await runMetagameDeckSearchWorker(
+      data,
+      constraintId,
+      characters,
+      nextOptions,
+    );
+    const result = workerResult ?? await findBestMetagameDeckBeforeV12PrecomputedFirst(
       data,
       constraintId,
       characters,
