@@ -996,6 +996,14 @@ function metagameCompletedCandidateFromState(state, totalCost) {
     (counts, entry) => metagameDeckRoleCountsAdd(counts, entry.rating),
     {},
   );
+  const advantageCount = state.deck.reduce(
+    (count, entry) => count + (entry.rating.advantageCreation > 0 ? 1 : 0),
+    0,
+  );
+  const counterCount = state.deck.reduce(
+    (count, entry) => count + (entry.rating.counteraction > 0 ? 1 : 0),
+    0,
+  );
   return {
     deck: state.deck.map((entry) => entry.character),
     ratings: state.deck.map((entry) => entry.rating),
@@ -1006,8 +1014,8 @@ function metagameCompletedCandidateFromState(state, totalCost) {
     synergyScore: state.synergyScore,
     handoffRisk: state.handoffRisk,
     budgetStrain: state.budgetStrain,
-    advantageCount: state.advantageCount,
-    counterCount: state.counterCount,
+    advantageCount,
+    counterCount,
     roleCounts,
     attackCommitment: state.attackCommitment,
     firepowerSurplus: metagameDeckFirepowerSurplus(state.attackCommitment, roleCounts),
@@ -1035,8 +1043,6 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     synergyScore: 0,
     handoffRisk: 0,
     budgetStrain: 0,
-    advantageCount: 0,
-    counterCount: 0,
     searchDefenseCount: 0,
     searchReviveCount: 0,
     searchRecoveryCount: 0,
@@ -1075,8 +1081,6 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
             ? pairEvaluationCache.handoff(immediatePredecessor, entry)
             : 0),
           budgetStrain: state.budgetStrain + entry.searchBudgetStrain,
-          advantageCount: state.advantageCount + entry.searchAdvantageCount,
-          counterCount: state.counterCount + entry.searchCounterCount,
           searchDefenseCount: state.searchDefenseCount + (entry.searchRole === "defense" ? 1 : 0),
           searchReviveCount: state.searchReviveCount + (entry.searchRole === "revive" ? 1 : 0),
           searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
@@ -1121,8 +1125,6 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
     synergyScore: 0,
     handoffRisk: 0,
     budgetStrain: 0,
-    advantageCount: 0,
-    counterCount: 0,
     searchDefenseCount: 0,
     searchReviveCount: 0,
     searchRecoveryCount: 0,
@@ -1176,8 +1178,6 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
               ? pairEvaluationCache.handoff(immediatePredecessor, entry)
               : 0),
             budgetStrain: state.budgetStrain + entry.searchBudgetStrain,
-            advantageCount: state.advantageCount + entry.searchAdvantageCount,
-            counterCount: state.counterCount + entry.searchCounterCount,
             searchDefenseCount: state.searchDefenseCount + (entry.searchRole === "defense" ? 1 : 0),
             searchReviveCount: state.searchReviveCount + (entry.searchRole === "revive" ? 1 : 0),
             searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
