@@ -12,11 +12,9 @@ test("deck generation accepts current V12 models with skill-execution evidence",
 });
 
 
-test("browser metagame search keeps a bounded beam and finalist set", () => {
+test("browser metagame search preserves full candidate breadth", () => {
   const core = fs.readFileSync("src/core/metagame-deck.js", "utf8");
-  assert.match(core, /METAGAME_BROWSER_BEAM_WIDTH\s*=\s*6_000/);
-  assert.match(core, /METAGAME_BROWSER_KNOWLEDGE_BEAM_WIDTH\s*=\s*4_000/);
-  assert.match(core, /METAGAME_BROWSER_FINALIST_COUNT\s*=\s*32/);
-  assert.match(core, /METAGAME_BROWSER_KNOWLEDGE_FINALIST_COUNT\s*=\s*28/);
-  assert.doesNotMatch(core, /options\.browserKnowledge\s*\?\s*20_000\s*:\s*10_000/);
+  assert.match(core, /options\.browserKnowledge\s*\?\s*20_000\s*:\s*10_000/);
+  assert.match(core, /options\.browserKnowledge\s*\?\s*56\s*:\s*40/);
+  assert.match(core, /metagameCreatePairEvaluationCache/);
 });
