@@ -1940,6 +1940,7 @@ async function metagameEvaluateDeck(candidate, scenarios, constraint, rules, opt
         attackOrderPolicy: profile.attackOrderPolicy,
         playStyle: profile.playStyle,
         randomSeed: scenarioIndex,
+        takeOwnership: true,
       },
     );
     winValues.push(metagameProjectedWinValue(result));
