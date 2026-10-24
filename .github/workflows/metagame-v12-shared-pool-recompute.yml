@@ -496,6 +496,29 @@ jobs:
         run: |
           set -euo pipefail
           results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          snapshot="$RUNNER_TEMP/v12-publish-report-snapshot"
+          rm -rf "$snapshot"
+          mkdir -p "$snapshot"
+          cp -a reports/metagame-ratings-v12-team-opportunity/. "$snapshot/"
+
+          # The calculation runs with current master source, but the durable
+          # result commit must be based on the existing results branch. If we
+          # commit while based on master, unrelated workflow/source changes are
+          # carried into the results-branch update and GitHub rejects workflow
+          # file changes from the Actions token.
+          if [ -n "$(git ls-remote --heads origin "$results_branch")" ]; then
+            git fetch --no-tags origin "+refs/heads/$results_branch:$results_ref"
+            git switch --detach "$results_ref"
+            git switch -C "$results_branch"
+          else
+            git switch -C "$results_branch" "${{ github.sha }}"
+          fi
+
+          rm -rf reports/metagame-ratings-v12-team-opportunity
+          mkdir -p reports/metagame-ratings-v12-team-opportunity
+          cp -a "$snapshot/." reports/metagame-ratings-v12-team-opportunity/
+
           git add -f reports/metagame-ratings-v12-team-opportunity
           if ! git diff --cached --quiet; then
             git commit -m "chore: save V12 shared-pool recompute progress"
