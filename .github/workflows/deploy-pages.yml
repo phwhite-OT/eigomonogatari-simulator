@@ -39,7 +39,7 @@ jobs:
           node-version: 22
 
       - name: Run browser deck-generation regression tests
-        run: node --test test/metagame-deck.test.js test/metagame-v12-dynamic-cost.test.js test/metagame-v12-browser-cache.test.js test/metagame-ui-model-compat.test.js test/simulate.test.js test/team-battle-ai-regression.test.js test/v12-battle-corrections.test.js test/skills.test.js test/battle-state.test.js
+        run: node --test test/metagame-deck.test.js test/metagame-v12-dynamic-cost.test.js test/metagame-v12-browser-cache.test.js test/metagame-ui-model-compat.test.js test/metagame-worker.test.js test/simulate.test.js test/team-battle-ai-regression.test.js test/v12-battle-corrections.test.js test/skills.test.js test/battle-state.test.js
 
       - name: Prepare public site
         shell: bash
@@ -157,6 +157,24 @@ jobs:
           npm run build
           mkdir -p _site
           cp index.html _site/index.html
+
+          # The expensive V12 search runs in a same-origin module Worker so
+          # the UI thread stays responsive. Ship exactly the core modules used
+          # by that worker; the calculation code is the same source exercised
+          # by Node regression tests above.
+          mkdir -p _site/src/core _site/src/data
+          cp \
+            src/core/metagame-worker.js \
+            src/core/metagame-deck.js \
+            src/core/battleState.js \
+            src/core/simulate.js \
+            src/core/environment-rating.js \
+            src/core/filter.js \
+            src/core/skills.js \
+            src/core/damage.js \
+            _site/src/core/
+          cp src/data/rules.js _site/src/data/rules.js
+
           mkdir -p _site/metagame-knowledge
           if [ -d "$knowledge_root" ]; then
             while IFS= read -r knowledge_file; do
