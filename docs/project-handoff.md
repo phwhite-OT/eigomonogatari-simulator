@@ -1289,3 +1289,10 @@ Validation / publication gate:
 - These are implementation-only optimizations. They do **not** justify changing the V12 model version, battle-semantics version, ranking-policy marker, or invalidating durable cloud battle evidence.
 
 Do not reintroduce candidate/scenario pruning as a “performance optimization” without explicit user approval of an accuracy tradeoff.
+
+
+### 2026-10-24 — validation model-version assertion corrected
+
+- The newly enabled direct-master V12 validation surfaced one stale test unrelated to the performance changes: `test/metagame-v12.test.js` still hard-coded the obsolete V12.5 model string even though the repository has intentionally used V12.7 since the 2026-10-04 catalogue reset.
+- The test now checks the invariant it was named for: the model must be a V12 model and must not be a V11 checkpoint. It no longer pins an obsolete sub-version.
+- In the failing validation run, the other 170 focused tests passed, including Worker wiring, summary-vs-detailed battle equivalence, ownership-transfer equivalence, cumulative revive, defense/guard targeting, and 5v5 regressions.
