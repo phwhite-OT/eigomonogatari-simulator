@@ -1,7 +1,9 @@
 import {
   advanceTurn,
+  advanceTurnInPlace,
   evaluateBoard,
   resolveDefeatedCombatants,
+  resolveDefeatedCombatantsInPlace,
 } from "./battleState.js";
 import {
   calculateMinimumDamage,
@@ -1329,9 +1331,14 @@ function simulateBattleInternal(initialState, rules, options, collectBattleHisto
     state = revive.state;
     if (collectBattleHistory) phases.push(phase("revive", revive.events));
 
-    const replacement = resolveDefeatedCombatants(state, {
-      ghostPower: rules.simulation?.ghostPower ?? 1000,
-    });
+    const replacement = collectBattleHistory
+      ? resolveDefeatedCombatants(state, {
+        ghostPower: rules.simulation?.ghostPower ?? 1000,
+      })
+      : resolveDefeatedCombatantsInPlace(state, {
+        ghostPower: rules.simulation?.ghostPower ?? 1000,
+        collectTransitions: false,
+      });
     state = replacement.state;
     if (collectBattleHistory) {
       phases.push(phase("replacement", replacement.transitions.map((transition) => ({
@@ -1349,7 +1356,7 @@ function simulateBattleInternal(initialState, rules, options, collectBattleHisto
     }
     turnsCompleted += 1;
     const outcome = outcomeOf(state);
-    state = advanceTurn(state);
+    state = collectBattleHistory ? advanceTurn(state) : advanceTurnInPlace(state);
     if (outcome !== "ongoing") break;
   }
 
