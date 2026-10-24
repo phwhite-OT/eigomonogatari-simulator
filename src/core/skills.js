@@ -150,7 +150,9 @@ export function resolveAttackActionInPlace(next, actorSide, actorIndex, rules, s
   const targetSide = actorSide === "allies" ? "enemies" : "allies";
   const actor = options.actorSnapshot ?? next[actorSide]?.[actorIndex];
   const preferredTargetIndex = options.targetIndex;
+  const collectHitDetails = options.collectHitDetails !== false;
   const hits = [];
+  let firstTargetIndex;
   if (!actor || (!actor.alive && !options.actorSnapshot)) {
     return { state: next, hits, actorName: actor?.character?.name ?? "不明", skillType: skill.type };
   }
@@ -203,6 +205,8 @@ export function resolveAttackActionInPlace(next, actorSide, actorIndex, rules, s
     next[targetSide][targetIndex] = defeated && !options.deferReplacement
       ? activateNextCharacter(damaged)
       : damaged;
+    if (firstTargetIndex === undefined) firstTargetIndex = targetIndex;
+    if (!collectHitDetails) return;
     hits.push({
       targetIndex,
       targetName: defender.character.name,
@@ -274,7 +278,7 @@ export function resolveAttackActionInPlace(next, actorSide, actorIndex, rules, s
     actorIndex,
     side: actorSide,
     targetSide,
-    targetIndex: hits[0]?.targetIndex,
+    targetIndex: firstTargetIndex,
     skillType: skill.type,
     hits,
   };
