@@ -45,7 +45,8 @@ function rating(entry, score = 0.5) {
 }
 
 test("V12 model version is separate from V11 checkpoints", () => {
-  assert.equal(METAGAME_V12_MODEL_VERSION, "team-battle-v12.5-effective-damage-individual-rank");
+  assert.match(METAGAME_V12_MODEL_VERSION, /^team-battle-v12\./);
+  assert.doesNotMatch(METAGAME_V12_MODEL_VERSION, /^team-battle-v11(?:\.|$)/);
 });
 
 test("V12 team scenarios do not suppress repeated popular characters across players", () => {
