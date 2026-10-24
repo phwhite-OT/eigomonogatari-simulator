@@ -477,6 +477,35 @@ function metagameCandidatePools(constraint, characters, options = {}) {
   });
 }
 
+function metagameCreatePairEvaluationCache(pairPriors) {
+  const synergyByPair = new Map();
+  const handoffByPair = new Map();
+  const keyFor = (source, target) => (
+    `${Number(source?.position) || 0}:${String(source?.character?.id ?? "")}|` +
+    `${Number(target?.position) || 0}:${String(target?.character?.id ?? "")}`
+  );
+  return {
+    synergy(source, target) {
+      const key = keyFor(source, target);
+      if (!synergyByPair.has(key)) {
+        synergyByPair.set(
+          key,
+          metagameDeckPairSynergy(source, target) +
+            metagameEmpiricalPairSynergy(source, target, pairPriors),
+        );
+      }
+      return synergyByPair.get(key);
+    },
+    handoff(source, target) {
+      const key = keyFor(source, target);
+      if (!handoffByPair.has(key)) {
+        handoffByPair.set(key, metagameDeckHandoffRisk(source, target));
+      }
+      return handoffByPair.get(key);
+    },
+  };
+}
+
 function metagameEmpiricalPairSynergy(source, target, pairPriors) {
   if (!pairPriors?.size) return 0;
   const leftPosition = Number(source?.position);
@@ -693,7 +722,11 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   const unique = [...byId.values()];
   const selected = new Map();
   const stateKey = (state) => state.deck.map((entry) => entry.character.id).join("|");
-  const stateScore = (state) => metagameDeckStateScore(state, totalCost);
+  const scoreCache = new WeakMap();
+  const stateScore = (state) => {
+    if (!scoreCache.has(state)) scoreCache.set(state, metagameDeckStateScore(state, totalCost));
+    return scoreCache.get(state);
+  };
   const primaryCount = Math.max(1, Math.floor(width * 0.72));
   const primary = [...unique].sort((left, right) => (
     stateScore(right) - stateScore(left) ||
@@ -917,6 +950,7 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
   const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
   const pools = metagameCandidatePools(constraint, characters, options);
   const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
+  const pairEvaluationCache = metagameCreatePairEvaluationCache(empiricalPairPriors);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
     throw new Error("この縛りは5枠分の詳細評価データが揃っていません。");
   }
@@ -960,11 +994,10 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           legendCount: state.legendCount + (isLegend ? 1 : 0),
           proxyTotal: state.proxyTotal + entry.proxy,
           synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
-            total + metagameDeckPairSynergy(source, entry) +
-              metagameEmpiricalPairSynergy(source, entry, empiricalPairPriors)
+            total + pairEvaluationCache.synergy(source, entry)
           ), 0),
           handoffRisk: state.handoffRisk + (immediatePredecessor
-            ? metagameDeckHandoffRisk(immediatePredecessor, entry)
+            ? pairEvaluationCache.handoff(immediatePredecessor, entry)
             : 0),
           budgetStrain: state.budgetStrain + (
             Math.max(0, costShare - 0.28) ** 2 * (
@@ -1010,6 +1043,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
   const pools = metagameCandidatePools(constraint, characters, options);
   const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
+  const pairEvaluationCache = metagameCreatePairEvaluationCache(empiricalPairPriors);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
     throw new Error("Metagame deck candidates require five populated slots.");
   }
@@ -1068,11 +1102,10 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             legendCount: state.legendCount + (isLegend ? 1 : 0),
             proxyTotal: state.proxyTotal + entry.proxy,
             synergyScore: state.synergyScore + state.deck.reduce((total, source) => (
-              total + metagameDeckPairSynergy(source, entry) +
-              metagameEmpiricalPairSynergy(source, entry, empiricalPairPriors)
+              total + pairEvaluationCache.synergy(source, entry)
             ), 0),
             handoffRisk: state.handoffRisk + (immediatePredecessor
-              ? metagameDeckHandoffRisk(immediatePredecessor, entry)
+              ? pairEvaluationCache.handoff(immediatePredecessor, entry)
               : 0),
             budgetStrain: state.budgetStrain + (
               Math.max(0, costShare - 0.28) ** 2 * (
