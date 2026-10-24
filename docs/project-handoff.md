@@ -1229,3 +1229,23 @@ Existing durable 300/500 outputs are not considered authoritative current output
 - Performance work must therefore avoid pruning additional candidates or reducing 5v5 verification coverage unless the user explicitly accepts a measurable accuracy tradeoff.
 - Added a semantics-preserving optimization in `src/core/metagame-deck.js`: repeated pair-synergy / empirical-pair / handoff calculations are cached by exact slot+character pair within one browser search, and repeated beam-state score calculations are cached per immutable state object.
 - These caches do not change candidate pools, beam width, ordering formulas, scenario counts, finalist counts, or battle simulation logic. Existing browser regression tests remain the correctness gate before Pages deployment.
+
+
+### 2026-10-24 — accuracy-preserving browser speed pass
+
+The user explicitly requires browser speedups with **no intentional loss of search accuracy**. Do not reduce beam width, finalist counts, staged 5v5 scenario counts, candidate pools, or ranking signals merely to make the browser faster.
+
+Implemented exact/semantics-preserving optimizations:
+
+- Restored the full browser search breadth after the rejected pruning experiment: beam 10,000 without browser knowledge / 20,000 with knowledge; finalist defaults 40 / 56.
+- Cached exact pair synergy, empirical pair residual, handoff-risk and immutable beam-state score calculations within one search.
+- Replaced repeated exact-cost suffix scans with one precomputed min/max suffix table.
+- Removed a duplicate full beam sort and reused the already stable global ordering for strategy buckets while preserving the legacy strategy Map insertion order.
+- Replaced strategy-bucket `shift()` queueing with cursor indices, preserving the exact round-robin order without repeated array compaction.
+- Replaced max-five-character `Set` cloning in search states with equivalent tiny ID-array copies.
+- Precomputed per-slot/per-character invariant search fields (cost, legend flag, role, budget strain, advantage/counter counts, attack commitment) once rather than recomputing them for every combination.
+- Replaced ten full finalist sorts with stable bounded top-N selection. A regression test compares the optimized selector against a literal implementation of the previous stable full-sort algorithm and requires identical finalist order.
+- Added in-place battle primitives for private summary/prediction states so the high-volume `simulateBattleSummary` path can avoid repeated full-state `structuredClone` operations inside skill consumption/support/attack phases. The normal detailed-history battle path remains the semantic reference.
+- The Pages deployment gate now includes `simulate.test.js`, team-battle AI regressions, V12 battle corrections, skills tests and battle-state tests in addition to browser/metagame tests. In particular, the existing test requiring `simulateBattleSummary` to produce the same final state/outcome/ranking metrics as `simulateBattle` is now a deploy blocker.
+
+These changes must not increment the V12 model/battle-semantics version because they are implementation-only optimizations. If a future optimization changes candidate coverage, selection order, battle decisions, RNG mapping, scenario membership, or final numerical results, treat it as a semantic change instead of hiding it behind this performance work.
