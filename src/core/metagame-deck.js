@@ -478,30 +478,31 @@ function metagameCandidatePools(constraint, characters, options = {}) {
 }
 
 function metagameCreatePairEvaluationCache(pairPriors) {
-  const synergyByPair = new Map();
-  const handoffByPair = new Map();
-  const keyFor = (source, target) => (
-    `${Number(source?.position) || 0}:${String(source?.character?.id ?? "")}|` +
-    `${Number(target?.position) || 0}:${String(target?.character?.id ?? "")}`
-  );
+  const synergyBySource = new WeakMap();
+  const handoffBySource = new WeakMap();
+  const cachedPairValue = (cache, source, target, calculate) => {
+    let targets = cache.get(source);
+    if (!targets) {
+      targets = new WeakMap();
+      cache.set(source, targets);
+    }
+    if (!targets.has(target)) targets.set(target, calculate());
+    return targets.get(target);
+  };
   return {
     synergy(source, target) {
-      const key = keyFor(source, target);
-      if (!synergyByPair.has(key)) {
-        synergyByPair.set(
-          key,
-          metagameDeckPairSynergy(source, target) +
-            metagameEmpiricalPairSynergy(source, target, pairPriors),
-        );
-      }
-      return synergyByPair.get(key);
+      return cachedPairValue(synergyBySource, source, target, () => (
+        metagameDeckPairSynergy(source, target) +
+          metagameEmpiricalPairSynergy(source, target, pairPriors)
+      ));
     },
     handoff(source, target) {
-      const key = keyFor(source, target);
-      if (!handoffByPair.has(key)) {
-        handoffByPair.set(key, metagameDeckHandoffRisk(source, target));
-      }
-      return handoffByPair.get(key);
+      return cachedPairValue(
+        handoffBySource,
+        source,
+        target,
+        () => metagameDeckHandoffRisk(source, target),
+      );
     },
   };
 }
@@ -746,15 +747,18 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   // slice; otherwise this lane cannot rescue a distinct strategy. Total cost
   // is never used as a positive or negative value signal here.
   const byStrategy = new Map();
+  // Preserve the legacy Map insertion order from generation order.
   for (const state of unique) {
     const key = metagameDeckStrategyKey(state);
-    const bucket = byStrategy.get(key) ?? [];
-    bucket.push(state);
-    byStrategy.set(key, bucket);
+    if (!byStrategy.has(key)) byStrategy.set(key, []);
   }
-  const strategyBuckets = [...byStrategy.values()].map((bucket) => (
-    bucket.sort((left, right) => stateScore(right) - stateScore(left) || left.totalCost - right.totalCost)
-  ));
+  // `primary` is the full globally sorted list. A filtered subsequence of a
+  // stable sort is already stably sorted by the same comparator, so every
+  // strategy bucket can reuse this order instead of sorting again.
+  for (const state of primary) {
+    byStrategy.get(metagameDeckStrategyKey(state)).push(state);
+  }
+  const strategyBuckets = [...byStrategy.values()];
   const strategyTarget = width;
   const strategyOffsets = Array(strategyBuckets.length).fill(0);
   let remainingStrategyBuckets = strategyBuckets.filter((bucket) => bucket.length).length;
