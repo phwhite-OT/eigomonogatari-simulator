@@ -1136,7 +1136,6 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
           metagameExactCostStillReachable(nextCost, exactCostBounds, poolIndex + 1, constraint)
         ) {
           const ids = [...state.ids, id];
-          const costShare = (Number(entry.character.cost) || 0) / Math.max(1, totalCost);
           const immediatePredecessor = state.deck.at(-1);
           expanded.push({
             deck: [...state.deck, entry],
