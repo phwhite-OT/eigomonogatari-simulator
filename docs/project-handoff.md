@@ -1220,3 +1220,12 @@ Two orchestration/data-integrity problems were corrected together:
 - Cost-300 and cost-500 representative inputs had no user-supplied environment. `resolveMetagameV12SweepInput` legitimately supports nearest-anchor synthetic inputs for interactive arbitrary-cost reconstruction, but those synthetic inputs were incorrectly included in the official heavy sweep. Official precompute now contains only exact environment costs. At the time of this correction those are 100 and 200.
 
 Existing durable 300/500 outputs are not considered authoritative current outputs and are excluded from the current publish/precompute queue until exact environments are supplied.
+
+
+### 2026-10-24 — browser performance optimization must preserve search breadth
+
+- User explicitly prioritized accuracy over browser speed. The temporary browser-only reduction from beam 10,000/20,000 to 6,000/4,000 and finalist counts 40/56 to 32/28 was reverted.
+- Browser search breadth is restored to the original values: beam 10,000 without browser knowledge, 20,000 with browser knowledge; finalist defaults 40 without knowledge and 56 with knowledge.
+- Performance work must therefore avoid pruning additional candidates or reducing 5v5 verification coverage unless the user explicitly accepts a measurable accuracy tradeoff.
+- Added a semantics-preserving optimization in `src/core/metagame-deck.js`: repeated pair-synergy / empirical-pair / handoff calculations are cached by exact slot+character pair within one browser search, and repeated beam-state score calculations are cached per immutable state object.
+- These caches do not change candidate pools, beam width, ordering formulas, scenario counts, finalist counts, or battle simulation logic. Existing browser regression tests remain the correctness gate before Pages deployment.
