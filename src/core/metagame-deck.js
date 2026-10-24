@@ -7,15 +7,6 @@ import { isSkillTurnAllowedAtPosition } from "./filter.js";
 const METAGAME_DECK_PROFILES = DEFAULT_ENVIRONMENT_BATTLE_PROFILES;
 export const METAGAME_STAT_BOOST_MULTIPLIER = 1.5;
 
-// Browser search is deliberately narrower than the offline cloud evaluator.
-// Role/strategy diversity is preserved by metagameTrimDeckBeam, while the
-// final 5v5 stages still decide the actual winners. Browser knowledge should
-// reduce the search width rather than expand it because its candidate/pair
-// priors already provide stronger ordering evidence.
-const METAGAME_BROWSER_BEAM_WIDTH = 6_000;
-const METAGAME_BROWSER_KNOWLEDGE_BEAM_WIDTH = 4_000;
-const METAGAME_BROWSER_FINALIST_COUNT = 32;
-const METAGAME_BROWSER_KNOWLEDGE_FINALIST_COUNT = 28;
 
 export function normalizeMetagameBoostedCharacterIds(values) {
   const rawValues = values instanceof Set ? [...values] : values ?? [];
@@ -923,14 +914,7 @@ function metagameExactCostStillReachable(currentCost, pools, nextPoolIndex, cons
 export function buildMetagameDeckCandidates(constraint, characters, options = {}) {
   constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
   const totalCost = Number(constraint?.totalCost) || 0;
-  const beamWidth = Math.max(
-    500,
-    Number(options.beamWidth) || (
-      options.browserKnowledge
-        ? METAGAME_BROWSER_KNOWLEDGE_BEAM_WIDTH
-        : METAGAME_BROWSER_BEAM_WIDTH
-    ),
-  );
+  const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
   const pools = metagameCandidatePools(constraint, characters, options);
   const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
   if (pools.length !== 5 || pools.some((pool) => !pool.length)) {
@@ -1022,14 +1006,7 @@ function metagameYieldToBrowser() {
 async function buildMetagameDeckCandidatesWithProgress(constraint, characters, options = {}) {
   constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
   const totalCost = Number(constraint?.totalCost) || 0;
-  const beamWidth = Math.max(
-    500,
-    Number(options.beamWidth) || (
-      options.browserKnowledge
-        ? METAGAME_BROWSER_KNOWLEDGE_BEAM_WIDTH
-        : METAGAME_BROWSER_BEAM_WIDTH
-    ),
-  );
+  const beamWidth = Math.max(500, Number(options.beamWidth) || (options.browserKnowledge ? 20_000 : 10_000));
   const progressYieldEvery = Math.max(1_000, Number(options.progressYieldEvery) || 20_000);
   const pools = metagameCandidatePools(constraint, characters, options);
   const empiricalPairPriors = metagameKnowledgePairPriors(options.browserKnowledge);
@@ -2455,11 +2432,7 @@ export async function findBestMetagameDeck(data, constraintId, characters, optio
   const candidates = await buildMetagameDeckCandidatesWithProgress(constraint, boostedCharacters, searchOptions);
   const finalists = metagameSelectFinalists(
     candidates,
-    options.finalistCount ?? (
-      options.browserKnowledge
-        ? METAGAME_BROWSER_KNOWLEDGE_FINALIST_COUNT
-        : METAGAME_BROWSER_FINALIST_COUNT
-    ),
+    options.finalistCount ?? (options.browserKnowledge ? 56 : 40),
     36,
     constraint.totalCost,
   );
