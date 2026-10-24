@@ -1257,3 +1257,35 @@ These changes must not increment the V12 model/battle-semantics version because 
 - The risky optimization was rejected. `predictedAttackPhaseState` is restored to the previous clone-preserving support/attack path because it participates directly in expert skill decisions for both detailed and summary simulation.
 - Summary-only in-place optimization remains limited to the actual high-volume battle execution path, where the state is already private to `simulateBattleSummary`.
 - Treat skill-decision prediction as semantic code. Do not optimize it by changing mutation/copy boundaries unless exact equivalence is proven by the full battle regression suite.
+
+
+### 2026-10-24 — final exact browser-performance architecture
+
+This entry supersedes the earlier same-day note titled “prediction path excluded from in-place optimization”. That exclusion was a temporary safety decision made after a regression failed. Subsequent comparison against the pre-optimization source showed the prediction implementation itself had not caused that failure: the old regression fixture tied remaining-character counts, so the current target policy correctly focused the unspent reviver instead of the fragile unit. The regression was corrected to give the fragile target a reserve, preserving the intended cumulative-damage test under the current target policy.
+
+The current browser-performance rules are:
+
+- **No accuracy pruning.** Beam widths remain 10,000 without browser knowledge and 20,000 with it. Finalist defaults remain 40 / 56. Staged 5v5 scenario coverage and all ranking signals are unchanged.
+- Browser beam states now use parent-linked partial states rather than copying a deck array for every expansion. The five-card array is reconstructed only for retained complete states. Duplicate checks walk at most four parents.
+- Pair synergy/handoff values and exact beam scores are cached/precomputed. Synergy addition deliberately walks oldest slot to newest slot so floating-point addition order matches the previous `state.deck.reduce()` implementation exactly.
+- Exact-cost feasibility uses one suffix min/max table; ordinary “at most” searches skip that redundant exact-reachability work entirely.
+- Per-character invariants (cost, legend flag, role, budget strain, attack commitment) are computed once per slot candidate. Finalist-only metrics are derived only for retained complete decks.
+- Beam trimming sorts the disposable expansion array in place, preserves the old strategy-key insertion order, removes an impossible partial-deck dedup pass, and uses cursor-based strategy buckets. Finalist diversity selection uses bounded stable top-N selection; its regression test must match the previous full-sort implementation exactly.
+- Identical completed V12 queries may be reused from session cache only when the data generation, model, resolved query/fixed/boosted inputs, browser-knowledge generation and accuracy-affecting options all match. Timed-out results are never cached.
+- Normal V12 search is moved to a same-origin module Web Worker. The Worker imports the **same** `src/core/metagame-deck.js` implementation; it is not a simplified calculator. Only same-attribute environment bands are sent because the core resolver itself ignores other attribute bands. If module Workers or structured cloning are unavailable before work starts, the exact same main-thread implementation is used as fallback.
+- Worker progress messages are coalesced to roughly 50 ms; this changes display frequency only, not calculation order or results.
+- High-volume `simulateBattleSummary` mutates only its private battle state and uses in-place skill/support/attack/replacement/turn primitives. Detailed-history `simulateBattle` remains the semantic reference.
+- Metagame evaluation passes `takeOwnership: true` only for a battle state created immediately by `createBattleState()`. A deployment regression requires the ownership-transfer summary result to deep-equal the normal summary result.
+- Read-only skill/attack metadata is shared instead of deep-cloned where no mutation occurs, and summary attacks skip allocating per-hit display details while still using the exact same `calculateMinimumDamage` path.
+- Expert skill selection no longer performs expensive defense/heal/revive decisions during the preliminary candidate pass when those decisions are unconditionally recomputed after the same-turn support context is known.
+- Expert attack prediction uses a cache scoped to one `chooseSkills` call and keyed by defending side, policies and ordered planned intents. Identical prediction states are reused only within that same immutable turn state. The prediction itself operates in place only after first cloning the battle state, so the caller-visible state remains unchanged.
+
+Validation / publication gate:
+
+- Pages runs browser/metagame tests plus `simulate.test.js`, team-battle AI regressions, V12 battle corrections, skill tests and battle-state tests.
+- `simulateBattleSummary` must match detailed `simulateBattle` on final state/outcome/ranking metrics.
+- The ownership-transfer summary path must deep-equal the ordinary summary path.
+- Worker source must import the same core search implementation, be syntactically valid, and all of its transitive modules must be published with Pages.
+- These are implementation-only optimizations. They do **not** justify changing the V12 model version, battle-semantics version, ranking-policy marker, or invalidating durable cloud battle evidence.
+
+Do not reintroduce candidate/scenario pruning as a “performance optimization” without explicit user approval of an accuracy tradeoff.
