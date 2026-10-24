@@ -32,10 +32,13 @@ function metagameUiSigned(value) {
 // whether the selected character actually used its skill in that exact slot.
 // Older V8--V10 snapshots can rank a later-slot character even when it dies
 // before a two-turn skill becomes available.
-const METAGAME_REQUIRED_MODEL_VERSION = "team-battle-v11-skill-execution";
+const METAGAME_MIN_SKILL_EVIDENCE_MAJOR_VERSION = 11;
 
 function metagameUiHasCurrentSkillEvidence(data) {
-  return String(data?.sourceModelVersion ?? "") === METAGAME_REQUIRED_MODEL_VERSION;
+  const version = String(data?.sourceModelVersion ?? "");
+  const match = version.match(/^team-battle-v(\d+)(?:[.-]|$)/);
+  if (!match) return false;
+  return Number(match[1]) >= METAGAME_MIN_SKILL_EVIDENCE_MAJOR_VERSION;
 }
 
 const METAGAME_ROLE_LABELS = Object.freeze({
