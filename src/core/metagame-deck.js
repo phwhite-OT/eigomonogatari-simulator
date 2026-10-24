@@ -726,49 +726,33 @@ function metagameDeckStrategyKey(state) {
 }
 
 function metagameTrimDeckBeam(states, width, totalCost) {
-  const keyCache = new WeakMap();
   const scoreCache = new WeakMap();
-  const stateKey = (state) => {
-    if (!keyCache.has(state)) {
-      keyCache.set(state, state.deck.map((entry) => entry.character.id).join("|"));
-    }
-    return keyCache.get(state);
-  };
   const stateScore = (state) => {
     if (!scoreCache.has(state)) scoreCache.set(state, metagameDeckStateScore(state, totalCost));
     return scoreCache.get(state);
   };
 
-  const byId = new Map();
-  for (const state of states) {
-    const key = stateKey(state);
-    const current = byId.get(key);
-    if (!current || stateScore(state) > stateScore(current)) {
-      byId.set(key, state);
-    }
-  }
-  const unique = [...byId.values()];
-  const selected = new Map();
+  // Partial decks are unique by construction: every slot pool contains each
+  // character ID at most once, each previous state is unique, and expansion
+  // appends exactly one entry from the next fixed slot. The old deck-string
+  // Map therefore could never collapse two distinct generated states.
+  const unique = states;
+  const selected = new Set();
   const primaryCount = Math.max(1, Math.floor(width * 0.72));
   const primary = [...unique].sort((left, right) => (
     stateScore(right) - stateScore(left) ||
     left.totalCost - right.totalCost
   ));
-  primary.slice(0, primaryCount).forEach((state) => selected.set(stateKey(state), state));
+  primary.slice(0, primaryCount).forEach((state) => selected.add(state));
 
-  // Preserve competitive role shapes for the full 5v5 evaluation. Build the
-  // buckets from the full unique beam, not only the already-selected primary
-  // slice; otherwise this lane cannot rescue a distinct strategy. Total cost
-  // is never used as a positive or negative value signal here.
+  // Preserve competitive role shapes for the full 5v5 evaluation. Preserve
+  // the legacy strategy insertion order from generation order, while reusing
+  // the already stable global sort for each strategy's internal order.
   const byStrategy = new Map();
-  // Preserve the legacy Map insertion order from generation order.
   for (const state of unique) {
     const key = metagameDeckStrategyKey(state);
     if (!byStrategy.has(key)) byStrategy.set(key, []);
   }
-  // `primary` is the full globally sorted list. A filtered subsequence of a
-  // stable sort is already stably sorted by the same comparator, so every
-  // strategy bucket can reuse this order instead of sorting again.
   for (const state of primary) {
     byStrategy.get(metagameDeckStrategyKey(state)).push(state);
   }
@@ -786,17 +770,14 @@ function metagameTrimDeckBeam(states, width, totalCost) {
     const state = bucket[offset];
     strategyOffsets[bucketIndex] = offset + 1;
     if (strategyOffsets[bucketIndex] >= bucket.length) remainingStrategyBuckets -= 1;
-    selected.set(stateKey(state), state);
+    selected.add(state);
   }
 
-  // `primary` is already the complete unique set in the exact same quality
-  // order that the old final fallback sort rebuilt. Reusing it removes a
-  // second full O(n log n) sort without changing one selected state or tie.
   for (const state of primary) {
     if (selected.size >= width) break;
-    selected.set(stateKey(state), state);
+    selected.add(state);
   }
-  return [...selected.values()];
+  return [...selected];
 }
 
 export function metagameFixedSlots(fixedSlots) {
