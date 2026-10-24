@@ -987,6 +987,21 @@ function metagameExactCostStillReachable(currentCost, costBounds, nextPoolIndex,
   return currentCost + minimumRemaining <= target && currentCost + maximumRemaining >= target;
 }
 
+function metagameSearchStateHasId(state, id) {
+  for (let cursor = state; cursor.entry; cursor = cursor.parent) {
+    if (cursor.entry.searchId === id) return true;
+  }
+  return false;
+}
+
+function metagameSearchSynergyGain(state, entry, pairEvaluationCache) {
+  if (!state?.entry) return 0;
+  // Recurse to the oldest slot first so floating-point addition order exactly
+  // matches the previous state.deck.reduce() implementation.
+  return metagameSearchSynergyGain(state.parent, entry, pairEvaluationCache) +
+    pairEvaluationCache.synergy(state.entry, entry);
+}
+
 function metagameSearchStateEntries(state) {
   if (Array.isArray(state.deck)) return state.deck;
   const entries = Array(Math.max(0, Number(state.depth) || 0));
@@ -1082,16 +1097,8 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
             constraint,
           ))
         ) continue;
-        let duplicate = false;
-        let synergyGain = 0;
-        for (let cursor = state; cursor.entry; cursor = cursor.parent) {
-          if (cursor.entry.searchId === id) {
-            duplicate = true;
-            break;
-          }
-          synergyGain += pairEvaluationCache.synergy(cursor.entry, entry);
-        }
-        if (duplicate) continue;
+        if (metagameSearchStateHasId(state, id)) continue;
+        const synergyGain = metagameSearchSynergyGain(state, entry, pairEvaluationCache);
         const immediatePredecessor = state.entry;
         expanded.push(metagameSearchStateWithScore({
           parent: state,
@@ -1190,16 +1197,8 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             constraint,
           ))
         ) {
-          let duplicate = false;
-          let synergyGain = 0;
-          for (let cursor = state; cursor.entry; cursor = cursor.parent) {
-            if (cursor.entry.searchId === id) {
-              duplicate = true;
-              break;
-            }
-            synergyGain += pairEvaluationCache.synergy(cursor.entry, entry);
-          }
-          if (!duplicate) {
+          if (!metagameSearchStateHasId(state, id)) {
+            const synergyGain = metagameSearchSynergyGain(state, entry, pairEvaluationCache);
             const immediatePredecessor = state.entry;
             expanded.push(metagameSearchStateWithScore({
               parent: state,
