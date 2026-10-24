@@ -343,6 +343,24 @@ function predictedAttackPhaseState(state, defendingSide, rules, options = {}) {
   const plannedIntents = options.plannedIntents;
   if (!Array.isArray(plannedIntents)) return undefined;
 
+  const predictionCache = options.predictedAttackCache;
+  const predictionKey = predictionCache
+    ? [
+      defendingSide,
+      options.targetPolicy ?? TARGET_POLICIES.EXPERT,
+      options.attackOrderPolicy ?? ATTACK_ORDER_POLICIES.TACTICAL,
+      options.playStyle ?? "",
+      plannedIntents.map((intent) => [
+        intent.side,
+        intent.actorIndex,
+        intent.actorId ?? "",
+        intent.use === false ? 0 : 1,
+        intent.skill?.type ?? "",
+      ].join(":")).join(">"),
+    ].join("|")
+    : null;
+  if (predictionCache?.has(predictionKey)) return predictionCache.get(predictionKey);
+
   let preview = structuredClone(state);
   for (const skillTypes of [
     ["attribute_change"],
@@ -359,11 +377,13 @@ function predictedAttackPhaseState(state, defendingSide, rules, options = {}) {
     targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
     attackOrderPolicy: options.attackOrderPolicy ?? ATTACK_ORDER_POLICIES.TACTICAL,
   }).filter((intent) => intent.side === enemySide);
-  return resolveAttacks(preview, scheduledAttacks, rules, {
+  const predicted = resolveAttacks(preview, scheduledAttacks, rules, {
     ...options,
     targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
     random: () => 0,
   }).state;
+  predictionCache?.set(predictionKey, predicted);
+  return predicted;
 }
 
 function predictedIncomingMinimumDamage(state, side, targetIndex, rules, options = {}) {
@@ -779,11 +799,26 @@ function expertSkillDecision(state, side, actorIndex, rules, options = {}) {
 
 function chooseSkills(state, rules, options) {
   const candidates = [];
+  const predictedAttackCache = new Map();
+  const decisionOptions = options.playStyle === PLAY_STYLES.EXPERT
+    ? { ...options, predictedAttackCache }
+    : options;
   for (const side of ["allies", "enemies"]) {
     for (let actorIndex = 0; actorIndex < state[side].length; actorIndex += 1) {
       if (!canUseSkill(state, side, actorIndex)) continue;
       const actor = state[side][actorIndex];
-      const decision = skillDecision(state, side, actorIndex, rules, options);
+      const skill = actor.character.skill;
+      const deferredExpertDecision = options.playStyle === PLAY_STYLES.EXPERT && (
+        DEFENSE_SKILL_TYPES.has(skill.type) ||
+        skill.type === "heal" ||
+        skill.type === "revive"
+      );
+      // Expert defense/heal/revive decisions are unconditionally recomputed
+      // below after the full same-turn support context is known. Avoid doing
+      // an expensive prediction here only to overwrite it immediately.
+      const decision = deferredExpertDecision
+        ? { use: true, reason: "同ターン支援確定後に判定" }
+        : skillDecision(state, side, actorIndex, rules, decisionOptions);
       candidates.push({
         side,
         actorIndex,
@@ -831,7 +866,7 @@ function chooseSkills(state, rules, options) {
         use && skill.type !== "heal" && skill.type !== "revive"
       ));
       const decision = expertDefenseDecision(state, intent.side, intent.actorIndex, intent.skill, rules, {
-        ...options,
+        ...decisionOptions,
         plannedAttributeIntents: attributeIntents,
         plannedIntents: plannedDefenseContext,
       });
@@ -846,12 +881,12 @@ function chooseSkills(state, rules, options) {
   for (const intent of candidates.filter(({ skill }) => skill.type === "heal")) {
     const decision = options.playStyle === PLAY_STYLES.EXPERT
       ? expertSkillDecision(state, intent.side, intent.actorIndex, rules, {
-        ...options,
+        ...decisionOptions,
         plannedAttributeIntents: attributeIntents,
         plannedIntents: plannedNonRecoveryIntents,
       })
       : healDecision(state, intent.side, intent.actorIndex, intent.skill, rules, {
-        ...options,
+        ...decisionOptions,
         plannedAttributeIntents: attributeIntents,
         plannedIntents: plannedNonRecoveryIntents,
       });
@@ -862,7 +897,7 @@ function chooseSkills(state, rules, options) {
   const plannedForRevive = candidates.filter(({ use, skill }) => use && skill.type !== "revive");
   for (const intent of candidates.filter(({ skill }) => skill.type === "revive")) {
     const use = reviveMayApply(state, intent.side, intent.actorIndex, intent.skill, rules, {
-      ...options,
+      ...decisionOptions,
       plannedAttributeIntents: attributeIntents,
       plannedIntents: plannedForRevive,
     });
