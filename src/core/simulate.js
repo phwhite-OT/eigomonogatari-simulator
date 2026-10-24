@@ -10,10 +10,13 @@ import {
 } from "./damage.js";
 import {
   applySupportSkill,
+  applySupportSkillInPlace,
   canUseSkill,
   consumeSkill,
+  consumeSkillInPlace,
   isAttackSkill,
   resolveAttackAction,
+  resolveAttackActionInPlace,
 } from "./skills.js";
 
 const BASIC_ATTACK = Object.freeze({ type: "single_attack", multiplier: 1, hits: 1 });
@@ -341,7 +344,7 @@ function predictedAttackPhaseState(state, defendingSide, rules, options = {}) {
     ["attack_buff", "aoe_attack", "multi_hit_attack"],
     ["damage_reduction", "guard", "attribute_guard"],
   ]) {
-    preview = applySupportPhase(preview, plannedIntents, skillTypes).state;
+    preview = applySupportPhase(preview, plannedIntents, skillTypes, false, true).state;
   }
 
   const enemySide = opponentSide(defendingSide);
@@ -354,6 +357,7 @@ function predictedAttackPhaseState(state, defendingSide, rules, options = {}) {
     ...options,
     targetPolicy: options.targetPolicy ?? TARGET_POLICIES.EXPERT,
     random: () => 0,
+    mutateState: true,
   }).state;
 }
 
@@ -780,7 +784,9 @@ function chooseSkills(state, rules, options) {
         actorIndex,
         actorId: actor.activeCharacterId,
         actorName: actor.character.name,
-        skill: structuredClone(actor.character.skill),
+        skill: options.collectBattleHistory === false
+          ? actor.character.skill
+          : structuredClone(actor.character.skill),
         use: Boolean(decision.use),
         reason: decision.reason,
       });
@@ -875,11 +881,17 @@ function chooseSkills(state, rules, options) {
   return { intents, events };
 }
 
-function consumeSelectedSkills(state, intents) {
-  return intents.reduce(
-    (current, intent) => consumeSkill(current, intent.side, intent.actorIndex),
-    state,
-  );
+function consumeSelectedSkills(state, intents, mutateState = false) {
+  if (!mutateState) {
+    return intents.reduce(
+      (current, intent) => consumeSkill(current, intent.side, intent.actorIndex),
+      state,
+    );
+  }
+  for (const intent of intents) {
+    consumeSkillInPlace(state, intent.side, intent.actorIndex);
+  }
+  return state;
 }
 
 function phase(id, events = []) {
@@ -925,12 +937,20 @@ function supportChanges(before, after, side) {
   return changes;
 }
 
-function applySupportPhase(state, intents, skillTypes, collectEvents = true) {
+function applySupportPhase(
+  state,
+  intents,
+  skillTypes,
+  collectEvents = true,
+  mutateState = false,
+) {
   let next = state;
   const events = [];
   for (const intent of intents.filter(({ skill }) => skillTypes.includes(skill.type))) {
     const before = collectEvents ? next : null;
-    next = applySupportSkill(next, intent.side, intent.actorIndex, intent.skill, { consumeSkill: false });
+    next = mutateState
+      ? applySupportSkillInPlace(next, intent.side, intent.actorIndex, intent.skill, { consumeSkill: false })
+      : applySupportSkill(next, intent.side, intent.actorIndex, intent.skill, { consumeSkill: false });
     if (collectEvents) {
       events.push({
         type: "skill_effect",
@@ -1079,22 +1099,39 @@ function resolveAttacks(state, intents, rules, options) {
       rules,
       targetPolicy: options.targetPolicy,
     });
-    const result = resolveAttackAction(
-      next,
+    const result = options.mutateState
+      ? resolveAttackActionInPlace(
+        next,
       intent.side,
       intent.actorIndex,
       rules,
       intent.skill,
-      {
-        actorSnapshot: intent.actor,
-        targetIndex,
-        deferReplacement: true,
-        consumeSkill: false,
-        random: options.random,
-        // 実戦評価は常に最低乱数。0.95/1.00の別ダメージ帯は使わない。
-        damageMultiplier: undefined,
-      },
-    );
+        {
+          actorSnapshot: intent.actor,
+          targetIndex,
+          deferReplacement: true,
+          consumeSkill: false,
+          random: options.random,
+          // 実戦評価は常に最低乱数。0.95/1.00の別ダメージ帯は使わない。
+          damageMultiplier: undefined,
+        },
+      )
+      : resolveAttackAction(
+        next,
+        intent.side,
+        intent.actorIndex,
+        rules,
+        intent.skill,
+        {
+          actorSnapshot: intent.actor,
+          targetIndex,
+          deferReplacement: true,
+          consumeSkill: false,
+          random: options.random,
+          // 実戦評価は常に最低乱数。0.95/1.00の別ダメージ帯は使わない。
+          damageMultiplier: undefined,
+        },
+      );
     next = result.state;
     if (options.collectBattleHistory !== false) {
       actions.push({
@@ -1229,13 +1266,25 @@ function simulateBattleInternal(initialState, rules, options, collectBattleHisto
     const phases = collectBattleHistory ? [] : null;
     const selection = chooseSkills(state, rules, battleOptions);
     if (collectBattleHistory) phases.push(phase("skill_selection", selection.events));
-    state = consumeSelectedSkills(state, selection.intents);
+    state = consumeSelectedSkills(state, selection.intents, !collectBattleHistory);
 
-    const attribute = applySupportPhase(state, selection.intents, ["attribute_change"], collectBattleHistory);
+    const attribute = applySupportPhase(
+      state,
+      selection.intents,
+      ["attribute_change"],
+      collectBattleHistory,
+      !collectBattleHistory,
+    );
     state = attribute.state;
     if (collectBattleHistory) phases.push(phase("attribute_change", attribute.events));
 
-    const healing = applySupportPhase(state, selection.intents, ["heal"], collectBattleHistory);
+    const healing = applySupportPhase(
+      state,
+      selection.intents,
+      ["heal"],
+      collectBattleHistory,
+      !collectBattleHistory,
+    );
     state = healing.state;
     if (collectBattleHistory) phases.push(phase("healing", healing.events));
 
@@ -1244,6 +1293,7 @@ function simulateBattleInternal(initialState, rules, options, collectBattleHisto
       selection.intents,
       ["attack_buff", "aoe_attack", "multi_hit_attack"],
       collectBattleHistory,
+      !collectBattleHistory,
     );
     state = attackSupport.state;
     if (collectBattleHistory) phases.push(phase("attack_support", attackSupport.events));
@@ -1258,14 +1308,24 @@ function simulateBattleInternal(initialState, rules, options, collectBattleHisto
     if (collectBattleHistory) phases.push(phase("defense", defense.events));
 
     const scheduledAttacks = attackIntents(state, selection.intents, rules, battleOptions);
-    const attack = resolveAttacks(state, scheduledAttacks, rules, { ...battleOptions, random });
+    const attack = resolveAttacks(state, scheduledAttacks, rules, {
+      ...battleOptions,
+      random,
+      mutateState: !collectBattleHistory,
+    });
     state = attack.state;
     if (collectBattleHistory) phases.push(phase("attack", attack.actions));
 
     const reviveIntents = [...selection.intents]
       .filter(({ skill }) => skill.type === "revive")
       .sort((left, right) => (Number(right.skill.multiplier) || 0) - (Number(left.skill.multiplier) || 0));
-    const revive = applySupportPhase(state, reviveIntents, ["revive"], collectBattleHistory);
+    const revive = applySupportPhase(
+      state,
+      reviveIntents,
+      ["revive"],
+      collectBattleHistory,
+      !collectBattleHistory,
+    );
     state = revive.state;
     if (collectBattleHistory) phases.push(phase("revive", revive.events));
 
