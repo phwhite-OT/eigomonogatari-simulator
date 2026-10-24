@@ -1117,6 +1117,7 @@ function resolveAttacks(state, intents, rules, options) {
           deferReplacement: true,
           consumeSkill: false,
           random: options.random,
+          collectHitDetails: options.collectBattleHistory !== false,
           // 実戦評価は常に最低乱数。0.95/1.00の別ダメージ帯は使わない。
           damageMultiplier: undefined,
         },
@@ -1133,6 +1134,7 @@ function resolveAttacks(state, intents, rules, options) {
           deferReplacement: true,
           consumeSkill: false,
           random: options.random,
+          collectHitDetails: options.collectBattleHistory !== false,
           // 実戦評価は常に最低乱数。0.95/1.00の別ダメージ帯は使わない。
           damageMultiplier: undefined,
         },
