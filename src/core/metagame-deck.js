@@ -748,23 +748,27 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   // character ID at most once, each previous state is unique, and expansion
   // appends exactly one entry from the next fixed slot. The old deck-string
   // Map therefore could never collapse two distinct generated states.
-  const unique = states;
   const selected = new Set();
   const primaryCount = Math.max(1, Math.floor(width * 0.72));
-  const primary = [...unique].sort((left, right) => (
-    stateScore(right) - stateScore(left) ||
-    left.totalCost - right.totalCost
-  ));
-  primary.slice(0, primaryCount).forEach((state) => selected.add(state));
 
-  // Preserve competitive role shapes for the full 5v5 evaluation. Preserve
-  // the legacy strategy insertion order from generation order, while reusing
-  // the already stable global sort for each strategy's internal order.
+  // Capture strategy insertion order before sorting. The caller discards the
+  // expanded input immediately after this function, so sorting it in place
+  // avoids allocating a second potentially million-entry reference array.
   const byStrategy = new Map();
-  for (const state of unique) {
+  for (const state of states) {
     const key = metagameDeckStrategyKey(state);
     if (!byStrategy.has(key)) byStrategy.set(key, []);
   }
+  states.sort((left, right) => (
+    stateScore(right) - stateScore(left) ||
+    left.totalCost - right.totalCost
+  ));
+  const primary = states;
+  primary.slice(0, primaryCount).forEach((state) => selected.add(state));
+
+  // Preserve competitive role shapes for the full 5v5 evaluation. Strategy
+  // insertion order still comes from pre-sort generation order, and each
+  // bucket receives the same stable global ordering as before.
   for (const state of primary) {
     byStrategy.get(metagameDeckStrategyKey(state)).push(state);
   }
