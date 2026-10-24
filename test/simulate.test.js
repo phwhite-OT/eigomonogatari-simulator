@@ -91,6 +91,40 @@ test("履歴なし高速経路でもランキングに使う戦闘結果は完�
   assert.deepEqual(summary.history, []);
 });
 
+test("メタ評価のstate所有権移譲でも通常summaryと完全一致する", () => {
+  const buffSkill = {
+    type: "attack_buff",
+    multiplier: 1.8,
+    target: "ally_all",
+    duration: 2,
+    conditions: [],
+  };
+  const createState = () => createBattleState(
+    [[
+      character("owned-ally-front", { hp: 700, pow: 180, skillTurn: 0, skill: buffSkill }),
+      character("owned-ally-reserve", { hp: 900, pow: 220 }),
+    ], [character("owned-ally-two", { hp: 800, pow: 160 })]],
+    [[
+      character("owned-enemy-front", { hp: 650, pow: 210 }),
+      character("owned-enemy-reserve", { hp: 850, pow: 190 }),
+    ], [character("owned-enemy-two", { hp: 900, pow: 170 })]],
+  );
+  const options = {
+    turns: 5,
+    randomSeed: "ownership-equivalence",
+    targetPolicy: TARGET_POLICIES.EXPERT,
+    attackOrderPolicy: ATTACK_ORDER_POLICIES.TACTICAL,
+    playStyle: "expert",
+  };
+  const ordinary = simulateBattleSummary(createState(), simpleRules, options);
+  const owned = simulateBattleSummary(createState(), simpleRules, {
+    ...options,
+    takeOwnership: true,
+  });
+
+  assert.deepEqual(owned, ordinary);
+});
+
 test("3ターン対戦は通常攻撃と生存補正を順番に適用する", () => {
   const state = createBattleState(
     [character("ally")],
