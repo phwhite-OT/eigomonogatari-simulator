@@ -1173,7 +1173,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
             searchSupportCount: state.searchSupportCount + (entry.searchRole === "support" ? 1 : 0),
             attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
-          });
+          }, totalCost));
         }
         checked += 1;
         if (checked % progressYieldEvery !== 0) continue;
@@ -1186,7 +1186,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
           checked,
           stageTotal,
           retained: expanded.length,
-        }, totalCost));
+        });
         await metagameYieldToBrowser();
       }
     }
