@@ -1,3 +1,5 @@
+import { isAdministratorEmail } from "./admin.js";
+
 const SUPABASE_URL = "https://jyrtaqciclwswukkmhxd.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_kNuBcDWwnrKsZEoUXyZwbQ_2_UeS3o0";
 
@@ -109,6 +111,10 @@ export async function initializeSupabaseAuth(root = document, options = {}) {
   const validateCredentials = ({ email, password }) => {
     if (!isValidInput(email, password)) {
       setMessage("メールアドレスとパスワードを入力してください。", true);
+      return false;
+    }
+    if (!isAdministratorEmail(email)) {
+      setMessage("この管理ログインは指定された管理者アカウント専用です。", true);
       return false;
     }
     return true;
