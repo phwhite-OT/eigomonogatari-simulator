@@ -324,7 +324,29 @@ function metagameWorkerError(name, message, stack = "") {
   return error;
 }
 
-function runMetagameDeckSearchWorker(data, constraintId, characters, options = {}) {
+function metagameWorkerAttributeKey(constraint) {
+  if (constraint?.attributeKey) return String(constraint.attributeKey);
+  return [...new Set(constraint?.allowedAttributes ?? [])].sort().join("-");
+}
+
+function metagameWorkerRelevantData(data, resolvedConstraint) {
+  const attributeKey = metagameWorkerAttributeKey(resolvedConstraint);
+  if (!attributeKey) return data;
+  return {
+    ...data,
+    constraints: (data?.constraints ?? []).filter(
+      (entry) => metagameWorkerAttributeKey(entry) === attributeKey,
+    ),
+  };
+}
+
+function runMetagameDeckSearchWorker(
+  data,
+  constraintId,
+  characters,
+  options = {},
+  resolvedConstraint = null,
+) {
   if (typeof globalThis.Worker !== "function") return Promise.resolve(null);
 
   let worker;
@@ -382,7 +404,7 @@ function runMetagameDeckSearchWorker(data, constraintId, characters, options = {
           worker.postMessage({
             type: "search",
             jobId,
-            data,
+            data: metagameWorkerRelevantData(data, resolvedConstraint),
             constraintId,
             characters,
             options: workerOptions,
@@ -511,6 +533,7 @@ findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(da
       constraintId,
       characters,
       nextOptions,
+      constraint,
     );
     const result = workerResult ?? await findBestMetagameDeckBeforeV12PrecomputedFirst(
       data,
