@@ -280,7 +280,11 @@ function activeTokens(state, side) {
           actorIndex: index,
           actorId: combatant.activeCharacterId,
           actorName: combatant.character.name,
-          actor: structuredClone(combatant),
+          // Attack resolution is copy-on-write for damaged combatants:
+          // next[side][index] is replaced rather than mutating this object.
+          // Keeping the phase-start object therefore preserves simultaneous
+          // attack semantics without cloning the whole reserve deck.
+          actor: combatant,
         }]
       : []
   ));
