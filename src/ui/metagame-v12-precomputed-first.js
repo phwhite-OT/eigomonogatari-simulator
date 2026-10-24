@@ -6,6 +6,7 @@ import {
 
 const metagameBrowserKnowledgePromises = new Map();
 const metagameIncrementalResultCache = new Map();
+const metagameExactSearchResultCache = new Map();
 
 function metagameV12Model(value) {
   return /^team-battle-v12(?:\.|$)/.test(String(value ?? ""));
@@ -180,6 +181,36 @@ async function loadResolvedMetagameBrowserKnowledge(data, constraint) {
   return loadMetagameBrowserKnowledge(constraint);
 }
 
+function metagameCacheHash(value) {
+  let hash = 2_166_136_261;
+  for (const symbol of String(value ?? "")) {
+    hash = Math.imul(hash ^ symbol.charCodeAt(0), 16_777_619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function metagameExactSearchCacheKey(data, constraint, characters, automaticIds, options, knowledge) {
+  const accuracyOptions = {
+    interactiveScenarioCount: options.interactiveScenarioCount ?? null,
+    boostedScenarioCount: options.boostedScenarioCount ?? null,
+    finalistCount: options.finalistCount ?? null,
+    beamWidth: options.beamWidth ?? null,
+    browserTimeBudgetMs: options.browserTimeBudgetMs ?? null,
+    maxAdditionalEnvironmentDecks: options.maxAdditionalEnvironmentDecks ?? null,
+    maxPrecomputedEnvironmentDecks: options.maxPrecomputedEnvironmentDecks ?? null,
+    liveEnvironmentMinimumWinRate: options.liveEnvironmentMinimumWinRate ?? null,
+    rules: options.rules ?? null,
+  };
+  return [
+    "v2",
+    String(data?.generatedAt ?? ""),
+    String(constraint?.modelVersion ?? ""),
+    metagameLiveQueryFingerprint(constraint, characters, automaticIds, options),
+    String(knowledge?.generatedAt ?? "no-knowledge"),
+    metagameCacheHash(JSON.stringify(accuracyOptions)),
+  ].join("::");
+}
+
 function metagameIncrementalCacheKey(constraint, characters, automaticIds, options, knowledge) {
   return [
     "v1",
@@ -255,6 +286,35 @@ function saveIncrementalSessionCache(key, result) {
   }
 }
 
+function readExactSearchSessionCache(key, characters, constraint) {
+  const memory = cloneIncrementalResult(metagameExactSearchResultCache.get(key), characters);
+  if (memory) return { ...memory, constraint };
+  try {
+    const raw = globalThis.sessionStorage?.getItem(`eigomonogatari:metagame-exact:${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const hydrated = cloneIncrementalResult(parsed, characters);
+    if (hydrated) metagameExactSearchResultCache.set(key, parsed);
+    return hydrated ? { ...hydrated, constraint } : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveExactSearchSessionCache(key, result) {
+  if (!result || result.timeBudgetReached) return;
+  const compact = compactIncrementalResult(result);
+  metagameExactSearchResultCache.set(key, compact);
+  try {
+    globalThis.sessionStorage?.setItem(
+      `eigomonogatari:metagame-exact:${key}`,
+      JSON.stringify(compact),
+    );
+  } catch {
+    // Cache availability must never affect the calculation itself.
+  }
+}
+
 const findBestMetagameDeckBeforeV12PrecomputedFirst = findBestMetagameDeck;
 findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(data, constraintId, characters, options = {}) {
   const requestedTotalCost = Number(options.totalCost);
@@ -309,10 +369,47 @@ findBestMetagameDeck = async function findBestMetagameDeckV12PrecomputedFirst(da
     return result;
   }
 
-  // V12 always reconstructs a deck in the browser from character-level
-  // evidence. Even an exact representative cost does not short-circuit to a
-  // saved finished deck. Published decks remain environment/evidence inputs,
-  // never the required starting point for generation.
+  // V12 always reconstructs the first result in the browser from
+  // character-level evidence. A byte-for-byte equivalent repeat query in the
+  // same session may reuse that completed result; this is not a published
+  // finished-deck shortcut and never changes first-run candidate coverage.
+  if (isV12) {
+    const cacheKey = metagameExactSearchCacheKey(
+      data,
+      constraint,
+      characters,
+      automaticIds,
+      nextOptions,
+      knowledge,
+    );
+    const cached = readExactSearchSessionCache(cacheKey, characters, constraint);
+    if (cached) {
+      options.onProgress?.({
+        phase: "candidate",
+        completed: 5,
+        total: 5,
+        slot: 5,
+        slots: 5,
+        checked: cached.candidateDeckCount ?? 0,
+        stageTotal: cached.candidateDeckCount ?? 0,
+        retained: cached.candidateDeckCount ?? 0,
+        valid: cached.candidateDeckCount ?? 0,
+      });
+      return {
+        ...cached,
+        cachePolicy: "v12-exact-session-cache",
+      };
+    }
+    const result = await findBestMetagameDeckBeforeV12PrecomputedFirst(
+      data,
+      constraintId,
+      characters,
+      nextOptions,
+    );
+    saveExactSearchSessionCache(cacheKey, result);
+    return result;
+  }
+
   return findBestMetagameDeckBeforeV12PrecomputedFirst(
     data,
     constraintId,
