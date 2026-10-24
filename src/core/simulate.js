@@ -519,7 +519,7 @@ function attackSkillWithEffects(actor, baseSkill = BASIC_ATTACK, defender) {
     type: aoe ? "aoe_attack" : hits > 1 ? "multi_hit_attack" : "single_attack",
     multiplier: Number(baseSkill.multiplier) || 1,
     hits,
-    conditions: structuredClone(baseSkill.conditions ?? []),
+    conditions: baseSkill.conditions ?? [],
   };
 }
 
@@ -642,7 +642,7 @@ function expertDefenseOutcomeBenefit(state, side, actorIndex, skill, rules, opti
     actorIndex,
     actorId: actor?.activeCharacterId,
     actorName: actor?.character?.name,
-    skill: structuredClone(skill),
+    skill,
     use: true,
   };
 
@@ -824,9 +824,7 @@ function chooseSkills(state, rules, options) {
         actorIndex,
         actorId: actor.activeCharacterId,
         actorName: actor.character.name,
-        skill: options.collectBattleHistory === false
-          ? actor.character.skill
-          : structuredClone(actor.character.skill),
+        skill: actor.character.skill,
         use: Boolean(decision.use),
         reason: decision.reason,
       });
@@ -1295,7 +1293,9 @@ function simulateBattleInternal(initialState, rules, options, collectBattleHisto
     enemies: snapshotTeam(initialState, "enemies"),
     board: evaluateBoard(initialState, "allies"),
   };
-  let state = structuredClone(initialState);
+  let state = options.takeOwnership === true
+    ? initialState
+    : structuredClone(initialState);
   const history = [];
   let turnsCompleted = 0;
   const random = typeof options.random === "function" ? options.random : seededRandom(options.randomSeed);
