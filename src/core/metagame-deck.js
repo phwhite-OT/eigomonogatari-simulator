@@ -719,9 +719,21 @@ function metagameDeckStateScore(state, totalCost) {
 function metagameDeckStrategyKey(state) {
   const roles = state.roleCounts ?? {};
   const attackBand = Math.min(3, Math.floor((state.attackCommitment ?? 0) + 0.35));
-  const defenseBand = Math.min(2, Number(roles.defense) || 0);
-  const recoveryBand = Math.min(2, (Number(roles.revive) || 0) + (Number(roles.recovery) || 0));
-  const supportBand = Math.min(2, Number(roles.support) || 0);
+  const defense = Number.isFinite(state.searchDefenseCount)
+    ? state.searchDefenseCount
+    : Number(roles.defense) || 0;
+  const revive = Number.isFinite(state.searchReviveCount)
+    ? state.searchReviveCount
+    : Number(roles.revive) || 0;
+  const recovery = Number.isFinite(state.searchRecoveryCount)
+    ? state.searchRecoveryCount
+    : Number(roles.recovery) || 0;
+  const support = Number.isFinite(state.searchSupportCount)
+    ? state.searchSupportCount
+    : Number(roles.support) || 0;
+  const defenseBand = Math.min(2, defense);
+  const recoveryBand = Math.min(2, revive + recovery);
+  const supportBand = Math.min(2, support);
   return `a${attackBand}-d${defenseBand}-r${recoveryBand}-s${supportBand}`;
 }
 
@@ -970,6 +982,27 @@ function metagameExactCostStillReachable(currentCost, costBounds, nextPoolIndex,
   return currentCost + minimumRemaining <= target && currentCost + maximumRemaining >= target;
 }
 
+function metagameCompletedCandidateFromState(state, totalCost) {
+  const roleCounts = state.deck.reduce(
+    (counts, entry) => metagameDeckRoleCountsAdd(counts, entry.rating),
+    {},
+  );
+  return {
+    deck: state.deck.map((entry) => entry.character),
+    ratings: state.deck.map((entry) => entry.rating),
+    totalCost: state.totalCost,
+    proxyScore: metagameDeckStateScore(state, totalCost),
+    synergyScore: state.synergyScore,
+    handoffRisk: state.handoffRisk,
+    budgetStrain: state.budgetStrain,
+    advantageCount: state.advantageCount,
+    counterCount: state.counterCount,
+    roleCounts,
+    attackCommitment: state.attackCommitment,
+    firepowerSurplus: metagameDeckFirepowerSurplus(state.attackCommitment, roleCounts),
+  };
+}
+
 export function buildMetagameDeckCandidates(constraint, characters, options = {}) {
   constraint = metagameConstraintWithFixedSlots(constraint, characters, options);
   const totalCost = Number(constraint?.totalCost) || 0;
@@ -993,7 +1026,10 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
     budgetStrain: 0,
     advantageCount: 0,
     counterCount: 0,
-    roleCounts: {},
+    searchDefenseCount: 0,
+    searchReviveCount: 0,
+    searchRecoveryCount: 0,
+    searchSupportCount: 0,
     attackCommitment: 0,
   }];
   for (let poolIndex = 0; poolIndex < pools.length; poolIndex += 1) {
@@ -1027,10 +1063,10 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           budgetStrain: state.budgetStrain + entry.searchBudgetStrain,
           advantageCount: state.advantageCount + entry.searchAdvantageCount,
           counterCount: state.counterCount + entry.searchCounterCount,
-          roleCounts: {
-            ...state.roleCounts,
-            [entry.searchRole]: (state.roleCounts[entry.searchRole] ?? 0) + 1,
-          },
+          searchDefenseCount: state.searchDefenseCount + (entry.searchRole === "defense" ? 1 : 0),
+          searchReviveCount: state.searchReviveCount + (entry.searchRole === "revive" ? 1 : 0),
+          searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
+          searchSupportCount: state.searchSupportCount + (entry.searchRole === "support" ? 1 : 0),
           attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
         });
       }
@@ -1040,20 +1076,9 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
   }
   const completedStates = states.filter((state) => metagameCostMatchesConstraint(state.totalCost, constraint));
   if (!completedStates.length) throw new Error("No legal deck matches the requested total-cost condition.");
-  return completedStates.map((state) => ({
-    deck: state.deck.map((entry) => entry.character),
-    ratings: state.deck.map((entry) => entry.rating),
-    totalCost: state.totalCost,
-    proxyScore: metagameDeckStateScore(state, totalCost),
-    synergyScore: state.synergyScore,
-    handoffRisk: state.handoffRisk,
-    budgetStrain: state.budgetStrain,
-    advantageCount: state.advantageCount,
-    counterCount: state.counterCount,
-    roleCounts: state.roleCounts,
-    attackCommitment: state.attackCommitment,
-    firepowerSurplus: metagameDeckFirepowerSurplus(state.attackCommitment, state.roleCounts),
-  })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
+  return completedStates
+    .map((state) => metagameCompletedCandidateFromState(state, totalCost))
+    .sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
 }
 
 function metagameYieldToBrowser() {
@@ -1084,7 +1109,10 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
     budgetStrain: 0,
     advantageCount: 0,
     counterCount: 0,
-    roleCounts: {},
+    searchDefenseCount: 0,
+    searchReviveCount: 0,
+    searchRecoveryCount: 0,
+    searchSupportCount: 0,
     attackCommitment: 0,
   }];
   for (let poolIndex = 0; poolIndex < pools.length; poolIndex += 1) {
@@ -1133,10 +1161,10 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             budgetStrain: state.budgetStrain + entry.searchBudgetStrain,
             advantageCount: state.advantageCount + entry.searchAdvantageCount,
             counterCount: state.counterCount + entry.searchCounterCount,
-            roleCounts: {
-              ...state.roleCounts,
-              [entry.searchRole]: (state.roleCounts[entry.searchRole] ?? 0) + 1,
-            },
+            searchDefenseCount: state.searchDefenseCount + (entry.searchRole === "defense" ? 1 : 0),
+            searchReviveCount: state.searchReviveCount + (entry.searchRole === "revive" ? 1 : 0),
+            searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
+            searchSupportCount: state.searchSupportCount + (entry.searchRole === "support" ? 1 : 0),
             attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
           });
         }
@@ -1171,20 +1199,9 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
   }
   const completedStates = states.filter((state) => metagameCostMatchesConstraint(state.totalCost, constraint));
   if (!completedStates.length) throw new Error("No legal deck matches the requested total-cost condition.");
-  return completedStates.map((state) => ({
-    deck: state.deck.map((entry) => entry.character),
-    ratings: state.deck.map((entry) => entry.rating),
-    totalCost: state.totalCost,
-    proxyScore: metagameDeckStateScore(state, totalCost),
-    synergyScore: state.synergyScore,
-    handoffRisk: state.handoffRisk,
-    budgetStrain: state.budgetStrain,
-    advantageCount: state.advantageCount,
-    counterCount: state.counterCount,
-    roleCounts: state.roleCounts,
-    attackCommitment: state.attackCommitment,
-    firepowerSurplus: metagameDeckFirepowerSurplus(state.attackCommitment, state.roleCounts),
-  })).sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
+  return completedStates
+    .map((state) => metagameCompletedCandidateFromState(state, totalCost))
+    .sort((left, right) => right.proxyScore - left.proxyScore || left.totalCost - right.totalCost);
 }
 
 function metagameStableTopN(candidates, comparator, limit, excludedKeys, keyFor) {
