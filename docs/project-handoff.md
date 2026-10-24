@@ -1249,3 +1249,11 @@ Implemented exact/semantics-preserving optimizations:
 - The Pages deployment gate now includes `simulate.test.js`, team-battle AI regressions, V12 battle corrections, skills tests and battle-state tests in addition to browser/metagame tests. In particular, the existing test requiring `simulateBattleSummary` to produce the same final state/outcome/ranking metrics as `simulateBattle` is now a deploy blocker.
 
 These changes must not increment the V12 model/battle-semantics version because they are implementation-only optimizations. If a future optimization changes candidate coverage, selection order, battle decisions, RNG mapping, scenario membership, or final numerical results, treat it as a semantic change instead of hiding it behind this performance work.
+
+
+### 2026-10-24 — prediction path excluded from in-place optimization
+
+- The expanded battle regression gate caught a real semantic change in the first attempt to mutate the private attack-prediction state in place: the cumulative-damage revive regression changed from `skill_use` to `skill_hold`.
+- The risky optimization was rejected. `predictedAttackPhaseState` is restored to the previous clone-preserving support/attack path because it participates directly in expert skill decisions for both detailed and summary simulation.
+- Summary-only in-place optimization remains limited to the actual high-volume battle execution path, where the state is already private to `simulateBattleSummary`.
+- Treat skill-decision prediction as semantic code. Do not optimize it by changing mutation/copy boundaries unless exact equivalence is proven by the full battle regression suite.
