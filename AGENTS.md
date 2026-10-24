@@ -90,6 +90,23 @@ Current browser policy:
 
 Offline browser knowledge may be expensive. That is intentional: prefer spending cloud time to improve individual/boost/synergy evidence so browser work stays bounded and accurate.
 
+
+### Browser performance invariants
+
+The user explicitly requires browser speedups without intentional recommendation-accuracy loss.
+
+- Do **not** reduce beam widths, candidate pools, finalist counts, staged 5v5 scenario counts, or ranking signals merely for speed. Current defaults remain 10,000/20,000 beam and 40/56 finalists.
+- Performance optimizations should be exact transformations: cache identical computations, remove redundant scans/sorts/copies, reduce allocation, reuse immutable data, or move the same work off the UI thread.
+- Normal V12 search runs in a same-origin module Web Worker when available. That Worker imports the same `src/core/metagame-deck.js`; it must never become a simplified alternate evaluator. Pages must ship the worker and its exact core dependency closure. Unsupported-worker fallback is the same main-thread search.
+- Worker progress may be throttled/coalesced because it is presentation only. Search ordering, RNG seeds, candidate coverage and battle counts must remain unchanged.
+- Partial browser beam states are parent-linked for allocation efficiency. When computing pair synergy, preserve the original oldest-to-newest floating-point addition order.
+- `simulateBattleSummary` may use private in-place state primitives and `takeOwnership: true` only when the caller has just created a fresh state and will not reuse it. Detailed `simulateBattle` remains the semantic reference.
+- Expert prediction memoization is scoped to one `chooseSkills` call / immutable turn state. Never persist or share predicted battle states across turns or different source states.
+- Identical-query session cache entries must include every accuracy-affecting query/data/knowledge option and must never store timed-out partial results.
+- Any optimization that changes selected candidates, finalist order, battle decisions, scenario membership, RNG mapping or final numerical results is a semantic change and must not be presented as a no-accuracy-loss speedup.
+
+The Pages regression gate must keep summary-vs-detailed battle equivalence, ownership-transfer equivalence, target/skill battle regressions, finalist-selection equivalence, and Worker deployment checks green before publication.
+
 ## Public-site publication
 
 `.github/workflows/deploy-pages.yml` is triggered by pushes to `master`, `metagame-v12-shared-pool-results`, and the browser-knowledge results branch. It must always check out **master** for application source code, then overlay report data from result branches.
