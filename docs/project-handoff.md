@@ -1296,3 +1296,13 @@ Do not reintroduce candidate/scenario pruning as a “performance optimization�
 - The newly enabled direct-master V12 validation surfaced one stale test unrelated to the performance changes: `test/metagame-v12.test.js` still hard-coded the obsolete V12.5 model string even though the repository has intentionally used V12.7 since the 2026-10-04 catalogue reset.
 - The test now checks the invariant it was named for: the model must be a V12 model and must not be a V11 checkpoint. It no longer pins an obsolete sub-version.
 - In the failing validation run, the other 170 focused tests passed, including Worker wiring, summary-vs-detailed battle equivalence, ownership-transfer equivalence, cumulative revive, defense/guard targeting, and 5v5 regressions.
+
+
+### 2026-10-24 — administrator-only browser character corrections
+
+- Character encyclopedia editing is restricted to the single administrator email configured in `src/auth/admin.js`.
+- The browser UI only exposes edit/add controls after an authenticated administrator session is present. The Supabase auth form now also rejects non-administrator email addresses before login/sign-up is attempted.
+- Server-side enforcement remains independent of the browser: `supabase/migrations/20260817_character_catalog_overrides.sql` enables RLS, allows public reads, and permits insert/update only when the authenticated JWT email matches the configured administrator account. Delete remains revoked.
+- Existing catalogue rows are overridden by stable character ID; additions are merged into the catalogue without duplicating the base row. Saved overrides are reloaded for all visitors and immediately feed the character encyclopedia, normal deck search, lightest search, deck picker, and browser metagame controllers through the shared live character array.
+- Pages deployment now runs the character database/auth/admin-policy tests in addition to the existing battle/metagame regression gate.
+- Official long-running cloud V12 reports remain durable snapshots. A browser correction is used immediately by browser-side live evaluation, but any official cloud report produced before that correction must still be regarded as pre-correction evidence until a new cloud recompute is run against the corrected canonical catalogue.
