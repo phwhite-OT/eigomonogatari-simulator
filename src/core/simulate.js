@@ -1303,6 +1303,7 @@ function simulateBattleInternal(initialState, rules, options, collectBattleHisto
       selection.intents,
       ["damage_reduction", "guard", "attribute_guard"],
       collectBattleHistory,
+      !collectBattleHistory,
     );
     state = defense.state;
     if (collectBattleHistory) phases.push(phase("defense", defense.events));
