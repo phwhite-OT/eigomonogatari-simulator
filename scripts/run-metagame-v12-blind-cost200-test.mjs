@@ -211,32 +211,51 @@ function syntheticRating(character, position, sourceEntries, charactersById, bud
   };
 }
 
-function retainBlindCandidates(entries, sourceIds, limit = 320) {
+function blindCostBand(cost, budget, bandCount = 6) {
+  const share = Math.max(0, Math.min(0.999999, (Number(cost) || 0) / Math.max(1, budget)));
+  return Math.min(bandCount - 1, Math.floor(share * bandCount));
+}
+
+function retainBlindCandidates(entries, sourceIds, budget = 200) {
   const selected = new Map();
   const add = (entry) => {
     const id = String(entry.id);
     if (!selected.has(id)) selected.set(id, entry);
   };
 
-  entries.slice(0, 190).forEach(add);
+  // Keep the strongest generic priors, but never let that global ranking erase
+  // characters merely because they are expensive relative to Cost100 evidence.
+  entries.slice(0, 140).forEach(add);
 
-  [...entries]
-    .sort((left, right) => Number(left.cost) - Number(right.cost) || candidateSourceScore(right) - candidateSourceScore(left))
-    .slice(0, 36)
-    .forEach(add);
+  // Guarantee representation from every spend band. This is exploration only:
+  // cost receives no positive score, and the later 5v5 simulation decides
+  // whether an expensive character actually earns its place.
+  const costBands = Array.from({ length: 6 }, () => []);
+  for (const entry of entries) {
+    costBands[blindCostBand(entry.cost, budget, costBands.length)].push(entry);
+  }
+  for (const band of costBands) {
+    band
+      .sort((left, right) => candidateSourceScore(right) - candidateSourceScore(left) || String(left.id).localeCompare(String(right.id)))
+      .slice(0, 44)
+      .forEach(add);
+  }
 
   const roles = ["precision_attack", "sweep_attack", "defense", "revive", "recovery", "support", "neutral"];
   for (const role of roles) {
-    entries.filter((entry) => String(entry.role) === role).slice(0, 28).forEach(add);
+    entries
+      .filter((entry) => String(entry.role) === role)
+      .slice(0, 20)
+      .forEach(add);
   }
 
+  // Cost100 incumbents remain useful priors, but they no longer crowd out new
+  // Cost200-only options because the cost bands above are reserved first.
   for (const entry of entries) {
     if (sourceIds.has(String(entry.id))) add(entry);
   }
 
-  return [...selected.values()]
-    .sort((left, right) => candidateSourceScore(right) - candidateSourceScore(left) || Number(left.cost) - Number(right.cost))
-    .slice(0, limit);
+  return [...selected.values()];
 }
 
 function buildBlindConstraint(sourceReport, attributeKey) {
@@ -270,7 +289,7 @@ function buildBlindConstraint(sourceReport, attributeKey) {
       || Number(left.cost) - Number(right.cost)
       || String(left.id).localeCompare(String(right.id))
     ));
-    const retained = retainBlindCandidates(rated, sourceIds);
+    const retained = retainBlindCandidates(rated, sourceIds, 200);
     slots.push({
       position,
       candidates: retained,
@@ -282,20 +301,93 @@ function buildBlindConstraint(sourceReport, attributeKey) {
   return { ...baseConstraint, slots };
 }
 
-function chooseDiverseDecks(entries, limit) {
+function chooseDiverseDecks(entries, limit, budget = 200) {
   const selected = [];
   const used = new Set();
   const signatureCount = new Map();
-  for (const entry of entries) {
+
+  const add = (entry, enforceRoleCap = true) => {
     const key = deckKey(entry.deck);
-    if (used.has(key)) continue;
+    if (used.has(key)) return false;
     const roles = entry.deck.map(roleFromCharacter).sort().join(",");
     const count = signatureCount.get(roles) ?? 0;
-    if (count >= 8 && selected.length < Math.floor(limit * 0.75)) continue;
+    if (enforceRoleCap && count >= 8) return false;
     selected.push(entry);
     used.add(key);
     signatureCount.set(roles, count + 1);
+    return true;
+  };
+
+  // Let actual performance own the majority of the field.
+  for (const entry of entries) {
+    if (selected.length >= Math.floor(limit * 0.58)) break;
+    add(entry, true);
+  }
+
+  // Reserve the rest across spend bands. This is intentionally not a
+  // spend-more bonus: each band gets a route to simulation, after which weak
+  // expensive decks are free to lose and disappear.
+  const bands = Array.from({ length: 6 }, () => []);
+  for (const entry of entries) {
+    bands[blindCostBand(totalCost(entry.deck), budget, bands.length)].push(entry);
+  }
+  const offsets = Array(bands.length).fill(0);
+  let active = bands.filter((band) => band.length).length;
+  let cursor = 0;
+  while (selected.length < limit && active > 0) {
+    const index = cursor % bands.length;
+    const band = bands[index];
+    const offset = offsets[index];
+    cursor += 1;
+    if (offset >= band.length) continue;
+    add(band[offset], false);
+    offsets[index] = offset + 1;
+    if (offsets[index] >= band.length) active -= 1;
+  }
+
+  for (const entry of entries) {
     if (selected.length >= limit) break;
+    add(entry, false);
+  }
+  return selected;
+}
+
+function selectCostDiverseCandidates(entries, limit, budget = 200) {
+  const selected = [];
+  const used = new Set();
+  const add = (entry) => {
+    const key = deckKey(entry.deck);
+    if (used.has(key)) return false;
+    selected.push(entry);
+    used.add(key);
+    return true;
+  };
+
+  // Keep a strong global core.
+  for (const entry of entries.slice(0, Math.max(1, Math.floor(limit * 0.30)))) add(entry);
+
+  // Then allocate the majority evenly across total-deck spend bands.
+  const bands = Array.from({ length: 6 }, () => []);
+  for (const entry of entries) {
+    bands[blindCostBand(totalCost(entry.deck), budget, bands.length)].push(entry);
+  }
+  const offsets = Array(bands.length).fill(0);
+  let active = bands.filter((band) => band.length).length;
+  let cursor = 0;
+  while (selected.length < limit && active > 0) {
+    const index = cursor % bands.length;
+    const band = bands[index];
+    const offset = offsets[index];
+    cursor += 1;
+    if (offset >= band.length) continue;
+    add(band[offset]);
+    offsets[index] = offset + 1;
+    if (offsets[index] >= band.length) active -= 1;
+  }
+
+  for (const entry of entries) {
+    if (selected.length >= limit) break;
+    add(entry);
   }
   return selected;
 }
@@ -412,17 +504,23 @@ async function generateBlind() {
 
   const constraint = buildBlindConstraint(sourceReport, attributeKey);
   const beamWidth = Math.max(2_000, Math.floor(numberArg("beam-width", 12_000)));
-  const candidateLimit = Math.max(80, Math.floor(numberArg("candidate-limit", 180)));
+  const candidateLimit = Math.max(120, Math.floor(numberArg("candidate-limit", 280)));
   const rounds = Math.max(2, Math.floor(numberArg("rounds", 3)));
   const scenarioCount = Math.max(12, Math.floor(numberArg("scenario-count", 18)));
 
-  const candidates = buildMetagameDeckCandidates(
+  const candidatePool = buildMetagameDeckCandidates(
     constraint,
     CHARACTER_CATALOG,
-    { beamWidth },
-  ).slice(0, candidateLimit);
+    {
+      beamWidth,
+      // Cost is a legality constraint here, not a proxy for quality. The beam
+      // must retain every spend band until 5v5 evidence can decide.
+      budgetNeutralExploration: true,
+    },
+  );
+  const candidates = selectCostDiverseCandidates(candidatePool, candidateLimit, constraint.totalCost);
 
-  let environment = chooseDiverseDecks(candidates, Math.min(48, candidates.length));
+  let environment = chooseDiverseDecks(candidates, Math.min(60, candidates.length), constraint.totalCost);
   const scoreHistory = new Map(candidates.map((entry) => [deckKey(entry.deck), []]));
   const roundSummaries = [];
 
@@ -440,10 +538,9 @@ async function generateBlind() {
     }).sort((left, right) => (
       right.metaScore - left.metaScore
       || right.mean - left.mean
-      || left.totalCost - right.totalCost
       || deckKey(left.deck).localeCompare(deckKey(right.deck))
     ));
-    environment = chooseDiverseDecks(evaluated, Math.min(48, evaluated.length));
+    environment = chooseDiverseDecks(evaluated, Math.min(60, evaluated.length), constraint.totalCost);
     roundSummaries.push({
       round: round + 1,
       bestMean: rounded(evaluated[0]?.mean),
@@ -496,6 +593,10 @@ async function generateBlind() {
       turns: constraint.turns,
       beamWidth,
       candidateLimit,
+      generatedCandidatePool: candidatePool.length,
+      candidateSpendBands: Array.from({ length: 6 }, (_, band) => (
+        candidates.filter((entry) => blindCostBand(totalCost(entry.deck), constraint.totalCost, 6) === band).length
+      )),
       rounds,
       scenarioCount,
       catalogCharacters: CHARACTER_CATALOG.length,
