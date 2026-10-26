@@ -1,0 +1,151 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-26T13:02:03.654Z",
+  "test": "cost200-blind-environment-reconstruction",
+  "passed": false,
+  "checks": {
+    "top10Recall": false,
+    "rankCorrelation": false,
+    "deckStructure": false,
+    "roleStructure": false,
+    "bestResponseGap": false,
+    "transferStability": false
+  },
+  "overall": {
+    "meanTop10Recall": 0.122857,
+    "meanTop30Recall": 0.102857,
+    "meanSpearmanTop30": -0.331062,
+    "topDeckCharacterSimilarity": 0.183809,
+    "roleCompositionSimilarity": 0.723809,
+    "bestResponseGap": 0.27996,
+    "worstBestResponseGap": 0.458333,
+    "blindTransferDrop": 0.08062
+  },
+  "conditions": [
+    {
+      "attributeKey": "fire-water-wind",
+      "summary": {
+        "meanTop10Recall": 0.12,
+        "meanTop30Recall": 0.1,
+        "meanSpearmanTop30": -0.426745,
+        "topDeckCharacterSimilarity": 0.133333,
+        "roleCompositionSimilarity": 0.726667,
+        "bestResponseGap": 0.277778,
+        "blindBestOnTrue": 0.576389,
+        "trueBestOnTrue": 0.854167,
+        "blindBestOnBlind": 0.763889,
+        "trueBestOnBlind": 0.930556,
+        "blindTransferDrop": 0.1875,
+        "trueTransferDrop": 0
+      }
+    },
+    {
+      "attributeKey": "fire-water",
+      "summary": {
+        "meanTop10Recall": 0.12,
+        "meanTop30Recall": 0.12,
+        "meanSpearmanTop30": -0.349048,
+        "topDeckCharacterSimilarity": 0.153333,
+        "roleCompositionSimilarity": 0.686667,
+        "bestResponseGap": 0.208448,
+        "blindBestOnTrue": 0.562386,
+        "trueBestOnTrue": 0.770833,
+        "blindBestOnBlind": 0.529879,
+        "trueBestOnBlind": 0.560268,
+        "blindTransferDrop": 0,
+        "trueTransferDrop": 0.210565
+      }
+    },
+    {
+      "attributeKey": "fire-wind",
+      "summary": {
+        "meanTop10Recall": 0.12,
+        "meanTop30Recall": 0.053333,
+        "meanSpearmanTop30": -0.303233,
+        "topDeckCharacterSimilarity": 0.346667,
+        "roleCompositionSimilarity": 0.633333,
+        "bestResponseGap": 0.183859,
+        "blindBestOnTrue": 0.574814,
+        "trueBestOnTrue": 0.758673,
+        "blindBestOnBlind": 0.694444,
+        "trueBestOnBlind": 0.986111,
+        "blindTransferDrop": 0.119631,
+        "trueTransferDrop": 0
+      }
+    },
+    {
+      "attributeKey": "fire",
+      "summary": {
+        "meanTop10Recall": 0.14,
+        "meanTop30Recall": 0.113333,
+        "meanSpearmanTop30": -0.280859,
+        "topDeckCharacterSimilarity": 0.2,
+        "roleCompositionSimilarity": 0.6,
+        "bestResponseGap": 0.458333,
+        "blindBestOnTrue": 0.472222,
+        "trueBestOnTrue": 0.930556,
+        "blindBestOnBlind": 0.578084,
+        "trueBestOnBlind": 0.963739,
+        "blindTransferDrop": 0.105862,
+        "trueTransferDrop": 0
+      }
+    },
+    {
+      "attributeKey": "water-wind",
+      "summary": {
+        "meanTop10Recall": 0.16,
+        "meanTop30Recall": 0.106667,
+        "meanSpearmanTop30": -0.387463,
+        "topDeckCharacterSimilarity": 0.313333,
+        "roleCompositionSimilarity": 0.753333,
+        "bestResponseGap": 0.223884,
+        "blindBestOnTrue": 0.609449,
+        "trueBestOnTrue": 0.833333,
+        "blindBestOnBlind": 0.663016,
+        "trueBestOnBlind": 0.901967,
+        "blindTransferDrop": 0.053567,
+        "trueTransferDrop": 0
+      }
+    },
+    {
+      "attributeKey": "water",
+      "summary": {
+        "meanTop10Recall": 0.12,
+        "meanTop30Recall": 0.126667,
+        "meanSpearmanTop30": -0.321747,
+        "topDeckCharacterSimilarity": 0.053333,
+        "roleCompositionSimilarity": 0.813333,
+        "bestResponseGap": 0.308807,
+        "blindBestOnTrue": 0.5333,
+        "trueBestOnTrue": 0.842107,
+        "blindBestOnBlind": 0.585036,
+        "trueBestOnBlind": 0.972222,
+        "blindTransferDrop": 0.051736,
+        "trueTransferDrop": 0
+      }
+    },
+    {
+      "attributeKey": "wind",
+      "summary": {
+        "meanTop10Recall": 0.08,
+        "meanTop30Recall": 0.1,
+        "meanSpearmanTop30": -0.248336,
+        "topDeckCharacterSimilarity": 0.086667,
+        "roleCompositionSimilarity": 0.853333,
+        "bestResponseGap": 0.298611,
+        "blindBestOnTrue": 0.493056,
+        "trueBestOnTrue": 0.791667,
+        "blindBestOnBlind": 0.5391,
+        "trueBestOnBlind": 0.72734,
+        "blindTransferDrop": 0.046045,
+        "trueTransferDrop": 0.064327
+      }
+    }
+  ],
+  "nextStep": "Do not start Cost300. Improve blind environment reconstruction and rerun this test.",
+  "provenance": {
+    "originalRunId": 40321784263,
+    "recoveryRunId": 40326302380,
+    "note": "Three-attribute comparison was recovered using the legacy all:200 input alias. Aggregate computed successfully; persistence was repaired after the workflow hit an ignored reports/ path."
+  }
+}
