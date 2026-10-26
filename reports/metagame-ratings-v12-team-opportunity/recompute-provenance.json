@@ -1,0 +1,44 @@
+{
+  "strategy": "shared-evaluated-deck-pool-representative-cost-precompute",
+  "sourceCommit": "892b94f7b81ffda038be35a1cebafe30f71e3870",
+  "sourceRef": "master",
+  "generatedAt": "2026-10-25T11:11:21Z",
+  "attributeGroups": [
+    "fire",
+    "water",
+    "wind",
+    "fire-water",
+    "fire-wind",
+    "water-wind",
+    "fire-water-wind"
+  ],
+  "plannedRepresentativeCosts": [
+    100,
+    200,
+    300,
+    500
+  ],
+  "representativeCosts": [
+    100,
+    200
+  ],
+  "readyInputIds": [
+    "fire:200",
+    "water:200",
+    "wind:200",
+    "fire-water:200",
+    "fire-wind:200",
+    "water-wind:200",
+    "fire-water-wind:200",
+    "fire:100",
+    "water:100",
+    "wind:100",
+    "fire-water:100",
+    "fire-wind:100",
+    "water-wind:100",
+    "fire-water-wind:100"
+  ],
+  "intermediateCostPolicy": "compose from neighbouring exact precomputed cost bands during deck generation",
+  "rankingPolicy": "full-budget-opportunity-v9-adaptive-metagame",
+  "conditionCount": 14
+}
