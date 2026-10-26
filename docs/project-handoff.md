@@ -427,6 +427,28 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-10-26 — round-2 finalization merge timeout loop
+
+Observed live failure:
+
+- `fire-water-wind:100` reached bounded deep-search round 2 with a frozen plan of 11,268 anchor shells.
+- Recent fanout waves completed their distributed prefill work, but the durable checkpoint stayed at round-2 cursor `0/11268`.
+- Run 355 showed the exact failure: merging recovered/current deltas finished immediately, then `advance-metagame-v12-finalization-cache.mjs` spent about 39 minutes advancing the cached plan to `11268/11268`; the one-time `rate-metagame-v12.mjs --finalize-only=true` reconciliation then started and the merge job was forcibly cancelled at the job's 60-minute timeout before `Save distributed finalization progress`.
+- Because the save step never ran, later waves repeated the same expensive advance/reconcile work despite already having useful shard deltas.
+
+Correction:
+
+- raise only the fanout `merge` job timeout from 60 to 150 minutes so the already-bounded cache advance plus one-time adaptive reconciliation can finish and be pushed.
+- keep candidate/fanout simulation limits, ranking policy, battle semantics, deep-search policy, and checkpoint schema unchanged.
+- keep the recovery union of interrupted-wave artifacts unchanged; no completed battle evidence is discarded or recomputed merely because of this orchestration fix.
+- resilience coverage now scopes the timeout assertion to the `merge` job so another unrelated 60-minute job cannot accidentally satisfy the guard.
+
+Live recovery expectation:
+
+- the source push will queue a fresh finalization fanout after the old 60-minute owner releases the shared mutex.
+- that wave should reuse the existing round-2 checkpoint and recoverable deltas, advance/reconcile without hitting the old ceiling, save the durable checkpoint, then either reopen the next bounded deep-search round or mark `fire-water-wind:100` complete.
+
+
 ### 2026-09-27 — publish each completed V12 result to the public site
 
 Issue found after fire:100 completed:

@@ -420,7 +420,10 @@ jobs:
     needs: [select, plan, prefill]
     if: always() && needs.select.outputs.should_run == 'true' && needs.plan.result == 'success' && needs.prefill.result != 'cancelled'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Large round-2 checkpoints can spend ~40 minutes advancing the frozen
+    # plan before the one-time adaptive reconciliation begins. A 60-minute
+    # ceiling caused deterministic cancellation after useful fanout work.
+    timeout-minutes: 150
     env:
       METAGAME_INPUT: ${{ needs.select.outputs.input }}
       METAGAME_OUTPUT_DIRECTORY: ${{ needs.select.outputs.output_directory }}

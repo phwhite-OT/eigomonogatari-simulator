@@ -79,7 +79,8 @@ test("distributed fanout merge never falls back to serial counterfactual battles
   assert.match(rateScript, /advancing the frozen plan through cached exact battles only/);
   assert.match(rateScript, /if \(!evaluationCache\.has\(key\)\) \{\s*stoppedEarly = true;\s*break counterfactualAudit;/);
   assert.match(rateScript, /if \(evaluationPool\) await evaluationPool\.close\(\)/);
-  assert.match(fanout, /timeout-minutes:\s*60/);
+  const mergeJob = fanout.slice(fanout.indexOf("\n  merge:"));
+  assert.match(mergeJob, /timeout-minutes:\s*150/);
   assert.match(fanout, /must never run missing battles itself/);
 });
 
