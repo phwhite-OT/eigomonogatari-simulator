@@ -427,6 +427,32 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-10-27 — remove low-cost bias from blind Cost200 reconstruction
+
+Observed from the first blind Cost200 gate:
+
+- the gate failed badly, but inspection showed that the failure was contaminated by search bias before 5v5 evaluation.
+- the blind candidate retention explicitly rescued the cheapest characters, while no corresponding high-cost exploration lane existed.
+- the shared browser beam also repriced non-budget-specific priors against cost, added per-character budget strain, added early budget pressure, and used lower cost as a tie-break.
+- as a result, expensive Cost200-only options could disappear before battle. This explains pathological winners such as an 80/200 deck even though known Cost200 decks crushed the same blind field when tested afterward.
+
+Correction:
+
+- add an opt-in `budgetNeutralExploration` mode to the deck candidate search. It is used only by blind budget reconstruction; normal browser ranking semantics are unchanged.
+- in this mode, unknown-budget candidate priors are not discounted merely for price, cost-efficiency is removed from the pre-battle proxy, per-character budget strain and early-budget pressure are disabled, and cost is no longer a tie-break advantage.
+- the beam now reserves capacity across spend bands so low-, medium-, and high-cost partial decks all survive to 5v5 evaluation.
+- the blind test itself no longer rescues the cheapest characters. It retains candidates across six character-cost bands and selects completed decks across six total-deck-cost bands.
+- environment selection keeps a performance-majority core but reserves exploration slots across spend bands. Spending more still earns no score; actual 5v5 performance decides.
+- second gate search widened from 12,000/180 to 16,000/280 beam/candidate settings.
+
+Validation / live state:
+
+- normal Metagame V12 validation passed after the core search change.
+- blind rerun #2 started from the script change with the old 180-candidate workflow settings.
+- blind rerun #3 was queued by commit `9a6567f3fdb21616d806048b2b490bb53d31c242` with the final 16,000/280 settings; it should supersede #2 through the workflow concurrency group.
+- check the latest Actions state before reporting progress or results.
+
+
 ### 2026-10-26 — Cost200 blind environment reconstruction gate
 
 Purpose:
