@@ -1,0 +1,175 @@
+name: Metagame V12 blind Cost200 reconstruction test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - "scripts/run-metagame-v12-blind-cost200-test.mjs"
+      - ".github/workflows/metagame-v12-blind-cost200-test.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: metagame-v12-blind-cost200-test
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    name: blind-generate (${{ matrix.attribute }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        attribute:
+          - fire
+          - water
+          - wind
+          - fire-water
+          - fire-wind
+          - water-wind
+          - fire-water-wind
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate blind-test script
+        run: node --check scripts/run-metagame-v12-blind-cost200-test.mjs
+      - name: Read Cost100 evidence only
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          git fetch --no-tags --depth=1 origin "+refs/heads/$results_branch:$results_ref"
+          mkdir -p "$RUNNER_TEMP/blind-source"
+          git show "$results_ref:reports/metagame-ratings-v12-team-opportunity/${{ matrix.attribute }}-100/report.json"             > "$RUNNER_TEMP/blind-source/report-100.json"
+          test "$(jq -r '.context.totalCost' "$RUNNER_TEMP/blind-source/report-100.json")" = "100"
+      - name: Generate Cost200 without Cost200 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/blind-output"
+          node scripts/run-metagame-v12-blind-cost200-test.mjs             --mode=generate             --attribute="${{ matrix.attribute }}"             --source-report="$RUNNER_TEMP/blind-source/report-100.json"             --output="$RUNNER_TEMP/blind-output/${{ matrix.attribute }}.json"             --beam-width=12000             --candidate-limit=180             --rounds=3             --scenario-count=18
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blind-cost200-${{ matrix.attribute }}
+          path: ${{ runner.temp }}/blind-output/${{ matrix.attribute }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  compare:
+    name: blind-compare (${{ matrix.attribute }})
+    needs: generate
+    if: needs.generate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        attribute:
+          - fire
+          - water
+          - wind
+          - fire-water
+          - fire-wind
+          - water-wind
+          - fire-water-wind
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: blind-cost200-${{ matrix.attribute }}
+          path: ${{ runner.temp }}/blind-output
+      - name: Reveal Cost200 truth only after generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          git fetch --no-tags --depth=1 origin "+refs/heads/$results_branch:$results_ref"
+          mkdir -p "$RUNNER_TEMP/blind-truth"
+          git show "$results_ref:reports/metagame-ratings-v12-team-opportunity/${{ matrix.attribute }}-200/report.json"             > "$RUNNER_TEMP/blind-truth/report-200.json"
+          test "$(jq -r '.context.totalCost' "$RUNNER_TEMP/blind-truth/report-200.json")" = "200"
+      - name: Compare blind reconstruction with real Cost200
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/blind-metrics"
+          node scripts/run-metagame-v12-blind-cost200-test.mjs             --mode=compare             --attribute="${{ matrix.attribute }}"             --blind="$RUNNER_TEMP/blind-output/${{ matrix.attribute }}.json"             --truth-report="$RUNNER_TEMP/blind-truth/report-200.json"             --output="$RUNNER_TEMP/blind-metrics/${{ matrix.attribute }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blind-cost200-metrics-${{ matrix.attribute }}
+          path: ${{ runner.temp }}/blind-metrics/${{ matrix.attribute }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  aggregate:
+    name: aggregate blind Cost200 result
+    needs: compare
+    if: needs.compare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: blind-cost200-metrics-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/blind-metrics
+      - name: Aggregate pass/fail decision
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/blind-summary"
+          node scripts/run-metagame-v12-blind-cost200-test.mjs             --mode=aggregate             --input-directory="$RUNNER_TEMP/blind-metrics"             --output="$RUNNER_TEMP/blind-summary/latest.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blind-cost200-summary
+          path: ${{ runner.temp }}/blind-summary/latest.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Persist blind-test result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="metagame-v12-blind-test-results"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch --no-tags origin "+refs/heads/$branch:refs/remotes/origin/$branch"
+            git switch -C "$branch" "refs/remotes/origin/$branch"
+          else
+            git switch -C "$branch" origin/master
+          fi
+          mkdir -p reports/metagame-v12-blind-cost200
+          cp "$RUNNER_TEMP/blind-summary/latest.json" reports/metagame-v12-blind-cost200/latest.json
+          git add reports/metagame-v12-blind-cost200/latest.json
+          if git diff --cached --quiet; then
+            echo "Blind-test result unchanged."
+          else
+            git commit -m "chore: save blind Cost200 reconstruction result"
+            git push origin HEAD:"$branch"
+          fi
