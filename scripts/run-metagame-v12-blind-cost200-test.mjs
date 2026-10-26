@@ -643,7 +643,8 @@ async function compareBlind() {
     createMetagameV12TeamScenarios,
   } = await import("../src/core/metagame-v12.js");
 
-  const exactInput = METAGAME_V8_COST_200_INPUTS.find((entry) => String(entry.id) === `${attributeKey}:200`);
+  const truthInputId = attributeKey === "fire-water-wind" ? "all:200" : `${attributeKey}:200`;
+  const exactInput = METAGAME_V8_COST_200_INPUTS.find((entry) => String(entry.id) === truthInputId);
   if (!exactInput) throw new Error(`No Cost200 truth environment for ${attributeKey}`);
   const resolved = resolveMetagameV7Input(exactInput, CHARACTER_CATALOG);
   const environmentDecks = createMetagameV12EnvironmentDecks(resolved, {
