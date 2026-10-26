@@ -166,7 +166,7 @@ jobs:
           fi
           mkdir -p reports/metagame-v12-blind-cost200
           cp "$RUNNER_TEMP/blind-summary/latest.json" reports/metagame-v12-blind-cost200/latest.json
-          git add reports/metagame-v12-blind-cost200/latest.json
+          git add -f reports/metagame-v12-blind-cost200/latest.json
           if git diff --cached --quiet; then
             echo "Blind-test result unchanged."
           else
