@@ -267,7 +267,8 @@ function metagameDeckClampUnit(value) {
   return Math.min(1, Math.max(0, Number(value) || 0));
 }
 
-function metagameCandidateScore(rating, totalCost) {
+function metagameCandidateScore(rating, totalCost, options = {}) {
+  const budgetNeutralExploration = options.budgetNeutralExploration === true;
   const budget = Math.max(1, Number(totalCost ?? rating.evaluationCostCap) || 1);
   const price = Math.max(1, Number(rating.cost) || 1);
   const budgetShare = metagameDeckClampUnit(price / budget);
@@ -277,7 +278,7 @@ function metagameCandidateScore(rating, totalCost) {
     : null;
   const budgetAdjustedPublishedScore = publishedScore === null
     ? null
-    : rating.budgetSpecificIndividualEvidence
+    : budgetNeutralExploration || rating.budgetSpecificIndividualEvidence
       ? publishedScore
       : publishedScore * (1 - budgetShare * 0.65);
   const marginalLowerBound = Number(rating.marginalWinGainLowerBound);
@@ -289,7 +290,9 @@ function metagameCandidateScore(rating, totalCost) {
     const reliableContribution = metagameDeckClampUnit(lower / contributionReference);
     const measuredContribution = metagameDeckClampUnit(mean / contributionReference);
     const costEfficiency = metagameDeckClampUnit(1 - Math.exp(-1.1 * lower * budget / price));
-    const marginalScore = reliableContribution * 0.46 + measuredContribution * 0.19 + costEfficiency * 0.35;
+    const marginalScore = budgetNeutralExploration
+      ? reliableContribution * 0.68 + measuredContribution * 0.32
+      : reliableContribution * 0.46 + measuredContribution * 0.19 + costEfficiency * 0.35;
     // V12 publishes a condition-level score, but arbitrary user caps such as
     // 146 must be repriced against the current budget. Treat the published
     // score as a quality prior instead of bypassing current-cost opportunity cost.
@@ -470,14 +473,16 @@ function metagameCandidatePools(constraint, characters, options = {}) {
       return [{
         character,
         rating,
-        proxy: metagameCandidateScore(rating, totalCost),
+        proxy: metagameCandidateScore(rating, totalCost, options),
         position,
         searchId: String(character.id),
         searchCost: cost,
         searchIsLegend: character.rarity === "伝",
-        searchBudgetStrain: Math.max(0, costShare - 0.28) ** 2 * (
-          0.2 + (1 - metagameDeckClampUnit(rating.practicalValue ?? rating.expectedWinLowerBound)) * 0.8
-        ),
+        searchBudgetStrain: options.budgetNeutralExploration
+          ? 0
+          : Math.max(0, costShare - 0.28) ** 2 * (
+            0.2 + (1 - metagameDeckClampUnit(rating.practicalValue ?? rating.expectedWinLowerBound)) * 0.8
+          ),
         searchAdvantageCount: rating.advantageCreation > 0 ? 1 : 0,
         searchCounterCount: rating.counteraction > 0 ? 1 : 0,
         searchRole: role,
@@ -485,7 +490,7 @@ function metagameCandidatePools(constraint, characters, options = {}) {
       }];
     }).sort((left, right) => (
       right.proxy - left.proxy ||
-      left.searchCost - right.searchCost ||
+      (options.budgetNeutralExploration ? 0 : left.searchCost - right.searchCost) ||
       left.searchId.localeCompare(right.searchId)
     ));
   });
@@ -706,12 +711,14 @@ function metagameDeckRoleBalance(roleCounts, deckLength, attackCommitment = 0) {
   return bonus - repeatedRolePenalty - surplusPenalty;
 }
 
-function metagameDeckStateScore(state, totalCost) {
+function metagameDeckStateScore(state, totalCost, options = {}) {
   const deckLength = Number.isInteger(state.depth) ? state.depth : state.deck.length;
   const averageScore = state.proxyTotal / Math.max(1, deckLength);
   const deckProgress = deckLength / 5;
   const budgetShare = state.totalCost / Math.max(1, totalCost);
-  const earlyBudgetPressure = Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
+  const earlyBudgetPressure = options.budgetNeutralExploration
+    ? 0
+    : Math.max(0, budgetShare - (deckProgress * 0.95 + 0.07));
   // V12.1: role composition is search diversity only, never a value
   // bonus/penalty. Actual 5v5 results decide whether role-heavy decks work.
   return averageScore + state.synergyScore - state.budgetStrain - state.handoffRisk - earlyBudgetPressure * 0.18;
@@ -738,11 +745,12 @@ function metagameDeckStrategyKey(state) {
   return `a${attackBand}-d${defenseBand}-r${recoveryBand}-s${supportBand}`;
 }
 
-function metagameTrimDeckBeam(states, width, totalCost) {
+function metagameTrimDeckBeam(states, width, totalCost, options = {}) {
+  const budgetNeutralExploration = options.budgetNeutralExploration === true;
   const stateScore = (state) => (
     Number.isFinite(state.searchScore)
       ? state.searchScore
-      : metagameDeckStateScore(state, totalCost)
+      : metagameDeckStateScore(state, totalCost, options)
   );
 
   // Partial decks are unique by construction: every slot pool contains each
@@ -750,7 +758,7 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   // appends exactly one entry from the next fixed slot. The old deck-string
   // Map therefore could never collapse two distinct generated states.
   const selected = new Set();
-  const primaryCount = Math.max(1, Math.floor(width * 0.72));
+  const primaryCount = Math.max(1, Math.floor(width * (budgetNeutralExploration ? 0.50 : 0.72)));
 
   // Capture strategy insertion order before sorting. The caller discards the
   // expanded input immediately after this function, so sorting it in place
@@ -762,10 +770,36 @@ function metagameTrimDeckBeam(states, width, totalCost) {
   }
   states.sort((left, right) => (
     stateScore(right) - stateScore(left) ||
-    left.totalCost - right.totalCost
+    (budgetNeutralExploration ? 0 : left.totalCost - right.totalCost)
   ));
   const primary = states;
   primary.slice(0, primaryCount).forEach((state) => selected.add(state));
+
+  // During blind budget exploration, reserve a substantial fraction of the
+  // beam for different spend levels. This does not reward spending the cap;
+  // it only guarantees that low-, medium-, and high-cost partial decks all
+  // survive long enough to reach the exact 5v5 simulation.
+  if (budgetNeutralExploration) {
+    const budgetBuckets = Array.from({ length: 8 }, () => []);
+    for (const state of primary) {
+      const share = Math.max(0, Math.min(0.999999, state.totalCost / Math.max(1, totalCost)));
+      budgetBuckets[Math.floor(share * budgetBuckets.length)].push(state);
+    }
+    const offsets = Array(budgetBuckets.length).fill(0);
+    const budgetTarget = Math.max(primaryCount, Math.floor(width * 0.78));
+    let remainingBuckets = budgetBuckets.filter((bucket) => bucket.length).length;
+    let cursor = 0;
+    while (selected.size < budgetTarget && remainingBuckets > 0) {
+      const bucketIndex = cursor % budgetBuckets.length;
+      const bucket = budgetBuckets[bucketIndex];
+      const offset = offsets[bucketIndex];
+      cursor += 1;
+      if (offset >= bucket.length) continue;
+      selected.add(bucket[offset]);
+      offsets[bucketIndex] = offset + 1;
+      if (offsets[bucketIndex] >= bucket.length) remainingBuckets -= 1;
+    }
+  }
 
   // Preserve competitive role shapes for the full 5v5 evaluation. Strategy
   // insertion order still comes from pre-sort generation order, and each
@@ -1013,8 +1047,8 @@ function metagameSearchStateEntries(state) {
   return entries;
 }
 
-function metagameSearchStateWithScore(state, totalCost) {
-  state.searchScore = metagameDeckStateScore(state, totalCost);
+function metagameSearchStateWithScore(state, totalCost, options = {}) {
+  state.searchScore = metagameDeckStateScore(state, totalCost, options);
   return state;
 }
 
@@ -1117,10 +1151,10 @@ export function buildMetagameDeckCandidates(constraint, characters, options = {}
           searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
           searchSupportCount: state.searchSupportCount + (entry.searchRole === "support" ? 1 : 0),
           attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
-        }, totalCost));
+        }, totalCost, options));
       }
     }
-    states = metagameTrimDeckBeam(expanded, beamWidth, totalCost);
+    states = metagameTrimDeckBeam(expanded, beamWidth, totalCost, options);
     if (!states.length) throw new Error("詳細評価候補から総コスト内の5体を構成できませんでした。");
   }
   const completedStates = states.filter((state) => metagameCostMatchesConstraint(state.totalCost, constraint));
@@ -1217,7 +1251,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
             searchRecoveryCount: state.searchRecoveryCount + (entry.searchRole === "recovery" ? 1 : 0),
               searchSupportCount: state.searchSupportCount + (entry.searchRole === "support" ? 1 : 0),
               attackCommitment: state.attackCommitment + entry.searchAttackCommitment,
-            }, totalCost));
+            }, totalCost, options));
           }
         }
         checked += 1;
@@ -1235,7 +1269,7 @@ async function buildMetagameDeckCandidatesWithProgress(constraint, characters, o
         await metagameYieldToBrowser();
       }
     }
-    states = metagameTrimDeckBeam(expanded, beamWidth, totalCost);
+    states = metagameTrimDeckBeam(expanded, beamWidth, totalCost, options);
     if (!states.length) throw new Error("No valid complete metagame deck candidates remain.");
     options.onProgress?.({
       phase: "candidate",
