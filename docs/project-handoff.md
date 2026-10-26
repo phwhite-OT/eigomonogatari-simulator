@@ -427,6 +427,31 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-10-26 — Cost200 blind environment reconstruction gate
+
+Purpose:
+
+- Before any Cost300 zero-from-scratch generation, validate whether the browser-side reconstruction approach can rediscover the already-known Cost200 metagame without seeing Cost200 answers while generating it.
+- The generation phase is deliberately isolated from Cost200 report/environment data. It receives only the Cost100 report for the same attribute group, the character catalog, battle rules, and the browser deck-generation/search semantics.
+- All catalog characters are scored/considered for legal slots; bounded retention and beam search keep the browser-style search tractable.
+- The generated Cost200 field is iterated through self-play for three rounds and then frozen before any Cost200 truth is revealed.
+
+Implementation:
+
+- script: `scripts/run-metagame-v12-blind-cost200-test.mjs`
+- workflow: `.github/workflows/metagame-v12-blind-cost200-test.yml`
+- seven attribute groups run in parallel.
+- `generate` reads Cost100 evidence only and uploads blind Cost200 artifacts.
+- `compare` runs only after generation artifacts exist, then reveals the exact Cost200 report/environment and measures slot top-10/top-30 recovery, rank correlation, deck-character similarity, role composition, mutual cross-environment strength, and best-response gap.
+- `aggregate` writes the durable decision to branch `metagame-v12-blind-test-results`, path `reports/metagame-v12-blind-cost200/latest.json`.
+- Cost300 must not start if this gate fails. A pass makes Cost300 zero-from-scratch generation eligible; old Cost300 win rates/rankings are not reusable as truth.
+
+Live state when added:
+
+- workflow run #1 was queued from commit `07089608ad08822612c822f484480b0245d2bd08`.
+- inspect the latest workflow run before reporting current status; this paragraph is only a handoff marker.
+
+
 ### 2026-10-26 — round-2 finalization merge timeout loop
 
 Observed live failure:
