@@ -14,7 +14,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: metagame-v12-blind-cost200-test
+  group: metagame-v12-blind-cost200-budget-neutral-v2
   cancel-in-progress: true
 
 jobs:
