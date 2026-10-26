@@ -59,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/blind-output"
-          node scripts/run-metagame-v12-blind-cost200-test.mjs             --mode=generate             --attribute="${{ matrix.attribute }}"             --source-report="$RUNNER_TEMP/blind-source/report-100.json"             --output="$RUNNER_TEMP/blind-output/${{ matrix.attribute }}.json"             --beam-width=12000             --candidate-limit=180             --rounds=3             --scenario-count=18
+          node scripts/run-metagame-v12-blind-cost200-test.mjs             --mode=generate             --attribute="${{ matrix.attribute }}"             --source-report="$RUNNER_TEMP/blind-source/report-100.json"             --output="$RUNNER_TEMP/blind-output/${{ matrix.attribute }}.json"             --beam-width=16000             --candidate-limit=280             --rounds=3             --scenario-count=18
       - uses: actions/upload-artifact@v4
         with:
           name: blind-cost200-${{ matrix.attribute }}
