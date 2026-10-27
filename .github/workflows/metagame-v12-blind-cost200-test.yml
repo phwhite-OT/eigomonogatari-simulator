@@ -56,6 +56,8 @@ jobs:
           test "$(jq -r '.context.totalCost' "$RUNNER_TEMP/blind-source/report-100.json")" = "100"
       - name: Generate Cost200 without Cost200 evidence
         shell: bash
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/blind-output"
