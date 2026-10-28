@@ -1,0 +1,165 @@
+name: Metagame V12 independent Cost200 multiround test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+    paths:
+      - "scripts/run-metagame-v12-independent-cost200-test.mjs"
+      - ".github/workflows/metagame-v12-independent-cost200-test.yml"
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: metagame-v12-independent-cost200-multiround
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    name: independent-generate (${{ matrix.attribute }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        attribute:
+          - fire
+          - water
+          - wind
+          - fire-water
+          - fire-wind
+          - water-wind
+          - fire-water-wind
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate independent Cost200 script
+        run: node --check scripts/run-metagame-v12-independent-cost200-test.mjs
+      - name: Generate Cost200 from zero with repeated self-play
+        shell: bash
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/independent-output"
+          node scripts/run-metagame-v12-independent-cost200-test.mjs             --attribute="${{ matrix.attribute }}"             --output="$RUNNER_TEMP/independent-output/${{ matrix.attribute }}.json"             --probe-scenario-count=4             --scenario-count=18             --min-rounds=5             --max-rounds=7             --candidate-limit=300             --beam-width=10000             --slot-limit=260
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independent-cost200-${{ matrix.attribute }}
+          path: ${{ runner.temp }}/independent-output/${{ matrix.attribute }}.json
+          if-no-files-found: error
+          retention-days: 14
+
+  compare:
+    name: independent-compare (${{ matrix.attribute }})
+    needs: generate
+    if: needs.generate.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        attribute:
+          - fire
+          - water
+          - wind
+          - fire-water
+          - fire-wind
+          - water-wind
+          - fire-water-wind
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: independent-cost200-${{ matrix.attribute }}
+          path: ${{ runner.temp }}/independent-output
+      - name: Reveal Cost200 truth only after independent generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          results_branch="metagame-v12-shared-pool-results"
+          results_ref="refs/remotes/origin/$results_branch"
+          git fetch --no-tags --depth=1 origin "+refs/heads/$results_branch:$results_ref"
+          mkdir -p "$RUNNER_TEMP/independent-truth"
+          git show "$results_ref:reports/metagame-ratings-v12-team-opportunity/${{ matrix.attribute }}-200/report.json"             > "$RUNNER_TEMP/independent-truth/report-200.json"
+          test "$(jq -r '.context.totalCost' "$RUNNER_TEMP/independent-truth/report-200.json")" = "200"
+      - name: Compare independent reconstruction with real Cost200
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/independent-metrics"
+          node scripts/run-metagame-v12-blind-cost200-test.mjs             --mode=compare             --attribute="${{ matrix.attribute }}"             --blind="$RUNNER_TEMP/independent-output/${{ matrix.attribute }}.json"             --truth-report="$RUNNER_TEMP/independent-truth/report-200.json"             --output="$RUNNER_TEMP/independent-metrics/${{ matrix.attribute }}.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independent-cost200-metrics-${{ matrix.attribute }}
+          path: ${{ runner.temp }}/independent-metrics/${{ matrix.attribute }}.json
+          if-no-files-found: error
+          retention-days: 14
+
+  aggregate:
+    name: aggregate independent Cost200 result
+    needs: compare
+    if: needs.compare.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: independent-cost200-metrics-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/independent-metrics
+      - name: Aggregate independent pass/fail
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/independent-summary"
+          node scripts/run-metagame-v12-blind-cost200-test.mjs             --mode=aggregate             --input-directory="$RUNNER_TEMP/independent-metrics"             --output="$RUNNER_TEMP/independent-summary/latest.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: independent-cost200-summary
+          path: ${{ runner.temp }}/independent-summary/latest.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Persist independent result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="metagame-v12-blind-test-results"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git fetch --no-tags origin "+refs/heads/$branch:refs/remotes/origin/$branch"
+            git switch -C "$branch" "refs/remotes/origin/$branch"
+          else
+            git switch -C "$branch" origin/master
+          fi
+          mkdir -p reports/metagame-v12-blind-cost200
+          cp "$RUNNER_TEMP/independent-summary/latest.json" reports/metagame-v12-blind-cost200/latest-independent.json
+          git add -f reports/metagame-v12-blind-cost200/latest-independent.json
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: save independent Cost200 multiround result"
+            git push origin HEAD:"$branch"
+          fi
