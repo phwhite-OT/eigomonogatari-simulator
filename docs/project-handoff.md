@@ -427,6 +427,40 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-10-28 — Cost200 is now reconstructed independently from zero
+
+User direction:
+
+- Cost100 must not be used at all when reconstructing Cost200.
+- Treat Cost200 as an independent search problem.
+- Reuse the existing V12 idea of repeated measured search / deep-search rounds rather than trying to infer Cost200 from one lower-budget pass.
+
+Implementation:
+
+- added `scripts/run-metagame-v12-independent-cost200-test.mjs`.
+- generation reads no Cost100 report, environment, ranking, or completed deck.
+- inputs are only the character catalog, Cost200 legality/attribute/position rules, and battle simulation.
+- zero-start stage creates broad legal seed decks anchored across every feasible character/slot placement and gives them a shallow self-play probe.
+- measured results become the next-round character priors; no lower-cost score is transferred.
+- every round rebuilds candidate decks from measured evidence, then explores one-slot replacements around the current measured frontier using the full legal character pools.
+- repeat self-play for at least 5 rounds and up to 7; convergence requires repeated frontier overlap plus small best-score movement.
+- high/low spend bands remain exploration lanes only; spending more receives no score bonus.
+- final answer is produced from a fresh final evaluation against the converged independent field.
+- Cost200 truth is revealed only in separate compare jobs after all generation succeeds.
+
+Workflow:
+
+- added `.github/workflows/metagame-v12-independent-cost200-test.yml`.
+- 7 attribute groups run in parallel.
+- generation settings: broad probe 4 scenarios, 18 scenarios per deep round, 5-7 rounds, 300 round candidates, beam 10,000, measured slot pool 260, Node heap 6 GB.
+- final results persist to `metagame-v12-blind-test-results/reports/metagame-v12-blind-cost200/latest-independent.json`.
+
+Live launch:
+
+- workflow run `40690305769` started from commit `7c7ad6f5e106ec40c322780ff121b3c7fed5b03e`.
+- do not report Cost100-derived blind results as the current method after this point; the independent multiround gate supersedes them.
+
+
 ### 2026-10-27 — remove low-cost bias from blind Cost200 reconstruction
 
 Observed from the first blind Cost200 gate:
