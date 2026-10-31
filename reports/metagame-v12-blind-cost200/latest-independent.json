@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-28T13:01:05.467Z",
+  "generatedAt": "2026-10-31T13:00:38.472Z",
   "test": "cost200-blind-environment-reconstruction",
   "passed": false,
   "checks": {
@@ -9,33 +9,33 @@
     "deckStructure": false,
     "roleStructure": false,
     "bestResponseGap": false,
-    "transferStability": true
+    "transferStability": false
   },
   "overall": {
-    "meanTop10Recall": 0.017143,
-    "meanTop30Recall": 0.032381,
-    "meanSpearmanTop30": -0.499446,
-    "topDeckCharacterSimilarity": 0.025714,
-    "roleCompositionSimilarity": 0.733333,
-    "bestResponseGap": 0.26808,
-    "worstBestResponseGap": 0.375,
-    "blindTransferDrop": 0.044699
+    "meanTop10Recall": 0.028571,
+    "meanTop30Recall": 0.08381,
+    "meanSpearmanTop30": -0.555575,
+    "topDeckCharacterSimilarity": 0.035238,
+    "roleCompositionSimilarity": 0.744762,
+    "bestResponseGap": 0.300919,
+    "worstBestResponseGap": 0.388889,
+    "blindTransferDrop": 0.091662
   },
   "conditions": [
     {
       "attributeKey": "fire-water-wind",
       "summary": {
-        "meanTop10Recall": 0.04,
-        "meanTop30Recall": 0.04,
-        "meanSpearmanTop30": -0.558713,
-        "topDeckCharacterSimilarity": 0.013333,
-        "roleCompositionSimilarity": 0.873333,
-        "bestResponseGap": 0.298611,
-        "blindBestOnTrue": 0.555556,
+        "meanTop10Recall": 0,
+        "meanTop30Recall": 0.066667,
+        "meanSpearmanTop30": -0.593091,
+        "topDeckCharacterSimilarity": 0,
+        "roleCompositionSimilarity": 0.793333,
+        "bestResponseGap": 0.347222,
+        "blindBestOnTrue": 0.506944,
         "trueBestOnTrue": 0.854167,
-        "blindBestOnBlind": 0.543637,
-        "trueBestOnBlind": 0.876653,
-        "blindTransferDrop": 0,
+        "blindBestOnBlind": 0.539237,
+        "trueBestOnBlind": 0.904612,
+        "blindTransferDrop": 0.032292,
         "trueTransferDrop": 0
       },
       "perSlot": [
@@ -43,12 +43,18 @@
           "position": 1,
           "top10Recall": 0,
           "top30Recall": 0.033333,
-          "spearmanTop30": -0.463794,
+          "spearmanTop30": -0.592527,
           "blindTop10": [
-            "em-962f1faafed7",
-            "em-6193e7af4d97",
             "em-9445cdb23342",
-            "em-7fafc017f6f6"
+            "em-ef36b9b34984",
+            "em-404f12535630",
+            "y26-extra-gashadokuro",
+            "em-962f1faafed7",
+            "em-5e492c884ca0",
+            "em-60119eda4c9c",
+            "em-bdcce3725e8b",
+            "em-5c46e7a79c7f",
+            "em-9667a89799b5"
           ],
           "truthTop10": [
             "em-3151d77efe3f",
@@ -66,13 +72,19 @@
         {
           "position": 2,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.52293,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.576572,
           "blindTop10": [
-            "em-70861f8a23e9",
+            "em-0e9d90fcbf69",
             "em-b2d6a846bb36",
+            "y26-battle-shuketsuniku",
+            "em-744815bd68e5",
+            "em-77df113e9f3b",
+            "em-9c0c703673c5",
             "y26-fukubiki-s5-calcium",
-            "em-b080511b902a"
+            "em-237ca774c5e5",
+            "em-cd52b65347bc",
+            "em-bdcce3725e8b"
           ],
           "truthTop10": [
             "em-e8da10b52c13",
@@ -90,19 +102,19 @@
         {
           "position": 3,
           "top10Recall": 0,
-          "top30Recall": 0.033333,
-          "spearmanTop30": -0.683019,
+          "top30Recall": 0,
+          "spearmanTop30": -0.615894,
           "blindTop10": [
-            "em-4a86c88e71a1",
-            "em-873c09a938ac",
-            "em-ec43e91715ed",
-            "em-69c457dd7e6a",
-            "em-7652802e8fc0",
-            "em-af9542637cdd",
-            "em-96ed71805a40",
-            "em-68afa2dec462",
-            "em-7380c7ba233b",
-            "em-1d6b42059506"
+            "em-33880cee5e60",
+            "em-748c1a866dbc",
+            "em-2f36c9341591",
+            "em-a06f040c9490",
+            "em-b2d6a846bb36",
+            "em-94f677409ee2",
+            "em-9667a89799b5",
+            "y26-battle-shuketsuniku",
+            "y26-extra-oomukade",
+            "em-e0ae1e287b90"
           ],
           "truthTop10": [
             "em-a7be30f0211a",
@@ -119,20 +131,20 @@
         },
         {
           "position": 4,
-          "top10Recall": 0.1,
+          "top10Recall": 0,
           "top30Recall": 0.066667,
-          "spearmanTop30": -0.483096,
+          "spearmanTop30": -0.575,
           "blindTop10": [
-            "em-70e79fbffe3c",
-            "em-4d6fe3f2c9ae",
-            "em-3803f94f5ae7",
-            "em-8cafabee26c4",
-            "em-6c2ea8631e0d",
-            "em-efe37d2509f9",
-            "em-7652802e8fc0",
-            "em-2def672b1533",
-            "em-0de053498de9",
-            "em-59ac9769ef60"
+            "em-33880cee5e60",
+            "em-748c1a866dbc",
+            "em-a8e1bfbd68cd",
+            "em-94dc3d86f691",
+            "y26-extra-oomukade",
+            "em-a280c7496ca0",
+            "em-05c5072dc080",
+            "em-01ed0ad1bb88",
+            "y26-limited-natsu-tsutsuhiko",
+            "em-ef36b9b34984"
           ],
           "truthTop10": [
             "em-96a3648b46e2",
@@ -149,20 +161,20 @@
         },
         {
           "position": 5,
-          "top10Recall": 0.1,
-          "top30Recall": 0.066667,
-          "spearmanTop30": -0.640727,
+          "top10Recall": 0,
+          "top30Recall": 0.166667,
+          "spearmanTop30": -0.605464,
           "blindTop10": [
-            "em-220d63bfc07c",
-            "em-91e135a19050",
-            "em-b791d78202d5",
-            "em-1c5a28eee21d",
-            "em-bd98030ead3e",
-            "em-8476f5773554",
-            "em-2a96e91a2f35",
-            "em-e0b5c355755f",
-            "em-4d6cd3fa7afc",
-            "em-b9e75bc0b1f9"
+            "em-45aa4b2348d2",
+            "em-4a7831bec582",
+            "y26-extra-gashadokuro",
+            "em-a78326864213",
+            "em-2849b1a72ff2",
+            "em-a5e1e009bda8",
+            "em-5e67f5f55234",
+            "em-962f1faafed7",
+            "em-22f9d46fe6f4",
+            "em-a8e1bfbd68cd"
           ],
           "truthTop10": [
             "y26-battle-dahome",
@@ -182,27 +194,36 @@
     {
       "attributeKey": "fire-water",
       "summary": {
-        "meanTop10Recall": 0,
-        "meanTop30Recall": 0.046667,
-        "meanSpearmanTop30": -0.486602,
-        "topDeckCharacterSimilarity": 0.006667,
-        "roleCompositionSimilarity": 0.773333,
-        "bestResponseGap": 0.215278,
-        "blindBestOnTrue": 0.555556,
+        "meanTop10Recall": 0.02,
+        "meanTop30Recall": 0.06,
+        "meanSpearmanTop30": -0.566567,
+        "topDeckCharacterSimilarity": 0.053333,
+        "roleCompositionSimilarity": 0.806667,
+        "bestResponseGap": 0.1875,
+        "blindBestOnTrue": 0.583333,
         "trueBestOnTrue": 0.770833,
-        "blindBestOnBlind": 0.564009,
-        "trueBestOnBlind": 0.619092,
-        "blindTransferDrop": 0.008453,
-        "trueTransferDrop": 0.151741
+        "blindBestOnBlind": 0.58113,
+        "trueBestOnBlind": 0.959313,
+        "blindTransferDrop": 0,
+        "trueTransferDrop": 0
       },
       "perSlot": [
         {
           "position": 1,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.306186,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.596303,
           "blindTop10": [
-            "y26-extra-gashadokuro"
+            "em-962f1faafed7",
+            "y26-extra-gashadokuro",
+            "em-b2d6a846bb36",
+            "em-73652bbd630f",
+            "em-60119eda4c9c",
+            "em-b2125332555b",
+            "em-45aa4b2348d2",
+            "em-2a5e6ca1207c",
+            "em-4c03ad40dce9",
+            "em-29be2edf2271"
           ],
           "truthTop10": [
             "y26-limited-palenquerina-ane",
@@ -219,14 +240,20 @@
         },
         {
           "position": 2,
-          "top10Recall": 0,
-          "top30Recall": 0.033333,
-          "spearmanTop30": -0.474205,
+          "top10Recall": 0.1,
+          "top30Recall": 0.133333,
+          "spearmanTop30": -0.408514,
           "blindTop10": [
-            "em-37fd7478d2d8",
-            "em-70861f8a23e9",
-            "em-ec43e91715ed",
-            "em-69c457dd7e6a"
+            "em-0e9d90fcbf69",
+            "y26-battle-nejish",
+            "em-d7873747b412",
+            "em-a06f040c9490",
+            "em-ceda64319ca1",
+            "em-2f36c9341591",
+            "em-cd52b65347bc",
+            "y26-fukubiki-s5-calcium",
+            "y26-battle-shuketsuniku",
+            "em-744815bd68e5"
           ],
           "truthTop10": [
             "em-3f58266f2bab",
@@ -245,10 +272,18 @@
           "position": 3,
           "top10Recall": 0,
           "top30Recall": 0,
-          "spearmanTop30": -0.408552,
+          "spearmanTop30": -0.615894,
           "blindTop10": [
-            "em-4a86c88e71a1",
-            "em-7f18b9c64c74"
+            "em-748c1a866dbc",
+            "em-a06f040c9490",
+            "y26-extra-oomukade",
+            "em-9667a89799b5",
+            "em-2f36c9341591",
+            "y26-battle-shuketsuniku",
+            "em-33880cee5e60",
+            "y26-limited-legend-painya",
+            "em-4e3940289203",
+            "em-b2d6a846bb36"
           ],
           "truthTop10": [
             "em-845ebf2f059a",
@@ -267,18 +302,18 @@
           "position": 4,
           "top10Recall": 0,
           "top30Recall": 0.033333,
-          "spearmanTop30": -0.706953,
+          "spearmanTop30": -0.617915,
           "blindTop10": [
-            "em-d0ab149939aa",
-            "em-8cafabee26c4",
-            "em-ad82a61bcc2a",
-            "em-c88f65fb7899",
-            "em-d695befcbdc2",
-            "em-1eb8ca42b88a",
-            "em-32ef1535a66a",
-            "em-4d6fe3f2c9ae",
-            "em-31758a7d7c63",
-            "em-b8c4235090fa"
+            "em-748c1a866dbc",
+            "em-94f677409ee2",
+            "em-05c5072dc080",
+            "em-33880cee5e60",
+            "em-c25db2f5b4ff",
+            "em-a8e1bfbd68cd",
+            "em-d6ea073b633e",
+            "y26-extra-oomukade",
+            "em-94dc3d86f691",
+            "y26-limited-natsu-tsutsuhiko"
           ],
           "truthTop10": [
             "em-88028fdebb04",
@@ -296,19 +331,19 @@
         {
           "position": 5,
           "top10Recall": 0,
-          "top30Recall": 0.166667,
-          "spearmanTop30": -0.537115,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.594208,
           "blindTop10": [
-            "em-fa2d14d3eb33",
-            "em-f3234f88661c",
-            "em-076ae15080b8",
-            "em-9c344f264735",
-            "em-7fafc017f6f6",
-            "em-b791d78202d5",
-            "em-2905dc6523ff",
-            "em-78c7d71a75d2",
-            "em-c87499b64151",
-            "em-832edc9513ca"
+            "em-45aa4b2348d2",
+            "em-22f9d46fe6f4",
+            "em-2a5e6ca1207c",
+            "em-962f1faafed7",
+            "em-b2125332555b",
+            "em-076a0181e290",
+            "em-05c5072dc080",
+            "em-5e67f5f55234",
+            "em-94dc3d86f691",
+            "em-a78326864213"
           ],
           "truthTop10": [
             "y26-battle-dahome",
@@ -328,29 +363,36 @@
     {
       "attributeKey": "fire-wind",
       "summary": {
-        "meanTop10Recall": 0,
-        "meanTop30Recall": 0.006667,
-        "meanSpearmanTop30": -0.532367,
-        "topDeckCharacterSimilarity": 0.006667,
-        "roleCompositionSimilarity": 0.513333,
-        "bestResponseGap": 0.213839,
-        "blindBestOnTrue": 0.544834,
+        "meanTop10Recall": 0.02,
+        "meanTop30Recall": 0.12,
+        "meanSpearmanTop30": -0.526892,
+        "topDeckCharacterSimilarity": 0.04,
+        "roleCompositionSimilarity": 0.566667,
+        "bestResponseGap": 0.289798,
+        "blindBestOnTrue": 0.468874,
         "trueBestOnTrue": 0.758673,
-        "blindBestOnBlind": 0.547426,
-        "trueBestOnBlind": 0.605365,
-        "blindTransferDrop": 0.002592,
-        "trueTransferDrop": 0.153308
+        "blindBestOnBlind": 0.664421,
+        "trueBestOnBlind": 0.805762,
+        "blindTransferDrop": 0.195547,
+        "trueTransferDrop": 0
       },
       "perSlot": [
         {
           "position": 1,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.474902,
+          "top30Recall": 0.033333,
+          "spearmanTop30": -0.556949,
           "blindTop10": [
-            "em-962f1faafed7",
             "em-9445cdb23342",
-            "em-a5e1e009bda8"
+            "y26-extra-gashadokuro",
+            "em-22f9d46fe6f4",
+            "em-962f1faafed7",
+            "em-daac43f51729",
+            "em-33880cee5e60",
+            "em-9667a89799b5",
+            "em-05c5072dc080",
+            "em-7a5551d5b1ab",
+            "em-b2125332555b"
           ],
           "truthTop10": [
             "y26-yurugari-kamono3",
@@ -368,11 +410,19 @@
         {
           "position": 2,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.408552,
+          "top30Recall": 0.1,
+          "spearmanTop30": -0.555573,
           "blindTop10": [
-            "em-70861f8a23e9",
-            "em-b080511b902a"
+            "em-0e9d90fcbf69",
+            "em-cd52b65347bc",
+            "em-b2d6a846bb36",
+            "em-d7873747b412",
+            "em-daac43f51729",
+            "em-bdcce3725e8b",
+            "em-e0ae1e287b90",
+            "y26-battle-shuketsuniku",
+            "y26-battle-nejish",
+            "y26-fukubiki-s5-calcium"
           ],
           "truthTop10": [
             "em-06bad6d4123b",
@@ -390,13 +440,19 @@
         {
           "position": 3,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.52293,
+          "top30Recall": 0.133333,
+          "spearmanTop30": -0.632689,
           "blindTop10": [
-            "em-c4c0bb3e4292",
-            "em-4a86c88e71a1",
-            "em-b080511b902a",
-            "em-873c09a938ac"
+            "em-748c1a866dbc",
+            "em-b2d6a846bb36",
+            "em-e0ae1e287b90",
+            "em-33880cee5e60",
+            "y26-extra-oomukade",
+            "y26-limited-legend-painya",
+            "y26-battle-shuketsuniku",
+            "em-744815bd68e5",
+            "em-dec390a52ee6",
+            "em-01ed0ad1bb88"
           ],
           "truthTop10": [
             "em-6cd949ff7539",
@@ -414,15 +470,19 @@
         {
           "position": 4,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.588821,
+          "top30Recall": 0.133333,
+          "spearmanTop30": -0.518814,
           "blindTop10": [
-            "em-ad82a61bcc2a",
-            "y26-extra-anansi",
-            "em-c5623c38fcb8",
-            "em-efe37d2509f9",
-            "em-0de053498de9",
-            "em-4d6fe3f2c9ae"
+            "em-748c1a866dbc",
+            "em-a8e1bfbd68cd",
+            "em-33880cee5e60",
+            "em-05c5072dc080",
+            "em-c25db2f5b4ff",
+            "y26-extra-oomukade",
+            "y26-limited-legend-painya",
+            "em-a280c7496ca0",
+            "em-ef36b9b34984",
+            "em-01ed0ad1bb88"
           ],
           "truthTop10": [
             "em-7652802e8fc0",
@@ -439,20 +499,20 @@
         },
         {
           "position": 5,
-          "top10Recall": 0,
-          "top30Recall": 0.033333,
-          "spearmanTop30": -0.66663,
+          "top10Recall": 0.1,
+          "top30Recall": 0.2,
+          "spearmanTop30": -0.370433,
           "blindTop10": [
-            "em-fa2d14d3eb33",
-            "em-076ae15080b8",
-            "em-d4ddef9a4e05",
-            "y26-extra-riaju",
-            "em-378cec222ec5",
-            "em-27802083d7f5",
-            "em-1e8ec25622df",
-            "em-b97fa105ba34",
-            "em-66075c4def49",
-            "y26-limited-palenquerina-ane"
+            "em-22f9d46fe6f4",
+            "em-4a7831bec582",
+            "em-a8e1bfbd68cd",
+            "em-2a5e6ca1207c",
+            "em-5e67f5f55234",
+            "y26-extra-gashadokuro",
+            "em-b2125332555b",
+            "em-2849b1a72ff2",
+            "em-05c5072dc080",
+            "em-8d4f1b618997"
           ],
           "truthTop10": [
             "em-832edc9513ca",
@@ -473,30 +533,35 @@
       "attributeKey": "fire",
       "summary": {
         "meanTop10Recall": 0.02,
-        "meanTop30Recall": 0.02,
-        "meanSpearmanTop30": -0.567177,
-        "topDeckCharacterSimilarity": 0.093333,
-        "roleCompositionSimilarity": 0.833333,
-        "bestResponseGap": 0.326389,
-        "blindBestOnTrue": 0.604167,
+        "meanTop30Recall": 0.073333,
+        "meanSpearmanTop30": -0.584276,
+        "topDeckCharacterSimilarity": 0.106667,
+        "roleCompositionSimilarity": 0.64,
+        "bestResponseGap": 0.388889,
+        "blindBestOnTrue": 0.541667,
         "trueBestOnTrue": 0.930556,
-        "blindBestOnBlind": 0.602393,
-        "trueBestOnBlind": 0.83413,
+        "blindBestOnBlind": 0.541667,
+        "trueBestOnBlind": 0.735294,
         "blindTransferDrop": 0,
-        "trueTransferDrop": 0.096426
+        "trueTransferDrop": 0.195262
       },
       "perSlot": [
         {
           "position": 1,
           "top10Recall": 0,
-          "top30Recall": 0.033333,
-          "spearmanTop30": -0.533444,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.592287,
           "blindTop10": [
-            "em-70f1d39031ed",
-            "em-42b503c8643c",
             "em-962f1faafed7",
+            "em-a8e1bfbd68cd",
+            "em-2849b1a72ff2",
             "em-daac43f51729",
-            "em-d25a7727f654"
+            "y26-extra-gashadokuro",
+            "em-370ba5df8d09",
+            "em-ccfeb40e6439",
+            "em-d7873747b412",
+            "em-bffb26ad3975",
+            "em-4c03ad40dce9"
           ],
           "truthTop10": [
             "y26-battle-sakurajima",
@@ -514,12 +579,19 @@
         {
           "position": 2,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.474902,
+          "top30Recall": 0.033333,
+          "spearmanTop30": -0.629486,
           "blindTop10": [
-            "em-b080511b902a",
-            "em-70861f8a23e9",
-            "y26-fukubiki-s5-calcium"
+            "em-daac43f51729",
+            "y26-battle-shuketsuniku",
+            "em-b2d6a846bb36",
+            "y26-fukubiki-s5-calcium",
+            "em-3e2d46063b3e",
+            "y26-battle-nejish",
+            "em-9667a89799b5",
+            "em-cd52b65347bc",
+            "em-8b48dbb598d6",
+            "em-a9738b409d24"
           ],
           "truthTop10": [
             "em-6f409bf9b5bd",
@@ -537,15 +609,19 @@
         {
           "position": 3,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.588821,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.571683,
           "blindTop10": [
-            "em-b0564825039b",
-            "em-873c09a938ac",
-            "em-4a86c88e71a1",
-            "em-8a030b3f4f33",
-            "em-d695befcbdc2",
-            "em-2def672b1533"
+            "em-748c1a866dbc",
+            "y26-battle-shuketsuniku",
+            "em-b2d6a846bb36",
+            "y26-limited-legend-painya",
+            "em-01ed0ad1bb88",
+            "em-f9ca1348e6ed",
+            "em-9667a89799b5",
+            "em-32ef1535a66a",
+            "y26-battle-burevista",
+            "em-4e3940289203"
           ],
           "truthTop10": [
             "em-95694ab0605a",
@@ -562,20 +638,20 @@
         },
         {
           "position": 4,
-          "top10Recall": 0.1,
-          "top30Recall": 0.066667,
-          "spearmanTop30": -0.549015,
+          "top10Recall": 0,
+          "top30Recall": 0.1,
+          "spearmanTop30": -0.576769,
           "blindTop10": [
-            "em-c5623c38fcb8",
-            "em-99460641a41d",
-            "em-6c2ea8631e0d",
-            "em-b8c4235090fa",
-            "em-b041a6f6cf00",
-            "em-e49404c0e4be",
-            "em-d695befcbdc2",
-            "em-9bad632dc3a9",
-            "em-ad82a61bcc2a",
-            "em-2def672b1533"
+            "em-748c1a866dbc",
+            "em-c25db2f5b4ff",
+            "em-a8e1bfbd68cd",
+            "y26-limited-legend-painya",
+            "em-01ed0ad1bb88",
+            "em-4c03ad40dce9",
+            "em-3f6affd1acff",
+            "em-4e3940289203",
+            "em-f33de53ee597",
+            "em-a85045965911"
           ],
           "truthTop10": [
             "em-e51e56c23fa1",
@@ -592,20 +668,20 @@
         },
         {
           "position": 5,
-          "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.689704,
+          "top10Recall": 0.1,
+          "top30Recall": 0.1,
+          "spearmanTop30": -0.551157,
           "blindTop10": [
-            "em-f2bb13033bf0",
-            "em-220d63bfc07c",
-            "em-231cdc0f0757",
-            "em-35e37020b193",
-            "em-3ff69ed35fe7",
-            "em-b9e75bc0b1f9",
-            "em-c08850a0aec0",
-            "em-b791d78202d5",
-            "em-215080a7a05b",
-            "em-8476f5773554"
+            "y26-extra-gashadokuro",
+            "em-a78326864213",
+            "em-a8e1bfbd68cd",
+            "em-2849b1a72ff2",
+            "em-5e67f5f55234",
+            "em-962f1faafed7",
+            "em-c25db2f5b4ff",
+            "em-a5e1e009bda8",
+            "em-2c5d06641a28",
+            "em-370ba5df8d09"
           ],
           "truthTop10": [
             "em-2905dc6523ff",
@@ -625,29 +701,36 @@
     {
       "attributeKey": "water-wind",
       "summary": {
-        "meanTop10Recall": 0,
-        "meanTop30Recall": 0.04,
-        "meanSpearmanTop30": -0.487375,
+        "meanTop10Recall": 0.04,
+        "meanTop30Recall": 0.113333,
+        "meanSpearmanTop30": -0.534435,
         "topDeckCharacterSimilarity": 0,
-        "roleCompositionSimilarity": 0.76,
-        "bestResponseGap": 0.299219,
-        "blindBestOnTrue": 0.534114,
+        "roleCompositionSimilarity": 0.793333,
+        "bestResponseGap": 0.320889,
+        "blindBestOnTrue": 0.512445,
         "trueBestOnTrue": 0.833333,
-        "blindBestOnBlind": 0.544297,
-        "trueBestOnBlind": 0.917329,
-        "blindTransferDrop": 0.010183,
+        "blindBestOnBlind": 0.530409,
+        "trueBestOnBlind": 0.978677,
+        "blindTransferDrop": 0.017964,
         "trueTransferDrop": 0
       },
       "perSlot": [
         {
           "position": 1,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.474902,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.61813,
           "blindTop10": [
             "em-9445cdb23342",
+            "em-a78326864213",
             "em-ef36b9b34984",
-            "em-b2d6a846bb36"
+            "em-2f3cf0f345e4",
+            "em-5e67f5f55234",
+            "y26-limited-legend-painya",
+            "y26-extra-gashadokuro",
+            "em-a8e1bfbd68cd",
+            "em-b2125332555b",
+            "em-daac43f51729"
           ],
           "truthTop10": [
             "em-2c5d06641a28",
@@ -665,11 +748,19 @@
         {
           "position": 2,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.408552,
+          "top30Recall": 0.1,
+          "spearmanTop30": -0.552747,
           "blindTop10": [
-            "em-69c457dd7e6a",
-            "em-3dc20cd01b22"
+            "em-daac43f51729",
+            "em-a06f040c9490",
+            "em-b2d6a846bb36",
+            "em-e0ae1e287b90",
+            "em-9667a89799b5",
+            "em-d7873747b412",
+            "em-77df113e9f3b",
+            "y26-fukubiki-s5-calcium",
+            "em-237ca774c5e5",
+            "em-dec390a52ee6"
           ],
           "truthTop10": [
             "em-7a8f08b97855",
@@ -687,11 +778,19 @@
         {
           "position": 3,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.408552,
+          "top30Recall": 0.033333,
+          "spearmanTop30": -0.615669,
           "blindTop10": [
-            "em-7f18b9c64c74",
-            "em-009ea40e4b39"
+            "em-33880cee5e60",
+            "em-748c1a866dbc",
+            "em-94f677409ee2",
+            "em-b2d6a846bb36",
+            "em-9667a89799b5",
+            "y26-limited-legend-painya",
+            "em-744815bd68e5",
+            "em-a06f040c9490",
+            "y26-extra-oomukade",
+            "em-e0ae1e287b90"
           ],
           "truthTop10": [
             "y26-battle-turan",
@@ -709,19 +808,19 @@
         {
           "position": 4,
           "top10Recall": 0,
-          "top30Recall": 0.033333,
-          "spearmanTop30": -0.574718,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.640829,
           "blindTop10": [
-            "em-8cafabee26c4",
-            "em-4352c1e3cc20",
-            "em-1eb8ca42b88a",
-            "em-efe37d2509f9",
-            "em-6c2ea8631e0d",
-            "em-3803f94f5ae7",
-            "em-45aaafc4cae5",
-            "em-089a6280b9d6",
-            "em-b041a6f6cf00",
-            "em-ad82a61bcc2a"
+            "em-33880cee5e60",
+            "y26-extra-oomukade",
+            "em-748c1a866dbc",
+            "em-94f677409ee2",
+            "em-c25db2f5b4ff",
+            "em-a8e1bfbd68cd",
+            "em-05c5072dc080",
+            "em-94dc3d86f691",
+            "y26-limited-legend-painya",
+            "em-ef36b9b34984"
           ],
           "truthTop10": [
             "em-347ffee895b9",
@@ -738,20 +837,20 @@
         },
         {
           "position": 5,
-          "top10Recall": 0,
-          "top30Recall": 0.166667,
-          "spearmanTop30": -0.570149,
+          "top10Recall": 0.2,
+          "top30Recall": 0.3,
+          "spearmanTop30": -0.2448,
           "blindTop10": [
-            "em-8476f5773554",
-            "em-a20c59ca87c1",
-            "em-1c5a28eee21d",
-            "em-b791d78202d5",
-            "em-bd98030ead3e",
-            "em-82e855b7910f",
-            "em-c67e33bb61cf",
-            "em-ec64495c1963",
-            "em-bc840d35c547",
-            "em-ec978322ece8"
+            "em-45aa4b2348d2",
+            "y26-extra-gashadokuro",
+            "em-4a7831bec582",
+            "em-22f9d46fe6f4",
+            "em-a78326864213",
+            "em-962f1faafed7",
+            "em-a8e1bfbd68cd",
+            "em-b2125332555b",
+            "em-94dc3d86f691",
+            "em-5e67f5f55234"
           ],
           "truthTop10": [
             "em-a8e1bfbd68cd",
@@ -771,16 +870,16 @@
     {
       "attributeKey": "water",
       "summary": {
-        "meanTop10Recall": 0.04,
-        "meanTop30Recall": 0.06,
-        "meanSpearmanTop30": -0.476834,
-        "topDeckCharacterSimilarity": 0.026667,
-        "roleCompositionSimilarity": 0.766667,
-        "bestResponseGap": 0.148222,
-        "blindBestOnTrue": 0.693885,
+        "meanTop10Recall": 0.02,
+        "meanTop30Recall": 0.086667,
+        "meanSpearmanTop30": -0.571541,
+        "topDeckCharacterSimilarity": 0.013333,
+        "roleCompositionSimilarity": 0.853333,
+        "bestResponseGap": 0.231854,
+        "blindBestOnTrue": 0.610253,
         "trueBestOnTrue": 0.842107,
-        "blindBestOnBlind": 0.673393,
-        "trueBestOnBlind": 0.960608,
+        "blindBestOnBlind": 0.522142,
+        "trueBestOnBlind": 0.849415,
         "blindTransferDrop": 0,
         "trueTransferDrop": 0
       },
@@ -789,12 +888,18 @@
           "position": 1,
           "top10Recall": 0,
           "top30Recall": 0,
-          "spearmanTop30": -0.52293,
+          "spearmanTop30": -0.615894,
           "blindTop10": [
-            "em-5a8b6c2acb19",
-            "em-8d38e9c3aa92",
+            "em-daac43f51729",
             "em-60119eda4c9c",
-            "y26-extra-oomukade"
+            "em-94f677409ee2",
+            "em-4c03ad40dce9",
+            "y26-extra-oomukade",
+            "em-22f9d46fe6f4",
+            "em-33880cee5e60",
+            "em-6eed78e1fe62",
+            "em-4e2a71a8e1a6",
+            "em-8d38e9c3aa92"
           ],
           "truthTop10": [
             "em-ed2bb6e12815",
@@ -811,13 +916,20 @@
         },
         {
           "position": 2,
-          "top10Recall": 0,
+          "top10Recall": 0.1,
           "top30Recall": 0.066667,
-          "spearmanTop30": -0.269937,
+          "spearmanTop30": -0.553698,
           "blindTop10": [
-            "em-d4e50f80f825",
-            "y26-fukubiki-s5-calcium",
-            "em-ee43bce0e25f"
+            "em-d7873747b412",
+            "em-9667a89799b5",
+            "em-daac43f51729",
+            "em-a06f040c9490",
+            "em-e84c5851ba6b",
+            "em-2f36c9341591",
+            "em-744815bd68e5",
+            "em-8d38e9c3aa92",
+            "em-237ca774c5e5",
+            "em-0e9d90fcbf69"
           ],
           "truthTop10": [
             "em-7688ea925e5e",
@@ -835,11 +947,19 @@
         {
           "position": 3,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.408552,
+          "top30Recall": 0.133333,
+          "spearmanTop30": -0.525786,
           "blindTop10": [
-            "em-7c5fdd7af70d",
-            "em-377a00f7a666"
+            "em-33880cee5e60",
+            "em-2f36c9341591",
+            "em-9667a89799b5",
+            "em-94f677409ee2",
+            "y26-extra-oomukade",
+            "em-a06f040c9490",
+            "em-d6ea073b633e",
+            "em-744815bd68e5",
+            "y26-limited-natsu-tsutsuhiko",
+            "em-dec390a52ee6"
           ],
           "truthTop10": [
             "em-52de8bb54262",
@@ -856,20 +976,20 @@
         },
         {
           "position": 4,
-          "top10Recall": 0.1,
-          "top30Recall": 0.033333,
-          "spearmanTop30": -0.57917,
+          "top10Recall": 0,
+          "top30Recall": 0.133333,
+          "spearmanTop30": -0.561361,
           "blindTop10": [
-            "em-3803f94f5ae7",
-            "em-8cafabee26c4",
-            "em-99460641a41d",
-            "em-6c2ea8631e0d",
-            "em-64fa899f397f",
-            "em-1d6b42059506",
-            "em-b041a6f6cf00",
-            "em-089a6280b9d6",
-            "em-d6ea073b633e",
-            "em-5d62afcf01d5"
+            "em-94f677409ee2",
+            "em-a8e1bfbd68cd",
+            "em-05c5072dc080",
+            "em-33880cee5e60",
+            "em-94dc3d86f691",
+            "em-4c03ad40dce9",
+            "em-4e3940289203",
+            "y26-extra-oomukade",
+            "y26-limited-natsu-tsutsuhiko",
+            "em-d6ea073b633e"
           ],
           "truthTop10": [
             "em-c87499b64151",
@@ -886,20 +1006,20 @@
         },
         {
           "position": 5,
-          "top10Recall": 0.1,
-          "top30Recall": 0.2,
-          "spearmanTop30": -0.603583,
+          "top10Recall": 0,
+          "top30Recall": 0.1,
+          "spearmanTop30": -0.600967,
           "blindTop10": [
-            "em-9d8b6a4d2c9c",
-            "em-f3234f88661c",
-            "em-9c344f264735",
-            "em-7fafc017f6f6",
-            "em-b791d78202d5",
-            "em-8cafabee26c4",
-            "em-a20c59ca87c1",
-            "em-8476f5773554",
-            "em-51bdb94ec3b1",
-            "em-ec64495c1963"
+            "y26-extra-gashadokuro",
+            "em-a8e1bfbd68cd",
+            "em-45aa4b2348d2",
+            "em-05c5072dc080",
+            "em-22f9d46fe6f4",
+            "em-a78326864213",
+            "em-94dc3d86f691",
+            "em-2a5e6ca1207c",
+            "em-962f1faafed7",
+            "em-076a0181e290"
           ],
           "truthTop10": [
             "y26-limited-setogiwa",
@@ -919,27 +1039,36 @@
     {
       "attributeKey": "wind",
       "summary": {
-        "meanTop10Recall": 0.02,
-        "meanTop30Recall": 0.013333,
-        "meanSpearmanTop30": -0.387053,
+        "meanTop10Recall": 0.08,
+        "meanTop30Recall": 0.066667,
+        "meanSpearmanTop30": -0.512224,
         "topDeckCharacterSimilarity": 0.033333,
-        "roleCompositionSimilarity": 0.613333,
-        "bestResponseGap": 0.375,
-        "blindBestOnTrue": 0.416667,
+        "roleCompositionSimilarity": 0.76,
+        "bestResponseGap": 0.340278,
+        "blindBestOnTrue": 0.451389,
         "trueBestOnTrue": 0.791667,
-        "blindBestOnBlind": 0.708333,
+        "blindBestOnBlind": 0.847222,
         "trueBestOnBlind": 1,
-        "blindTransferDrop": 0.291667,
+        "blindTransferDrop": 0.395833,
         "trueTransferDrop": 0
       },
       "perSlot": [
         {
           "position": 1,
           "top10Recall": 0.1,
-          "top30Recall": 0.033333,
-          "spearmanTop30": 0.203815,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.471106,
           "blindTop10": [
-            "em-9445cdb23342"
+            "y26-extra-gashadokuro",
+            "em-b2d6a846bb36",
+            "em-ef36b9b34984",
+            "em-5e492c884ca0",
+            "em-9445cdb23342",
+            "y26-yurugari-sharmy4",
+            "em-404f12535630",
+            "em-ccfeb40e6439",
+            "em-9667a89799b5",
+            "em-c25db2f5b4ff"
           ],
           "truthTop10": [
             "em-018ed1cdac9e",
@@ -957,12 +1086,19 @@
         {
           "position": 2,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.474902,
+          "top30Recall": 0.033333,
+          "spearmanTop30": -0.596672,
           "blindTop10": [
-            "em-3dc20cd01b22",
-            "em-8eb59e6085d5",
-            "em-7db26a11a40b"
+            "em-b2d6a846bb36",
+            "em-0e9d90fcbf69",
+            "em-daac43f51729",
+            "em-9c0c703673c5",
+            "em-77df113e9f3b",
+            "em-237ca774c5e5",
+            "em-f5955c15b029",
+            "em-9667a89799b5",
+            "em-404f12535630",
+            "em-8d38e9c3aa92"
           ],
           "truthTop10": [
             "em-2c2759ede728",
@@ -980,13 +1116,19 @@
         {
           "position": 3,
           "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.52293,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.604859,
           "blindTop10": [
-            "em-681f5ba59a2b",
-            "em-57c0701ee61b",
-            "em-009ea40e4b39",
-            "em-3dc20cd01b22"
+            "em-748c1a866dbc",
+            "em-33880cee5e60",
+            "em-b2d6a846bb36",
+            "y26-extra-oomukade",
+            "em-744815bd68e5",
+            "em-9667a89799b5",
+            "em-e0ae1e287b90",
+            "em-dec390a52ee6",
+            "em-f33de53ee597",
+            "em-a85045965911"
           ],
           "truthTop10": [
             "em-a3563f41a151",
@@ -1003,16 +1145,20 @@
         },
         {
           "position": 4,
-          "top10Recall": 0,
-          "top30Recall": 0.033333,
-          "spearmanTop30": -0.509382,
+          "top10Recall": 0.1,
+          "top30Recall": 0.066667,
+          "spearmanTop30": -0.477392,
           "blindTop10": [
-            "em-45aaafc4cae5",
-            "em-009ea40e4b39",
-            "em-7c5fdd7af70d",
-            "em-2e5ec7f48778",
-            "em-8cafabee26c4",
-            "em-7380c7ba233b"
+            "em-748c1a866dbc",
+            "em-33880cee5e60",
+            "em-05c5072dc080",
+            "em-a280c7496ca0",
+            "em-c25db2f5b4ff",
+            "y26-limited-legend-painya",
+            "em-f33de53ee597",
+            "y26-extra-oomukade",
+            "em-ef36b9b34984",
+            "em-4805525cb8a4"
           ],
           "truthTop10": [
             "em-7652802e8fc0",
@@ -1029,18 +1175,20 @@
         },
         {
           "position": 5,
-          "top10Recall": 0,
-          "top30Recall": 0,
-          "spearmanTop30": -0.631865,
+          "top10Recall": 0.2,
+          "top30Recall": 0.1,
+          "spearmanTop30": -0.41109,
           "blindTop10": [
-            "em-91e135a19050",
-            "em-9d120ca3b0c7",
-            "em-d4ddef9a4e05",
-            "em-1e8ec25622df",
-            "em-1c5a28eee21d",
-            "em-59904245c69f",
-            "em-8cafabee26c4",
-            "em-96c8b7af6f5c"
+            "y26-extra-gashadokuro",
+            "em-5e67f5f55234",
+            "em-b2125332555b",
+            "em-4a7831bec582",
+            "em-22f9d46fe6f4",
+            "em-2a5e6ca1207c",
+            "em-c25db2f5b4ff",
+            "em-5e492c884ca0",
+            "em-8d4f1b618997",
+            "em-05c5072dc080"
           ],
           "truthTop10": [
             "em-8d4f1b618997",
