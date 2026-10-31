@@ -427,6 +427,54 @@ For small fixes, a dated entry in the rolling log below is sufficient. If the ch
 
 ## 18. Rolling handoff log
 
+### 2026-10-31 — Cost200 slot-counterfactual multiround correction
+
+User correction:
+
+- a character must be judged by whether it actually contributes in its own slot.
+- poor performance by the other four slots must not automatically make the tested slot character look weak.
+- deck-level win rate is still needed for final deck quality, but character ranking must include same-four-slot replacement evidence.
+
+Root bug confirmed:
+
+- the previous independent Cost200 script's `updateEvidence()` spread the whole deck score across all five characters.
+- that confounded individual slot contribution with partner quality and helped create a closed self-play meta.
+
+Implementation in `scripts/run-metagame-v12-independent-cost200-test.mjs`:
+
+- removed deck-score-to-all-five evidence updates.
+- every round now directly audits legal characters by holding four slots fixed and changing only the tested slot.
+- candidate and baseline are evaluated on the same scenarios; paired win-value deltas are recorded.
+- per-character slot evidence tracks mean marginal gain, robust/lower-bound gain, top-matchup opportunity gain, positive-context rate, and best opportunity gain.
+- situational counterpicks are intentionally preserved: the ranking score combines mean marginal effect with a large opportunity component rather than requiring universal strength.
+- every legal character is assigned to a legal anchor each round; assignment rotates across rounds so the same character is measured in different four-slot contexts.
+- historical/diverse Hall-of-Fame decks stay in scenario construction so the search does not forget old archetypes and collapse into one closed local meta.
+- complete-deck beam generation now consumes these measured slot effects, so multi-slot combinations can be rebuilt from independently strong parts.
+- convergence now requires both deck-frontier stability and slot-ranking stability.
+- final slot rankings come from paired slot-counterfactual evidence, not merely frequency inside winning decks.
+- final deck ranking still uses full 5v5 battle performance.
+
+Run settings:
+
+- Cost100 remains completely excluded.
+- 7 Cost200 attribute conditions run independently in parallel.
+- broad zero-start probe remains.
+- counterfactual scenarios: 3 paired scenarios per character per round, with different anchor contexts across rounds.
+- counterfactual anchors: 20.
+- minimum rounds: 6.
+- maximum rounds: 9.
+- complete-deck candidates per round: 340.
+- beam width: 12,000.
+- measured slot candidate limit: 320.
+- a final extra counterfactual audit is performed against the finished field before slot rankings are emitted.
+
+Current run:
+
+- workflow run `41201509018`
+- head commit `bc8a1edc0aa8219872dd6a463841a8144221c1dc`
+- all seven generation jobs entered the real generation step with no syntax failure at the latest check.
+
+
 ### 2026-10-28 — Cost200 is now reconstructed independently from zero
 
 User direction:
