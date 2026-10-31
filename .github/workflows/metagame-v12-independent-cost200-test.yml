@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/independent-output"
-          node scripts/run-metagame-v12-independent-cost200-test.mjs             --attribute="${{ matrix.attribute }}"             --output="$RUNNER_TEMP/independent-output/${{ matrix.attribute }}.json"             --probe-scenario-count=4             --scenario-count=18             --min-rounds=5             --max-rounds=7             --candidate-limit=300             --beam-width=10000             --slot-limit=260
+          node scripts/run-metagame-v12-independent-cost200-test.mjs             --attribute="${{ matrix.attribute }}"             --output="$RUNNER_TEMP/independent-output/${{ matrix.attribute }}.json"             --probe-scenario-count=4             --scenario-count=18             --counterfactual-scenario-count=3             --counterfactual-anchor-count=20             --min-rounds=6             --max-rounds=9             --candidate-limit=340             --beam-width=12000             --slot-limit=320
       - uses: actions/upload-artifact@v4
         with:
           name: independent-cost200-${{ matrix.attribute }}
