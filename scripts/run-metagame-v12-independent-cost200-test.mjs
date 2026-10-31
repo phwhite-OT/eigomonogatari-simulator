@@ -134,7 +134,7 @@ function makeScenarios(environmentEntries, count) {
   return scenarios;
 }
 
-function evaluateDeckAgainstScenarios(deck, scenarios, turns = 12) {
+function evaluateDeckAgainstScenarios(deck, scenarios, turns = 12, options = {}) {
   const values = [];
   const outcomes = { allies: 0, draw: 0, enemies: 0, ongoing: 0 };
   for (let index = 0; index < scenarios.length; index += 1) {
@@ -159,7 +159,7 @@ function evaluateDeckAgainstScenarios(deck, scenarios, turns = 12) {
     outcomes[result.outcome] += 1;
   }
   const divisor = Math.max(1, values.length);
-  return {
+  const summary = {
     mean: average(values),
     lower: lowerBound(values),
     decisiveWinRate: outcomes.allies / divisor,
@@ -167,6 +167,8 @@ function evaluateDeckAgainstScenarios(deck, scenarios, turns = 12) {
     decisiveLossRate: outcomes.enemies / divisor,
     ongoingRate: outcomes.ongoing / divisor,
   };
+  if (options.includeValues === true) summary.values = values;
+  return summary;
 }
 
 function evaluateEntries(entries, scenarios, turns, label) {
@@ -363,28 +365,79 @@ function createEvidence() {
   return Array.from({ length: 5 }, () => new Map());
 }
 
-function updateEvidence(evidence, entries, weight = 1) {
-  for (const entry of entries) {
-    const score = clamp01(entry.metaScore ?? entry.mean ?? 0.5);
-    for (let position = 0; position < 5; position += 1) {
-      const id = characterId(entry.deck[position]);
-      const current = evidence[position].get(id) ?? { weightedSum: 0, weight: 0, best: 0, appearances: 0 };
-      current.weightedSum += score * weight;
-      current.weight += weight;
-      current.best = Math.max(current.best, score);
-      current.appearances += 1;
-      evidence[position].set(id, current);
-    }
+function updateCounterfactualEvidence(evidence, position, character, observation) {
+  const id = characterId(character);
+  const map = evidence[position - 1];
+  const current = map.get(id) ?? {
+    id,
+    name: character.name,
+    role: roleFromCharacter(character),
+    observations: [],
+    meanDeltas: [],
+    robustDeltas: [],
+    opportunityDeltas: [],
+    positiveCount: 0,
+    bestDelta: Number.NEGATIVE_INFINITY,
+  };
+  current.observations.push(observation);
+  current.meanDeltas.push(Number(observation.meanDelta) || 0);
+  current.robustDeltas.push(Number(observation.robustDelta) || 0);
+  current.opportunityDeltas.push(Number(observation.opportunityDelta) || 0);
+  if ((Number(observation.meanDelta) || 0) > 0) current.positiveCount += 1;
+  current.bestDelta = Math.max(current.bestDelta, Number(observation.opportunityDelta) || 0);
+  map.set(id, current);
+}
+
+function evidenceStats(item) {
+  if (!item?.observations?.length) {
+    return {
+      contexts: 0,
+      meanDelta: 0,
+      robustDelta: 0,
+      opportunityDelta: 0,
+      positiveRate: 0,
+      bestDelta: 0,
+      compositeDelta: 0,
+    };
   }
+  const meanDelta = average(item.meanDeltas);
+  const robustDelta = average(item.robustDeltas);
+  const opportunityDelta = average(item.opportunityDeltas);
+  const positiveRate = item.positiveCount / item.observations.length;
+  const compositeDelta = (
+    meanDelta * 0.45
+    + opportunityDelta * 0.40
+    + robustDelta * 0.15
+  );
+  return {
+    contexts: item.observations.length,
+    meanDelta,
+    robustDelta,
+    opportunityDelta,
+    positiveRate,
+    bestDelta: Number.isFinite(item.bestDelta) ? item.bestDelta : 0,
+    compositeDelta,
+  };
 }
 
 function evidenceScore(evidence, position, id) {
   const item = evidence[position - 1].get(String(id));
-  if (!item || item.weight <= 0) return 0.5;
-  const mean = item.weightedSum / item.weight;
-  const raw = mean * 0.68 + item.best * 0.32;
-  const confidence = Math.min(1, item.weight / 4);
-  return clamp01(0.5 + (raw - 0.5) * confidence);
+  const stats = evidenceStats(item);
+  if (!stats.contexts) return 0.5;
+  const confidence = Math.min(1, stats.contexts / 4);
+  return clamp01(0.5 + stats.compositeDelta * 1.35 * confidence);
+}
+
+function slotFrontierKeys(evidence, depth = 20) {
+  return evidence.flatMap((map, index) => [...map.values()]
+    .map((item) => ({
+      id: String(item.id),
+      score: evidenceStats(item).compositeDelta,
+      position: index + 1,
+    }))
+    .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id))
+    .slice(0, depth)
+    .map((entry) => `${entry.position}:${entry.id}`));
 }
 
 function neutralMeasuredRating(character, position, score) {
@@ -522,6 +575,168 @@ function buildMutationCandidates(frontier, eligibleByPosition, evidence, constra
   return [...unique.values()].sort((left, right) => right.searchScore - left.searchScore);
 }
 
+function chooseCounterfactualAnchors(environment, hallOfFame, broadSeeds, limit, budget) {
+  const selected = new Map();
+  const add = (entry) => {
+    const key = deckKey(entry?.deck);
+    if (key && !selected.has(key) && selected.size < limit) selected.set(key, entry);
+  };
+
+  [...environment]
+    .sort((left, right) => entryScore(right) - entryScore(left))
+    .slice(0, Math.max(4, Math.floor(limit * 0.4)))
+    .forEach(add);
+
+  chooseDiverseDecks(
+    [...environment, ...hallOfFame, ...broadSeeds],
+    Math.max(limit * 4, limit),
+    budget,
+    false,
+  ).forEach(add);
+  return [...selected.values()];
+}
+
+function buildScenarioSource(environment, hallOfFame, broadSeeds, budget, limit = 84) {
+  const selected = new Map();
+  const add = (entry) => {
+    const key = deckKey(entry?.deck);
+    if (key && !selected.has(key) && selected.size < limit) selected.set(key, entry);
+  };
+
+  [...environment]
+    .sort((left, right) => entryScore(right) - entryScore(left))
+    .slice(0, Math.floor(limit * 0.5))
+    .forEach(add);
+  chooseDiverseDecks(hallOfFame, Math.floor(limit * 0.3), budget, false).forEach(add);
+  chooseDiverseDecks(broadSeeds, Math.floor(limit * 0.2), budget, false).forEach(add);
+  chooseDiverseDecks(
+    [...environment, ...hallOfFame, ...broadSeeds],
+    limit,
+    budget,
+    false,
+  ).forEach(add);
+  return [...selected.values()];
+}
+
+function updateHallOfFame(hallMap, evaluated, budget, limit = 180) {
+  const candidates = [
+    ...[...evaluated].sort((left, right) => entryScore(right) - entryScore(left)).slice(0, 28),
+    ...chooseDiverseDecks(evaluated, 28, budget, false),
+  ];
+  for (const entry of candidates) {
+    const key = deckKey(entry.deck);
+    const current = hallMap.get(key);
+    if (!current || entryScore(entry) > entryScore(current)) hallMap.set(key, entry);
+  }
+  if (hallMap.size > limit) {
+    const retained = chooseDiverseDecks([...hallMap.values()], limit, budget, true);
+    hallMap.clear();
+    retained.forEach((entry) => hallMap.set(deckKey(entry.deck), entry));
+  }
+}
+
+function auditSlotCounterfactuals({
+  round,
+  environment,
+  hallOfFame,
+  broadSeeds,
+  eligibleByPosition,
+  evidence,
+  constraint,
+  turns,
+  scenarioCount,
+  anchorCount,
+}) {
+  const anchors = chooseCounterfactualAnchors(
+    environment,
+    hallOfFame,
+    broadSeeds,
+    anchorCount,
+    constraint.totalCost,
+  );
+  const scenarioSource = buildScenarioSource(
+    environment,
+    hallOfFame,
+    broadSeeds,
+    constraint.totalCost,
+  );
+  const scenarios = makeScenarios(scenarioSource, scenarioCount);
+  const baselineByKey = new Map();
+  for (const anchor of anchors) {
+    baselineByKey.set(
+      deckKey(anchor.deck),
+      evaluateDeckAgainstScenarios(anchor.deck, scenarios, turns, { includeValues: true }),
+    );
+  }
+
+  const summary = [];
+  let totalEvaluated = 0;
+  for (let position = 1; position <= 5; position += 1) {
+    let evaluatedAtPosition = 0;
+    const candidates = eligibleByPosition[position - 1];
+    for (let candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
+      const character = candidates[candidateIndex];
+      let chosenAnchor = null;
+      let replacementDeck = null;
+      const offset = (candidateIndex + round * 7 + position * 11) % Math.max(1, anchors.length);
+
+      for (let attempt = 0; attempt < anchors.length; attempt += 1) {
+        const anchor = anchors[(offset + attempt) % anchors.length];
+        if (characterId(anchor.deck[position - 1]) === characterId(character)) continue;
+        if (anchor.deck.some((entry, index) => index !== position - 1 && characterId(entry) === characterId(character))) continue;
+        const deck = [...anchor.deck];
+        deck[position - 1] = character;
+        if (!metagameDeckIsLegal(deck, constraint)) continue;
+        chosenAnchor = anchor;
+        replacementDeck = deck;
+        break;
+      }
+      if (!chosenAnchor || !replacementDeck) continue;
+
+      const baseline = baselineByKey.get(deckKey(chosenAnchor.deck));
+      const replacement = evaluateDeckAgainstScenarios(
+        replacementDeck,
+        scenarios,
+        turns,
+        { includeValues: true },
+      );
+      const pairedDeltas = replacement.values.map((value, index) => (
+        Number(value) - Number(baseline.values[index] ?? 0)
+      ));
+      const sorted = [...pairedDeltas].sort((left, right) => right - left);
+      const opportunityCount = Math.max(1, Math.ceil(sorted.length * 0.35));
+      updateCounterfactualEvidence(evidence, position, character, {
+        round,
+        anchorKey: deckKey(chosenAnchor.deck),
+        meanDelta: average(pairedDeltas),
+        robustDelta: lowerBound(pairedDeltas),
+        opportunityDelta: average(sorted.slice(0, opportunityCount)),
+        positiveScenarioRate: pairedDeltas.filter((value) => value > 0).length / Math.max(1, pairedDeltas.length),
+        replacementMean: replacement.mean,
+        baselineMean: baseline.mean,
+      });
+      evaluatedAtPosition += 1;
+      totalEvaluated += 1;
+    }
+    summary.push({
+      position,
+      eligible: candidates.length,
+      evaluated: evaluatedAtPosition,
+      observedCharacters: evidence[position - 1].size,
+    });
+  }
+
+  console.log(JSON.stringify({
+    counterfactualRound: round,
+    anchors: anchors.length,
+    scenarioDecks: scenarioSource.length,
+    scenarios: scenarios.length,
+    totalEvaluated,
+    byPosition: summary,
+  }));
+  return { summary, totalEvaluated };
+}
+
 function selectRoundCandidates(generatedPool, mutations, previousEnvironment, broadSeeds, limit, budget) {
   const selected = new Map();
   const add = (entry) => {
@@ -562,42 +777,43 @@ function frontierOverlap(left, right) {
   return intersection / Math.max(1, Math.min(a.size, b.size));
 }
 
-function rankBlindSlots(finalDecks) {
-  const perSlot = Array.from({ length: 5 }, () => new Map());
+function rankSlotsFromEvidence(eligibleByPosition, evidence, finalDecks) {
+  const finalAppearances = Array.from({ length: 5 }, () => new Map());
   for (let deckIndex = 0; deckIndex < finalDecks.length; deckIndex += 1) {
     const entry = finalDecks[deckIndex];
-    const deckWeight = 1 / Math.sqrt(deckIndex + 1);
+    const weight = 1 / Math.sqrt(deckIndex + 1);
     for (let position = 0; position < 5; position += 1) {
       const id = characterId(entry.deck[position]);
-      const current = perSlot[position].get(id) ?? {
-        id,
-        name: entry.deck[position].name,
-        role: roleFromCharacter(entry.deck[position]),
-        appearances: 0,
-        weightedAppearances: 0,
-        scoreSum: 0,
-        bestDeckRank: Infinity,
-      };
-      current.appearances += 1;
-      current.weightedAppearances += deckWeight;
-      current.scoreSum += Number(entry.metaScore) || 0;
-      current.bestDeckRank = Math.min(current.bestDeckRank, deckIndex + 1);
-      perSlot[position].set(id, current);
+      finalAppearances[position].set(id, (finalAppearances[position].get(id) ?? 0) + weight);
     }
   }
-  return perSlot.map((map, position) => [...map.values()]
-    .map((entry) => ({
-      ...entry,
-      position: position + 1,
-      meanDeckScore: entry.scoreSum / Math.max(1, entry.appearances),
-      blindRankScore: entry.weightedAppearances + entry.meanDeckScore * 2,
-    }))
+
+  return eligibleByPosition.map((characters, index) => characters
+    .map((character) => {
+      const stats = evidenceStats(evidence[index].get(characterId(character)));
+      return {
+        id: characterId(character),
+        name: character.name,
+        role: roleFromCharacter(character),
+        position: index + 1,
+        cost: Number(character.cost) || 0,
+        contexts: stats.contexts,
+        marginalWinGain: rounded(stats.meanDelta),
+        robustMarginalWinGain: rounded(stats.robustDelta),
+        opportunityWinGain: rounded(stats.opportunityDelta),
+        positiveContextRate: rounded(stats.positiveRate),
+        bestOpportunityGain: rounded(stats.bestDelta),
+        finalDeckPresence: rounded(finalAppearances[index].get(characterId(character)) ?? 0),
+        individualScore: rounded(stats.compositeDelta),
+      };
+    })
     .sort((left, right) => (
-      right.blindRankScore - left.blindRankScore
-      || left.bestDeckRank - right.bestDeckRank
+      right.individualScore - left.individualScore
+      || right.opportunityWinGain - left.opportunityWinGain
+      || right.contexts - left.contexts
       || String(left.id).localeCompare(String(right.id))
     ))
-    .map((entry, index) => ({ ...entry, rank: index + 1 })));
+    .map((entry, rank) => ({ ...entry, rank: rank + 1 })));
 }
 
 async function main() {
@@ -608,11 +824,13 @@ async function main() {
   const turns = Math.max(1, Math.min(12, Math.floor(numberArg("turns", 12))));
   const probeScenarioCount = Math.max(3, Math.floor(numberArg("probe-scenario-count", 4)));
   const scenarioCount = Math.max(12, Math.floor(numberArg("scenario-count", 18)));
-  const minRounds = Math.max(3, Math.floor(numberArg("min-rounds", 5)));
-  const maxRounds = Math.max(minRounds, Math.floor(numberArg("max-rounds", 7)));
-  const candidateLimit = Math.max(180, Math.floor(numberArg("candidate-limit", 300)));
-  const beamWidth = Math.max(3000, Math.floor(numberArg("beam-width", 10000)));
-  const slotLimit = Math.max(120, Math.floor(numberArg("slot-limit", 260)));
+  const counterfactualScenarioCount = Math.max(3, Math.floor(numberArg("counterfactual-scenario-count", 3)));
+  const counterfactualAnchorCount = Math.max(12, Math.floor(numberArg("counterfactual-anchor-count", 20)));
+  const minRounds = Math.max(4, Math.floor(numberArg("min-rounds", 6)));
+  const maxRounds = Math.max(minRounds, Math.floor(numberArg("max-rounds", 9)));
+  const candidateLimit = Math.max(220, Math.floor(numberArg("candidate-limit", 340)));
+  const beamWidth = Math.max(4000, Math.floor(numberArg("beam-width", 12000)));
+  const slotLimit = Math.max(160, Math.floor(numberArg("slot-limit", 320)));
 
   const baseConstraint = buildBaseConstraint(attributeKey, turns);
   const eligibleByPosition = eligibleCharactersByPosition(baseConstraint);
@@ -623,17 +841,46 @@ async function main() {
   const broad = buildBroadSeedDecks(eligibleByPosition, baseConstraint);
   console.log(`Independent Cost200 ${attributeKey}: ${broad.entries.length} zero-start seed decks, slot coverage ${broad.coverage.map((x) => `${x.feasibleAnchors}/${x.eligible}`).join(", ")}`);
 
-  const initialEnvironment = chooseDiverseDecks(broad.entries, Math.min(72, broad.entries.length), baseConstraint.totalCost, false);
+  const initialEnvironment = chooseDiverseDecks(
+    broad.entries,
+    Math.min(72, broad.entries.length),
+    baseConstraint.totalCost,
+    false,
+  );
   const probeScenarios = makeScenarios(initialEnvironment, probeScenarioCount);
   const probeEvaluated = evaluateEntries(broad.entries, probeScenarios, turns, "broad-probe");
 
   const evidence = createEvidence();
-  updateEvidence(evidence, probeEvaluated, 0.35);
-
-  let environment = chooseDiverseDecks(probeEvaluated, Math.min(60, probeEvaluated.length), baseConstraint.totalCost, true);
+  let environment = chooseDiverseDecks(
+    probeEvaluated,
+    Math.min(60, probeEvaluated.length),
+    baseConstraint.totalCost,
+    true,
+  );
   const archive = new Map(probeEvaluated.map((entry) => [deckKey(entry.deck), entry]));
+  const hallMap = new Map();
+  updateHallOfFame(hallMap, probeEvaluated, baseConstraint.totalCost);
+
+  const counterfactualSummaries = [];
+  counterfactualSummaries.push({
+    round: 0,
+    ...auditSlotCounterfactuals({
+      round: 0,
+      environment,
+      hallOfFame: [...hallMap.values()],
+      broadSeeds: broad.entries,
+      eligibleByPosition,
+      evidence,
+      constraint: baseConstraint,
+      turns,
+      scenarioCount: counterfactualScenarioCount,
+      anchorCount: counterfactualAnchorCount,
+    }),
+  });
+
   const roundSummaries = [];
   let previousFrontierKeys = null;
+  let previousSlotKeys = slotFrontierKeys(evidence);
   let previousBest = null;
   let stableRounds = 0;
   let roundsCompleted = 0;
@@ -648,7 +895,7 @@ async function main() {
         budgetNeutralExploration: true,
       },
     );
-    const mutations = buildMutationCandidates(environment, eligibleByPosition, evidence, baseConstraint, 16);
+    const mutations = buildMutationCandidates(environment, eligibleByPosition, evidence, baseConstraint, 24);
     const roundCandidates = selectRoundCandidates(
       generatedPool,
       mutations,
@@ -657,19 +904,48 @@ async function main() {
       candidateLimit,
       baseConstraint.totalCost,
     );
-    const scenarios = makeScenarios(environment, scenarioCount);
+
+    const scenarioSource = buildScenarioSource(
+      environment,
+      [...hallMap.values()],
+      broad.entries,
+      baseConstraint.totalCost,
+    );
+    const scenarios = makeScenarios(scenarioSource, scenarioCount);
     const evaluated = evaluateEntries(roundCandidates, scenarios, turns, `round-${round}`);
-    updateEvidence(evidence, evaluated, 1);
 
     for (const entry of evaluated) archive.set(deckKey(entry.deck), entry);
-    environment = chooseDiverseDecks(evaluated, Math.min(60, evaluated.length), baseConstraint.totalCost, true);
+    updateHallOfFame(hallMap, evaluated, baseConstraint.totalCost);
+    environment = chooseDiverseDecks(
+      evaluated,
+      Math.min(60, evaluated.length),
+      baseConstraint.totalCost,
+      true,
+    );
+
+    const counterfactual = auditSlotCounterfactuals({
+      round,
+      environment,
+      hallOfFame: [...hallMap.values()],
+      broadSeeds: broad.entries,
+      eligibleByPosition,
+      evidence,
+      constraint: baseConstraint,
+      turns,
+      scenarioCount: counterfactualScenarioCount,
+      anchorCount: counterfactualAnchorCount,
+    });
+    counterfactualSummaries.push({ round, ...counterfactual });
 
     const frontierKeys = environment.slice(0, 24).map((entry) => deckKey(entry.deck));
+    const currentSlotKeys = slotFrontierKeys(evidence);
     const overlap = frontierOverlap(frontierKeys, previousFrontierKeys);
+    const slotOverlap = frontierOverlap(currentSlotKeys, previousSlotKeys);
     const best = Number(evaluated[0]?.mean) || 0;
     const improvement = previousBest === null ? null : best - previousBest;
     const convergedThisRound = round >= minRounds
-      && overlap >= 0.65
+      && overlap >= 0.60
+      && slotOverlap >= 0.70
       && improvement !== null
       && Math.abs(improvement) <= 0.015;
     stableRounds = convergedThisRound ? stableRounds + 1 : 0;
@@ -683,8 +959,10 @@ async function main() {
       bestLower: rounded(evaluated[0]?.lower),
       bestCost: totalCost(evaluated[0]?.deck),
       frontierOverlap: rounded(overlap),
+      slotFrontierOverlap: rounded(slotOverlap),
       bestImprovement: improvement === null ? null : rounded(improvement),
       stableRounds,
+      counterfactualEvaluations: counterfactual.totalEvaluated,
       topDecks: evaluated.slice(0, 10).map((entry) => ({
         ids: entry.deck.map(characterId),
         names: entry.deck.map((character) => character.name),
@@ -702,14 +980,17 @@ async function main() {
       bestMean: rounded(best),
       bestCost: totalCost(evaluated[0]?.deck),
       frontierOverlap: rounded(overlap),
+      slotFrontierOverlap: rounded(slotOverlap),
       bestImprovement: improvement === null ? null : rounded(improvement),
       stableRounds,
+      counterfactualEvaluations: counterfactual.totalEvaluated,
     }));
 
     previousFrontierKeys = frontierKeys;
+    previousSlotKeys = currentSlotKeys;
     previousBest = best;
     if (round >= minRounds && stableRounds >= 2) {
-      console.log(`Independent Cost200 ${attributeKey} converged after ${round} rounds.`);
+      console.log(`Independent Cost200 ${attributeKey} converged after ${round} rounds with stable deck and slot frontiers.`);
       break;
     }
   }
@@ -719,20 +1000,51 @@ async function main() {
     || deckKey(left.deck).localeCompare(deckKey(right.deck))
   ));
   const finalCandidates = chooseDiverseDecks(
-    archived,
-    Math.min(420, archived.length),
+    [...archived, ...hallMap.values()],
+    Math.min(520, archived.length + hallMap.size),
     baseConstraint.totalCost,
     true,
   );
-  const finalScenarios = makeScenarios(environment, Math.max(30, scenarioCount));
+  const finalScenarioSource = buildScenarioSource(
+    environment,
+    [...hallMap.values()],
+    broad.entries,
+    baseConstraint.totalCost,
+    96,
+  );
+  const finalScenarios = makeScenarios(finalScenarioSource, Math.max(36, scenarioCount));
   const finalDecks = evaluateEntries(finalCandidates, finalScenarios, turns, "final")
-    .slice(0, 64);
-  const slotRankings = rankBlindSlots(finalDecks);
+    .slice(0, 72);
+
+  const finalCounterfactual = auditSlotCounterfactuals({
+    round: roundsCompleted + 1,
+    environment: finalDecks,
+    hallOfFame: [...hallMap.values()],
+    broadSeeds: broad.entries,
+    eligibleByPosition,
+    evidence,
+    constraint: baseConstraint,
+    turns,
+    scenarioCount: Math.max(counterfactualScenarioCount, 4),
+    anchorCount: counterfactualAnchorCount,
+  });
+  counterfactualSummaries.push({ round: roundsCompleted + 1, final: true, ...finalCounterfactual });
+
+  const slotRankings = rankSlotsFromEvidence(eligibleByPosition, evidence, finalDecks);
+  const evidenceCoverage = slotRankings.map((entries, index) => ({
+    position: index + 1,
+    eligible: eligibleByPosition[index].length,
+    directlyMeasured: entries.filter((entry) => entry.contexts > 0).length,
+    minimumContexts: Math.min(...entries.filter((entry) => entry.contexts > 0).map((entry) => entry.contexts)),
+    medianContexts: entries.length
+      ? [...entries].map((entry) => entry.contexts).sort((a, b) => a - b)[Math.floor(entries.length / 2)]
+      : 0,
+  }));
 
   const output = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     generatedAt: new Date().toISOString(),
-    test: "cost200-independent-zero-start-multiround",
+    test: "cost200-independent-counterfactual-multiround",
     blindGuarantee: {
       generationInputCost: null,
       requestedCost: 200,
@@ -743,7 +1055,7 @@ async function main() {
       usesCost200Report: false,
       usesCost200EnvironmentInput: false,
       usesCost200CompletedDecks: false,
-      source: "Character catalog + Cost200 legality only; broad zero-start probes followed by iterative self-play and measured one-slot deep search.",
+      source: "Character catalog + Cost200 legality only. Every round directly measures each legal character by same-four-slot replacement, then rebuilds complete decks from those marginal slot effects and repeats self-play.",
     },
     attributeKey,
     constraint: {
@@ -752,6 +1064,8 @@ async function main() {
       turns,
       probeScenarioCount,
       scenarioCount,
+      counterfactualScenarioCount,
+      counterfactualAnchorCount,
       minRounds,
       maxRounds,
       roundsCompleted,
@@ -762,8 +1076,15 @@ async function main() {
       eligibleBySlot: eligibleByPosition.map((pool) => pool.length),
       broadSeedDecks: broad.entries.length,
       broadAnchorCoverage: broad.coverage,
+      evidenceCoverage,
     },
     roundSummaries,
+    counterfactualSummaries: counterfactualSummaries.map((entry) => ({
+      round: entry.round,
+      final: entry.final === true,
+      totalEvaluated: entry.totalEvaluated,
+      summary: entry.summary,
+    })),
     finalEnvironment: finalDecks.map((entry, index) => ({
       rank: index + 1,
       ids: entry.deck.map(characterId),
@@ -784,6 +1105,7 @@ async function main() {
     attributeKey,
     broadSeedDecks: broad.entries.length,
     roundsCompleted,
+    evidenceCoverage,
     bestDeck: output.finalEnvironment[0],
     topSlotIds: output.slotRankings.map((entries) => entries.slice(0, 5).map((entry) => entry.id)),
   }, null, 2));
